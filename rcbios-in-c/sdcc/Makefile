@@ -1,6 +1,7 @@
-# sdcc/Makefile — Build RC702 BIOS with SDCC via z88dk Docker
+# sdcc/Makefile — Build RC702 BIOS with SDCC via z88dk
 #
 # Produces bios.cim from shared sources in parent directory.
+# Uses native z88dk if available, falls back to Docker.
 # Called from parent: make -C sdcc bios.cim MSIZE=56 KBLANG=DANISH
 
 PARENT = ..
@@ -10,11 +11,20 @@ MSIZE  ?= 56
 BIOSAD ?= $(shell printf '0x%04X' $$(( 0x3400 + ($(MSIZE) - 20) * 1024 + 0x1600 )))
 KBLANG ?= DANISH
 
-# z88dk via Docker — mounts parent as /src so shared sources are visible
-DOCKER = docker run --rm \
+# z88dk: use native install if available, otherwise Docker
+Z88DK_HOME ?= $(firstword $(wildcard $(CURDIR)/../../../z88dk))
+ifneq ($(wildcard $(Z88DK_HOME)/bin/zcc),)
+  # Native z88dk
+  export ZCCCFG = $(Z88DK_HOME)/lib/config
+  export PATH := $(Z88DK_HOME)/bin:$(PATH)
+  RUN =
+else
+  # Docker fallback
+  RUN = docker run --rm \
 	-v $(CURDIR)/..:/src \
 	-w /src/sdcc \
 	z88dk:2.4
+endif
 
 ZFLAGS = +z80 -clib=sdcc_iy --no-crt --opt-code-size -SO3 \
          -Cs"--max-allocs-per-node 1000000" \
@@ -39,7 +49,7 @@ bios.cim: z88dk_section_layout.asm $(PARENT)/boot_block.c $(PARENT)/boot_confi.c
           $(PARENT)/bios_jump_vector_table.c $(PARENT)/bios.c \
           $(PARENT)/hal.h $(PARENT)/bios.h \
           $(PARENT)/builddate.h $(PARENT)/builddate.inc peephole.def
-	$(DOCKER) sh -c '\
+	$(RUN) sh -c '\
 	zcc $(ZFLAGS) -Cs"--codeseg BOOT" -Cs"--constseg BOOT" -c ../boot_block.c -o boot_block.o && \
 	zcc $(ZFLAGS) -Cs"--codeseg BOOT_DATA" -Cs"--constseg BOOT_DATA" $(if $(filter-out DANISH,$(KBLANG)),-Cs"-D$(KBLANG)") -c ../boot_confi.c -o boot_confi.o && \
 	zcc $(ZFLAGS) -Cs"--codeseg BOOT_CODE" -c ../boot_entry.c -o boot_entry.o && \

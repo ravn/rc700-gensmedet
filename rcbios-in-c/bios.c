@@ -166,14 +166,14 @@ word seksec;
 /* Host buffer state (what's cached in hstbuf) */
 static byte  hstdsk;
 static word hsttrk;
-static word hstsec;
+static byte hstsec;
 
 /* Last seek position (skip redundant FDC seeks) */
 byte  lstdsk;
 static word lsttrk;
 
 /* Intermediate: seksec >> secshf */
-static word sekhst;
+static byte sekhst;
 
 /* Buffer status */
 byte  hstact;     /* 0=empty, 1=valid */
@@ -316,16 +316,16 @@ static void fdc_seek(void)
 
 static void fdc_result(void)
 {
-    byte i;
     byte *p = (byte *)&rstab;
-    for (i = 0; i < 7; i++) {
+    byte n = 7;
+    do {
         byte delay;
-        p[i] = fdc_read();
+        *p++ = fdc_read();
         for (delay = 4; delay; delay--)
             ;
         if (!(port_in(fdc_status) & 0b00010000))  /* CB: more result bytes? */
             return;
-    }
+    } while (--n);
 }
 
 /* Interrupt flag */
@@ -719,9 +719,22 @@ static byte serial_const(void) {
     return (rxtail != rxhead) ? 0xFF : 0x00;
 }
 static byte serial_conin(void) {
+    /* Ensure RTS is asserted so host can send.  RTS may be de-asserted
+     * if the RCA ISR throttled a previous burst.  bios_reader_body only
+     * reasserts when the buffer drains to empty, but if we're called
+     * with an empty buffer and RTS=0 (e.g. after warm boot), we'd block
+     * forever.  readi() unconditionally arms RTS + receiver interrupts. */
+    if (rxtail == rxhead)
+        readi();
     return bios_reader_body();
 }
 static void serial_conout(byte c) {
+    /* Non-blocking: if SIO-A TX not ready (e.g. no host connected,
+     * CTS deasserted), skip.  CRT echo still shows the character. */
+    byte timeout = 255;
+    while (!ptpflg && --timeout)
+        ;
+    if (!timeout) return;
     bios_punch_body(c);
 }
 
@@ -774,7 +787,7 @@ static byte graph;           /* graphical mode flag (sticky) */
 
 /* Forward declarations — definitions placed for tail-call fall-through */
 static void cursor_right(void);
-static void cursorxy(void);
+static inline void cursorxy(void);
 
 /* Reset cursor to top-left (does NOT update 8275) */
 static void goto00(void);
@@ -932,9 +945,8 @@ static void carriage_return(void)
     cursorxy();
 }
 
-/* Placed after carriage_return() so the tail call falls through (saves 3 bytes).
- * CR is the hottest path — every output line ends with CR+LF. */
-static void cursorxy(void)
+/* Single byte-store — always inline to avoid CALL/RET overhead (4B per site). */
+static inline void cursorxy(void)
 {
     cur_dirty = 1;              /* deferred to isr_crt for speed */
 }
@@ -1234,7 +1246,7 @@ void bios_conout_c(byte c)
     switch (IOBYTE_CON(iobyte)) {
     case IOB_TTY:
         serial_conout(c);
-        break;
+        /* fall through to also display on CRT */
     case IOB_CRT:
         usession = c;
         if (xflg != 0) xyadd();

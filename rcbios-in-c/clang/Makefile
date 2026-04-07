@@ -1,8 +1,7 @@
 # clang/Makefile — Build RC702 BIOS with LLVM-Z80 clang
 #
 # Produces bios.cim from shared sources in parent directory.
-# Uses native macOS build by default; set NATIVE=0 for Docker.
-#
+# Uses native build if available, falls back to Docker.
 # Called from parent: make -C clang bios.cim MSIZE=56 KBLANG=DANISH
 
 PARENT = ..
@@ -12,17 +11,17 @@ MSIZE  ?= 56
 BIOSAD ?= $(shell printf '0x%04X' $$(( 0x3400 + ($(MSIZE) - 20) * 1024 + 0x1600 )))
 KBLANG ?= DANISH
 
-# LLVM-Z80 toolchain
+# LLVM-Z80 toolchain — probe for native build, fall back to Docker
 LLVM_Z80 = $(CURDIR)/../../../llvm-z80
-NATIVE ?= 1
+B_NATIVE = $(firstword $(wildcard $(LLVM_Z80)/build-macos/bin $(LLVM_Z80)/build/bin))
 
-ifneq ($(NATIVE),0)
-  # Native macOS build — run tools directly
-  B = $(LLVM_Z80)/build-macos/bin
+ifneq ($(B_NATIVE),)
+  # Native — use whichever build directory exists
+  B = $(B_NATIVE)
   RUN = cd $(PARENT) &&
   CLANG_BIN = $(B)/clang
 else
-  # Docker build — mount parent as /bios
+  # Docker fallback
   B = /src/build/bin
   RUN = docker run --rm -m 8g \
 	-v $(LLVM_Z80):/src \
@@ -32,7 +31,7 @@ else
   CLANG_BIN = $(LLVM_Z80)/build/bin/clang
 endif
 
-CFLAGS = --target=z80 -Oz -g -nostdlib \
+CFLAGS = --target=z80 -Oz -g -nostdlib -ffreestanding \
 	 -ffunction-sections -fdata-sections \
 	 -Xclang -target-feature -Xclang +static-stack \
 	 -mllvm -disable-lsr \
