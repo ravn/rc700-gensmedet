@@ -108,6 +108,34 @@ interrupts, memcpys the PROM0 + PROM1 payloads to 0x0000..0x07FF /
 without burning PROMs between edits.  Build target could be
 `cpnos-rom/testutil/cpnos_loader.com`.
 
+## Future path: CP/NOS as a PROM1 add-on to the ROA375 autoloader
+
+Per user 2026-04-21: if we can condense CP/NOS to a single PROM, put
+it in **PROM1** so the existing ROA375 autoloader in PROM0 stays
+untouched and detects/boots into it.  This preserves the stock
+physical PROM0 forever — only PROM1 ever gets reburned.
+
+Design sketch:
+- ROA375 stays at 0x0000..0x07FF (unchanged).
+- CP/NOS payload fits in PROM1 0x2000..0x27FF.
+- ROA375 gains (or already has?) a detection sequence: check PROM1
+  first for a magic byte / signature; if present, jump there instead
+  of its normal floppy-boot sequence.
+- CP/NOS-in-PROM1 would need to be completely self-contained in 2 KB
+  — smaller than the current 2 KB init + 2 KB resident layout.  The
+  resident bulk (RC700 console, SNIOS, JT) still goes to RAM, but its
+  source image now streams from PROM1 alone.
+- This requires ripping out most of the current init flow and
+  compressing the "copy + PROM-disable + jump to CCP" sequence.
+
+Issue count (I/J/...) deferred to its own task doc when pursued.
+
+## Issue: MAME patch lives in a different repo
+
+The `ROM_LOAD_OPTIONAL("prom1.ic65")` change is in `/Users/ravn/git/mame`
+on ravn/mame fork.  Commit it there separately before landing this
+branch, otherwise whoever picks up CI/physical build will be confused.
+
 ## Open issues discovered this session
 
 - **Issue Q**: `fill_trap` + stack interaction — the trap fill covers
