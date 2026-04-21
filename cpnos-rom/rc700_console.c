@@ -33,9 +33,11 @@ extern void *memmove(void *dst, const void *src, size_t n);
 extern void *memset(void *s, int c, size_t n);
 
 #ifdef __ELF__
-#define RESIDENT __attribute__((section(".resident"), used))
+#define RESIDENT     __attribute__((section(".resident"), used))
+#define RESIDENT_PRE __attribute__((section(".resident_pre"), used))
 #else
 #define RESIDENT
+#define RESIDENT_PRE
 #endif
 
 #define SCRN_COLS      80
@@ -57,14 +59,14 @@ static uint8_t  xflg;      /* XY addressing state: 0=off, 2=want1st, 1=want2nd *
 static uint8_t  adr0;      /* first XY coord while xflg==1 */
 static uint8_t  graph;     /* sticky semigraphics mode flag */
 
-RESIDENT
+RESIDENT_PRE
 static void crt_update_cursor(void) {
     _port_out(PORT_CRT_CMD,   0x80);   /* load cursor position */
     _port_out(PORT_CRT_PARAM, curx);
     _port_out(PORT_CRT_PARAM, cursy);
 }
 
-RESIDENT
+RESIDENT_PRE
 static void scroll_up(void) {
     memcpy((void *)(uintptr_t)DISPLAY_ADDR,
            (void *)(uintptr_t)(DISPLAY_ADDR + SCRN_COLS),
@@ -72,31 +74,31 @@ static void scroll_up(void) {
     memset((void *)(uintptr_t)(DISPLAY_ADDR + ROW24_OFFSET), ' ', SCRN_COLS);
 }
 
-RESIDENT
+RESIDENT_PRE
 static void home(void) {
     curx = 0;
     cury = 0;
     cursy = 0;
 }
 
-RESIDENT
+RESIDENT_PRE
 static void carriage_return(void) {
     curx = 0;
 }
 
-RESIDENT
+RESIDENT_PRE
 static void cursor_down(void) {
     if (cury < ROW24_OFFSET) { cury += SCRN_COLS; cursy++; }
     else                     { scroll_up(); }
 }
 
-RESIDENT
+RESIDENT_PRE
 static void cursor_up(void) {
     if (cury != 0) { cury -= SCRN_COLS; cursy--; }
     else           { cury = ROW24_OFFSET; cursy = SCRN_ROWS - 1; }
 }
 
-RESIDENT
+RESIDENT_PRE
 static void cursor_right(void) {
     if (curx < COL79) {
         curx++;
@@ -106,7 +108,7 @@ static void cursor_right(void) {
     }
 }
 
-RESIDENT
+RESIDENT_PRE
 static void cursor_left(void) {
     if (curx != 0) {
         curx--;
@@ -116,7 +118,7 @@ static void cursor_left(void) {
     }
 }
 
-RESIDENT
+RESIDENT_PRE
 static void tab(void) {
     /* RC700 convention: hardware tab = 4 cursor-right steps. */
     cursor_right();
@@ -125,7 +127,7 @@ static void tab(void) {
     cursor_right();
 }
 
-RESIDENT
+RESIDENT_PRE
 static void clear_screen(void) {
     memset((void *)(uintptr_t)DISPLAY_ADDR, ' ', SCRN_SIZE);
     curx = 0;
@@ -133,20 +135,20 @@ static void clear_screen(void) {
     cursy = 0;
 }
 
-RESIDENT
+RESIDENT_PRE
 static void erase_to_eol(void) {
     memset((void *)(uintptr_t)(DISPLAY_ADDR + cury + curx),
            ' ',
            SCRN_COLS - curx);
 }
 
-RESIDENT
+RESIDENT_PRE
 static void erase_to_eos(void) {
     uint16_t pos = cury + curx;
     memset((void *)(uintptr_t)(DISPLAY_ADDR + pos), ' ', SCRN_SIZE - pos);
 }
 
-RESIDENT
+RESIDENT_PRE
 static void delete_line(void) {
     if (cury < ROW24_OFFSET) {
         memcpy((void *)(uintptr_t)(DISPLAY_ADDR + cury),
@@ -156,7 +158,7 @@ static void delete_line(void) {
     memset((void *)(uintptr_t)(DISPLAY_ADDR + ROW24_OFFSET), ' ', SCRN_COLS);
 }
 
-RESIDENT
+RESIDENT_PRE
 static void insert_line(void) {
     /* Overlapping forward shift — memmove picks LDDR direction. */
     if (cury < ROW24_OFFSET) {
@@ -167,7 +169,7 @@ static void insert_line(void) {
     memset((void *)(uintptr_t)(DISPLAY_ADDR + cury), ' ', SCRN_COLS);
 }
 
-RESIDENT
+RESIDENT_PRE
 static void start_xy(void) {
     xflg = 2;
     curx = 0;
@@ -175,14 +177,14 @@ static void start_xy(void) {
     cursy = 0;
 }
 
-RESIDENT
+RESIDENT_PRE
 static uint16_t row_offset(uint8_t row) {
     /* row * 80, shift-add to avoid a library multiply: 80 = 64 + 16 */
     uint16_t r = row;
     return (uint16_t)((r << 6) + (r << 4));
 }
 
-RESIDENT
+RESIDENT_PRE
 static void put_printable(uint8_t c) {
     /* 8275 char ROM has 7 address bits: 192..255 fold to 0..63.
      * 128..191 = semigraphics control — bit 2 toggles sticky `graph`.

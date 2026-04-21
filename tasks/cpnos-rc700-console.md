@@ -63,17 +63,50 @@ Two-section LMA split so PROM0 stays stable as console features evolve:
 
 ## TODO to land the branch
 
-1. init.c: `IVT_ADDR` 0xF100 → 0xEE00; trim `fill_trap` range to
-   0xED20..0xEE00 (was ..0xF100)
-2. reset.s: `ld sp, #0xF000` (was `#0xF200`)
-3. cpnos_main.c: two memcpy calls instead of one, using the new
-   `_resident_pre_{lma,start,end}` + existing `_resident_{lma,start,end}`
-4. Makefile cpnos-install: also write `clang/prom1.bin` to
-   `$(MAME)/roms/rc702/prom1.ic65` so MAME picks it up
-5. Rebuild MAME once (ROM_LOAD_OPTIONAL change)
-6. `make cpnos cpnos-netboot` — confirm PASS (A> prompt)
-7. Run existing smoke plan steps 1-7 unchanged to ensure no regression
-8. Then the actual test deliverable:
+- [x] init.c: `IVT_ADDR` 0xF100 → 0xEE00; fill_trap range 0xED20..0xEE00
+- [x] reset.s: `ld sp, #0xF000` (was `#0xF200`)
+- [x] cpnos_main.c: two memcpy calls, one per resident section
+- [x] cpnos_rom.ld: `.resident` LMA moved to PROM1 after `.resident_pre`
+      (per user: "the payload... just needs to be split in two").  PROM0
+      now holds only reset+init; all runtime-resident content streams
+      from PROM1.  Budgets: PROM0 2040 → 850 B; PROM1 0 → 1910 B.
+- [x] Makefile cpnos-install: pushes `clang/prom1.bin` to
+      `$(MAME)/roms/rc702/prom1.ic65`
+- [x] MAME rebuilt with ROM_LOAD_OPTIONAL patch; prom1.ic65 loads
+
+## Still failing
+
+**cpnos-netboot result**: `FAIL: no A> prompt (PC=F516 SP=00F6)`.
+
+Server log shows the full sequence: B0 request -> FNC=1 banner (178B,
+ACKed) -> FNC=2 DMA (ACKed) -> 34 x FNC=3 blocks (all ACKed silently) ->
+FNC=4 execute 0xD000.  SIO-B capture shows the full banner rendered
++ "CPNOS\r\n" from the fallback diagnostic banner.  PC=F516 is inside
+`resident_entry`'s `for(;;) {}` fallback loop and SP=0x00F6 matches
+cpbios.s `ld sp, BUFF+0x80` = 0x0100 - a few pushes.
+
+So CCP DID start, set its stack, and at some point jumped into the
+fallback loop at 0xF516.  Not clear yet whether:
+ - the zero-page BDOS/WBOOT vectors got clobbered so that a CCP call
+   chain wound up re-entering `resident_entry`
+ - an IM2 interrupt fired with a stale/corrupt IVT entry
+ - stack overrun clobbered a return address
+
+Next diagnostics:
+ 1. Confirm IVT contents post-boot (expect isr_noop for every slot
+    except ch2=isr_crt and slot16=isr_pio_kbd).  The existing
+    breadcrumb dump doesn't cover 0xEE00..0xEE23.
+ 2. Watchpoint on 0xF516 to catch the entry instruction.
+ 3. Double-check that `.resident_pre` isn't accidentally being executed
+    FROM PROM1 before `cpnos_main`'s memcpy copies it to 0xF000 — the
+    crt_update_cursor body is the very first helper and executes from
+    every `rc700_console_putc` call.
+
+## Original test deliverable (deferred until boot passes)
+
+1. `make cpnos cpnos-netboot` — confirm PASS (A> prompt) — **currently FAILING**
+2. Run existing smoke plan steps 1-7 unchanged to ensure no regression
+3. Then the actual test deliverable:
    - `cpnos-rom/testutil/rc700_console_test.c` — CP/M .COM that drives
      every code (CR, LF, FF, home, clear, eol/eos, up/down/left/right,
      tab, bell, XY addressing, insert/delete line) through stdout /

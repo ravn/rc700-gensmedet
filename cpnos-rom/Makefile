@@ -161,16 +161,19 @@ cpnos-disasm: clang/cpnos.elf
 
 MAME = /Users/ravn/git/mame
 MAME_PROM0 = $(MAME)/roms/rc702/roa375.ic66
+MAME_PROM1 = $(MAME)/roms/rc702/prom1.ic65
 
-# Install prom0.bin into MAME (4KB slot, pad with 0xFF).  PROM1 at
-# 0x2000 in MAME is 0xFF by default — fine for Phase 1 where our
-# PROM1 is unused.
+# Install prom0.bin (4KB slot, 0xFF-padded) and prom1.bin (2KB).
+# Session 30: PROM1 now carries .resident_pre (RC700 console helpers),
+# loaded via ROM_LOAD_OPTIONAL in the MAME rc702 driver.
 cpnos-install: clang/cpnos.bin
 	@P0=$$(wc -c < clang/prom0.bin | tr -d ' '); \
 	 { cat clang/prom0.bin; perl -e "print \"\\xff\" x (4096 - $$P0)"; } \
 	   > clang/prom0_padded.ic66
 	cp clang/prom0_padded.ic66 $(MAME_PROM0)
+	cp clang/prom1.bin $(MAME_PROM1)
 	@echo "installed cpnos prom0 -> $(MAME_PROM0)"
+	@echo "installed cpnos prom1 -> $(MAME_PROM1)"
 
 cpnos-mame: cpnos-install
 	$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \

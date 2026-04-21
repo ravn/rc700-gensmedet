@@ -21,6 +21,9 @@
 extern uint8_t _resident_lma[];
 extern uint8_t _resident_start[];
 extern uint8_t _resident_end[];
+extern uint8_t _resident_pre_lma[];
+extern uint8_t _resident_pre_start[];
+extern uint8_t _resident_pre_end[];
 
 [[noreturn]] extern void resident_entry(uint16_t entry);
 extern void init_hardware(void);            /* init.c, runs from ROM */
@@ -30,12 +33,24 @@ extern uint16_t netboot(void);              /* netboot.c, ROM-only */
     /* Bring up CTC + SIO-A/B.  (PIO, IVT, DMA, CRT are Phase 2.) */
     init_hardware();
 
-    /* Copy resident section from ROM (LMA) to high RAM (VMA 0xF200+)
-     * BEFORE netboot: netboot's transport functions live there. */
-    uint8_t *src = _resident_lma;
-    uint8_t *dst = _resident_start;
-    while (dst < _resident_end) {
-        *dst++ = *src++;
+    /* Copy both resident sections from ROM (LMA) to high RAM (VMA)
+     * BEFORE netboot: netboot's transport functions live there.
+     *   .resident_pre  LMA PROM1 (0x2000) -> VMA 0xF000 (console helpers)
+     *   .resident      LMA PROM0 tail     -> VMA 0xF200 (JT + SNIOS + ...)
+     */
+    {
+        uint8_t *src = _resident_pre_lma;
+        uint8_t *dst = _resident_pre_start;
+        while (dst < _resident_pre_end) {
+            *dst++ = *src++;
+        }
+    }
+    {
+        uint8_t *src = _resident_lma;
+        uint8_t *dst = _resident_start;
+        while (dst < _resident_end) {
+            *dst++ = *src++;
+        }
     }
 
     /* Try to netboot.  Server streams CCP+BDOS into RAM and returns an

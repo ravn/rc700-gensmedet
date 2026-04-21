@@ -93,8 +93,10 @@ SECTIONS {
          "resident_pre (0xF000..0xF1FF) overflowed past JT base")
 
   /* BIOS jump table + rest at the fixed 0xF200 ABI address (cpnos-
-   * build/src/cpbios.s hardcodes 0xF206/0xF209/...).  LMA in PROM0. */
-  .resident 0xF200 : AT(__prom0_end) {
+   * build/src/cpbios.s hardcodes 0xF206/0xF209/...).  LMA in PROM1 after
+   * .resident_pre so PROM0 only needs reburning when init/HAL changes;
+   * all runtime/console changes land in PROM1. */
+  .resident 0xF200 : AT(LOADADDR(.resident_pre) + SIZEOF(.resident_pre)) {
     __resident_start = .;
     KEEP(*(.resident.jumptable))
     KEEP(*(.resident.snios_jt))

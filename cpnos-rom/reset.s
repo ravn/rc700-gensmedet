@@ -20,10 +20,12 @@
     .global _reset
 _reset:
     di
-    ld sp, #0xF200              ; init stack below resident; grows down
-                                ; into free RAM (0xF000..0xF1FF).  Session
-                                ; #24 moved BIOS_BASE from 0xF580 to 0xF200
-                                ; to fit SNIOS; stack moved in step.
-                                ; Must NOT overlap netboot DMA targets.
+    ld sp, #0xF000              ; init stack below .resident_pre; grows
+                                ; down into free RAM (0xEE24..0xF000 =
+                                ; 476 B).  Session #30 extended RESIDENT
+                                ; down to 0xF000 for RC700 console helpers;
+                                ; stack init moved 0xF200 -> 0xF000.
+                                ; IVT lives at 0xEE00..0xEE23; stack must
+                                ; not dip below that.
     call _cpnos_main
 1:  jr 1b                       ; hang if main returns

@@ -17,14 +17,16 @@ extern void isr_pio_kbd(void);
 extern void set_i_reg(uint8_t page);
 extern void enable_im2(void);
 
-/* IVT at 0xF100; each slot is 2 bytes, so slot N lives at 0xF100+2N.
+/* IVT at 0xEE00 (session 30: moved from 0xF100 to free the 0xF000..0xF1FF
+ * page for .resident_pre — RC700 console state machine helpers).
+ * Each slot is 2 bytes, so slot N lives at IVT_ADDR+2N.
  *   slot 0..3  (vec 0x00..0x06): CTC channels 0..3 (ch2 = CRT refresh)
  *   slot 8..10 (vec 0x10..0x14): SIO-B rx/tx/extstatus (polled, slots
  *                                 installed as noop for the daisy chain)
  *   slot 16    (vec 0x20):       PIO-A keyboard
  *   slot 17    (vec 0x22):       PIO-B (unused)
  */
-#define IVT_ADDR     0xF100
+#define IVT_ADDR     0xEE00
 #define IVT_ENTRIES  18
 #define IVT_PIO_A    16
 
@@ -63,7 +65,7 @@ static void setup_ivt(void) {
  * in emulation).  Control word sequence matches rcbios-in-c/bios_hw_init
  * so MAME's rc702 driver sees the same pattern it already handles.
  *
- *   0x20 — interrupt vector (slot 16 in our IVT = 0xF100+0x20)
+ *   0x20 — interrupt vector (slot 16 in our IVT = IVT_ADDR+0x20)
  *   0x4F — mode 1 (input) + ICW-follows bit (M1=01, ICW=1)
  *   0x83 — enable interrupts (EI=1, ICW selector)
  *
@@ -144,7 +146,7 @@ void init_hardware(void) {
      *     until OUT (0x18); can't write there yet)
      *   - scratch BSS 0xEC00..0xED1F (netboot msgbuf etc.)
      *   - resident VMA 0xF200..0xF7FF
-     *   - IVT 0xF100..0xF123, cursor+stack 0xF200 down
+     *   - IVT 0xEE00..0xEE23, cursor+stack 0xF000 down
      *   - display RAM 0xF800.. (gets overwritten by init_display)
      * TPA 0x0100..0xCFFF, unused-between-PROMs 0x0800..0x1FFF and
      * 0x2800..0xCFFF, NDOS-BSS tail 0xEA00..0xEBFF — all get the
@@ -153,7 +155,7 @@ void init_hardware(void) {
     fill_trap(0x0800, 0x2000);   /* gap between PROM windows */
     fill_trap(0x2800, 0xD000);   /* gap between PROM1 and CCP base */
     fill_trap(0xEA00, 0xEC00);   /* NDOS spill region + SNIOS JT space */
-    fill_trap(0xED20, 0xF100);   /* after scratch BSS, before IVT */
+    fill_trap(0xED20, 0xEE00);   /* after scratch BSS, before IVT */
 
     /* IVT + IM2 first so any stray interrupt lands on isr_noop rather
      * than the reset vector.  Interrupts stay disabled; resident_entry
