@@ -36,7 +36,10 @@ MEMORY {
      headroom relative to the original plan; acceptable given Phase 1 is
      still well under the 56KB TPA target.  Update cpnos-rom-plan.md
      concrete memory map when revisiting TPA numbers. */
-  RESIDENT (rwx) : ORIGIN = 0xF200, LENGTH = 0x600
+  /* Session 30: extended down to 0xF000 for .resident_pre (RC700
+   * console helpers).  IVT moved from 0xF100 to 0xEE00 to free this
+   * page; stack init in reset.s moved 0xF200 -> 0xF000 to match. */
+  RESIDENT (rwx) : ORIGIN = 0xF000, LENGTH = 0x800
   /* Scratch RAM for BSS (netboot msgbuf, diag breadcrumbs).
    * Session #27 shifted CCP+NDOS one more page down after observing
    * SP=0xE199 with CCP at 0xD400 (stack_symbol resolves to ~base +
@@ -76,10 +79,23 @@ SECTIONS {
   __prom1_end = .;
   ASSERT(__prom1_end <= 0x2800, "PROM1 code overflowed 2KB!")
 
+  /* Pre-JT slot (0xF000..0xF1FF).  LMA in PROM1 — decouples from
+   * PROM0 so physical PROM burns can be minimised: PROM0 reburn only
+   * on init/JT changes, PROM1 reburn on console-feature changes. */
+  .resident_pre 0xF000 : AT(0x2000) {
+    __resident_pre_start = .;
+    *(.resident_pre)
+    *(.resident_pre.*)
+    __resident_pre_end = .;
+  } > RESIDENT
+
+  ASSERT(__resident_pre_end <= 0xF200,
+         "resident_pre (0xF000..0xF1FF) overflowed past JT base")
+
+  /* BIOS jump table + rest at the fixed 0xF200 ABI address (cpnos-
+   * build/src/cpbios.s hardcodes 0xF206/0xF209/...).  LMA in PROM0. */
   .resident 0xF200 : AT(__prom0_end) {
     __resident_start = .;
-    /* BIOS jump table MUST come first — its entries are the BIOS's
-     * public ABI (BOOT at +0, WBOOT at +3, CONST at +6, ...). */
     KEEP(*(.resident.jumptable))
     KEEP(*(.resident.snios_jt))
     KEEP(*(.resident.snios))
@@ -94,8 +110,10 @@ SECTIONS {
   ASSERT(_bios_conout - _bios_boot == 12, "BIOS CONOUT offset must be +12")
   ASSERT(_bios_sectran - _bios_boot == 48, "BIOS SECTRAN offset must be +48")
 
-  __resident_lma = LOADADDR(.resident);
-  __resident_size = __resident_end - __resident_start;
+  __resident_lma       = LOADADDR(.resident);
+  __resident_size      = __resident_end - __resident_start;
+  __resident_pre_lma   = LOADADDR(.resident_pre);
+  __resident_pre_size  = __resident_pre_end - __resident_pre_start;
 
   /* Guard: resident code must not overflow the RESIDENT region (below
      display RAM at 0xF800; really below conv_tables at 0xF680). */
@@ -108,8 +126,8 @@ SECTIONS {
     __scratch_bss_end = .;
   } > SCRATCH
 
-  ASSERT(__scratch_bss_end <= 0xF200,
-         "scratch_bss overflowed into BIOS resident region!")
+  ASSERT(__scratch_bss_end <= 0xEE00,
+         "scratch_bss overflowed into IVT/stack region!")
 
   /DISCARD/ : {
     *(.comment)

@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include "hal.h"
+#include "rc700_console.h"
 
 /* Gate the section attribute on ELF output.  The Z80 cross-compiler
  * produces ELF — the attribute applies and RESIDENT code lands in
@@ -192,31 +193,7 @@ uint8_t impl_const(void) {
     return 0x00;
 }
 
-/* Cursor position.  Lives in .scratch_bss (default-zero at BSS init),
- * updated by impl_conout and mirrored to the 8275 after each write. */
-static uint8_t curx;
-static uint8_t cury;
-
-RESIDENT
-static void crt_set_cursor(uint8_t x, uint8_t y) {
-    _port_out(PORT_CRT_CMD,   0x80);   /* load cursor position */
-    _port_out(PORT_CRT_PARAM, x);
-    _port_out(PORT_CRT_PARAM, y);
-}
-
-RESIDENT
-static void crt_scroll_up(void) {
-    /* Move rows 1..24 down to 0..23, clear row 24.  Each row is 80B.
-     * Straightforward copy — no LDIR intrinsic in this C file, rely
-     * on the compiler to unroll or let runtime.s helpers do it. */
-    volatile uint8_t *d = (volatile uint8_t *)DISPLAY_ADDR;
-    for (uint16_t i = 0; i < 24U * 80U; ++i) {
-        d[i] = d[i + 80];
-    }
-    for (uint8_t i = 0; i < 80; ++i) {
-        d[24U * 80U + i] = ' ';
-    }
-}
+/* Cursor state + RC700 control-char handling live in rc700_console.c. */
 
 RESIDENT
 uint8_t impl_conin(void) {
@@ -234,47 +211,8 @@ uint8_t impl_conin(void) {
 
 RESIDENT
 void impl_conout(uint8_t c) {
-    /* Minimal CP/M CONOUT: printable chars go to the current cursor
-     * position on the 8275 display; CR resets column; LF advances
-     * row and scrolls when the bottom row overflows.  Serial mirror
-     * goes to SIO-B so the null-modem log still captures output. */
-    console_putc(c);
-
-    volatile uint8_t *d = (volatile uint8_t *)DISPLAY_ADDR;
-
-    if (c == 0x0C) {
-        /* Ctrl-L / form feed: clear display, home cursor. */
-        for (uint16_t i = 0; i < DISPLAY_SIZE; ++i) {
-            d[i] = ' ';
-        }
-        curx = 0;
-        cury = 0;
-    } else if (c == '\r') {
-        curx = 0;
-    } else if (c == '\n') {
-        /* Treat LF as CR+LF so host-side text with '\n'-only line
-         * breaks renders correctly and the banner fits under 256 B. */
-        curx = 0;
-        if (cury + 1 >= 25) {
-            crt_scroll_up();
-        } else {
-            cury++;
-        }
-    } else if (c >= 0x20) {
-        d[(uint16_t)cury * 80U + curx] = c;
-        if (++curx >= 80) {
-            curx = 0;
-            if (cury + 1 >= 25) {
-                crt_scroll_up();
-            } else {
-                cury++;
-            }
-        }
-    }
-    /* Other control chars (0x08 BS, 0x09 TAB, 0x07 BEL...) ignored
-     * for now — add as CCP output demands them. */
-
-    crt_set_cursor(curx, cury);
+    console_putc(c);            /* serial mirror (SIO-B) */
+    rc700_console_putc(c);      /* RC700 display state machine */
 }
 
 RESIDENT
