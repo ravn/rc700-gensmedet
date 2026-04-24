@@ -71,7 +71,7 @@ endif
 PAYLOAD_OBJS = clang/runtime.o clang/bios_jt.o clang/cpnos_main.o \
                clang/resident.o clang/cfgtbl.o clang/init.o \
                clang/transport_sio.o $(NETBOOT_OBJ) \
-               clang/snios.o clang/isr.o clang/fdc.o
+               clang/snios.o clang/isr.o clang/fdc.o clang/disk.o
 PAYLOAD_LD = payload.ld
 
 # ---- Relocator (PROM0 reset + #embed'd payload halves) -----------
@@ -130,6 +130,10 @@ clang/init.o: init.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clang/fdc.o: fdc.c fdc.h hal.h
+	@mkdir -p clang
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clang/disk.o: disk.c disk.h fdc.h
 	@mkdir -p clang
 	$(CC) $(CFLAGS) -c $< -o $@
 
