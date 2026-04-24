@@ -26,12 +26,12 @@ false	equ	not true
 ;
 ; cpnos-rom resident BIOS JT addresses (cpnos_rom.ld asserts these
 ; are stable: BIOS_BASE + 0/3/6/9/12/15).
-rbboot	equ	0ED00h
-rbwboot	equ	0ED03h
-rbconst	equ	0ED06h
-rbconin	equ	0ED09h
-rbcout	equ	0ED0Ch
-rblist	equ	0ED0Fh
+rbboot	equ	0DD00h
+rbwboot	equ	0DD03h
+rbconst	equ	0DD06h
+rbconin	equ	0DD09h
+rbcout	equ	0DD0Ch
+rblist	equ	0DD0Fh
 ;
 	extrn	NDOS	; Network Disk Operating System
 	extrn	BDOS	; Basic Disk Operating System

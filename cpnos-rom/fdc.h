@@ -77,21 +77,30 @@ struct fdc_format {
     uint8_t gap;    /* GAP3 length in bytes (inter-sector gap) */
 };
 
-/* Read one physical sector into `dst`.  Drive is hard-coded to 0
- * — the RC702 only wires the first µPD765 drive-select line, and
- * we only expose drive B: in CP/M.
+/* Read one physical sector via DMA.
  *
- * `head` selects physical side (0 or 1).  `sector` is 1-based per
- * the µPD765 convention.  `fmt` must match the physical format of
- * the target track+side or the READ DATA operation fails with a
- * No-Data error (ST1 bit 2).
+ * Caller responsibilities: set the BSS globals `fdc_req_cyl`,
+ * `fdc_req_head`, `fdc_req_sec`, `fdc_req_dst` before calling,
+ * and ensure `fmt` describes the track's density/geometry.  This
+ * parameter-passing shape (globals + one pointer arg) is how we
+ * keep the function small on clang-z80 — five register args force
+ * an IX frame and ~40 B of overhead, which we'd rather spend on
+ * real logic.
  *
- * Returns ST0.  On clean completion ST0's IC field (bits 7-6) = 00.
- * The DMA channel must already have been set up; we handle that
- * internally, so `dst` can be any RAM address in range for the
- * transfer size (128 << fmt->n bytes).
+ * Drive is hard-coded to 0: the RC702 only wires µPD765 drive 0,
+ * and we only expose one local floppy (B:) to CP/M.
+ *
+ * `head` (0 or 1) selects physical side.  `fdc_req_sec` is 1-based
+ * per the µPD765 convention.  `fmt` must match the physical format
+ * of the target track+side or READ DATA fails with a No-Data error.
+ *
+ * Returns ST0.  Clean completion = ST0 IC field (bits 7-6) = 00.
  */
-uint8_t fdc_read_sector(uint8_t cyl, uint8_t head, uint8_t sector,
-                        void *dst, const struct fdc_format *fmt);
+extern uint8_t  fdc_req_cyl;
+extern uint8_t  fdc_req_head;
+extern uint8_t  fdc_req_sec;
+extern uint8_t *fdc_req_dst;
+
+uint8_t fdc_read_sector(const struct fdc_format *fmt);
 
 #endif /* CPNOS_FDC_H */

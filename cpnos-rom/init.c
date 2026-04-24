@@ -137,4 +137,10 @@ void init_hardware(void) {
      * clear_screen instead of inlining a 4th copy of the LDIR set. */
     extern void clear_screen(void);
     clear_screen();
+
+    /* FDC SPECIFY: program uPD765 head-movement timing.  Must run
+     * once before any recal/seek/read — the FDC powers up with
+     * undefined SRT/HUT/HLT timing values. */
+    extern void fdc_init(void);
+    fdc_init();
 }

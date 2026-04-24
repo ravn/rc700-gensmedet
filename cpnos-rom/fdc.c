@@ -249,21 +249,27 @@ static void fdc_dma_setup_read(void *dst, uint16_t count) {
  * layer needs finer error classification — for now ST0's IC field is
  * enough to distinguish success from failure.)
  */
-RESIDENT
-uint8_t fdc_read_sector(uint8_t cyl, uint8_t head, uint8_t sector,
-                        void *dst, const struct fdc_format *fmt) {
-    const uint16_t size = (uint16_t)128u << fmt->n;
-    fdc_dma_setup_read(dst, size);
+/* Request globals — caller sets these before fdc_read_sector().  See
+ * fdc.h for the rationale (avoiding a 5-arg IX frame). */
+uint8_t  fdc_req_cyl;
+uint8_t  fdc_req_head;
+uint8_t  fdc_req_sec;
+uint8_t *fdc_req_dst;
 
-    const uint8_t drive_head = (uint8_t)((head & 1) << 2);   /* drive 0 + head */
+RESIDENT
+uint8_t fdc_read_sector(const struct fdc_format *fmt) {
+    const uint16_t size = (uint16_t)128u << fmt->n;
+    fdc_dma_setup_read(fdc_req_dst, size);
+
+    const uint8_t drive_head = (uint8_t)((fdc_req_head & 1) << 2);  /* drive 0 + head */
     const uint8_t cmd        = (uint8_t)(CMD_READ_DATA |
                                          (fmt->mfm ? CMD_MFM : 0));
 
     fdc_write(cmd);
     fdc_write(drive_head);
-    fdc_write(cyl);
-    fdc_write(head);
-    fdc_write(sector);
+    fdc_write(fdc_req_cyl);
+    fdc_write(fdc_req_head);
+    fdc_write(fdc_req_sec);
     fdc_write(fmt->n);
     fdc_write(fmt->eot);
     fdc_write(fmt->gap);

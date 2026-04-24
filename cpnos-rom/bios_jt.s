@@ -1,13 +1,17 @@
 ; cpnos-rom BIOS jump table
 ;
 ; Standard CP/M 2.2 BIOS 17-entry table, placed at BIOS_BASE (currently
-; 0xED00; was 0xF200 pre-session-33, and 0xF580 before that).  CCP+BDOS
-; (and in NOS mode, NDOS) call these offsets; the addresses are the
-; BIOS's public ABI and must not drift between builds.
+; 0xDD00; was 0xED00 Phase 19, 0xF200 pre-session-33, 0xF580 earlier).
+; CCP+BDOS (and in NOS mode, NDOS) call these offsets; the addresses
+; are the BIOS's public ABI and must not drift between builds.
 ;
 ; The linker script KEEPs section .resident.jumptable at the very start
-; of the .resident region (VMA 0xED00), so `_bios_boot` equals BIOS_BASE.
-; payload.ld asserts `_bios_boot == 0xED00` at link time.
+; of the .resident region (VMA 0xDD00), so `_bios_boot` equals BIOS_BASE.
+; payload.ld asserts `_bios_boot == ORIGIN(PAYLOAD)` at link time.
+;
+; cpnos-build/src/cpbios.asm has `rbboot equ 0DD00h` hardcoded for the
+; CP/NOS shim's tail-calls into our JT — that constant must track
+; this base (rebuild cpnos.com after any move).
 ;
 ; Naming convention: each `bios_<entry>` below is a 3-byte `jp <tgt>`
 ; trampoline at the JT's fixed offset.  <tgt> is either a shared asm
@@ -45,7 +49,7 @@ _bios_seldsk:   jp _impl_seldsk
 _bios_settrk:   jp _impl_settrk
 _bios_setsec:   jp _impl_setsec
 _bios_setdma:   jp _impl_setdma
-_bios_read:     jp _impl_disk_err
+_bios_read:     jp _impl_read
 _bios_write:    jp _impl_disk_err
 _bios_listst:   jp _bios_stub_ret
 _bios_sectran:  jp _bios_stub_ret          ; identity in NOS-only build

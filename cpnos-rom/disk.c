@@ -20,7 +20,8 @@
 #include "disk.h"
 #include "fdc.h"
 
-#define RESIDENT __attribute__((section(".resident"), used))
+#define RESIDENT      __attribute__((section(".resident"), used))
+#define RESIDENT_CODE __attribute__((section(".resident.disk"), used))
 
 /* --- µPD765 format descriptor for 8" maxi data tracks -------------
  *
@@ -113,6 +114,11 @@ const disk_parameter_block dpb_maxi_data =
 
 /* --- BSS for drive B: ---------------------------------------------
  *
+ * hostbuf[512]: DMA target for READ DATA — one physical 8" maxi
+ *   sector.  BDOS speaks in 128-byte CP/M sectors; each FDC read
+ *   brings in 4 of them at once, and impl_read copies the selected
+ *   128 B slice to the caller's DMA address.
+ *
  * alv (allocation vector): ceil((dsm + 1) / 8) = ceil(450 / 8) = 57 B.
  *   BDOS marks block k allocated by setting bit (k & 7) of
  *   alv[k >> 3].  Populated during SELDSK's directory scan.
@@ -121,17 +127,29 @@ const disk_parameter_block dpb_maxi_data =
  *   directory entries.  BDOS recomputes each entry's hash on every
  *   directory read; a mismatch flags "media change".
  *
- * dirbuf: 128-byte directory buffer, BDOS-owned shared staging area.
+ * dirbuf: BDOS's 128-byte directory-sector staging area.  Aliased
+ *   onto the first 128 B of hostbuf — saves 128 B of BSS.  Safe
+ *   because:
+ *     - For directory reads, BDOS sets DMA to dirbuf.  impl_read
+ *       issues FDC read into hostbuf (clobbering dirbuf), then
+ *       memcpys hostbuf[offset..offset+128] → dirbuf.  offset is
+ *       always 0, 128, 256, or 384; when offset ≥ 128 the src
+ *       range sits past the dst range, so the LDIR increment
+ *       direction is safe from overlap (src > dst).  When
+ *       offset=0 the memcpy is a no-op on the same bytes.
+ *     - For user reads, BDOS sets DMA to the user's TPA buffer,
+ *       not dirbuf — no overlap at all.
  *
- * All three placed in the `.disk_bss` section so payload.ld routes
- * them to the DISKBSS region (0xEC40..0xECC0), not the main SCRATCH
- * region which is already tight against the IVT ceiling at 0xEC00.
+ * All placed in .disk_bss so payload.ld routes them to the DISKBSS
+ * region (0xF5A0..0xF800).
  */
 #define DISKBSS __attribute__((section(".disk_bss")))
 
+static DISKBSS uint8_t hostbuf[512];
 static DISKBSS uint8_t alv_b[57];
 static DISKBSS uint8_t csv_b[32];
-static DISKBSS uint8_t dirbuf[128];
+/* dirbuf is not a separate buffer — the DPH points directly at
+ * hostbuf[0..127].  See the block comment above for why that's safe. */
 
 /* --- Sector translation table -------------------------------------
  *
@@ -173,8 +191,75 @@ const disk_parameter_header dph_b = {
     .sctp1  = 0,
     .sctp2  = 0,
     .sctp3  = 0,
-    .dirbuf = dirbuf,
+    .dirbuf = hostbuf,        /* BDOS dir-sector staging = first 128 B of hostbuf */
     .dpb    = &dpb_maxi_data,
     .csv    = csv_b,
     .alv    = alv_b,
 };
+
+/* --- BIOS state + impl_read ---------------------------------------
+ *
+ * BDOS's per-read state arrives as three setter calls before READ:
+ *    SETTRK(track)    — logical track, already includes DPB.off
+ *    SETSEC(sector)   — CP/M 128-byte sector index, 0..(SPT-1)
+ *    SETDMA(addr)     — destination for the 128-byte payload
+ * Those live in resident.c's dsk_track/dsk_sector/dsk_dma globals,
+ * populated by the asm impl_settrk/setsec/setdma in bios_jt.s.
+ *
+ * impl_read's job is to serve one 128-byte CP/M sector into *dsk_dma.
+ * The 8" maxi physical format is 15 x 512 B sectors per track per
+ * side.  We map CP/M sectors → physical sectors via:
+ *
+ *    phys_sec_per_track = dsk_sector >> 2            (÷ 4)
+ *    byte_offset        = (dsk_sector & 3) * 128     (0 / 128 / 256 / 384)
+ *    if phys_sec_per_track >= 15:                    (side 1)
+ *        head = 1
+ *        sec_in_side = phys_sec_per_track - 15
+ *    else:
+ *        head = 0
+ *        sec_in_side = phys_sec_per_track
+ *    physical_sector_1based = xlt_maxi_side[sec_in_side]
+ *
+ * Then SEEK + READ DATA into hostbuf, and memcpy 128 bytes from
+ * hostbuf[byte_offset] into *dsk_dma.
+ *
+ * No caching in this commit — every BIOS.READ issues a full FDC
+ * transfer even for consecutive CP/M sectors that share a physical
+ * sector.  That's a 4× I/O amplification for streaming reads but
+ * keeps this function simple; a cache pass is a later commit.
+ *
+ * Return: 0 = success, 1 = any error (treated uniformly by BDOS).
+ */
+extern uint16_t dsk_track;       /* resident.c globals */
+extern uint16_t dsk_sector;
+extern uint8_t *dsk_dma;
+
+RESIDENT_CODE
+uint8_t impl_read(void) {
+    const uint8_t sec               = (uint8_t)dsk_sector;    /* 0..119 */
+    const uint8_t phys_per_track    = (uint8_t)(sec >> 2);    /* 0..29  */
+    const uint16_t byte_offset      = (uint16_t)(sec & 3) << 7;
+    const uint8_t head              = (phys_per_track >= 15) ? 1u : 0u;
+    const uint8_t sec_in_side       = head ? (uint8_t)(phys_per_track - 15) : phys_per_track;
+    const uint8_t phys_1based       = xlt_maxi_side[sec_in_side];
+    const uint8_t drive_head        = (uint8_t)(head << 2);   /* drive 0 + head bit */
+    const uint8_t track             = (uint8_t)dsk_track;
+
+    /* Head positioning. */
+    uint8_t st0 = fdc_seek(drive_head, track);
+    if ((st0 & 0xC0) != 0)
+        return 1;
+
+    /* Set the FDC request globals and issue READ DATA.  Globals-as-
+     * args is the small-code convention in fdc.c — see fdc.h. */
+    fdc_req_cyl  = track;
+    fdc_req_head = head;
+    fdc_req_sec  = phys_1based;
+    fdc_req_dst  = hostbuf;
+    st0 = fdc_read_sector(&fmt_maxi_data);
+    if ((st0 & 0xC0) != 0)
+        return 1;
+
+    __builtin_memcpy(dsk_dma, hostbuf + byte_offset, 128);
+    return 0;
+}

@@ -30,30 +30,31 @@
 ENTRY(_cpnos_cold_entry)
 
 MEMORY {
-  /* Payload: up to 4 KB.  Limited by the combined size of the two
-   * 2 KB EPROMs minus the relocator.  Real cap is tracked by the
-   * ASSERT below once we have both artifacts. */
-  PAYLOAD (rwx) : ORIGIN = 0xED00, LENGTH = 0x1000
+  /* Payload: runs from 0xDD00 (just above CP/NOS monolith's end at
+   * 0xDCD9) up to SNIOS JT at 0xEA00.  Gives 3328 B for code + rodata.
+   * Moved down from 0xED00 in Phase 20 to make room for DISKBSS
+   * above — the FDC variant's disk buffers (hostbuf + alv + csv)
+   * are 601 B and wouldn't fit at the old layout's ceiling.  */
+  PAYLOAD (rwx) : ORIGIN = 0xDD00, LENGTH = 0xD00
 
-  /* Zero-init RAM used by C code (static locals without initializer,
-   * runtime-populated tables).  NOT carried in the ROM image — the
-   * relocator doesn't touch this region.  Power-on RAM = 0x00 in MAME
-   * and typically on real hardware too; real-HW warm boot relies on
-   * the prior image having left it in a sensible state.
-   *
-   * SCRATCH stops at the IVT (0xEC00); anything larger than 0x1E0
-   * (480 B) must live in DISKBSS below or be refactored.  */
+  /* Zero-init RAM used by C code.  Starts just above the SNIOS JT
+   * (0xEA00..0xEA1F); ends at the IVT (0xEC00).  480 B usable.  */
   SCRATCH (rwx) : ORIGIN = 0xEA20, LENGTH = 0x1E0
 
-  /* Secondary BSS for CP/M disk buffers (dirbuf, alv, csv) — placed
-   * just below the 0xF800 display-RAM ceiling so it doesn't collide
-   * with either the IVT (0xEC00..0xEC24) or the cold-boot stack
-   * (grows down from 0xED00 into the 0xEC24..0xED00 gap).
+  /* Secondary BSS for CP/M disk buffers (hostbuf, alv, csv) — placed
+   * in the 0xED00..0xF800 range freed up by moving PAYLOAD down to
+   * 0xDD00.  2816 B total, ~2 KB of it slack for future needs.
    *
-   * Lowers the effective payload ceiling from 0xF800 to 0xF700; the
-   * ASSERT below enforces it.  Payload currently ~2054 B with ~434 B
-   * of slack after this reservation — still ample room.  */
-  DISKBSS (rwx) : ORIGIN = 0xF700, LENGTH = 0x100
+   * Contents (sized for 8" maxi DSDD, drive B:):
+   *   hostbuf[512]  — one physical FDC sector (DMA target for READ DATA).
+   *                   DPH.dirbuf points at the first 128 B of this —
+   *                   saves 128 B of scratch.
+   *   alv_b[57]     — allocation vector (ceil(450/8))
+   *   csv_b[32]     — directory check vector (= dpb.cks)
+   *   Total         = 601 B
+   *
+   * Upper ceiling is the hardware-fixed 0xF800 8275 DMA display RAM.  */
+  DISKBSS (rwx) : ORIGIN = 0xED00, LENGTH = 0xB00
 }
 
 /* IVT location shared with init.c (setup_ivt).  Defined here so the
@@ -62,7 +63,7 @@ __ivt_start = 0xEC00;
 __ivt_end   = __ivt_start + 18 * 2;
 
 SECTIONS {
-  .payload 0xED00 : {
+  .payload 0xDD00 : {
     __payload_start = .;
 
     /* BIOS jump table MUST come first — its entries are the BIOS's
@@ -90,7 +91,7 @@ SECTIONS {
     __payload_end = .;
   } > PAYLOAD
 
-  ASSERT(_bios_boot == 0xED00, "BIOS jump table must start at 0xED00")
+  ASSERT(_bios_boot == ORIGIN(PAYLOAD), "BIOS jump table must start at PAYLOAD origin")
   ASSERT(_bios_conout - _bios_boot == 12, "BIOS CONOUT offset must be +12")
   ASSERT(_bios_sectran - _bios_boot == 48, "BIOS SECTRAN offset must be +48")
 
@@ -102,8 +103,8 @@ SECTIONS {
    * doesn't fit.  Here we just guard the generous upper bound. */
   ASSERT(__payload_size <= 0x1000,
          "payload exceeds 4 KB combined PROM budget")
-  ASSERT(__payload_end <= 0xF700,
-         "payload crossed into DISKBSS region at 0xF700")
+  ASSERT(__payload_end <= ORIGIN(DISKBSS),
+         "payload crossed into DISKBSS region")
 
   .scratch_bss (NOLOAD) : {
     __scratch_bss_start = .;
@@ -112,7 +113,7 @@ SECTIONS {
     __scratch_bss_end = .;
   } > SCRATCH
 
-  ASSERT(__scratch_bss_end <= 0xEC00,
+  ASSERT(__scratch_bss_end <= __ivt_start,
          "scratch_bss overflowed into IVT!")
 
   /* Disk-specific BSS — CP/M dirbuf + alloc/check vectors for drive B:.
