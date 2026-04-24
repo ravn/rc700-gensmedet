@@ -111,73 +111,65 @@ const struct fdc_format fmt_maxi_data = {
 const disk_parameter_block dpb_maxi_data =
     DISKDEF(15, 512, 2, 2048, 450, 128, 1, 2);
 
-/* --- BSS-resident scratch for drive B: ----------------------------
+/* --- BSS for drive B: ---------------------------------------------
  *
  * alv (allocation vector): ceil((dsm + 1) / 8) = ceil(450 / 8) = 57 B.
  *   BDOS marks block k allocated by setting bit (k & 7) of
- *   alv[k >> 3].  Zero-initialised at cold boot by .scratch_bss
- *   and gradually populated as BDOS scans the directory.
+ *   alv[k >> 3].  Populated during SELDSK's directory scan.
  *
  * csv (directory check vector): cks bytes (= 32) — one byte per 4
  *   directory entries.  BDOS recomputes each entry's hash on every
- *   directory read; a mismatch flags "media change", used to reset
- *   cached state if a disk is swapped underneath.
+ *   directory read; a mismatch flags "media change".
  *
- * dirbuf: 128-byte directory buffer.  One BDOS buffer shared across
- *   all drives; it stages the most-recently-read directory sector.
+ * dirbuf: 128-byte directory buffer, BDOS-owned shared staging area.
+ *
+ * All three placed in the `.disk_bss` section so payload.ld routes
+ * them to the DISKBSS region (0xEC40..0xECC0), not the main SCRATCH
+ * region which is already tight against the IVT ceiling at 0xEC00.
  */
-static uint8_t alv_b[57];
-static uint8_t csv_b[32];
-static uint8_t dirbuf[128];
+#define DISKBSS __attribute__((section(".disk_bss")))
+
+static DISKBSS uint8_t alv_b[57];
+static DISKBSS uint8_t csv_b[32];
+static DISKBSS uint8_t dirbuf[128];
 
 /* --- Sector translation table -------------------------------------
  *
- * CP/M's DPH.xlt maps a "logical" CP/M sector index (0..SPT-1) to
- * its physical sector number on the track, applying a skew so that
- * sequential logical reads end up reading sectors with an interleave
- * pattern the drive mechanics can keep up with.
+ * The classic 15-sector skew-4 pattern (rcbios's xlt_maxi_512 — one
+ * side's worth of physical sectors).  Matches the 8" DSDD MFM layout
+ * on real RC702 hardware.
  *
- * With 15 physical sectors/track/side and skew 4, rcbios's
- * xlt_maxi_512 gives the sequence:
- *   0 4 8 12 1 5 9 13 2 6 10 14 3 7 11
+ *   physical sector number for CP/M-sector-within-side index 0..14
+ *   produced by the CP/M skew algorithm with stride 4, modulo 15:
  *
- * Our format is 120 CP/M sectors per track (15 phys × 4 CP/M-per-phys
- * × 2 sides).  The host-sector-blocking layer (next commit) takes
- * the post-xlt CP/M sector number and splits it into (physical-
- * sector, byte-offset-within-sector, side).  The xlt only needs to
- * describe the skew across one side's worth of CP/M sectors.
+ *   idx :  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14
+ *   phys:  1  5  9 13  2  6 10 14  3  7 11 15  4  8 12
  *
- * Kept as a 120-entry table.  Entries are 1-based (CP/M convention,
- * BDOS adds the BDOS-SETSEC offset internally).
+ * Used by the host-sector-blocking layer (next commit) after the
+ * CP/M sector has been split into (side, sector-within-side) —
+ * NOT plumbed through DPH.xlt, which is NULL so BDOS skips its
+ * SECTRAN hook entirely.
  *
- * Placeholder for now: identity translation.  The real skew table
- * lands in the blocking-layer commit where it's paired with the
- * deblock math — easier to validate both together.
+ * Exposed for impl_read via disk.h.  15 entries, not 120 — the
+ * deblock layer folds to a sector-within-side index before lookup.
  */
-static const uint8_t xlt_maxi_data[120] = {
-    1,   2,   3,   4,   5,   6,   7,   8,   9,  10,
-   11,  12,  13,  14,  15,  16,  17,  18,  19,  20,
-   21,  22,  23,  24,  25,  26,  27,  28,  29,  30,
-   31,  32,  33,  34,  35,  36,  37,  38,  39,  40,
-   41,  42,  43,  44,  45,  46,  47,  48,  49,  50,
-   51,  52,  53,  54,  55,  56,  57,  58,  59,  60,
-   61,  62,  63,  64,  65,  66,  67,  68,  69,  70,
-   71,  72,  73,  74,  75,  76,  77,  78,  79,  80,
-   81,  82,  83,  84,  85,  86,  87,  88,  89,  90,
-   91,  92,  93,  94,  95,  96,  97,  98,  99, 100,
-  101, 102, 103, 104, 105, 106, 107, 108, 109, 110,
-  111, 112, 113, 114, 115, 116, 117, 118, 119, 120,
+const uint8_t xlt_maxi_side[15] = {
+    1,  5,  9, 13,  2,  6, 10, 14,  3,  7, 11, 15,  4,  8, 12,
 };
 
 /* --- DPH for drive B: ---------------------------------------------
  *
  * Single instance — drive B: is the only local floppy.  SELDSK
  * returns a pointer to this for drive index 1; drive index 0 (A:)
- * stays a network drive handled by NDOS as before.
+ * stays a network drive handled by NDOS.
+ *
+ * xlt = NULL tells BDOS "no SECTRAN call needed"; the skew in
+ * xlt_maxi_side is applied inside impl_read where the deblock math
+ * already produces the sector-within-side index we need.
  */
 RESIDENT
 const disk_parameter_header dph_b = {
-    .xlt    = xlt_maxi_data,
+    .xlt    = (const uint8_t *)0,
     .sctp1  = 0,
     .sctp2  = 0,
     .sctp3  = 0,

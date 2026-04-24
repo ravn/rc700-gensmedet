@@ -39,8 +39,21 @@ MEMORY {
    * runtime-populated tables).  NOT carried in the ROM image — the
    * relocator doesn't touch this region.  Power-on RAM = 0x00 in MAME
    * and typically on real hardware too; real-HW warm boot relies on
-   * the prior image having left it in a sensible state. */
-  SCRATCH (rwx) : ORIGIN = 0xEA20, LENGTH = 0x200
+   * the prior image having left it in a sensible state.
+   *
+   * SCRATCH stops at the IVT (0xEC00); anything larger than 0x1E0
+   * (480 B) must live in DISKBSS below or be refactored.  */
+  SCRATCH (rwx) : ORIGIN = 0xEA20, LENGTH = 0x1E0
+
+  /* Secondary BSS for CP/M disk buffers (dirbuf, alv, csv) — placed
+   * just below the 0xF800 display-RAM ceiling so it doesn't collide
+   * with either the IVT (0xEC00..0xEC24) or the cold-boot stack
+   * (grows down from 0xED00 into the 0xEC24..0xED00 gap).
+   *
+   * Lowers the effective payload ceiling from 0xF800 to 0xF700; the
+   * ASSERT below enforces it.  Payload currently ~2054 B with ~434 B
+   * of slack after this reservation — still ample room.  */
+  DISKBSS (rwx) : ORIGIN = 0xF700, LENGTH = 0x100
 }
 
 /* IVT location shared with init.c (setup_ivt).  Defined here so the
@@ -89,6 +102,8 @@ SECTIONS {
    * doesn't fit.  Here we just guard the generous upper bound. */
   ASSERT(__payload_size <= 0x1000,
          "payload exceeds 4 KB combined PROM budget")
+  ASSERT(__payload_end <= 0xF700,
+         "payload crossed into DISKBSS region at 0xF700")
 
   .scratch_bss (NOLOAD) : {
     __scratch_bss_start = .;
@@ -97,8 +112,19 @@ SECTIONS {
     __scratch_bss_end = .;
   } > SCRATCH
 
-  ASSERT(__scratch_bss_end <= 0xEC20,
-         "scratch_bss overflowed into stack region!")
+  ASSERT(__scratch_bss_end <= 0xEC00,
+         "scratch_bss overflowed into IVT!")
+
+  /* Disk-specific BSS — CP/M dirbuf + alloc/check vectors for drive B:.
+   * Directed here by __attribute__((section(".disk_bss"))) in disk.c.
+   * Kept separate from .scratch_bss so the main region stays under
+   * the IVT ceiling.  */
+  .disk_bss (NOLOAD) : {
+    __disk_bss_start = .;
+    KEEP(*(.disk_bss))
+    KEEP(*(.disk_bss.*))
+    __disk_bss_end = .;
+  } > DISKBSS
 
   /* Issue #35: IVT must not overlap payload or BSS (memcpy / BSS
    * clear would stomp the vector table). */

@@ -68,4 +68,9 @@ extern const struct fdc_format           fmt_maxi_data;
 extern const disk_parameter_block        dpb_maxi_data;
 extern const disk_parameter_header       dph_b;
 
+/* 15-entry physical-sector-within-side skew table.  Consumed by
+ * impl_read after deblock math produces a sector-within-side index.
+ * Not reachable via DPH.xlt (which is NULL — BDOS skips SECTRAN). */
+extern const uint8_t                     xlt_maxi_side[15];
+
 #endif /* CPNOS_DISK_H */

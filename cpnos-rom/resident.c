@@ -311,15 +311,21 @@ void impl_conout(uint8_t c) {
     cur_dirty = 1;
 }
 
-RESIDENT
-uint16_t impl_seldsk_null(void) {
-    /* No DPH — CP/M treats HL=0 as "drive not present". NDOS intercepts
-     * SELDSK for network drives before this stub is reached. */
-    return 0;
-}
+/* Disk BIOS state — written by the SETTRK/SETSEC/SETDMA asm impls
+ * in bios_jt.s, read by impl_read (added in the next commit).  Kept
+ * as globals so the asm side can reference them by their mangled
+ * names without going through a pointer dance.
+ *
+ * dsk_track / dsk_sector: CP/M passes these as 16-bit BC values.
+ * dsk_dma: 16-bit DMA destination address.  CP/M defaults to 0x0080. */
+uint16_t dsk_track;
+uint16_t dsk_sector;
+uint8_t *dsk_dma;
 
 RESIDENT
 uint8_t impl_disk_err(void) {
-    /* READ/WRITE error. Not expected to be called in NOS-only mode. */
+    /* READ/WRITE error stub.  Drive A: goes through NDOS (never hits
+     * us); drive B: will call impl_read once the host-sector blocking
+     * layer lands — this stub covers drives 2..15 and impl_write. */
     return 1;
 }
