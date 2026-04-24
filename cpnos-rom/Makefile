@@ -427,6 +427,58 @@ cpnos-sub-test: cpnos-install
 	@cat /tmp/cpnos_boot_result.txt 2>/dev/null || echo '(no result file)'
 	@grep -q '^PASS' /tmp/cpnos_boot_result.txt
 
+# ---- FDC drive B: acceptance test --------------------------------
+#
+# Builds an 8" DSDD MFI disk from rc703-div-bios-typer/, mounts it
+# on MAME's floppy slot 1 as drive B:, boots CP/NOS, runs `dir b:`
+# via CPNOS_SUB, and checks the SIO-B CONOUT mirror for expected
+# filenames that should come back from the directory listing.
+#
+# Proves the whole FDC stack end-to-end:
+#   cpmtools formatted disk → MFI → MAME uPD765 → our fdc.c
+#   primitives → disk.c deblocking → BIOS READ → BDOS directory
+#   scan → CCP output → SIO-B capture → expected filename hits.
+
+ACCEPTANCE_MFI ?= /tmp/acceptance.mfi
+ACCEPTANCE_SRC ?= $(CURDIR)/../rc703-div-bios-typer
+
+$(ACCEPTANCE_MFI): $(ACCEPTANCE_SRC)
+	$(CURDIR)/testutil/mkmfidisk.sh $(ACCEPTANCE_SRC) $@ ACCEPT
+
+fdc-acceptance: cpnos-install $(ACCEPTANCE_MFI)
+	@rm -f /tmp/cpnos_netboot_server.log /tmp/cpnos_siob.raw /tmp/cpnos_siob_driver.log /tmp/cpnos_boot_result.txt
+	@CPNOS_SUB='dir b:|done' python3 -u netboot_server.py $(NETBOOT_PORT) > /tmp/cpnos_netboot_server.log 2>&1 & \
+	 echo $$! > /tmp/cpnos_netboot_server.pid
+	@python3 -u sio_b_driver.py $(SIOB_PORT) --timeout 60 \
+	    > /tmp/cpnos_siob_driver.log 2>&1 & \
+	 echo $$! > /tmp/cpnos_siob_driver.pid
+	@sleep 0.3
+	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run 90 \
+	    -rs232a null_modem \
+	    -bitb1 "socket.127.0.0.1:$(NETBOOT_PORT)" \
+	    -rs232b null_modem \
+	    -bitb2 "socket.127.0.0.1:$(SIOB_PORT)" \
+	    -flop1 $(ACCEPTANCE_MFI) \
+	    -autoboot_script mame_sub_test.lua
+	@kill $$(cat /tmp/cpnos_netboot_server.pid) 2>/dev/null || true
+	@kill $$(cat /tmp/cpnos_siob_driver.pid) 2>/dev/null || true
+	@echo "--- SIO-B (printable) ---"
+	@tr -cd '\11\12\15\40-\176' < /tmp/cpnos_siob.raw | sed 's/$$/ /'
+	@echo
+	@echo "--- result ---"
+	@cat /tmp/cpnos_boot_result.txt 2>/dev/null || echo '(no result file)'
+	@grep -q '^PASS' /tmp/cpnos_boot_result.txt
+	@for want in L80 M80 PIP STAT WS; do \
+	    if tr -cd '\11\12\15\40-\176' < /tmp/cpnos_siob.raw | grep -q "$$want"; then \
+	        echo "found $$want"; \
+	    else \
+	        echo "MISSING: $$want"; exit 1; \
+	    fi \
+	done
+	@echo "FDC PASS: drive B: directory listing contains expected files"
+
 # ---- CONOUT acid test --------------------------------------------
 #
 # Builds testutil/acid.com with z88dk (+cpm), boots CP/NOS via

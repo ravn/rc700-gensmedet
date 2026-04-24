@@ -1,12 +1,12 @@
 /* cpnos-rom PROM relocator (C23).
  *
- * Reconstructs the CP/NOS payload at RAM 0xDD00 from two #embed'd
+ * Reconstructs the CP/NOS payload at RAM 0xDE00 from two #embed'd
  * binary chunks that sit in PROM0 tail and PROM1, then tail-calls
  * the payload's cold entry.
  *
  * Why two chunks?  The Z80 maps PROM0 at 0x0000..0x07FF and PROM1
  * at 0x2000..0x27FF, with a 6 KB address hole in between.  The
- * payload is a single contiguous blob linked at 0xDD00, but to fit
+ * payload is a single contiguous blob linked at 0xDE00, but to fit
  * it in the two EPROMs we cut it at the PROM0/PROM1 boundary.  The
  * build splits payload.bin into payload_a.bin (PROM0 tail) and
  * payload_b.bin (PROM1), and this file #embed's each into its own
@@ -44,8 +44,8 @@ static const uint8_t payload_b[] = {
  * post-CP/NOS DISKBSS region, safely above the payload's runtime
  * address).  PROMs are still mapped — the payload disables them later. */
 [[noreturn]] void relocate(void) {
-    __builtin_memcpy((void *)0xDD00, payload_a, sizeof payload_a);
-    __builtin_memcpy((uint8_t *)0xDD00 + sizeof payload_a,
+    __builtin_memcpy((void *)0xDE00, payload_a, sizeof payload_a);
+    __builtin_memcpy((uint8_t *)0xDE00 + sizeof payload_a,
                      payload_b, sizeof payload_b);
     cpnos_cold_entry();
 }

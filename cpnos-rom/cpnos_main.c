@@ -1,6 +1,6 @@
 /* cpnos-rom cold-boot driver.
  *
- * Runs entirely from RAM at 0xDD00+ after the PROM0 relocator has
+ * Runs entirely from RAM at 0xDE00+ after the PROM0 relocator has
  * reconstructed the payload in place.  No more LMA-vs-VMA dance —
  * what the compiler sees is what executes.
  *
@@ -9,7 +9,7 @@
  *   2. cfgtbl_init  — populate non-zero CFGTBL fields (everything else
  *      stays zero from BSS power-on).
  *   3. netboot       — fetch CCP+NDOS image from the master.
- *   4. PROM disable (OUT 0x18) — safe, we're executing from 0xDD00+.
+ *   4. PROM disable (OUT 0x18) — safe, we're executing from 0xDE00+.
  *   5. CP/M zero-page setup (JP WBOOT at 0x0000, JP BDOS at 0x0005).
  *   6. SNIOS — drain SIO RX, seed NETST=ACTIVE.
  *   7. Copy our SNIOS jump table to 0xEA00 where DRI NDOS expects it.
@@ -42,7 +42,7 @@ extern uint16_t netboot_mpm(void);
 
 [[noreturn]] void cpnos_cold_entry(void) {
     /* PROMs are still mapped at 0x0000..0x07FF and 0x2000..0x27FF;
-     * we're running from RAM at 0xDD00+ so we don't care.  Leave them
+     * we're running from RAM at 0xDE00+ so we don't care.  Leave them
      * enabled until step (4) below. */
 
     cfgtbl_init();
@@ -51,7 +51,7 @@ extern uint16_t netboot_mpm(void);
     uint16_t entry = NETBOOT();
 
     /* Disable the PROMs — exposes RAM underneath for the TPA and
-     * netboot-loaded image.  We're at 0xDD00+; still running fine. */
+     * netboot-loaded image.  We're at 0xDE00+; still running fine. */
     _port_out(PORT_RAMEN, 0x00);
 
     /* CP/M 2.2 zero page initial setup.  Written here before control
@@ -69,10 +69,10 @@ extern uint16_t netboot_mpm(void);
      * treated as UB by clang and the entire function gets deleted
      * (see ravn/llvm-z80#49). */
     static const uint8_t ZP_INIT[8] = {
-        0xC3, 0x03, 0xDD,     /* JP _bios_wboot (BIOS JT at 0xDD00+3) */
+        0xC3, 0x03, 0xDE,     /* JP _bios_wboot (BIOS JT at 0xDE00+3) */
         0x00,                  /* IOBYTE */
         0x00,                  /* current drive/user */
-        0xC3, 0x06, 0xDD,     /* placeholder; cpnos.com boot overwrites */
+        0xC3, 0x06, 0xDE,     /* placeholder; cpnos.com boot overwrites */
     };
     const void *src = ZP_INIT;
     void       *dst = (void *)0;

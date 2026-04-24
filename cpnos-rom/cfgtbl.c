@@ -75,11 +75,16 @@ struct cfgtbl cfgtbl;
  * netboot). */
 void cfgtbl_init(void) {
     cfgtbl.slaveid = RC702_SLAVEID;
-    /* Drive A:-D: mapped to server master (slave ID 0x00) drives A:-D:.
-     * NDOS's LOAD for CCP.SPR picks up CDISK (0 = A:) by default, so
-     * A: needs to be network. */
+    /* Drive A: is network (the master's A: is where cpnos.com, CCP,
+     * NDOS, etc. live — netboot picks from CDISK=0 by default).
+     * Drive B: is LOCAL (our 8" maxi floppy, handled by impl_seldsk
+     * returning &dph_b).  C: and D: also network so cpnet tools
+     * (PIPNET, LOGIN, ...) keep working.
+     *
+     * LOCAL = 0x0000 — NDOS's chkdsk sees bit 7 clear and passes the
+     * SELDSK through to our BIOS.  NET_DRV has bit 7 set. */
     cfgtbl.drive[0] = NET_DRV('A', 0x00);
-    cfgtbl.drive[1] = NET_DRV('B', 0x00);
+    cfgtbl.drive[1] = LOCAL;
     cfgtbl.drive[2] = NET_DRV('C', 0x00);
     cfgtbl.drive[3] = NET_DRV('D', 0x00);
     cfgtbl.sid = 0xFF;          /* SNIOS rewrites to SLAVEID at init */

@@ -26,12 +26,18 @@ false	equ	not true
 ;
 ; cpnos-rom resident BIOS JT addresses (cpnos_rom.ld asserts these
 ; are stable: BIOS_BASE + 0/3/6/9/12/15).
-rbboot	equ	0DD00h
-rbwboot	equ	0DD03h
-rbconst	equ	0DD06h
-rbconin	equ	0DD09h
-rbcout	equ	0DD0Ch
-rblist	equ	0DD0Fh
+rbboot	equ	0DE00h
+rbwboot	equ	0DE03h
+rbconst	equ	0DE06h
+rbconin	equ	0DE09h
+rbcout	equ	0DE0Ch
+rblist	equ	0DE0Fh
+rbseldsk equ	0DE1Bh
+rbsettrk equ	0DE1Eh
+rbsetsec equ	0DE21h
+rbsetdma equ	0DE24h
+rbread	equ	0DE27h
+rbwrite	equ	0DE2Ah
 ;
 	extrn	NDOS	; Network Disk Operating System
 	extrn	BDOS	; Basic Disk Operating System
@@ -49,15 +55,15 @@ wboote:	jmp	error		; +3  wboot (unused in CP/NOS)
 	jmp	lshim	; +15
 	jmp	error		; +18 PUNCH
 	jmp	error		; +21 READER
-	jmp	error		; +24 HOME
-	jmp	error		; +27 SELDSK
-	jmp	error		; +30 SETTRK
-	jmp	error		; +33 SETSEC
-	jmp	error		; +36 SETDMA
-	jmp	error		; +39 READ
-	jmp	error		; +42 WRITE
+	jmp	error		; +24 HOME (BDOS doesn't call; we don't implement)
+	jmp	dskshim	; +27 SELDSK  → cpnos-rom impl_seldsk at 0xDD1B
+	jmp	trkshim	; +30 SETTRK  → cpnos-rom impl_settrk at 0xDD1E
+	jmp	secshim	; +33 SETSEC  → cpnos-rom impl_setsec at 0xDD21
+	jmp	dmashim	; +36 SETDMA  → cpnos-rom impl_setdma at 0xDD24
+	jmp	rdshim	; +39 READ    → cpnos-rom impl_read at 0xDD27
+	jmp	wrshim	; +42 WRITE   → cpnos-rom (currently stub returning error)
 	jmp	lsshim	; +45 LISTST
-	jmp	error		; +48 SECTRAN
+	jmp	error		; +48 SECTRAN (DPH.xlt = NULL for B:, not called)
 BIOSlen	equ	$-BIOS
 ;
 cr	equ	0dh
@@ -172,6 +178,66 @@ lsshim:
 	; don't block.  (Matches original Altos listst behaviour when
 	; the port was absent.)
 	xra	a
+	ret
+;
+; Disk BIOS shims — tail-call to cpnos-rom's resident BIOS.  Push/pop
+; BC/DE around the call because the Altos+DRI ABI expects them
+; preserved across BIOS entries, while clang-z80's sdcccall(1) is
+; free to clobber them.  Our asm impls at rb{seldsk,settrk,...} don't
+; actually clobber BC/DE today, but following the cshim pattern keeps
+; the contract safe regardless of how the C-side implementation grows.
+;
+; SELDSK: drive in C, DPH pointer returned in HL.
+dskshim:
+	push	b
+	push	d
+	call	rbseldsk
+	pop	d
+	pop	b
+	ret
+;
+; SETTRK / SETSEC / SETDMA: 16-bit arg in BC (CP/M convention),
+; no return value.
+trkshim:
+	push	b
+	push	d
+	call	rbsettrk
+	pop	d
+	pop	b
+	ret
+;
+secshim:
+	push	b
+	push	d
+	call	rbsetsec
+	pop	d
+	pop	b
+	ret
+;
+dmashim:
+	push	b
+	push	d
+	call	rbsetdma
+	pop	d
+	pop	b
+	ret
+;
+; READ / WRITE: no args (state set via SETTRK/SETSEC/SETDMA earlier),
+; returns A=0 success, A=1 error.
+rdshim:
+	push	b
+	push	d
+	call	rbread
+	pop	d
+	pop	b
+	ret
+;
+wrshim:
+	push	b
+	push	d
+	call	rbwrite
+	pop	d
+	pop	b
 	ret
 ;
 	end

@@ -30,12 +30,12 @@
 ENTRY(_cpnos_cold_entry)
 
 MEMORY {
-  /* Payload: runs from 0xDD00 (just above CP/NOS monolith's end at
+  /* Payload: runs from 0xDE00 (just above CP/NOS monolith's end at
    * 0xDCD9) up to SNIOS JT at 0xEA00.  Gives 3328 B for code + rodata.
    * Moved down from 0xED00 in Phase 20 to make room for DISKBSS
    * above — the FDC variant's disk buffers (hostbuf + alv + csv)
    * are 601 B and wouldn't fit at the old layout's ceiling.  */
-  PAYLOAD (rwx) : ORIGIN = 0xDD00, LENGTH = 0xD00
+  PAYLOAD (rwx) : ORIGIN = 0xDE00, LENGTH = 0xD00
 
   /* Zero-init RAM used by C code.  Starts just above the SNIOS JT
    * (0xEA00..0xEA1F); ends at the IVT (0xEC00).  480 B usable.  */
@@ -43,7 +43,7 @@ MEMORY {
 
   /* Secondary BSS for CP/M disk buffers (hostbuf, alv, csv) — placed
    * in the 0xED00..0xF800 range freed up by moving PAYLOAD down to
-   * 0xDD00.  2816 B total, ~2 KB of it slack for future needs.
+   * 0xDE00.  2816 B total, ~2 KB of it slack for future needs.
    *
    * Contents (sized for 8" maxi DSDD, drive B:):
    *   hostbuf[512]  — one physical FDC sector (DMA target for READ DATA).
@@ -63,7 +63,7 @@ __ivt_start = 0xEC00;
 __ivt_end   = __ivt_start + 18 * 2;
 
 SECTIONS {
-  .payload 0xDD00 : {
+  .payload 0xDE00 : {
     __payload_start = .;
 
     /* BIOS jump table MUST come first — its entries are the BIOS's

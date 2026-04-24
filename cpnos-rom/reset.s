@@ -3,7 +3,7 @@
 ; Runs at cold boot with undefined SP — we must set one before any C
 ; code gets pushed onto it.  Then tail-jump into the C relocator
 ; (relocator.c) which does the heavy lifting: two #embed'd payload
-; chunks copied to RAM at 0xDD00, then jp _cpnos_cold_entry.
+; chunks copied to RAM at 0xDE00, then jp _cpnos_cold_entry.
 ;
 ; SP=0xED00 is the top of the runtime DISKBSS region — the stack
 ; grows down from there into the 0xEC24..0xED00 gap above the IVT.
