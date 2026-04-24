@@ -9,6 +9,11 @@ Supported formats (auto-detected by file size):
     Track 1+, Side 0: 9 sectors x 512 bytes (MFM)
     Track 1+, Side 1: 9 sectors x 512 bytes (MFM)
 
+  RC702 maxi (8" DSDD, 4 MHz FDC, 500 kbps) — uniform MFM variant:
+    All tracks, both sides: 15 sectors x 512 bytes (MFM)
+    77 cylinders, no mixed-density Track 0 (rc702-8dd diskdef).
+    File size = 77 * 2 * 15 * 512 = 1,182,720 bytes.
+
   RC703 mini (5.25" QD 80-track, 4 MHz FDC, 250 kbps):
     All tracks, both sides: 10 sectors x 512 bytes (MFM)
     80 cylinders, uniform format throughout
@@ -102,9 +107,38 @@ def convert_rc703_mini(data, imdpath):
 
     print(f"Wrote {imdpath} ({total_tracks} tracks, {total_tracks*2} track/sides)")
 
+def convert_rc702_maxi(data, imdpath):
+    """Convert RC702 maxi 8" DSDD uniform-MFM raw image.
+
+    Matches cpmtools' rc702-8dd diskdef output — used by cpnos-rom's
+    acceptance-test disk builder.  No mixed-density Track 0; all 77
+    cylinders × 2 sides carry 15 × 512 B MFM at 500 kbps."""
+    assert len(data) == 77 * 2 * 15 * 512, f"wrong size for rc702 maxi: {len(data)}"
+    print(f"RC702 maxi 8\" DSDD: 77 cylinders x 2 sides x 15 sec x 512 B")
+    with open(imdpath, 'wb') as out:
+        out.write("IMD 1.18: RC702 maxi 8\" DSDD uniform MFM\r\n".encode('ascii'))
+        out.write(b'\x1a')
+        pos = 0
+        for cyl in range(77):
+            for head in range(2):
+                sectors = []
+                for _ in range(15):
+                    sectors.append(data[pos:pos + 512])
+                    pos += 512
+                # mode 0x03 = 500 kbps MFM; sectsize_code 2 = 512 B
+                write_track(out, 0x03, cyl, head, 15, 2, sectors)
+        assert pos == len(data)
+    print(f"Wrote {imdpath}")
+
+
 def convert(binpath, imdpath):
     with open(binpath, 'rb') as f:
         data = f.read()
+
+    # RC702 maxi: exact size 1,182,720 B, uniform MFM
+    if len(data) == 77 * 2 * 15 * 512:
+        convert_rc702_maxi(data, imdpath)
+        return
 
     # RC703 mini: uniform 10 sectors x 512 bytes x 2 sides
     rc703_track_size = 2 * 10 * 512
