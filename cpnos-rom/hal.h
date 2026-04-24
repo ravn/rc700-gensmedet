@@ -49,8 +49,14 @@ enum : uint8_t {
     SIO_RR0_CTS           = 0x20
 };
 
-/* 8237 DMA controller — channel 2 = CRT display, channel 3 = CRT attr. */
+/* 8237 DMA controller.  Channel assignment on RC702:
+ *   ch0 = J8 expansion (unused on-board)
+ *   ch1 = µPD765 FDC
+ *   ch2 = 8275 CRT display
+ *   ch3 = 8275 CRT attribute plane */
 enum : uint16_t {
+    PORT_DMA_CH1_ADDR = 0xF2,
+    PORT_DMA_CH1_WC   = 0xF3,
     PORT_DMA_CH2_ADDR = 0xF4,
     PORT_DMA_CH2_WC   = 0xF5,
     PORT_DMA_CH3_ADDR = 0xF6,

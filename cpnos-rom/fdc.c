@@ -41,12 +41,12 @@
 #define MSR_DRV(n)    (1u << ((n) & 3))
 
 /* --- µPD765 command opcodes --------------------------------------- */
-/* Only the four we need for READ-only 8" maxi.  READ_DATA will join
- * them in a later commit when the sector-read path lands. */
 #define CMD_SPECIFY        0x03
+#define CMD_READ_DATA      0x06   /* OR with CMD_MFM for double density */
 #define CMD_RECALIBRATE    0x07
 #define CMD_SENSE_INT      0x08
 #define CMD_SEEK           0x0F
+#define CMD_MFM            0x40   /* OR flag: MFM (double density) on READ/WRITE */
 
 /* --- low-level RQM polling ----------------------------------------
  *
@@ -190,4 +190,88 @@ uint8_t fdc_seek(uint8_t drive_head, uint8_t cylinder) {
     fdc_write(cylinder);
     fdc_wait_seek_done(drive_head & 0x03);
     return fdc_sense_int(0);
+}
+
+/* --- DMA channel 1 setup for FDC → memory transfer ----------------
+ *
+ * The 8237 needs the channel masked while we reload its address and
+ * word-count registers.  See PORT_OUTPUTS.md §8237 DMA for the bit
+ * layout of each byte below.
+ *
+ *   SMSK  0x05  = set mask for ch1   (bit 2 = set, bits 1-0 = ch1)
+ *   MODE  0x45  = single-transfer, increment, no-autoinit,
+ *                 write-transfer (I/O→memory), ch1
+ *   CLBP  0x00  = clear byte-pointer flipflop (next addr/WC write
+ *                 is the low half)
+ *   ADDR  lo/hi = destination RAM address
+ *   WC    lo/hi = count - 1 (8237 uses N-1 encoding)
+ *   SMSK  0x01  = clear mask for ch1 (bit 2 = clear, bits 1-0 = ch1)
+ *                 → channel responds to the FDC's DREQ on each byte
+ */
+RESIDENT
+static void fdc_dma_setup_read(void *dst, uint16_t count) {
+    _port_out(PORT_DMA_SMSK, 0x05);
+    _port_out(PORT_DMA_MODE, 0x45);
+    _port_out(PORT_DMA_CLBP, 0x00);
+    const uint16_t addr = (uint16_t)(uintptr_t)dst;
+    _port_out(PORT_DMA_CH1_ADDR, (uint8_t)(addr & 0xFF));
+    _port_out(PORT_DMA_CH1_ADDR, (uint8_t)(addr >> 8));
+    const uint16_t wc = count - 1;
+    _port_out(PORT_DMA_CH1_WC, (uint8_t)(wc & 0xFF));
+    _port_out(PORT_DMA_CH1_WC, (uint8_t)(wc >> 8));
+    _port_out(PORT_DMA_SMSK, 0x01);
+}
+
+/* --- READ DATA ----------------------------------------------------
+ *
+ * Read one sector via DMA.  The µPD765 READ DATA command takes 9
+ * bytes in its command phase:
+ *
+ *   +0  cmd+MF   — 0x06, OR 0x40 for MFM (double density)
+ *   +1  US,HD    — drive (bits 1-0) + head-select (bit 2)
+ *   +2  C        — cylinder number
+ *   +3  H        — head number (must match bit 2 of +1)
+ *   +4  R        — starting sector (1-based)
+ *   +5  N        — sector-size code (0=128, 1=256, 2=512, 3=1024)
+ *   +6  EOT      — last sector number on track
+ *   +7  GPL      — GAP3 length for this format
+ *   +8  DTL      — data-length byte (ignored when N > 0; we use 0xFF)
+ *
+ * Execution phase: the FDC pulses DREQ for each byte; DMA ch1 moves
+ * the data to RAM until the word-count expires.  Because the 8237 is
+ * in DMA mode, MSR.RQM stays low throughout execution — our first
+ * fdc_read() call naturally blocks until the result phase begins.
+ *
+ * Result phase: 7 bytes — ST0, ST1, ST2, C, H, R, N.  Must be read
+ * completely or MSR.CB stays set and the next command jams.  We only
+ * surface ST0 to the caller; the rest are drained and discarded.
+ * (A later commit may extend the return to pass ST1/ST2 if the BIOS
+ * layer needs finer error classification — for now ST0's IC field is
+ * enough to distinguish success from failure.)
+ */
+RESIDENT
+uint8_t fdc_read_sector(uint8_t cyl, uint8_t head, uint8_t sector,
+                        void *dst, const struct fdc_format *fmt) {
+    const uint16_t size = (uint16_t)128u << fmt->n;
+    fdc_dma_setup_read(dst, size);
+
+    const uint8_t drive_head = (uint8_t)((head & 1) << 2);   /* drive 0 + head */
+    const uint8_t cmd        = (uint8_t)(CMD_READ_DATA |
+                                         (fmt->mfm ? CMD_MFM : 0));
+
+    fdc_write(cmd);
+    fdc_write(drive_head);
+    fdc_write(cyl);
+    fdc_write(head);
+    fdc_write(sector);
+    fdc_write(fmt->n);
+    fdc_write(fmt->eot);
+    fdc_write(fmt->gap);
+    fdc_write(0xFF);                /* DTL — ignored for N > 0 */
+
+    /* Drain 7 result bytes.  Only ST0 is propagated. */
+    const uint8_t st0 = fdc_read();
+    for (uint8_t i = 0; i < 6; i++)
+        (void)fdc_read();
+    return st0;
 }
