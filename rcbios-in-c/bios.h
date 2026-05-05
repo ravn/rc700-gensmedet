@@ -414,7 +414,6 @@ extern const byte xlt_maxi_128[], xlt_maxi_512[], xlt_mini_512[], xlt_identity[]
 extern const disk_parameter_block dpb_maxi_128, dpb_maxi_512, dpb_mini_512, dpb_maxi_256;
 extern const FSPA fspa[4];
 extern const FDF fdf[4];
-extern word trkoff[];
 
 /* Write type constants */
 #define WRALL   0   /* write to allocated sector */

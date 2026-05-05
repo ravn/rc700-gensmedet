@@ -428,8 +428,9 @@ avoid linker placement errors.
 ### Disk data tables
 
 Translation tables (`xlt_maxi_128`–`xlt_identity`), Disk Parameter Blocks (`dpb_maxi_128`–`dpb_maxi_256`),
-Floppy Disk Format descriptors (`fdf[4]`), Floppy System Parameters (`fspa[4]`),
-and track offsets (`trkoff[]`) are defined as typed C arrays/structs in bios.c.
+Floppy Disk Format descriptors (`fdf[4]`), and Floppy System Parameters (`fspa[4]`)
+are defined as typed C arrays/structs in bios.c.  Per-drive track offsets are stored
+in each DPB's `.off` field (the original ASM `TRKOFF[]` table is unused in the C port).
 The `current_format` pointer (`const FDF *`) provides struct-based access to FDF fields
 (`current_format->dma_count`, `&current_format->mf`), replacing raw byte offset arithmetic.
 

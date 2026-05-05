@@ -198,9 +198,6 @@ const FSPA fspa[4] = {
     },
 };
 
-/* Track offset table (2 floppy drives + 6 reserved for harddisk) */
-word trkoff[] = { 2, 2, 0, 0, 0, 0, 0, 0 };
-
 /* ================================================================
  * ISR shared state
  * ================================================================ */
