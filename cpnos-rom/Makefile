@@ -120,6 +120,19 @@ else ifeq ($(COMPILER),sdcc)
   OBJDUMP = echo "(no llvm-objdump under sdcc)"
   NM      = echo "(no llvm-nm under sdcc)"
 
+  # `--opt-code-size` was tried at zcc level (it switches z88dk's
+  # peephole file from sdcc_peeph.3 to sdcc_peeph_cs.3) but it's a
+  # NET LOSS in cpnos-rom: peephole_cs saves ~17 B across the
+  # resident, but it also factors an 11 B `___sdcc_enter_ix` helper
+  # out into a shared symbol.  The shared helper amortises only
+  # against IX-frame function prologues -- this build has just 2
+  # such functions (relocator.c::relocate, resident.c::delete_line),
+  # so we save 3 B per prologue (6 B total) and pay 11 B for the
+  # helper.  Net: +5 B resident, which overflows display memory at
+  # 0xF800.  Re-enable when the build accumulates enough IX-frame
+  # functions to amortise (or after refactoring those two via
+  # tasks #27/#28).  See sibling rcbios-in-c/sdcc/Makefile for the
+  # correct zcc-level wrapping when re-enabling.
   ZFLAGS_BASE = +z80 -compiler=sdcc -clib=sdcc_iy --no-crt \
                 -Cs"--std-sdcc23" \
                 -Cs"--sdcccall 1" \
