@@ -133,6 +133,16 @@ else ifeq ($(COMPILER),sdcc)
   # functions to amortise (or after refactoring those two via
   # tasks #27/#28).  See sibling rcbios-in-c/sdcc/Makefile for the
   # correct zcc-level wrapping when re-enabling.
+  #
+  # `--max-allocs-per-node 1000000` is INTENTIONAL and LOAD-BEARING.
+  # 2026-05-08 #30 investigation tried 100000 / 250000 / 500000 and
+  # all three produced byte-identical resident sizes AND identical
+  # IX+/IY+ audit counts (12), yet the SDCC slave hangs early in
+  # cold-init (never reaches E>) under all of them.  SDCC's register
+  # allocator picks different registers at lower alloc budgets even
+  # when the visible structural metrics match, and the difference is
+  # enough to break polypascal-test boot.  Cost: 5-9 minute builds.
+  # Don't lower without re-running cpnos-polypascal-test under SDCC.
   ZFLAGS_BASE = +z80 -compiler=sdcc -clib=sdcc_iy --no-crt \
                 -Cs"--std-sdcc23" \
                 -Cs"--sdcccall 1" \
