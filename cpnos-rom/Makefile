@@ -423,6 +423,7 @@ $(BUILDDIR)/payload_header_data.s: $(BUILDDIR)/payload.elf $(BUILDDIR)/payload.b
 	    --payload-bin=$(BUILDDIR)/payload.bin \
 	    --chunk-a-size=$(PROM0_TAIL_SIZE) \
 	    --llvm-nm=$(NM) \
+	    --include-ivt \
 	    --out=$@
 
 $(BUILDDIR)/payload_header_data.o: $(BUILDDIR)/payload_header_data.s
