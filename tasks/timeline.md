@@ -161,6 +161,304 @@
   impl_boot traps re-pointed at 0xD000 (issue U).  **(Hard)** — each bug
   was silent at build time and only showed up as a mid-boot lockup.
 
+## Phase 47: cpnos-rom data-driven relocator (header-prefixed payload) (May 6-7, 2026) — branch `session47-cpnos-header-driven-relocator` in rc700-gensmedet/cpnos-rom
+
+- **Goal**: stop the four-way coupling (C decl + linker script + Makefile
+  awk + Makefile defsym) that wires payload metadata into the relocator,
+  before adding any more BSS regions or page-aligned reservations.
+  Replace it with a payload header the relocator reads at boot.
+
+- **Reached** (clang side, plan steps 1-5 of 8):
+  - `payload_header.h` defines the on-PROM struct (magic + chunk
+    srcs/sizes + cold_entry + checksum_magic + variable-length BSS-pair
+    list, sentinel-terminated).
+  - `tasks/scripts/gen_payload_header.py` reads payload.elf symbols
+    (clang) or cpnos_payload.map (SDCC) and emits payload_header_data.s.
+  - `relocator.c` rewritten to read `_payload_header` and act on its
+    fields — no externs, no compile-time constants except the magic.
+    Preserves the LDIR → BSS → checksum → JP ordering invariant (user-
+    restated 2026-05-07).
+  - `relocator.ld` places `.payload_header` right after relocator code;
+    emits `__chunk_a_start`/`__chunk_b_start` symbols at chunk physical
+    PROM offsets (linker-decided, no hardcoded 0x0400).
+  - `payload.ld` `INIT origin: 0x0100 → 0x0200` to give the data-driven
+    relocator a 512 B code budget.
+  - `Makefile` `PROM0_TAIL_SIZE: 1024 → 768` (chunk B grows from 708 to
+    964; total payload size unchanged).
+  - **6 of 7 cross-stage `--defsym` lines deleted** from the relocator-
+    link rule; only `__stack_top` remains (consumed by reset.s before
+    the relocator runs).
+  - Compiler stamped in the boot banner via `CPNOS_COMPILER_NAME` macro
+    in `compiler/compat.h` — selects `clang`/`sdcc`/`hitech`/`host`
+    from predefined compiler macros at preprocess time.
+
+  Verification: `make cpnos-polypascal-test` PASS end-to-end (PPAS
+  PRIMES → 29989 → E>) at every step that touched the relocator
+  pipeline.  `_payload_header @ 0x185` in the relocator binary, 30 B
+  contents.  **(Medium)** — required two iterations on the .init VMA
+  shift (relocator code grew from 110 B to 393 B), one on the indirect-
+  call lowering (used `__call_iy` which we don't have; replaced with
+  inline asm).
+
+- **Side fix** (this session): `_pio_rx_buf_page` derived from
+  `HIGH(_pio_rx_buf)` in BOTH pipelines instead of being a hardcoded
+  literal that disagreed with the actual buffer placement.  SDCC: new
+  `bss_pio_rx` SECTION at 0xEC00 (page-aligned, 256 B); buffer at
+  0xEC00, page constant = 0xEC.  Clang: page-alignment ASSERT in
+  `payload.ld` plus shift-and-mask in the symbol expression.
+
+- **Side fix** (this session): clang build hygiene — `relocator.c`
+  was missing `<stddef.h>`; `payload.ld` was missing
+  `__pio_rx_bss_start/end` symbols; Makefile was missing 4 `--defsym`
+  lines (now all dropped along with the rest in plan #19 step 5).
+  Without these, the inherited "BSS-clearing relocator" change from a
+  prior session wouldn't link.
+
+- **Documented** (this session):
+  - `cpnos-rom/tasks/memory-layout-investigation-2026-05-06.md` — full
+    survey of both pipelines' MEMORY-region / SECTION / `defc` /
+    ASSERT vocabularies, catalog of pinned-vs-movable items,
+    recommendation for fully linker-driven layout.
+  - `tasks/session47-cpnos-header-driven-relocator.md` — this session's
+    delivery + open issues + risks.
+  - 4 new memory rules (`feedback_memory_layout_on_port.md`,
+    `feedback_extract_rules_from_time_sinks.md` (meta — write rules
+    from time-sinks proactively), `feedback_relink_dependencies_atomically.md`,
+    `feedback_kill_stale_servers_on_test_target.md`).
+
+- **Pending** (plan #19 steps 6-8):
+  - Step 6: compile `relocator.c` under SDCC; replace `prom_loader.asm`
+    with the unified C relocator (single source of truth for both
+    compilers).  Requires splitting SDCC's currently-single z88dk link
+    into payload-link + relocator-link (per the architectural
+    invariant that the payload link must not know about PROMs).
+  - Step 7: add `RESIDENT_IVT` section + IVT pair to the header.
+    Closes task #18.
+  - Step 8: delete `sdcc/prom_loader.asm`; extend `check_sdcc_layout.py`
+    with header-presence + IVT-overlap checks.
+
+## Phase 46: cpnos-rom SDCC port reaches NDOS handoff (May 6, 2026 evening) — branch `main` in rc700-gensmedet
+
+- **Goal**: continue the SDCC dual-compile port (Phase 45) past the
+  Makefile dispatch into actual link + runtime, push it as far as
+  `cpnos-polypascal-test` passes.
+
+- **Reached**: SDCC build boots cleanly, netboots cpnos.com (25 of
+  25 sectors), disables PROM, hands control to NDOS COLDST.  Boot
+  marks `I PNILOREC+P J` confirm every cold-init phase.  NDOS coldst
+  runs (NTWKIN, tlbios, CNFTBL all return correctly), nwboot starts
+  CCP.SPR load via `call load`.  **(Medium-Hard)** — required eight
+  bring-up bug fixes catalogued in `cpnos-rom/tasks/sdcc-port.md`
+  "Bugs fixed this session".
+
+- **Two `JP 0` cascades found and squashed**:
+  (a) **NIOS placement** — `cpnos-build/src/cpnios-shim.asm` hardcodes
+  `NIOS = 0xEE33`.  Initial SDCC layout had BIOS jt at 0xF200 → SNIOS
+  jt at 0xF233, so NDOS's `call nios+0` jumped into uninitialised
+  resident bytes.  Fixed by relocating `RESIDENT_JUMPTABLE` to
+  `org 0xEE00` so SNIOS jt naturally lands at 0xEE33.  **(Easy once
+  spotted)** — symptom was 22-of-25 dot stall; root cause needed
+  symbol-table inspection.
+  (b) **`_bios_stub_ret` mis-placement** — SDCC link of
+  `void f(void){}` placed it in z88dk's `code_l_sccz80` runtime
+  section at 0xEDF4, OUTSIDE the prom_loader's LDIR target range
+  (0xEE00..0xF7FF).  Every NDOS call to an unimplemented BIOS entry
+  (LIST/PUNCH/SELDSK/READ/...) jumped into uninit RAM → garbage
+  execution → eventual JP 0 → ZP[0]=0xC3 → JP WBOOT → impl_wboot →
+  re-COLDST.  Classic warm-boot loop, exactly the user's "JP 0"
+  hypothesis.  Fixed by defining the symbol directly in
+  `sdcc/bios_jt.asm SECTION RESIDENT_CODE` (NOT in
+  RESIDENT_JUMPTABLE — would shift SNIOS jt off 0xEE33).
+  **(Painful)** — required gdbstub probing of stack contents at
+  hang to spot the 0x00 0x00 return addresses; symptom was
+  silent post-handoff hang.
+
+- **`cpnos-build` Path 4 — CODE_BASE shift**: cpnos.com originally
+  loaded 0xE180..0xEE00 (3200 B); SDCC's larger BSS at 0xEC00
+  collided with cpnos.com sectors 22+, killing
+  `_cfgtbl.netst.ACTIVE` mid-netboot.  Shifted `CODE_BASE` LE180
+  → LDF80, `DATA_BASE` DDD80 → DDB80 — cpnos.com now ends at
+  0xEC00, leaves 0xEC00..0xEDFF for slave BSS.  TPA 56→55 KB.
+  Both compilers re-tested at new address; clang reaches `E>`
+  prompt cleanly.  Long-term fix tracked as relocatable cpnos.SPR
+  refactor (`cpnos-rom/cpnos-build/RELOCATABLE_SPR.md` option a,
+  task #11).  **(Medium)** — requires rebuilding cpnos.com (DRI
+  RMAC+LINK via VirtualCpm), regenerating `cpnos_addrs.h`,
+  re-testing both compiler builds.
+
+- **Phase 2D `zp_init_data`**: `cpnos_main.c::resident_handoff`'s
+  LDIR was `#ifdef __clang__`-gated with a no-op `else`; ZP[0..7]
+  was never written under SDCC, so NDOS's WBOOT calls jumped via
+  uninit ZP.  Replaced with `ASM_VOLATILE("ld hl,_zp_init_data;
+  ld de,0; ld bc,8; ldir")`.  **(Easy)** — straightforward port;
+  `resident.c::insert_line` LDDR still TODO (task #17).
+
+- **Diagnostic infrastructure landed**: MAME's gdbstub (`-debugger
+  gdbstub -debugger_port 23946`) confirmed working without a debug
+  build; Python probe at `/tmp/gdb_probe.py` reads memory + dumps
+  registers/stack at break.  Bitbanger TCP proxy at
+  `/tmp/cpnet_proxy.py` logs every byte slave↔master with timestamps.
+  Both used heavily this session to localise the JP-0 sources.
+  **(Useful for future debugging)** — tools should be promoted out
+  of /tmp.
+
+- **Open**: SDCC build still hangs post-handoff with stack
+  corruption — more JP-0 paths suspected (task #13).  Polypascal
+  test cannot run for either compiler until MAME_IRQ branch built
+  (task #15) and test harness adapted for SDCC's symbol extraction
+  (task #16).  Resident.c insert_line LDDR still gated (task #17).
+
+- **Phase 2F — link-time audit landed (closes task #14)**: hard
+  build gate `tasks/scripts/check_sdcc_layout.py` added to the
+  SDCC `cpnos.cim` recipe.  Parses `cpnos.map`, walks every `addr`
+  symbol and every `__SECTION_head/size/tail`, fails the build
+  if a `code_*`/`rodata_*`/`data_*` symbol resolves outside
+  0xEE00..0xF7FF, a `bss_*` symbol resolves outside 0xEC00..0xEDFF,
+  or any two non-zero-size sections overlap.  On its first run it
+  caught a NEW outside-resident symbol — `_memset @ 0xEDF1` (with
+  `code_string` overlapping RESIDENT_JUMPTABLE at 0xEE00..0xEE0D),
+  meaning every `__builtin_memset` in resident.c (`clear_screen`,
+  `scroll_up`, `erase_to_eol/eos`, `insert/delete_line`) was a
+  dormant JP-0 source independent of #8 above.  Fix in `sections.asm`:
+  pin every z88dk runtime section explicitly inside its proper chain
+  (`code_clib` / `code_string` / `code_l_sccz80` / `code_home` /
+  `code_crt_init` / `code_compiler` at end of resident chain;
+  `rodata_*` / `data_*` aliases right after RESIDENT_RODATA;
+  `bss_clib` / `bss_string` after `bss_compiler`).  Audit re-runs on
+  every SDCC build and is a permanent build failure on regression.
+  Generalises bug #8's manual fix into a class of bugs caught
+  automatically.  **(Medium)** — root cause was systemic, the fix
+  is too.
+
+- **Lessons** (in `cpnos-rom/tasks/sdcc-port.md`): (1) SDCC drops
+  block-scope `extern` decls from asm output silently; declare
+  cross-file at file scope.  (2) z88dk's link places runtime-lib
+  sections in gaps; small `void f(void){}` functions can land
+  OUTSIDE the user-controlled resident region — define stubs in
+  asm or annotate placement explicitly.  (3) Build-time stack-
+  mismatch / out-of-region symbol detection would catch (2)
+  earlier (task #14).  (4) cpnos.com address shifts cascade
+  through `cpnos_addrs.h` regeneration; rebuild both compiler
+  outputs after every shift.
+
+## Phase 45: cpnos-rom dual+triple compile port — Phase 1 + 2A (May 5-6, 2026) — branch `main` in rc700-gensmedet
+
+- **Goal**: make `cpnos-rom` build under SDCC (z88dk-zsdcc) in
+  addition to clang Z80, with both builds coexisting (deploy time
+  picks one).  Scaffold for a third compiler (HiTech zc, ravn/hitech)
+  in the same pass.
+
+- **User-stated principles** (recorded as feedback memories):
+  - "clarity in the c code is very important" — drives every
+    compiler-dispatch decision: identical call shape across
+    backends, all `#ifdef` confined to `compiler/compat.h`, no
+    `#ifdef __SDCC` in business logic.
+  - "z88dk has intrinsic definitions for many z80 specific code" —
+    SDCC builds pull z88dk's `<intrinsic.h>` (e.g. `intrinsic_di`,
+    `intrinsic_ei`, `intrinsic_im_2`); clang Z80 has matching
+    `static inline` wrappers; same call shape.
+
+- **Phase 1 — source-level dual-compile (DONE)**:
+  - `hal.h` rewritten with 3-backend dispatch (`__clang__ + __z80__`,
+    `__SDCC || __SCCZ80`, `__HITECH__`/`HI_TECH_C`, host fallback).
+    `_port_in(p)` / `_port_out(p, v)` keep the same call shape in
+    every backend.  Clang Z80 inlines via `address_space(2)`; SDCC
+    declares an extern (Phase 2D will provide the asm body in
+    `runtime.asm`); HiTech `#error "not yet implemented"`.
+  - New `compiler/compat.h` is the keyword/macro shim: `ASM_VOLATILE`,
+    `__naked` / `__sdcccall(x)` / `__interrupt(n)` / `__critical` /
+    `__preserves_regs`, `STATIC_ASSERT`, `NORETURN`, `USED`,
+    `NOINLINE`, `SECTION_*` (one macro per `.payload_checksum` /
+    `.bss.cfgtbl` / `.init.text` / `.init.rodata` / `.resident*` /
+    `.prom0_*` / `.prom1` / `.pio_rx_bss`), `CPNOS_STR(x)`
+    preprocessor stringify (replaces clang's `%0` operand syntax in
+    `enter_coldst` -> `jp <CPNOS_NDOSE_ADDR>`), and a uniform
+    `intrinsic_di / _ei / _halt / _nop / _im_2 / _ld_i_a` API.
+    Header renamed from `compiler/intrinsic.h` to `compiler/compat.h`
+    so the SDCC `#include <intrinsic.h>` reaches z88dk's system
+    header rather than recursing.
+  - `tasks/scripts/bin2inc.py` is the `#embed` workaround.
+    SDCC has no `#embed` (not in `--std-sdcc23`).  A 25-LOC Python
+    script reads `<name>.bin` and emits `<name>.inc` (comma-separated
+    bytes) which both compilers `#include` inside an array
+    initializer.  C source identical between compilers.  Was offered
+    a 1.5-3-day SDCC patch; user chose the workaround.
+  - `relocator.c` / `cfgtbl.c` / `init.c` / `netboot_mpm.c` /
+    `payload_checksum.c` / `isr.c` / `resident.c` / `transport_pio.c`
+    / `transport_sio.c` / `cpnos_main.c` all rewritten to use
+    `compiler/compat.h` vocabulary.  Numeric local labels
+    (`8:`/`jr nz, 8f`) replaced with globally-unique labels
+    (`_isr_crt_count_done`).  Naked-keyword positioned after
+    declarator (`void f(void) __naked`) for cross-compiler parity.
+    All 10 .c files compile clean under both clang Z80 and SDCC `-S`.
+  - Clang Z80 build remains byte-stable through the entire port:
+    payload **1738 B**, PROM0 **1778 non-padding B** — same as
+    before the port started.
+
+- **Phase 2A — Makefile dispatch (DONE)**:
+  - `make cpnos COMPILER=clang|sdcc|hitech` selects the build path.
+  - `BUILDDIR = $(COMPILER)` parameterizes 96 hardcoded `clang/`
+    paths.  Clang path byte-stable; SDCC path reaches the assembler
+    and stops at the first `.s` file (Phase 2C); HiTech path
+    `$(error not yet implemented)`.
+  - Per-compiler tool/flag block: clang uses ld.lld + llvm-objcopy;
+    SDCC uses `+z80 -compiler=sdcc -clib=sdcc_iy --no-crt
+    -Cs"--std-sdcc23" -Cs"--sdcccall 1"`; native zcc preferred,
+    Docker (`z88dk:2.4`) fallback retained.
+
+- **Phase 2 remaining (NOT DONE)**:
+  - **2B linker layout**: `cpnos_rom.ld` (4 memory regions
+    PROM0/PROM1/RESIDENT/SCRATCH, 6 ASSERTs) → z88dk
+    `sdcc/sections.asm` + `appmake +rom`.  rcbios pattern
+    (`rcbios-in-c/sdcc/z88dk_section_layout.asm`) is the reference;
+    cpnos has 4 regions vs rcbios's 2 so it's harder.
+  - **2C asm files**: parallel `.asm` files per SDCC for `reset.s`,
+    `runtime.s`, `bios_jt.s`, `snios.s`.  Direct semantic translation;
+    different syntax.
+  - **2D LDDR/LDIR helpers**: replace the two
+    `#if defined(__clang__) && defined(__z80__)` gates around inline
+    asm (`resident.c::insert_line`, `cpnos_main.c::resident_handoff`)
+    with calls to a shared `mem_copy_forward` / `mem_copy_backwards`
+    helper hosted in per-compiler runtime.{s,asm}.  Tried
+    `__builtin_memmove` first — it inflates the clang Z80 payload
+    past the budget (causes `IVT overlaps .payload` link error);
+    reverted.
+  - **2E validation**: run `cpnos-polypascal-test` against the SDCC
+    build; confirm functional parity with clang.
+
+- **Realistic remaining**: 8-14 hours focused work to a SDCC PROM
+  that boots through cpnos-polypascal-test.
+
+- **Lessons (session 45)**:
+  - **Header naming clash bites silently**.  My initial
+    `compiler/intrinsic.h` name caused `#include <intrinsic.h>`
+    inside that file to recurse into itself instead of finding
+    z88dk's system intrinsic.h.  Renamed to `compiler/compat.h`.
+    Lesson: when bridging to a system header by the same canonical
+    name, do not reuse the name — even with header guards, the
+    include just becomes a no-op.
+  - **`__builtin_memmove` is not a free portability fallback on
+    Z80**.  Looks like the right choice for "let the compiler emit
+    LDIR/LDDR per direction"; in practice clang's memmove dispatch
+    grew the payload by enough bytes to break the section layout.
+    Always measure size cost before swapping inline asm.
+  - **Parallel Edit-tool batches can drop file content silently**.
+    Mid-session, 7 sequential Edits on `cpnos_main.c` issued in one
+    tool batch came back with "file modified since read" errors but
+    left the file at 0 bytes.  `git checkout HEAD -- cpnos_main.c`
+    restored it.  Lesson for future sessions: do edits one at a time
+    on the same file; verify with `wc -l` after batches.
+
+- **Files committed in this phase** (planned, not yet done):
+  - `cpnos-rom/hal.h` (3-backend dispatch)
+  - `cpnos-rom/compiler/compat.h` (new shared shim)
+  - `cpnos-rom/tasks/scripts/bin2inc.py` (new `#embed` workaround)
+  - `cpnos-rom/Makefile` (COMPILER dispatch + 96-path parameterize)
+  - 10 .c files updated to compat.h vocabulary
+  - `cpnos-rom/tasks/sdcc-port.md` (scope/progress doc)
+  - `compiler/MEMORY` updates (added `feedback_clarity_in_c_code.md`,
+    updated `project_cpnos_clang_only.md` to reflect direction reversal)
+
 ## Phase 33: close ravn/llvm-z80#97 BC ping-pong (May 2, 2026) — branch `session-35-issue-97` in llvm-z80
 
 - **Goal**: close #97 (BC ping-pong in rotated single-BB self-loops),
