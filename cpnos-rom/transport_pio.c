@@ -40,15 +40,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "hal.h"
+#include "compiler/compat.h"
 #include "transport.h"
 
-#ifdef __ELF__
-#define RESIDENT      __attribute__((section(".resident"), used))
-#define RESIDENT_DATA __attribute__((section(".resident.data"), used))
-#else
-#define RESIDENT
-#define RESIDENT_DATA
-#endif
+#define RESIDENT      SECTION_RESIDENT
+#define RESIDENT_DATA SECTION_RESIDENT_DATA
 
 /* Z80-PIO control-word constants (Zilog datasheet table 4 + ICW form). */
 #define PIO_MODE_OUTPUT       0x0F
@@ -95,11 +91,20 @@ static uint8_t pio_b_dir;            /* zeroed BSS = INPUT initially */
  * weight and the 256 B at 0xF700 freed for the larger payload. */
 volatile uint8_t pio_rx_head;   /* ISR writes only */
 volatile uint8_t pio_rx_tail;   /* mainline writes only */
-/* Buf in dedicated .pio_rx_bss section (NOLOAD, page-aligned at
- * 0xF700 — see payload.ld PIO_RX region).  Page-alignment lets the
- * ISR use ld h,buf>>8 + ld l,head as a single fast 16-bit address. */
-__attribute__((section(".pio_rx_bss")))
-volatile uint8_t pio_rx_buf[PIO_RX_BUF_SIZE];
+/* Page-aligned 256-byte ring.  ISR builds `&buf[head]` as `ld h,
+ * _pio_rx_buf_page; ld l, head` — only correct if the buffer is
+ * page-aligned (low byte 0).  Both compilers derive _pio_rx_buf_page
+ * from HIGH(_pio_rx_buf) so the constant cannot drift from the
+ * placement: clang via payload.ld (.pio_rx_bss NOLOAD region at 0xF700);
+ * SDCC via sections.asm (bss_pio_rx section, align 256, defs 256).
+ * The SDCC build defines the symbol in sections.asm, so transport_pio.c
+ * just declares it extern.  Clang allocates here through the section
+ * attribute. */
+#if defined(__clang__) && defined(__z80__)
+SECTION_PIO_RX_BSS volatile uint8_t pio_rx_buf[PIO_RX_BUF_SIZE];
+#else
+extern volatile uint8_t pio_rx_buf[PIO_RX_BUF_SIZE];
+#endif
 #endif
 
 RESIDENT

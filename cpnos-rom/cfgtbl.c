@@ -22,6 +22,7 @@
 
 #include <stdint.h>
 #include "cfgtbl.h"
+#include "compiler/compat.h"
 
 #ifndef RC702_SLAVEID
 #define RC702_SLAVEID 0x70
@@ -31,7 +32,7 @@
  * non-zero fields are set at runtime by cfgtbl_init() — avoids burning
  * 170+ B of explicit zero bytes in the PROM just to spell out MSGBUF
  * and the unused upper drive slots. */
-#define RESIDENT_BSS __attribute__((section(".bss.cfgtbl"), used))
+#define RESIDENT_BSS SECTION_BSS_CFGTBL
 
 /* Drive map entry encoding (per cpndos.asm:435-451 chkdsk):
  *   byte 0 (low):  bit 7 = 1 for network drive, bits 3..0 = remote drive letter
@@ -70,7 +71,7 @@ struct cfgtbl cfgtbl;
  * harddisk DPHs at drive numbers 8 and 9 -- see bnkxios-net-2.mac).
  * Disk images seeded by the cpmsim/mpm-net2 launcher from
  * disks/library/mpm-net2-drive[ij].dsk. */
-__attribute__((section(".init.rodata")))
+SECTION_INIT_RODATA
 static const uint8_t cfgtbl_init_template[13] = {
     RC702_SLAVEID,                                                /* +1  slaveid */
     NET_DRV('A', 0x00) & 0xFF, (NET_DRV('A', 0x00) >> 8) & 0xFF,  /* +2  drive[0] */
@@ -84,7 +85,7 @@ static const uint8_t cfgtbl_init_template[13] = {
 /* Set the few non-zero fields.  Everything else stayed zero at BSS
  * clear.  Must run before any SNIOS call (cpnos_main calls us before
  * netboot). */
-__attribute__((section(".init.text")))
+SECTION_INIT_TEXT
 void cfgtbl_init(void) {
     __builtin_memcpy(&cfgtbl.slaveid, cfgtbl_init_template,
                      sizeof(cfgtbl_init_template));

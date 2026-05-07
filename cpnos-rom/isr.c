@@ -32,66 +32,71 @@
  * enable_interrupts / disable_interrupts) are also resident so they
  * can be called from resident contexts (warm boot path) without a
  * PROM-vs-RAM dance.
+ *
+ * Cross-compiler note (Phase 1, dual-build): inline asm uses globally-
+ * unique labels (e.g. `_isr_crt_no_dirty`) instead of GAS-style
+ * numeric local labels (`1:`/`8:`/`jr nz, 8f`).  Numeric local labels
+ * differ between clang's GAS-Z80 parser and SDCC's z80asm parser; the
+ * unique-label form works in both.  The labels intentionally start
+ * with `_` so they don't collide with normal C identifiers and also
+ * don't get mangled differently by the two compilers.  See
+ * cpnos-rom/compiler/compat.h for the ASM_VOLATILE / __naked /
+ * SECTION_RESIDENT_ISR macros.
  */
 
 #include <stdint.h>
+#include "compiler/compat.h"
 
-/* Gate the ELF-only section attribute the same way resident.c does
- * (only the Z80 ELF compile path takes it; macOS system clang driving
- * the IDE LSP would reject it on Mach-O). */
-#ifdef __ELF__
-#define ISR_SECTION  __attribute__((section(".resident.isr"), used))
-#else
-#define ISR_SECTION
-#endif
+/* BSS symbols touched by inline asm in this file but defined elsewhere.
+ * SDCC's asm emitter only generates EXTERN directives for C-level
+ * extern declarations — references in inline-asm strings are invisible
+ * to it.  Declare them here at file scope so SDCC emits the right
+ * EXTERNs.  Defined in resident.c (kbd_*) and transport_pio.c
+ * (pio_rx_*); pio_rx_buf_page is a linker-defined constant
+ * (sdcc/sections.asm / payload.ld -> 0xF7). */
+#define KBD_RING_SIZE 16
+extern uint8_t kbd_ring[KBD_RING_SIZE];
+extern volatile uint8_t kbd_head;
+extern volatile uint8_t kbd_tail;
+extern volatile uint8_t pio_rx_head;
+extern volatile uint8_t pio_rx_tail;
+extern volatile uint8_t cur_dirty;   /* defined in resident.c */
+extern uint8_t curx;
+extern uint8_t cury;
+/* Linker-defined constant — value is the high byte of pio_rx_buf
+ * address, used in inline asm via `ld h, _pio_rx_buf_page`.  Declared
+ * here so SDCC emits an asm-level EXTERN directive; the value comes
+ * from sdcc/sections.asm (defc) at link time. */
+extern uint8_t pio_rx_buf_page;
 
-/* Init-time helpers ------------------------------------------------ */
+/* Init-time helpers ------------------------------------------------
+ *
+ * One-instruction wrappers around the Z80 intrinsics.  Plain C — both
+ * compilers reduce these to `LD I, A; RET` / `IM 2; RET` / `EI; RET` /
+ * `DI; RET` after inlining the static-inline intrinsic.  No naked
+ * needed because the compiler-generated prologue/epilogue is already
+ * just RET; saving registers across a one-instruction body is fine.
+ */
 
-ISR_SECTION
-__attribute__((naked))
-void set_i_reg(__attribute__((unused)) uint8_t page) {
-    /* page lands in A under sdcccall(1); body uses A directly. */
-    __asm__ volatile(
-        "ld   i, a\n\t"
-        "ret\n\t"
-    );
-}
+SECTION_RESIDENT_ISR
+void set_i_reg(uint8_t page) { intrinsic_ld_i_a(page); }
 
-ISR_SECTION
-__attribute__((naked))
-void enable_im2(void) {
-    __asm__ volatile(
-        "im   2\n\t"
-        "ret\n\t"
-    );
-}
+SECTION_RESIDENT_ISR
+void enable_im2(void)        { intrinsic_im_2(); }
 
-ISR_SECTION
-__attribute__((naked))
-void enable_interrupts(void) {
-    __asm__ volatile(
-        "ei\n\t"
-        "ret\n\t"
-    );
-}
+SECTION_RESIDENT_ISR
+void enable_interrupts(void) { intrinsic_ei(); }
 
-ISR_SECTION
-__attribute__((naked))
-void disable_interrupts(void) {
-    __asm__ volatile(
-        "di\n\t"
-        "ret\n\t"
-    );
-}
+SECTION_RESIDENT_ISR
+void disable_interrupts(void) { intrinsic_di(); }
 
 /* ISRs ------------------------------------------------------------- */
 
 /* No-op ISR for unused IM2 slots.  Must use RETI so the daisy-chained
  * interrupt-priority hardware (CTC, PIO) can advance past this device. */
-ISR_SECTION
-__attribute__((naked))
-void isr_noop(void) {
-    __asm__ volatile(
+SECTION_RESIDENT_ISR
+void isr_noop(void) __naked {
+    ASM_VOLATILE(
         "ei\n\t"
         "reti\n\t"
     );
@@ -116,10 +121,9 @@ void isr_noop(void) {
  * Mainline writes cur_dirty *after* curx/cury, so reading them here
  * races benignly: we may see a slightly-stale position one frame later,
  * but never a torn pair (single-byte stores are atomic on Z80). */
-ISR_SECTION
-__attribute__((naked))
-void isr_crt(void) {
-    __asm__ volatile(
+SECTION_RESIDENT_ISR
+void isr_crt(void) __naked {
+    ASM_VOLATILE(
         "push af\n\t"
         "push hl\n\t"
 
@@ -135,16 +139,16 @@ void isr_crt(void) {
          * propagate carry by jr nz from each byte. */
         "ld   hl, 0xFFFC\n\t"
         "inc  (hl)\n\t"
-        "jr   nz, 8f\n\t"
+        "jr   nz, _isr_crt_count_done\n\t"
         "inc  hl\n\t"
         "inc  (hl)\n\t"
-        "jr   nz, 8f\n\t"
+        "jr   nz, _isr_crt_count_done\n\t"
         "inc  hl\n\t"
         "inc  (hl)\n\t"
-        "jr   nz, 8f\n\t"
+        "jr   nz, _isr_crt_count_done\n\t"
         "inc  hl\n\t"
         "inc  (hl)\n\t"
-    "8:\n\t"
+    "_isr_crt_count_done:\n\t"
 
         /* Ack CRT status register. */
         "in   a, (0x01)\n\t"        /* PORT_CRT_CMD */
@@ -192,7 +196,7 @@ void isr_crt(void) {
         /* Deferred 8275 cursor update. */
         "ld   a, (_cur_dirty)\n\t"
         "or   a\n\t"
-        "jr   z, 1f\n\t"
+        "jr   z, _isr_crt_no_dirty\n\t"
         "xor  a\n\t"
         "ld   (_cur_dirty), a\n\t"
         "ld   a, 0x80\n\t"          /* 8275 "load cursor position" */
@@ -201,7 +205,7 @@ void isr_crt(void) {
         "out  (0x00), a\n\t"
         "ld   a, (_cury)\n\t"
         "out  (0x00), a\n\t"
-    "1:\n\t"
+    "_isr_crt_no_dirty:\n\t"
 
         "pop  hl\n\t"
         "pop  af\n\t"
@@ -220,10 +224,9 @@ void isr_crt(void) {
  * POP AF after the head/tail logic) instead of in E, and new_head is
  * carried in A rather than D — `cp (hl)` lets us compare against
  * (_kbd_tail) without DE. */
-ISR_SECTION
-__attribute__((naked))
-void isr_pio_kbd(void) {
-    __asm__ volatile(
+SECTION_RESIDENT_ISR
+void isr_pio_kbd(void) __naked {
+    ASM_VOLATILE(
         "push af\n\t"
         "push bc\n\t"
         "push hl\n\t"
@@ -240,7 +243,7 @@ void isr_pio_kbd(void) {
         /* if (new_head == tail) drop */
         "ld   hl, _kbd_tail\n\t"
         "cp   (hl)\n\t"
-        "jr   z, 1f\n\t"
+        "jr   z, _isr_pio_kbd_drop\n\t"
 
         /* head = new_head (A still holds new_head) */
         "ld   (_kbd_head), a\n\t"
@@ -256,11 +259,11 @@ void isr_pio_kbd(void) {
         /* Pop key from stack into A (clobbers F — we no longer need it). */
         "pop  af\n\t"
         "ld   (hl), a\n\t"          /* ring[old_head] = key */
-        "jr   2f\n\t"
+        "jr   _isr_pio_kbd_done\n\t"
 
-    "1:\n\t"
+    "_isr_pio_kbd_drop:\n\t"
         "pop  af\n\t"               /* drop path: discard the stashed key */
-    "2:\n\t"
+    "_isr_pio_kbd_done:\n\t"
 
         "pop  hl\n\t"
         "pop  bc\n\t"
@@ -286,19 +289,18 @@ void isr_pio_kbd(void) {
  * ring write; new_head is carried in A; pio_rx_buf is page-aligned so
  * `ld h, _pio_rx_buf_page; ld l, head` builds &ring[head] without BC.
  * Userspace BC/DE/shadow registers all stay intact across the IRQ. */
-ISR_SECTION
-__attribute__((naked))
-void isr_pio_par(void) {
+SECTION_RESIDENT_ISR
+void isr_pio_par(void) __naked {
 #ifdef TRANSPORT_PROXY
     /* In TRANSPORT=pio-proxy the PIO-B IRQ never fires (init.c keeps
      * the chip's IE bit clear for that mode), but we still publish a
      * vector so the IVT slot resolves.  This stub is just iret. */
-    __asm__ volatile(
+    ASM_VOLATILE(
         "ei\n\t"
         "reti\n\t"
     );
 #else
-    __asm__ volatile(
+    ASM_VOLATILE(
         "push af\n\t"
         "push hl\n\t"
 
@@ -316,7 +318,7 @@ void isr_pio_par(void) {
         /* if (new_head == tail) drop — ring full, byte lost. */
         "ld   hl, _pio_rx_tail\n\t"
         "cp   (hl)\n\t"
-        "jr   z, 2f\n\t"
+        "jr   z, _isr_pio_par_drop\n\t"
 
         /* head = new_head; ring[old_head] = byte.  Page-aligned 256-byte
          * buf — H = buf>>8 (0xf7) is a constant; L = old_head. */
@@ -327,11 +329,11 @@ void isr_pio_par(void) {
 
         "pop  af\n\t"                /* recover stashed byte into A */
         "ld   (hl), a\n\t"           /* ring[old_head] = byte */
-        "jr   3f\n\t"
+        "jr   _isr_pio_par_done\n\t"
 
-    "2:\n\t"
+    "_isr_pio_par_drop:\n\t"
         "pop  af\n\t"                /* drop path: discard the stashed byte */
-    "3:\n\t"
+    "_isr_pio_par_done:\n\t"
 
         "pop  hl\n\t"
         "pop  af\n\t"

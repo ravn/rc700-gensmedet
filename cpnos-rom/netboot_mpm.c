@@ -23,11 +23,15 @@
 
 #include <stdint.h>
 #include "hal.h"
+#include "compiler/compat.h"
 #include "transport.h"
 #include "cfgtbl.h"
 
-/* memcpy from runtime.s — no libc headers in a freestanding build. */
+/* memcpy from runtime.s (clang) or libsdcc_iy (SDCC, declared in
+ * <string.h> via compat.h). */
+#ifdef __clang__
 extern void *memcpy(void *dest, const void *src, unsigned int n);
+#endif
 
 /* SNIOS NTWKIN — drains SIO RX, sets ACTIVE flag.  Always SIO-side
  * because the only thing it does that matters (cfgtbl.NETST = ACTIVE)
@@ -73,14 +77,14 @@ extern void impl_conout(uint8_t c);
 #ifndef RC702_LOGIN_PWD
 #define RC702_LOGIN_PWD "PASSWORD"
 #endif
-__attribute__((section(".init.rodata")))
+SECTION_INIT_RODATA
 static const uint8_t login_pwd[8] = RC702_LOGIN_PWD;
 
 /* FCB header for A:CPNOS.IMG (drive + 8.3 name).  Bytes +12..+35
  * are left zero — msg[] lives in BSS so the zero tail is already
  * there, and install_fcb only runs once before any FCB response
  * has overwritten those slots. */
-__attribute__((section(".init.rodata")))
+SECTION_INIT_RODATA
 static const uint8_t FCB_HEAD[12] = {
     0x01,                                /* +0  drive A (1-based) */
     'C','P','N','O','S',' ',' ',' ',     /* +1..+8  name */
@@ -91,7 +95,7 @@ static const uint8_t FCB_HEAD[12] = {
  * Data must already be in msg[DAT..DAT+dat_len-1].  siz_minus_1 must be
  * dat_len - 1 per DRI convention (SIZ=0 means 1 byte).
  * Returns response retcode (msg[DAT] on success); 0xFE on transport err. */
-__attribute__((section(".init.text")))
+SECTION_INIT_TEXT
 static uint8_t cpnet_xact(uint8_t fnc, uint8_t siz_minus_1) {
     msg[FMT] = 0x00;
     msg[DID] = 0x00;                 /* to master */
@@ -105,7 +109,7 @@ static uint8_t cpnet_xact(uint8_t fnc, uint8_t siz_minus_1) {
 
 /* Copy the 12-byte FCB header into msg.  The 24-byte zero tail is
  * already zero in BSS. */
-__attribute__((section(".init.text")))
+SECTION_INIT_TEXT
 static void install_fcb(void) {
     msg[DAT] = 0;                    /* user number */
     __builtin_memcpy(&msg[DAT + 1], FCB_HEAD, 12);
@@ -113,12 +117,12 @@ static void install_fcb(void) {
 
 /* Rewrite only DAT[0]=user.  FCB is already in msg[DAT+1..DAT+36] from
  * the previous response — caller should not touch it between calls. */
-__attribute__((section(".init.text")))
+SECTION_INIT_TEXT
 static void reuse_fcb(void) {
     msg[DAT] = 0;                    /* user number */
 }
 
-__attribute__((section(".init.text")))
+SECTION_INIT_TEXT
 uint16_t netboot_mpm(void) {
     BOOT_MARK(8, 'N');               /* entered netboot_mpm */
     /* Arm SNIOS.  Drains SIO RX and flips CFGTBL.NETST.ACTIVE. */

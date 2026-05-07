@@ -18,6 +18,7 @@
  */
 
 #include <stdint.h>
+#include "compiler/compat.h"
 
-__attribute__((section(".payload_checksum"), used))
+SECTION_PAYLOAD_CKSUM
 static const uint16_t payload_checksum_placeholder = 0xFFFF;

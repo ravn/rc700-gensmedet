@@ -1,16 +1,44 @@
-/* cpnos-rom hardware abstraction — port addresses only
+/* cpnos-rom hardware abstraction — port addresses and port I/O.
  *
  * Port numbers match the RC702/MIC702 I/O map (see autoload-in-c/rom.h
- * and rcbios-in-c/hal.h for the canonical list).  Reads/writes go
- * through clang's address_space(2) which lowers to IN A,(n) / OUT (n),A.
+ * and rcbios-in-c/hal.h for the canonical list).
+ *
+ * The .c files always call `_port_in(p)` / `_port_out(p, v)` with a
+ * port number and value.  The same call-shape works for compile-time
+ * constants and for runtime-selected ports (the port_init iteration
+ * loop in init.c uses the runtime form).
+ *
+ * Backends:
+ *   clang z80    : inline IN A,(n) / OUT (n),A via address_space(2)
+ *   SDCC (zsdcc) : extern function in hal_sdcc.s (OUT (C),A / IN A,(C))
+ *   HiTech zc    : TODO — currently #error until verified on real zc
+ *   host clang   : LSP/IDE no-op stubs (compiles, doesn't run)
+ *
+ * Per the clarity-in-c-code rule the call shape is identical across
+ * backends.  No DEFPORT macros, no per-port-name expansion: a reader
+ * sees `_port_out(PORT_RAMEN, 0)` and that's exactly what runs.
  */
 #ifndef CPNOS_HAL_H
 #define CPNOS_HAL_H
 
 #include <stdint.h>
 
-#define __io __attribute__((address_space(2)))
+/* ================================================================
+ * Backend selection: _port_in / _port_out.
+ *
+ * Same signature in every backend:
+ *     uint8_t _port_in (uint16_t port);
+ *     void    _port_out(uint16_t port, uint8_t value);
+ *
+ * The uint16_t port type is wider than the Z80's 8-bit I/O bus but
+ * matches the existing call sites (PORT_DMA_* are typed uint16_t for
+ * historical reasons).  Backends truncate to 8 bits at the IN/OUT
+ * instruction.
+ * ================================================================ */
 
+#if defined(__clang__) && defined(__z80__)
+/* clang Z80 backend: address_space(2) lowers to IN/OUT directly. */
+#define __io __attribute__((address_space(2)))
 static inline uint8_t _port_in(uint16_t p) {
     return *(volatile __io uint8_t *)p;
 }
@@ -18,7 +46,37 @@ static inline void _port_out(uint16_t p, uint8_t v) {
     *(volatile __io uint8_t *)p = v;
 }
 
-/* Canonical RC702 port map (typed: 1-byte I/O addresses) */
+#elif defined(__SDCC) || defined(__SCCZ80)
+/* SDCC / sccz80: __sfr requires a constant address, so per-port
+ * helpers don't compose into a runtime-port call.  Instead provide
+ * extern functions implemented in hal_sdcc.s — same call-shape,
+ * costs ~17 T-states per call (CALL + asm body + RET) versus ~12 T
+ * inline.  Fine on boot init paths.  Hot-path SDCC code can still
+ * use __sfr __at directly if it must shave the call. */
+extern uint8_t _port_in (uint16_t p);
+extern void    _port_out(uint16_t p, uint8_t v);
+
+#elif defined(__HITECH__) || defined(HI_TECH_C)
+/* HiTech C (zc / Hi-Tech Z80 C, ravn/hitech via ghcr.io/ravn/hitech).
+ * TODO: port helper API not yet verified.  Likely candidates are
+ * inp(port) / outp(port, val) (matching MS-DOS conio) or per-port
+ * builtins.  Until validated, fail loud rather than guess.
+ *
+ * When implementing: keep the _port_in / _port_out signatures so
+ * the .c sources compile unchanged. */
+#error "cpnos-rom: HiTech C port not yet implemented (see hal.h)"
+
+#else
+/* Host clang on macOS (CLion LSP, no real Z80 target).  Stubs let
+ * the IDE parse the sources cleanly — no diagnostics, no codegen. */
+static inline uint8_t _port_in(uint16_t p) { (void)p; return 0; }
+static inline void    _port_out(uint16_t p, uint8_t v) { (void)p; (void)v; }
+#endif
+
+/* ================================================================
+ * Canonical RC702 port map (typed: 1-byte I/O addresses)
+ * ================================================================ */
+
 enum : uint8_t {
     PORT_CRT_PARAM    = 0x00,
     PORT_CRT_CMD      = 0x01,

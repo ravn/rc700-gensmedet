@@ -12,15 +12,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "hal.h"
+#include "compiler/compat.h"
 #include "transport.h"
 
-#ifdef __ELF__
-#define RESIDENT      __attribute__((section(".resident"), used))
-#define RESIDENT_DATA __attribute__((section(".resident.data"), used))
-#else
-#define RESIDENT
-#define RESIDENT_DATA
-#endif
+#define RESIDENT      SECTION_RESIDENT
+#define RESIDENT_DATA SECTION_RESIDENT_DATA
 
 RESIDENT
 void transport_send_byte(uint8_t c) {

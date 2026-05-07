@@ -36,7 +36,7 @@ MEMORY {
    * The relocator embeds init.bin into PROM 0 at exactly this
    * VMA so absolute references resolve.  Init/resident split,
    * step 3 (tasks/todo.md). */
-  INIT    (rx)  : ORIGIN = 0x0100, LENGTH = 0x0300
+  INIT    (rx)  : ORIGIN = 0x0200, LENGTH = 0x0300
 
   /* Payload (resident): copied to RAM at 0xEE00 by the relocator.
    * Limited by the combined size of the two 2 KB EPROMs minus the
@@ -75,11 +75,16 @@ MEMORY {
 __ivt_start = 0xF500;
 __ivt_end   = __ivt_start + 18 * 2;
 
-/* PIO ring page address — kept consistent with PIO_RX MEMORY region
- * origin.  isr.c uses _pio_rx_buf_page as a high-byte literal in
- * `ld h, _pio_rx_buf_page` since the GAS-on-Z80 assembler doesn't
- * accept (_pio_rx_buf >> 8) as an immediate. */
-_pio_rx_buf_page = 0xF7;
+/* PIO ring page address — derived from the actual placement of the
+ * .pio_rx_bss section, not a hardcoded literal.  The previous design
+ * spelled this as `_pio_rx_buf_page = 0xF7` and was mirrored as
+ * `defc _pio_rx_buf_page = 0xF7` in sdcc/sections.asm; both could
+ * silently disagree with where each linker actually placed the
+ * buffer.  Now both pipelines say "HIGH byte of the symbol's actual
+ * address" — the linker computes both, drift is impossible.  Defined
+ * AFTER the .pio_rx_bss section below; until then the symbol is
+ * unresolved.  isr.c uses `_pio_rx_buf_page` as a high-byte literal
+ * in `ld h, _pio_rx_buf_page`. */
 
 SECTIONS {
   /* Init-only output section -- runs in place from PROM 0 at 0x0100.
@@ -89,7 +94,7 @@ SECTIONS {
    * Symbols inside .init can call resident-RAM symbols at 0xEE00+
    * because the relocator populates that range before any init code
    * runs (cpnos_cold_entry in resident orchestrates the calls). */
-  .init 0x0100 : {
+  .init 0x0200 : {
     __init_start = .;
     *(.init.text)
     *(.init.text.*)
@@ -236,8 +241,19 @@ SECTIONS {
 
   /* PIO-B receive ring (page-aligned at 0xF700). */
   .pio_rx_bss 0xF700 (NOLOAD) : {
+    __pio_rx_bss_start = .;
     *(.pio_rx_bss)
+    __pio_rx_bss_end = .;
   } > PIO_RX
+
+  /* High byte of the buffer's actual placement.  Computed AFTER the
+   * .pio_rx_bss output section so __pio_rx_bss_start is bound.  The
+   * `& 0xFF` mask is paranoia — page-aligned by construction (PIO_RX
+   * MEMORY region origin is a page boundary), so this resolves to a
+   * single byte at link time. */
+  _pio_rx_buf_page = (__pio_rx_bss_start >> 8) & 0xFF;
+  ASSERT((__pio_rx_bss_start & 0xFF) == 0,
+         "pio_rx_buf must be page-aligned for ISR's `ld h, page; ld l, head` trick")
 
 #ifdef TRANSPORT_PROXY
   /* TRANSPORT_PROXY mode skips the IRQ ring buffer (transport_pio.c

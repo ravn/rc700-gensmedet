@@ -40,42 +40,109 @@ PIO_LOOPBACK_TEST ?= 0
 #   4 = RX (INIR busy-poll; IE disabled; ~21 T/byte, no IRQ overhead)
 PIO_SPEED_TEST    ?= 0
 
-LLVM_Z80 = $(CURDIR)/../../llvm-z80
-CLANG_BUILD = $(firstword $(wildcard $(LLVM_Z80)/build-linux/bin \
-                                     $(LLVM_Z80)/build-macos/bin \
-                                     $(LLVM_Z80)/build/bin))
+# ================================================================
+# Compiler selection — clang (default) | sdcc | hitech (TBD)
+# ================================================================
+#
+# Each compiler builds into its own output dir so the two PROMs can
+# coexist (deploy time picks one).  Default is clang (existing path,
+# byte-stable).  SDCC is being brought up in Phase 2 of the dual-
+# compile port; HiTech is scaffolded and errors with "not implemented".
+#
+# Usage:
+#   make cpnos                    # COMPILER=clang
+#   make cpnos COMPILER=sdcc      # SDCC build (in progress)
+#   make cpnos COMPILER=hitech    # HiTech (not yet implemented)
+COMPILER ?= clang
+BUILDDIR  = $(COMPILER)
 
-CC      = $(CLANG_BUILD)/clang
-LD      = $(CLANG_BUILD)/ld.lld
-OBJCOPY = $(CLANG_BUILD)/llvm-objcopy
-OBJDUMP = $(CLANG_BUILD)/llvm-objdump
-NM      = $(CLANG_BUILD)/llvm-nm
+ifeq ($(COMPILER),clang)
+  # ---- clang Z80 toolchain -----------------------------------------
+  LLVM_Z80    = $(CURDIR)/../../llvm-z80
+  CLANG_BUILD = $(firstword $(wildcard $(LLVM_Z80)/build-linux/bin \
+                                       $(LLVM_Z80)/build-macos/bin \
+                                       $(LLVM_Z80)/build/bin))
 
-CFLAGS = --target=z80 -std=c23 -Oz -nostdlib -g \
-         -ffunction-sections -fdata-sections \
-         -Xclang -target-feature -Xclang +static-stack \
-         -mllvm -disable-lsr \
-         -DENABLE_FDC=$(ENABLE_FDC) \
-         -DMIRROR_SIOB=$(MIRROR_SIOB) \
-         -DBOOT_MARK_ENABLED=$(BOOT_MARK_ENABLED) \
-         -DRC702_SLAVEID=0x01 \
-         $(SERVER_CFLAGS) \
-         -Iclang -I. \
-         -Weverything \
-         -Wno-unsafe-buffer-usage \
-         -Wno-reserved-macro-identifier \
-         -Wno-reserved-identifier \
-         -Wno-gcc-compat \
-         -Wno-declaration-after-statement \
-         -Wno-pre-c11-compat \
-         -Wno-pre-c23-compat \
-         -Wno-int-to-pointer-cast \
-         -Wno-cast-qual \
-         -Wno-padded \
-         -Wno-missing-prototypes \
-         -Wno-missing-variable-declarations \
-         -Wno-missing-noreturn \
-         -Wno-sign-conversion
+  CC      = $(CLANG_BUILD)/clang
+  LD      = $(CLANG_BUILD)/ld.lld
+  OBJCOPY = $(CLANG_BUILD)/llvm-objcopy
+  OBJDUMP = $(CLANG_BUILD)/llvm-objdump
+  NM      = $(CLANG_BUILD)/llvm-nm
+
+  CFLAGS = --target=z80 -std=c23 -Oz -nostdlib -g \
+           -ffunction-sections -fdata-sections \
+           -Xclang -target-feature -Xclang +static-stack \
+           -mllvm -disable-lsr \
+           -DENABLE_FDC=$(ENABLE_FDC) \
+           -DMIRROR_SIOB=$(MIRROR_SIOB) \
+           -DBOOT_MARK_ENABLED=$(BOOT_MARK_ENABLED) \
+           -DRC702_SLAVEID=0x01 \
+           $(SERVER_CFLAGS) \
+           -I$(BUILDDIR) -I. -Icompiler \
+           -Weverything \
+           -Wno-unsafe-buffer-usage \
+           -Wno-reserved-macro-identifier \
+           -Wno-reserved-identifier \
+           -Wno-gcc-compat \
+           -Wno-declaration-after-statement \
+           -Wno-pre-c11-compat \
+           -Wno-pre-c23-compat \
+           -Wno-int-to-pointer-cast \
+           -Wno-cast-qual \
+           -Wno-padded \
+           -Wno-missing-prototypes \
+           -Wno-missing-variable-declarations \
+           -Wno-missing-noreturn \
+           -Wno-sign-conversion
+
+  ASFLAGS = --target=z80 -g
+
+else ifeq ($(COMPILER),sdcc)
+  # ---- z88dk-zsdcc toolchain (Phase 2 in progress) -----------------
+  Z88DK_HOME ?= $(firstword $(wildcard $(CURDIR)/../../z88dk))
+  ifneq ($(wildcard $(Z88DK_HOME)/bin/zcc),)
+    # Native z88dk on the host.  Set ZCCCFG via exported var; export
+    # PATH with z88dk's bin so zcc's internal `z88dk-z80asm` /
+    # `z88dk-appmake` lookup succeeds.
+    export ZCCCFG = $(Z88DK_HOME)/lib/config
+    export PATH := $(Z88DK_HOME)/bin:$(PATH)
+    ZCC = $(Z88DK_HOME)/bin/zcc
+    RUN =
+  else
+    RUN = docker run --rm -v $(CURDIR):/src -w /src z88dk:2.4
+    ZCC = zcc
+  endif
+
+  CC = $(RUN) $(ZCC)
+  # SDCC link/asm tools wrapped via zcc — single front-end.
+  LD      = $(CC)
+  OBJCOPY = $(RUN) $(Z88DK_HOME)/bin/z88dk-appmake
+  OBJDUMP = echo "(no llvm-objdump under sdcc)"
+  NM      = echo "(no llvm-nm under sdcc)"
+
+  ZFLAGS_BASE = +z80 -compiler=sdcc -clib=sdcc_iy --no-crt \
+                -Cs"--std-sdcc23" \
+                -Cs"--sdcccall 1" \
+                -Cs"--max-allocs-per-node 1000000" \
+                -Cs"--fomit-frame-pointer" \
+                -Cs"--allow-unsafe-read" \
+                -Cs"--disable-warning 296"
+  CFLAGS = $(ZFLAGS_BASE) -SO3 \
+           '-DENABLE_FDC=$(ENABLE_FDC)' \
+           '-DMIRROR_SIOB=$(MIRROR_SIOB)' \
+           '-DBOOT_MARK_ENABLED=$(BOOT_MARK_ENABLED)' \
+           '-DRC702_SLAVEID=0x01' \
+           $(SERVER_CFLAGS) \
+           -I$(BUILDDIR) -I. -Icompiler
+
+  ASFLAGS =
+
+else ifeq ($(COMPILER),hitech)
+  $(error HiTech (zc) toolchain not yet implemented; see tasks/sdcc-port.md)
+
+else
+  $(error COMPILER must be 'clang', 'sdcc', or 'hitech')
+endif
 
 ifneq ($(PIO_SPEED_TEST),0)
 CFLAGS += -DPIO_SPEED_TEST=$(PIO_SPEED_TEST)
@@ -83,18 +150,16 @@ else ifeq ($(PIO_LOOPBACK_TEST),1)
 CFLAGS += -DPIO_LOOPBACK_TEST
 endif
 
-ASFLAGS = --target=z80 -g
-
 # Server side: default is standard MP/M II (cpmsim mpm-net2).
 # Override with SERVER=proxy to use the legacy Python netboot_server.py
 # (FMT=0xB0 custom protocol).
 SERVER ?= mpm
 
 ifeq ($(SERVER),mpm)
-NETBOOT_OBJ = clang/netboot_mpm.o
+NETBOOT_OBJ = $(BUILDDIR)/netboot_mpm.o
 SERVER_CFLAGS =
 else ifeq ($(SERVER),proxy)
-NETBOOT_OBJ = clang/netboot.o
+NETBOOT_OBJ = $(BUILDDIR)/netboot.o
 SERVER_CFLAGS = -DNETBOOT_LEGACY
 else
 $(error SERVER must be 'mpm' or 'proxy')
@@ -136,33 +201,45 @@ endif
 # Banner tag baked into transport_sio_vt.name (cpnos prints it as the
 # wire-mode at boot — "RC702 CP/NOS WWW-MMM ...").  Padded to 7 chars
 # (DRI's wire-mode field) — the build aborts if shorter.
+#
+# Quoting differs per compiler: clang accepts -DX='"value"', SDCC's zcc
+# strips the inner quotes — use backslash-escaped form for SDCC.
+ifeq ($(COMPILER),sdcc)
+# zcc -> sdcpp: needs backslash-escaped quotes inside single-quoted shell arg
+# so the literal `\"` reaches sdcpp's -D parser.
+SERVER_CFLAGS += -DTRANSPORT_NAME='\"$(TRANSPORT_NAME)\"'
+else
 SERVER_CFLAGS += -DTRANSPORT_NAME='"$(TRANSPORT_NAME)"'
+endif
 
 # ---- Payload (linked at 0xED00, no PROM knowledge) ----------------
 # The payload is the single contiguous blob of everything that runs
 # at runtime.  The payload linker doesn't know about the two EPROMs;
 # a separate relocator stitches it back together at cold boot.
-PAYLOAD_OBJS = clang/runtime.o clang/bios_jt.o \
-               clang/cpnos_main.o \
-               clang/resident.o clang/cfgtbl.o clang/init.o \
-               clang/transport_sio.o clang/transport_pio.o \
+PAYLOAD_OBJS = $(BUILDDIR)/runtime.o $(BUILDDIR)/bios_jt.o \
+               $(BUILDDIR)/cpnos_main.o \
+               $(BUILDDIR)/resident.o $(BUILDDIR)/cfgtbl.o $(BUILDDIR)/init.o \
+               $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o \
                $(NETBOOT_OBJ) \
-               clang/snios.o clang/isr.o \
-               clang/payload_checksum.o
-PAYLOAD_LD = clang/payload.ld
+               $(BUILDDIR)/snios.o $(BUILDDIR)/isr.o \
+               $(BUILDDIR)/payload_checksum.o
+PAYLOAD_LD = $(BUILDDIR)/payload.ld
 
 # Preprocess payload.ld so the linker sees TRANSPORT_PROXY-conditional
 # ASSERTs (e.g., the upper bound for __payload_end depends on whether
 # the IRQ ring buffer at 0xF700 is in the layout).  ld.lld doesn't run
 # cpp on linker scripts itself.
-clang/payload.ld: payload.ld clang/transport_stamp
-	@mkdir -p clang
+$(BUILDDIR)/payload.ld: payload.ld $(BUILDDIR)/transport_stamp
+	@mkdir -p $(BUILDDIR)
 	$(CC) --target=z80 -E -P -x c $(SERVER_CFLAGS) -o $@ $<
 
 # ---- Relocator (PROM0 reset + #embed'd payload halves) -----------
-# Tiny: reset.s for stack setup, relocator.c with two #embed arrays.
-# Linked with PROM knowledge so the chunks land in physical ROM.
-RELOC_OBJS = clang/reset.o clang/relocator.o
+# Tiny: reset.s for stack setup, relocator.c with two #embed arrays,
+# plus a generated payload_header_data.s that carries metadata the
+# relocator reads at boot (chunk sizes, BSS extents, cold entry, etc.)
+# in lieu of the previous --defsym injection.  See
+# tasks/scripts/gen_payload_header.py and payload_header.h.
+RELOC_OBJS = $(BUILDDIR)/reset.o $(BUILDDIR)/relocator.o $(BUILDDIR)/payload_header_data.o
 RELOC_LD = relocator.ld
 
 ALL_OBJS = $(PAYLOAD_OBJS) $(RELOC_OBJS)
@@ -183,18 +260,18 @@ integration-test test: cpnos-polypascal-test
 .PHONY: cpnos-ppas-test
 cpnos-ppas-test: cpnos-polypascal-test
 
-cpnos: clang/cpnos.bin cpnos-size cpnos-lis
+cpnos: $(BUILDDIR)/cpnos.bin cpnos-size cpnos-lis
 
 # Flag changes (e.g. -DRC702_SLAVEID=) must invalidate all objects.
-$(ALL_OBJS): Makefile clang/transport_stamp
+$(ALL_OBJS): Makefile $(BUILDDIR)/transport_stamp
 
 # Re-stamp whenever TRANSPORT changes so a `make cpnos TRANSPORT=sio`
 # after a `TRANSPORT=pio-irq` build (or vice versa) actually picks up
 # the new -DTRANSPORT_NAME / --defsym aliases instead of relinking
 # stale .o files.  The stamp's content is the current TRANSPORT value.
-.PHONY: clang/transport_stamp
-clang/transport_stamp:
-	@mkdir -p clang
+.PHONY: $(BUILDDIR)/transport_stamp
+$(BUILDDIR)/transport_stamp:
+	@mkdir -p $(BUILDDIR)
 	@if [ ! -f $@ ] || [ "$$(cat $@ 2>/dev/null)" != "$(TRANSPORT)" ]; then \
 	    echo "$(TRANSPORT)" > $@; \
 	    echo "transport stamp: $(TRANSPORT)"; \
@@ -202,28 +279,28 @@ clang/transport_stamp:
 
 # ---- Compile ------------------------------------------------------
 
-clang/reset.o: reset.s
-	@mkdir -p clang
+$(BUILDDIR)/reset.o: reset.s
+	@mkdir -p $(BUILDDIR)
 	$(CC) $(ASFLAGS) -c $< -o $@
 
-clang/runtime.o: runtime.s
-	@mkdir -p clang
+$(BUILDDIR)/runtime.o: runtime.s
+	@mkdir -p $(BUILDDIR)
 	$(CC) $(ASFLAGS) -c $< -o $@
 
-clang/bios_jt.o: bios_jt.s
-	@mkdir -p clang
+$(BUILDDIR)/bios_jt.o: bios_jt.s
+	@mkdir -p $(BUILDDIR)
 	$(CC) $(ASFLAGS) -c $< -o $@
 
-clang/snios.o: snios.s
-	@mkdir -p clang
+$(BUILDDIR)/snios.o: snios.s
+	@mkdir -p $(BUILDDIR)
 	$(CC) $(ASFLAGS) -c $< -o $@
 
 # Phase 2B: cpnos_main.c (nos_handoff) writes ZP[5..7] = JP BDOS
 # itself, replacing cpnos-build's deleted cpnos.asm entry stub.
 # BDOS's address is link-time-determined inside cpnos.com; extract it
 # from cpnos.sym into a generated header.
-clang/cpnos_addrs.h: cpnos-build/d/cpnos.com
-	@mkdir -p clang
+$(BUILDDIR)/cpnos_addrs.h: cpnos-build/d/cpnos.com
+	@mkdir -p $(BUILDDIR)
 	@perl -ne 'while (/([0-9A-Fa-f]{4})\s+BDOS\b/g) { print "#define CPNOS_BDOS_ADDR 0x$$1\n"; last }' \
 	    cpnos-build/d/cpnos.sym > $@.tmp
 	@grep -q '^#define CPNOS_BDOS_ADDR' $@.tmp || \
@@ -234,18 +311,20 @@ clang/cpnos_addrs.h: cpnos-build/d/cpnos.com
 	 [ -n "$$N" ] || { echo "ERROR: NDOS symbol missing from cpnos.sym"; rm -f $@.tmp; exit 1; }; \
 	 NV=$$((0x$$N)); \
 	 TPA_KB=$$(( (NV + 0x122 - 0x100) / 1024 )); \
+	 NDOSE=$$(printf '0x%04X' $$(( NV + 3 )) ); \
 	 echo "#define CPNOS_NDOS_ADDR 0x$$N" >> $@.tmp; \
+	 echo "#define CPNOS_NDOSE_ADDR $$NDOSE   /* NDOS + 3, the BDOS dispatch entry */" >> $@.tmp; \
 	 echo "#define CPNOS_TPA_KB $$TPA_KB" >> $@.tmp
 	@mv $@.tmp $@
-	@echo "cpnos_addrs.h: $$(grep -E 'BDOS_ADDR|NDOS_ADDR|TPA_KB' $@ | tr '\n' ' ')"
+	@echo "cpnos_addrs.h: $$(grep -E 'BDOS_ADDR|NDOS_ADDR|NDOSE_ADDR|TPA_KB' $@ | tr '\n' ' ')"
 
 # Build info — UTC date + short git hash, regenerated every build so
 # the signon banner reflects the moment this PROM was burnt.  The
 # `cmp` dance avoids pointlessly retouching the file (and rebuilding
 # cpnos_main.o) when neither field changed since last build.
-.PHONY: clang/cpnos_buildinfo.h
-clang/cpnos_buildinfo.h:
-	@mkdir -p clang
+.PHONY: $(BUILDDIR)/cpnos_buildinfo.h
+$(BUILDDIR)/cpnos_buildinfo.h:
+	@mkdir -p $(BUILDDIR)
 	@D=$$(date -u +"%Y-%m-%d %H:%M"); \
 	 H=$$(git rev-parse --short HEAD 2>/dev/null || echo "????"); \
 	 if ! git diff --quiet -- . 2>/dev/null; then H="$$H+"; fi; \
@@ -260,48 +339,53 @@ clang/cpnos_buildinfo.h:
 	 if cmp -s $@.tmp $@ 2>/dev/null; then rm -f $@.tmp; \
 	 else mv $@.tmp $@; echo "buildinfo: $$D $$H"; fi
 
-clang/cpnos_main.o: cpnos_main.c hal.h clang/cpnos_addrs.h clang/cpnos_buildinfo.h
-	@mkdir -p clang
+$(BUILDDIR)/cpnos_main.o: cpnos_main.c hal.h $(BUILDDIR)/cpnos_addrs.h $(BUILDDIR)/cpnos_buildinfo.h
+	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-clang/resident.o: resident.c hal.h
-	@mkdir -p clang
+$(BUILDDIR)/resident.o: resident.c hal.h
+	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-clang/payload_checksum.o: payload_checksum.c
-	@mkdir -p clang
+$(BUILDDIR)/payload_checksum.o: payload_checksum.c
+	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-clang/cfgtbl.o: cfgtbl.c
-	@mkdir -p clang
+$(BUILDDIR)/cfgtbl.o: cfgtbl.c
+	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-clang/init.o: init.c hal.h
-	@mkdir -p clang
+$(BUILDDIR)/init.o: init.c hal.h
+	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-clang/isr.o: isr.c hal.h
-	@mkdir -p clang
+$(BUILDDIR)/isr.o: isr.c hal.h
+	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-clang/transport_sio.o: transport_sio.c transport.h hal.h
-	@mkdir -p clang
+$(BUILDDIR)/transport_sio.o: transport_sio.c transport.h hal.h
+	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-clang/transport_pio.o: transport_pio.c transport.h hal.h
-	@mkdir -p clang
+$(BUILDDIR)/transport_pio.o: transport_pio.c transport.h hal.h
+	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-clang/netboot.o: netboot.c transport.h hal.h
-	@mkdir -p clang
+$(BUILDDIR)/netboot.o: netboot.c transport.h hal.h
+	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-clang/netboot_mpm.o: netboot_mpm.c hal.h
-	@mkdir -p clang
+$(BUILDDIR)/netboot_mpm.o: netboot_mpm.c hal.h
+	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Relocator #embed's payload_a.bin/payload_b.bin — depend on them so
-# a payload change retriggers the relocator compile.
+# Relocator: includes init/payload byte arrays via `#include "*.inc"`.
+# Each .inc is a comma-separated byte stream generated from the
+# matching .bin by tasks/scripts/bin2inc.py.  The mechanism is
+# compiler-portable: clang and SDCC see the same C source, with the
+# .inc resolved via per-compiler -I.  C23 `#embed` would be cleaner
+# but SDCC doesn't implement it.  See tasks/sdcc-port.md.
+#
 # Relocator compile flags: same as CFLAGS but without the
 # `-Xclang -target-feature -Xclang +static-stack` sequence.  The
 # relocator stack is at SP=0xED00 (RAM) and stack-allocated C
@@ -309,13 +393,36 @@ clang/netboot_mpm.o: netboot_mpm.c hal.h
 # relocator.ld discards — link fails on .bss relocation.
 CFLAGS_RELOC = $(subst -Xclang -target-feature -Xclang +static-stack,,$(CFLAGS))
 
-clang/relocator.o: relocator.c clang/init.bin clang/payload_a.bin clang/payload_b.bin
-	@mkdir -p clang
+# Generated .inc files — re-emitted whenever the .bin or the
+# converter script changes.
+$(BUILDDIR)/%.inc: $(BUILDDIR)/%.bin tasks/scripts/bin2inc.py
+	python3 tasks/scripts/bin2inc.py $< $@
+
+$(BUILDDIR)/relocator.o: relocator.c payload_header.h \
+                   $(BUILDDIR)/init.inc $(BUILDDIR)/payload_a.inc $(BUILDDIR)/payload_b.inc
+	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS_RELOC) -c $< -o $@
+
+# Generate payload_header_data.s from the linked payload.elf.  Carries
+# the metadata the relocator reads at boot (chunk sizes, BSS extents,
+# cold entry, etc.) in lieu of --defsym injection.  Re-emit whenever
+# payload.elf or the generator script changes.
+$(BUILDDIR)/payload_header_data.s: $(BUILDDIR)/payload.elf $(BUILDDIR)/payload.bin \
+                                   tasks/scripts/gen_payload_header.py
+	python3 tasks/scripts/gen_payload_header.py \
+	    --syntax=clang \
+	    --payload-elf=$(BUILDDIR)/payload.elf \
+	    --payload-bin=$(BUILDDIR)/payload.bin \
+	    --chunk-a-size=$(PROM0_TAIL_SIZE) \
+	    --llvm-nm=$(NM) \
+	    --out=$@
+
+$(BUILDDIR)/payload_header_data.o: $(BUILDDIR)/payload_header_data.s
+	$(CC) --target=z80 -c $< -o $@
 
 # ---- Link payload (no PROM awareness) ----------------------------
 
-clang/payload.elf: $(PAYLOAD_OBJS) $(PAYLOAD_LD) cpnos-build/d/cpnos.sym
+$(BUILDDIR)/payload.elf: $(PAYLOAD_OBJS) $(PAYLOAD_LD) cpnos-build/d/cpnos.sym
 	@# Extract NDOS load address from cpnos.sym and pass cpnos.com end
 	@# (NDOS + 0xC80) as a linker symbol so payload.ld's stack/cpnos
 	@# overlap ASSERTs can fire.  Catches the Option β bring-up bug
@@ -329,7 +436,7 @@ clang/payload.elf: $(PAYLOAD_OBJS) $(PAYLOAD_LD) cpnos-build/d/cpnos.sym
 	    --defsym=__cpnos_load_end=$$NEND \
 	    $(TRANSPORT_DEFSYMS) $(PAYLOAD_OBJS) -o $@
 
-clang/payload.bin: clang/payload.elf cpnos-build/patch_payload_checksum.py
+$(BUILDDIR)/payload.bin: $(BUILDDIR)/payload.elf cpnos-build/patch_payload_checksum.py
 	$(OBJCOPY) -O binary --only-section=.payload $< $@
 	# Patch the payload integrity checksum into the last 2 bytes
 	# of the resident image.  See patch_payload_checksum.py /
@@ -338,67 +445,77 @@ clang/payload.bin: clang/payload.elf cpnos-build/patch_payload_checksum.py
 
 # Init image: .init output section -- runs in place from PROM 0
 # at 0x0100, never copied to RAM.  Init/resident split, step 3.
-clang/init.bin: clang/payload.elf
+$(BUILDDIR)/init.bin: $(BUILDDIR)/payload.elf
 	$(OBJCOPY) -O binary --only-section=.init $< $@
 
 # Split resident payload.bin into the two chunks the relocator
 # #embed's.  Split point = relocator.ld's .prom0_tail base.  After
 # the init/resident split (step 3) PROM 0 layout is:
 #   0x0000 reset (0x0F)
-#   0x0010 relocator code (~0x?? B, capped at 0x100)
-#   0x0100 init.bin (.init runs in place, up to 0x300)
-#   0x0400 .prom0_tail = first PROM0_TAIL_SIZE bytes of resident
+#   0x0010 relocator code + payload header (~0x200 B, capped at 0x200)
+#   0x0200 init.bin (.init runs in place, up to 0x300)
+#   0x0500 .prom0_tail = first PROM0_TAIL_SIZE bytes of resident
 #   0x2000 .prom1     = remaining resident bytes
-# PROM0_TAIL_SIZE = 0x800 - 0x400 = 0x400 = 1024 bytes.
-PROM0_TAIL_SIZE = 1024
-clang/payload_a.bin clang/payload_b.bin: clang/payload.bin
-	dd if=$< of=clang/payload_a.bin bs=1 count=$(PROM0_TAIL_SIZE) status=none
-	dd if=$< of=clang/payload_b.bin bs=1 skip=$(PROM0_TAIL_SIZE) status=none
+# PROM0_TAIL_SIZE = 0x800 - 0x500 = 0x300 = 768 bytes (was 1024
+# before 2026-05-07 .init bump from 0x100 to 0x200 to give the
+# data-driven relocator more code budget; PROM1 absorbs the 256 B
+# difference, still within its 1536 B clearance from display memory).
+PROM0_TAIL_SIZE = 768
+$(BUILDDIR)/payload_a.bin $(BUILDDIR)/payload_b.bin: $(BUILDDIR)/payload.bin
+	dd if=$< of=$(BUILDDIR)/payload_a.bin bs=1 count=$(PROM0_TAIL_SIZE) status=none
+	dd if=$< of=$(BUILDDIR)/payload_b.bin bs=1 skip=$(PROM0_TAIL_SIZE) status=none
 
 # ---- Link relocator ----------------------------------------------
-# --defsym injects _cpnos_cold_entry's address from the payload ELF
-# (extracted via nm) so relocator.c's extern reference resolves.
+# The relocator reads its metadata from the payload header (emitted by
+# tasks/scripts/gen_payload_header.py into payload_header_data.s and
+# linked into RELOC_OBJS).  Only `__stack_top` still needs --defsym
+# injection — that one is consumed by reset.s, not by relocator.c, and
+# reset.s runs BEFORE the relocator could read the header.
+#
+# Six previous --defsym lines (`_cpnos_cold_entry`, `_bios_boot`,
+# `__scratch_bss_*`, `__pio_rx_bss_*`) were dropped 2026-05-07 when
+# the relocator became header-driven — see plan
+# /Users/ravn/.claude/plans/harmonic-sleeping-spring.md and
+# memory feedback_relink_dependencies_atomically.md for why this
+# four-way coupling was a structural problem.
 
-clang/relocator.elf: $(RELOC_OBJS) $(RELOC_LD) clang/payload.elf
-	@addr=$$($(NM) clang/payload.elf | awk '/ _cpnos_cold_entry$$/ {print "0x"$$1}'); \
-	 test -n "$$addr" || { echo "ERROR: _cpnos_cold_entry not found in payload"; exit 1; }; \
-	 stack=$$($(NM) clang/payload.elf | awk '/ __stack_top$$/ {print "0x"$$1}'); \
+$(BUILDDIR)/relocator.elf: $(RELOC_OBJS) $(RELOC_LD) $(BUILDDIR)/payload.elf
+	@stack=$$($(NM) $(BUILDDIR)/payload.elf | awk '/ __stack_top$$/ {print "0x"$$1}'); \
 	 test -n "$$stack" || { echo "ERROR: __stack_top not found in payload"; exit 1; }; \
-	 bios=$$($(NM) clang/payload.elf | awk '/ _bios_boot$$/ {print "0x"$$1}'); \
-	 test -n "$$bios" || { echo "ERROR: _bios_boot not found in payload"; exit 1; }; \
-	 echo "relocator: _cpnos_cold_entry=$$addr  __stack_top=$$stack  _bios_boot=$$bios"; \
+	 echo "relocator: __stack_top=$$stack (other metadata via payload_header)"; \
 	 $(LD) --gc-sections -T $(RELOC_LD) \
-	       --defsym=_cpnos_cold_entry=$$addr \
 	       --defsym=__stack_top=$$stack \
-	       --defsym=_bios_boot=$$bios \
 	       $(RELOC_OBJS) -o $@
 
-# ---- Produce prom0.bin / prom1.bin --------------------------------
+# ---- Produce prom0.bin / prom1.bin (clang only) -------------------
+# SDCC provides its own cpnos.bin recipe at the bottom of this file.
 
-clang/cpnos.bin: clang/relocator.elf
-	$(OBJCOPY) -O binary --gap-fill=0xFF --pad-to=0x2800 $< clang/cpnos.raw
-	dd if=clang/cpnos.raw of=clang/prom0.bin bs=2048 count=1 status=none
-	dd if=clang/cpnos.raw of=clang/prom1.bin bs=2048 skip=4 count=1 status=none
-	cat clang/prom0.bin clang/prom1.bin > $@
+ifeq ($(COMPILER),clang)
+$(BUILDDIR)/cpnos.bin: $(BUILDDIR)/relocator.elf
+	$(OBJCOPY) -O binary --gap-fill=0xFF --pad-to=0x2800 $< $(BUILDDIR)/cpnos.raw
+	dd if=$(BUILDDIR)/cpnos.raw of=$(BUILDDIR)/prom0.bin bs=2048 count=1 status=none
+	dd if=$(BUILDDIR)/cpnos.raw of=$(BUILDDIR)/prom1.bin bs=2048 skip=4 count=1 status=none
+	cat $(BUILDDIR)/prom0.bin $(BUILDDIR)/prom1.bin > $@
+endif
 
 # ---- Size check ---------------------------------------------------
 
-cpnos-size: clang/cpnos.bin
-	@P0=$$(wc -c < clang/prom0.bin | tr -d ' '); \
-	 P1=$$(wc -c < clang/prom1.bin | tr -d ' '); \
-	 PLD=$$(wc -c < clang/payload.bin | tr -d ' '); \
-	 TOTAL=$$(wc -c < clang/cpnos.bin | tr -d ' '); \
+cpnos-size: $(BUILDDIR)/cpnos.bin
+	@P0=$$(wc -c < $(BUILDDIR)/prom0.bin | tr -d ' '); \
+	 P1=$$(wc -c < $(BUILDDIR)/prom1.bin | tr -d ' '); \
+	 PLD=$$(wc -c < $(BUILDDIR)/payload.bin | tr -d ' '); \
+	 TOTAL=$$(wc -c < $(BUILDDIR)/cpnos.bin | tr -d ' '); \
 	 echo "payload:  $$PLD bytes (linked at 0xED00)"; \
 	 echo "PROM0:    $$P0 / 2048 bytes"; \
 	 echo "PROM1:    $$P1 / 2048 bytes"; \
 	 echo "TOTAL:    $$TOTAL / 4096 bytes"; \
 	 test $$TOTAL -eq 4096 || { echo "ERROR: image not exactly 4096 bytes"; exit 1; }
 	@echo "--- payload section sizes ---"
-	@$(OBJDUMP) --headers clang/payload.elf | awk '/\.(payload|scratch)/ { printf "%-16s 0x%s VMA=0x%s\n", $$2, $$3, $$4 }'
+	@$(OBJDUMP) --headers $(BUILDDIR)/payload.elf | awk '/\.(payload|scratch)/ { printf "%-16s 0x%s VMA=0x%s\n", $$2, $$3, $$4 }'
 	@echo "--- top payload symbols ---"
-	@$(NM) --numeric-sort --size-sort --reverse-sort clang/payload.elf | head -10
+	@$(NM) --numeric-sort --size-sort --reverse-sort $(BUILDDIR)/payload.elf | head -10
 	@echo "--- actual code bytes in PROM0 (non-0xFF) ---"
-	@od -An -tx1 clang/prom0.bin | tr -s ' ' '\n' | grep -v '^$$' | grep -v '^ff$$' | wc -l | awk '{ printf "%d non-padding bytes\n", $$1 }'
+	@od -An -tx1 $(BUILDDIR)/prom0.bin | tr -s ' ' '\n' | grep -v '^$$' | grep -v '^ff$$' | wc -l | awk '{ printf "%d non-padding bytes\n", $$1 }'
 
 # ---- CP/M .COM loader (test PROMs without burning) ---------------
 #
@@ -407,16 +524,16 @@ cpnos-size: clang/cpnos.bin
 # to 0x0000 — mimicking a cold boot against new PROM payloads
 # without touching physical EPROMs.  See build_loader.py for layout.
 
-cpnos-loader: clang/cpnos.bin
-	python3 build_loader.py clang/prom0.bin clang/prom1.bin clang/cpnos_loader.com
-	cp clang/cpnos_loader.com testutil/cpnosldr.com
+cpnos-loader: $(BUILDDIR)/cpnos.bin
+	python3 build_loader.py $(BUILDDIR)/prom0.bin $(BUILDDIR)/prom1.bin $(BUILDDIR)/cpnos_loader.com
+	cp $(BUILDDIR)/cpnos_loader.com testutil/cpnosldr.com
 	@echo "staged testutil/cpnosldr.com (run 'cpnosldr' from CP/M A>)"
 
 # ---- Split for burner --------------------------------------------
 
-cpnos-burn: clang/cpnos.bin
-	@echo "PROM0 (0x0000-0x07FF): clang/prom0.bin ($$(wc -c < clang/prom0.bin | tr -d ' ') B)"
-	@echo "PROM1 (0x2000-0x27FF): clang/prom1.bin ($$(wc -c < clang/prom1.bin | tr -d ' ') B)"
+cpnos-burn: $(BUILDDIR)/cpnos.bin
+	@echo "PROM0 (0x0000-0x07FF): $(BUILDDIR)/prom0.bin ($$(wc -c < $(BUILDDIR)/prom0.bin | tr -d ' ') B)"
+	@echo "PROM1 (0x2000-0x27FF): $(BUILDDIR)/prom1.bin ($$(wc -c < $(BUILDDIR)/prom1.bin | tr -d ' ') B)"
 
 # ---- Switch MAME into cpnos boot mode ----------------------------
 #
@@ -451,15 +568,15 @@ cpnos-burn: clang/cpnos.bin
 
 MAME_ROMS_DIR ?= $(CURDIR)/../../mame/roms/rc702
 
-mame-roms-cpnos: clang/cpnos.bin
+mame-roms-cpnos: $(BUILDDIR)/cpnos.bin
 	@test -d "$(MAME_ROMS_DIR)" || \
 	    { echo "ERROR: MAME_ROMS_DIR=$(MAME_ROMS_DIR) does not exist"; exit 1; }
-	@P0=$$(wc -c < clang/prom0.bin | tr -d ' '); \
-	 P1=$$(wc -c < clang/prom1.bin | tr -d ' '); \
+	@P0=$$(wc -c < $(BUILDDIR)/prom0.bin | tr -d ' '); \
+	 P1=$$(wc -c < $(BUILDDIR)/prom1.bin | tr -d ' '); \
 	 test "$$P0" = "2048" || { echo "ERROR: prom0.bin is $$P0 B, expected 2048"; exit 1; }; \
 	 test "$$P1" = "2048" || { echo "ERROR: prom1.bin is $$P1 B, expected 2048"; exit 1; }
-	cp clang/prom0.bin "$(MAME_ROMS_DIR)/roa375.ic66"
-	cp clang/prom1.bin "$(MAME_ROMS_DIR)/prom1.ic65"
+	cp $(BUILDDIR)/prom0.bin "$(MAME_ROMS_DIR)/roa375.ic66"
+	cp $(BUILDDIR)/prom1.bin "$(MAME_ROMS_DIR)/prom1.ic65"
 	@echo "Switched MAME into cpnos mode:"
 	@echo "  $(MAME_ROMS_DIR)/roa375.ic66 (cpnos prom0)"
 	@echo "  $(MAME_ROMS_DIR)/prom1.ic65 (cpnos prom1)"
@@ -468,10 +585,10 @@ mame-roms-cpnos: clang/cpnos.bin
 
 # ---- Inspection --------------------------------------------------
 
-cpnos-disasm: clang/payload.elf clang/relocator.elf
-	$(OBJDUMP) -d --triple=z80 clang/payload.elf
+cpnos-disasm: $(BUILDDIR)/payload.elf $(BUILDDIR)/relocator.elf
+	$(OBJDUMP) -d --triple=z80 $(BUILDDIR)/payload.elf
 	@echo '=== relocator ==='
-	$(OBJDUMP) -d --triple=z80 clang/relocator.elf
+	$(OBJDUMP) -d --triple=z80 $(BUILDDIR)/relocator.elf
 
 # ---- MAME boot test ----------------------------------------------
 
@@ -488,15 +605,15 @@ MAME_PROM1 = $(MAME)/roms/rc702/prom1.ic65
 MPM_DISK_LIB = ../z80pack/cpmsim/disks/library
 cpnos-disk-install: cpnos-build/d/cpnos.com
 	@echo "=== stamping cpnos.com with build timestamp ==="
-	@python3 cpnos-build/stamp_cpnos.py cpnos-build/d/cpnos.com clang/cpnos_stamped.com
+	@python3 cpnos-build/stamp_cpnos.py cpnos-build/d/cpnos.com $(BUILDDIR)/cpnos_stamped.com
 	@echo "=== installing stamped cpnos.com onto MP/M library disks ==="
 	@cpmrm -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk 0:cpnos.img 2>/dev/null || true
 	cpmcp -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk \
-	    clang/cpnos_stamped.com 0:cpnos.img
+	    $(BUILDDIR)/cpnos_stamped.com 0:cpnos.img
 	@if [ -f $(MPM_DISK_LIB)/cpnetsmk-1.dsk ]; then \
 	    cpmrm -f ibm-3740 $(MPM_DISK_LIB)/cpnetsmk-1.dsk 0:cpnos.img 2>/dev/null || true; \
 	    cpmcp -f ibm-3740 $(MPM_DISK_LIB)/cpnetsmk-1.dsk \
-	        clang/cpnos_stamped.com 0:cpnos.img; \
+	        $(BUILDDIR)/cpnos_stamped.com 0:cpnos.img; \
 	    echo "  refreshed cpnos.img on cpnetsmk-1.dsk"; \
 	 fi
 	@echo "  refreshed cpnos.img on mpm-net2-1.dsk"
@@ -513,12 +630,12 @@ cpnos-build/d/cpnos.com: $(wildcard cpnos-build/src/*.asm cpnos-build/src/*.s) c
 # Depends on cpnos-disk-install so a single `make cpnos-install` (and
 # anything that pulls in cpnos-install — cpnet-smoke, cpnos-mame, etc.)
 # guarantees the disk-side cpnos.com matches the freshly-built PROM.
-cpnos-install: clang/cpnos.bin cpnos-disk-install
-	@P0=$$(wc -c < clang/prom0.bin | tr -d ' '); \
-	 { cat clang/prom0.bin; perl -e "print \"\\xff\" x (4096 - $$P0)"; } \
-	   > clang/prom0_padded.ic66
-	cp clang/prom0_padded.ic66 $(MAME_PROM0)
-	cp clang/prom1.bin         $(MAME_PROM1)
+cpnos-install: $(BUILDDIR)/cpnos.bin cpnos-disk-install
+	@P0=$$(wc -c < $(BUILDDIR)/prom0.bin | tr -d ' '); \
+	 { cat $(BUILDDIR)/prom0.bin; perl -e "print \"\\xff\" x (4096 - $$P0)"; } \
+	   > $(BUILDDIR)/prom0_padded.ic66
+	cp $(BUILDDIR)/prom0_padded.ic66 $(MAME_PROM0)
+	cp $(BUILDDIR)/prom1.bin         $(MAME_PROM1)
 	@echo "installed cpnos prom0 -> $(MAME_PROM0)"
 	@echo "installed cpnos prom1 -> $(MAME_PROM1)"
 
@@ -579,7 +696,7 @@ endif
 
 # Slave was built with active_transport->name = "PIO-IRQ"
 _check-tag-pio-irq:
-	@if ! strings clang/cpnos.bin 2>/dev/null | grep -q '^PIO-IRQ '; then \
+	@if ! strings $(BUILDDIR)/cpnos.bin 2>/dev/null | grep -q '^PIO-IRQ '; then \
 	    echo "FAIL: cpnos.bin does not contain wire-mode tag 'PIO-IRQ'."; \
 	    echo "      This target requires a PIO-IRQ build; check"; \
 	    echo "      transport_sio.c's transport_sio_vt.name."; \
@@ -588,7 +705,7 @@ _check-tag-pio-irq:
 
 # Slave was NOT built for PIO-IRQ (cpnet-smoke wires SIO-A, not PIO-B)
 _check-tag-not-pio-irq:
-	@if strings clang/cpnos.bin 2>/dev/null | grep -q '^PIO-IRQ '; then \
+	@if strings $(BUILDDIR)/cpnos.bin 2>/dev/null | grep -q '^PIO-IRQ '; then \
 	    echo "FAIL: cpnos.bin reports wire-mode 'PIO-IRQ' but this target"; \
 	    echo "      wires SIO-A only.  Either rebuild cpnos for SIO mode"; \
 	    echo "      or use 'make pio-irq-smoke' instead."; \
@@ -597,7 +714,7 @@ _check-tag-not-pio-irq:
 
 # Slave was built with active_transport->name = "PIO-PRX" (pio-proxy mode).
 _check-tag-pio-prx:
-	@if ! strings clang/cpnos.bin 2>/dev/null | grep -q '^PIO-PRX '; then \
+	@if ! strings $(BUILDDIR)/cpnos.bin 2>/dev/null | grep -q '^PIO-PRX '; then \
 	    echo "FAIL: cpnos.bin does not contain wire-mode tag 'PIO-PRX'."; \
 	    echo "      This target requires a TRANSPORT=pio-proxy build."; \
 	    exit 1; \
@@ -1085,13 +1202,13 @@ cpnos-polypascal-test:
 	@echo "=== 4/4 syncing ROMs to IRQ-fix MAME tree ==="
 	cp $(MAME)/roms/rc702/roa375.ic66 $(MAME_IRQ)/roms/rc702/roa375.ic66
 	cp $(MAME)/roms/rc702/prom1.ic65  $(MAME_IRQ)/roms/rc702/prom1.ic65
-	@echo "=== generating clang/cpnos_polypascal_addrs.lua from payload.elf ==="
-	@KH=$$($(NM) clang/payload.elf | awk '/_kbd_head$$/{print $$1}'); \
-	 KR=$$($(NM) clang/payload.elf | awk '/_kbd_ring$$/{print $$1}'); \
+	@echo "=== generating $(BUILDDIR)/cpnos_polypascal_addrs.lua from payload.elf ==="
+	@KH=$$($(NM) $(BUILDDIR)/payload.elf | awk '/_kbd_head$$/{print $$1}'); \
+	 KR=$$($(NM) $(BUILDDIR)/payload.elf | awk '/_kbd_ring$$/{print $$1}'); \
 	 [ -n "$$KH" ] && [ -n "$$KR" ] || { echo "ERROR: kbd_head/kbd_ring missing from payload.elf"; exit 1; }; \
 	 printf 'return {\n  kbd_head = 0x%s,\n  kbd_ring = 0x%s,\n}\n' "$$KH" "$$KR" \
-	   > clang/cpnos_polypascal_addrs.lua
-	@cat clang/cpnos_polypascal_addrs.lua
+	   > $(BUILDDIR)/cpnos_polypascal_addrs.lua
+	@cat $(BUILDDIR)/cpnos_polypascal_addrs.lua
 	@echo "=== launching MAME with PolyPascal test driver (max ~4 min) ==="
 	-$(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
 	    -nothrottle -window -skip_gameinfo \
@@ -1144,11 +1261,11 @@ cpnos-trace: cpnos-install
 
 # Source-interleaved disassembly (requires -g, enabled in CFLAGS).
 # The -S flag interleaves the original C lines with emitted Z80 asm.
-cpnos-lis: clang/payload.elf
-	$(OBJDUMP) -d -S -r --symbolize-operands --triple=z80 $< > clang/cpnos.lis
-	@echo "wrote clang/cpnos.lis (with C source + symbol-resolved operands)"
+cpnos-lis: $(BUILDDIR)/payload.elf
+	$(OBJDUMP) -d -S -r --symbolize-operands --triple=z80 $< > $(BUILDDIR)/cpnos.lis
+	@echo "wrote $(BUILDDIR)/cpnos.lis (with C source + symbol-resolved operands)"
 
-cpnos-map: clang/payload.elf
+cpnos-map: $(BUILDDIR)/payload.elf
 	$(NM) --numeric-sort $<
 
 # Note: per-TU listings from .o files don't work reliably because
@@ -1169,3 +1286,163 @@ cpnet-mame-test: cpnos
 
 cpnos-clean:
 	rm -rf clang
+	rm -f sdcc/*.o sdcc/cpnos*.bin sdcc/cpnos*.map sdcc/cpnos*.lis \
+	      sdcc/cpnos*.sym sdcc/cpnos*.def sdcc/cpnos*.ihx \
+	      sdcc/prom0*.bin sdcc/prom1*.bin sdcc/cpnos.cim sdcc/cpnos \
+	      sdcc/zcc_opt.def sdcc/cpnos_addrs.h sdcc/cpnos_buildinfo.h \
+	      sdcc/transport_stamp \
+	      $(addprefix sdcc/,$(notdir $(wildcard *.c)))
+	rm -f sdcc/*.bin sdcc/*.lst sdcc/*_BIN.bin
+
+# ---- SDCC build pipeline (Option C) ------------------------------
+#
+# Single-stage z88dk link: resident image is built at its runtime
+# VMA span (0xEE00..0xF7FF); PROM0 holds reset + tiny prom_loader;
+# PROM1 holds 2 KB of resident bytes copied to RAM at boot.  PROM
+# disable is in resident_handoff (cpnos_main.c), running from RAM.
+#
+# Source layout:
+#   sdcc/sections.asm       z88dk section ordering / origins
+#   sdcc/reset.asm          reset vector at 0x0000
+#   sdcc/prom_loader.asm    LDIR PROM1 -> RAM (replaces relocator.c)
+#   sdcc/bios_jt.asm        CP/M BIOS jump table at 0xF200
+#   sdcc/snios.asm          SNIOS protocol code
+#   $(BUILDDIR)/*.o         Compiled .c sources (RESIDENT_CODE)
+
+ifeq ($(COMPILER),sdcc)
+
+# Most .c files land in RESIDENT_CODE (org 0xF200, lives in PROM1).
+# bios_jt.asm and snios.asm have their own SECTION declarations that
+# override per-file --codeseg.  Cold-init files (init.c, netboot_mpm.c)
+# get redirected to RESIDENT_PRE_CODE (org 0xEE00, lives in PROM0 tail)
+# below — pushes ~1 KB of code into PROM0 to keep PROM1 usage under
+# the 1.5 KB display-RAM-clearance limit.
+CFLAGS += -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RESIDENT_RODATA"
+
+# Per-target CFLAGS override — init.c and netboot_mpm.c go to PROM0 tail.
+# Snapshot CFLAGS now (immediate `:=`) so the per-target assignment
+# below doesn't recurse on itself.
+SDCC_RESIDENT_CFLAGS := $(CFLAGS)
+SDCC_PRE_CFLAGS := $(filter-out -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RESIDENT_RODATA",$(CFLAGS)) \
+                   -Cs"--codeseg RESIDENT_PRE_CODE" -Cs"--constseg RESIDENT_PRE_RODATA"
+$(BUILDDIR)/init.o:           CFLAGS := $(SDCC_PRE_CFLAGS)
+$(BUILDDIR)/netboot_mpm.o:    CFLAGS := $(SDCC_PRE_CFLAGS)
+$(BUILDDIR)/transport_sio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
+$(BUILDDIR)/transport_pio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
+$(BUILDDIR)/isr.o:            CFLAGS := $(SDCC_PRE_CFLAGS)
+$(BUILDDIR)/cfgtbl.o:         CFLAGS := $(SDCC_PRE_CFLAGS)
+
+# .c objects (Option C uses no relocator.c, no runtime.s, no payload.elf,
+# no payload_checksum.c — that's clang-relocator-only; prom_loader.asm
+# does not checksum the resident image).
+SDCC_C_OBJS = $(BUILDDIR)/cpnos_main.o $(BUILDDIR)/resident.o \
+              $(BUILDDIR)/cfgtbl.o $(BUILDDIR)/init.o \
+              $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o \
+              $(NETBOOT_OBJ) $(BUILDDIR)/isr.o
+
+# Hand-written z88dk asm files (live in sdcc/ as tracked source).
+SDCC_ASM_SRCS = sdcc/sections.asm sdcc/reset.asm sdcc/prom_loader.asm \
+                sdcc/bios_jt.asm sdcc/snios.asm sdcc/hal.asm
+
+# Linker invocation: -create-app makes z88dk-appmake emit one .bin
+# file per `org`-anchored section (cpnos_RESET.bin, cpnos_RESIDENT_PRE_CODE.bin,
+# cpnos_RESIDENT_JUMPTABLE.bin).  We ignore SCRATCH_BSS (NOLOAD).
+SDCC_ZLFLAGS = -create-app -Cz"--org 0" -lz80 -m
+
+# Transport aliasing — z88dk has no --defsym, so generate a small
+# trampoline asm file (3 bytes per entry) that exports _xport_*
+# pointing at the chosen TRANSPORT primitive.
+ifeq ($(TRANSPORT),pio-irq)
+SDCC_XPORT_SEND = _transport_pio_send_byte
+SDCC_XPORT_RECV = _transport_pio_recv_byte
+else ifeq ($(TRANSPORT),sio)
+SDCC_XPORT_SEND = _transport_send_byte
+SDCC_XPORT_RECV = _transport_recv_byte
+else ifeq ($(TRANSPORT),pio-proxy)
+SDCC_XPORT_SEND = _transport_pio_send_byte
+SDCC_XPORT_RECV = _transport_pio_recv_byte
+endif
+
+$(BUILDDIR)/xport_aliases.asm: $(BUILDDIR)/transport_stamp
+	@mkdir -p $(BUILDDIR)
+	@{ \
+	  echo "; Generated by Makefile from TRANSPORT=$(TRANSPORT)."; \
+	  echo "    SECTION RESIDENT_CODE"; \
+	  echo "    PUBLIC _xport_send_byte"; \
+	  echo "    EXTERN $(SDCC_XPORT_SEND)"; \
+	  echo "_xport_send_byte:"; \
+	  echo "    jp $(SDCC_XPORT_SEND)"; \
+	  echo "    PUBLIC _xport_recv_byte"; \
+	  echo "    EXTERN $(SDCC_XPORT_RECV)"; \
+	  echo "_xport_recv_byte:"; \
+	  echo "    jp $(SDCC_XPORT_RECV)"; \
+	} > $@
+
+$(BUILDDIR)/cpnos.cim: $(SDCC_C_OBJS) $(SDCC_ASM_SRCS) $(BUILDDIR)/xport_aliases.asm \
+                       tasks/scripts/check_sdcc_layout.py
+	@mkdir -p $(BUILDDIR)
+	@# zcc wants to write outputs alongside the named -o file.  Run
+	@# from $(BUILDDIR) so per-section .bin files land there.
+	cd $(BUILDDIR) && $(CC) $(ZFLAGS_BASE) $(SDCC_ZLFLAGS) \
+	    $(addprefix ../,$(SDCC_ASM_SRCS)) \
+	    xport_aliases.asm \
+	    $(notdir $(SDCC_C_OBJS)) \
+	    -o cpnos
+	@# HARD GATE: every public symbol must resolve into a section
+	@# whose VMA is inside a region the loader actually populates.
+	@# z88dk silently auto-places library sections (`code_string`,
+	@# `code_clib`, `code_l_sccz80`, ...) into address gaps, which
+	@# can land them outside the resident PROM-loaded range.  This
+	@# audit fires the moment any symbol is mis-placed (including
+	@# section overlaps).  It is a build-failure gate, not advisory.
+	python3 tasks/scripts/check_sdcc_layout.py $(BUILDDIR)/cpnos.map
+	@touch $@
+
+# Override $(BUILDDIR)/cpnos.bin for SDCC: assemble PROM0 + PROM1 from
+# z88dk's per-section .bin outputs.  Single `org 0xEE00` for resident
+# (matches clang's _bios_boot=0xEE00 placement so cpnos.com's hardcoded
+# NIOS=0xEE33 lands on _snios_jt).  z88dk emits one binary file
+# (cpnos_RESIDENT_JUMPTABLE.bin) that we dd-split: bytes 0..0x3FF →
+# PROM0 tail (RAM 0xEE00..0xF1FF), bytes 0x400..0x9FF → PROM1
+# (RAM 0xF200..0xF7FF, capped at 1536 B to clear display memory).
+$(BUILDDIR)/cpnos.bin: $(BUILDDIR)/cpnos.cim tasks/scripts/build_prom_image.py
+	@RES_TOTAL=$$(wc -c < $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin | tr -d ' '); \
+	 RES_A=1024; \
+	 if [ $$RES_TOTAL -lt 1024 ]; then RES_A=$$RES_TOTAL; fi; \
+	 RES_B=$$((RES_TOTAL - RES_A)); \
+	 dd if=$(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin of=$(BUILDDIR)/resident_a.bin \
+	    bs=1 count=$$RES_A status=none; \
+	 if [ $$RES_B -gt 0 ]; then \
+	    dd if=$(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin of=$(BUILDDIR)/resident_b.bin \
+	        bs=1 skip=$$RES_A count=$$RES_B status=none; \
+	 else : > $(BUILDDIR)/resident_b.bin; fi
+	python3 tasks/scripts/build_prom_image.py $(BUILDDIR)/prom0.bin 2048 \
+	    0x000:$(BUILDDIR)/cpnos_RESET.bin \
+	    0x400:$(BUILDDIR)/resident_a.bin
+	python3 tasks/scripts/build_prom_image.py $(BUILDDIR)/prom1.bin 2048 \
+	    0x000:$(BUILDDIR)/resident_b.bin
+	cat $(BUILDDIR)/prom0.bin $(BUILDDIR)/prom1.bin > $@
+	@P0_RESET=$$(wc -c < $(BUILDDIR)/cpnos_RESET.bin | tr -d ' '); \
+	 RES_TOTAL=$$(wc -c < $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin | tr -d ' '); \
+	 RES_A=$$(wc -c < $(BUILDDIR)/resident_a.bin | tr -d ' '); \
+	 RES_B=$$(wc -c < $(BUILDDIR)/resident_b.bin | tr -d ' '); \
+	 echo "PROM0:    reset+loader $$P0_RESET B + resident chunk A $$RES_A B / 1024"; \
+	 echo "PROM1:    resident chunk B $$RES_B B / 1536"; \
+	 echo "Resident: $$RES_TOTAL B total in RAM 0xEE00..0xF7FF"; \
+	 test $$RES_B -le 1536 || { echo "ERROR: resident overflows 1.5 KB (would clobber display memory at 0xF800)"; exit 1; }
+
+# Override cpnos-size for SDCC (no payload.bin / payload.elf).
+cpnos-size: $(BUILDDIR)/cpnos.bin
+	@P0=$$(wc -c < $(BUILDDIR)/prom0.bin | tr -d ' '); \
+	 P1=$$(wc -c < $(BUILDDIR)/prom1.bin | tr -d ' '); \
+	 TOTAL=$$(wc -c < $(BUILDDIR)/cpnos.bin | tr -d ' '); \
+	 echo "PROM0:    $$P0 / 2048 bytes"; \
+	 echo "PROM1:    $$P1 / 2048 bytes"; \
+	 echo "TOTAL:    $$TOTAL / 4096 bytes"; \
+	 test $$TOTAL -eq 4096 || { echo "ERROR: image not exactly 4096 bytes"; exit 1; }
+
+# cpnos-lis is a no-op for SDCC (no llvm-objdump; .lst is per-file from zcc).
+cpnos-lis: $(BUILDDIR)/cpnos.bin
+	@echo "(cpnos-lis: SDCC build emits per-file .lst; see $(BUILDDIR)/cpnos.map)"
+
+endif

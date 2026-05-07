@@ -37,8 +37,18 @@ LOCAL_SRC := src
 #   DATA 0xDD80..0xE17F   NDOSRL DD80, BDOSDS DF6A
 # TPA = 0x0100..0xDD7F = 0xDC80 = 56448 B (55.125 KB strict;
 # CPNOS_TPA_KB rounds to 57).
-CODE_BASE ?= LE180
-DATA_BASE ?= DDD80
+#
+# Path 4 (2026-05-06): CODE_BASE shifted 0x200 down to 0xDF80 to give
+# 512 B of free RAM at 0xEC00..0xEDFF for the SDCC build's larger BSS
+# (libsdcc adds ~280 B vs clang's 220 B baseline).  Both compiler
+# builds now share this layout — clang accepts the smaller TPA fine
+# (its BSS already lives at 0xF524).  Tracked as the temporary fix
+# pending the relocatable-SPR refactor in RELOCATABLE_SPR.md.
+#   CODE 0xDF80..0xEBFF   NDOS DF83, ends 512 B before resident base
+#   DATA 0xDB80..0xDF7F   NDOSRL DB80, BDOSDS DD6A (offsets shifted -0x200)
+# TPA = 0x0100..0xDB7F = 0xDA80 = 55936 B (54.625 KB; CPNOS_TPA_KB ~55).
+CODE_BASE ?= LDF80
+DATA_BASE ?= DDB80
 
 export CPMDrive_D := $(CURDIR)/d
 export CPMDrive_A := $(CURDIR)/a

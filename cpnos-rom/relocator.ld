@@ -41,28 +41,45 @@ SECTIONS {
     *(.rodata*)
   } > PROM0
 
-  __reloc_code_end = .;
-  ASSERT(__reloc_code_end <= 0x100,
-         "relocator code exceeds 256 B reservation (shrink or raise .prom0_init base)")
+  /* Payload header — emitted by tasks/scripts/gen_payload_header.py
+   * from the payload ELF's symbols.  Placed right after the relocator
+   * code so the bytes are at a known runtime address that the relocator
+   * reads via the `_payload_header` extern.  Contents: magic/version,
+   * resident_dest, chunk-A/B src/size, cold_entry, checksum_magic, and
+   * a list of (start, end) BSS-pairs to zero before checksum.  Replaces
+   * the previous --defsym injection mechanism — see plan
+   * /Users/ravn/.claude/plans/harmonic-sleeping-spring.md. */
+  .payload_header : {
+    KEEP(*(.payload_header))
+  } > PROM0
 
-  /* Init image -- 0x100..0x3FF.  Bytes are extracted from the payload
+  __reloc_code_end = .;
+  ASSERT(__reloc_code_end <= 0x200,
+         "relocator code + header exceeds 512 B reservation (shrink relocator or raise .prom0_init base)")
+
+  /* Init image -- 0x200..0x4FF.  Bytes are extracted from the payload
    * ELF's .init output section by `objcopy --only-section=.init`,
    * then #embed'd into relocator.c's `init_image[]` and placed here.
    * VMA == LMA so init code's absolute references resolve when it
-   * executes in place from PROM. */
-  .prom0_init 0x100 : {
+   * executes in place from PROM.  Base bumped from 0x100 to 0x200
+   * (2026-05-07) to give the data-driven relocator+header more
+   * PROM0 code budget. */
+  .prom0_init 0x200 : {
     KEEP(*(.prom0_init))
   } > PROM0
 
   __init_end = .;
-  ASSERT(__init_end <= 0x400,
+  ASSERT(__init_end <= 0x500,
          "init image exceeds 768 B PROM 0 reservation (raise .prom0_tail base)")
 
-  /* Resident payload chunk A — PROM0 tail at 0x0400.  First
+  /* Resident payload chunk A — PROM0 tail at 0x0500.  First
    * PROM0_TAIL_SIZE bytes of resident payload.  Makefile's
-   * PROM0_TAIL_SIZE must match (0x800 - 0x400 = 1024 bytes
-   * available between 0x400 and 0x800). */
-  .prom0_tail 0x400 : {
+   * PROM0_TAIL_SIZE must match (0x800 - 0x500 = 768 bytes available
+   * between 0x500 and 0x800).  __chunk_a_start emitted here so
+   * gen_payload_header.py / the header can resolve `chunk_a_src`
+   * to the actual placement (no hardcoded 0x500 outside this file). */
+  .prom0_tail 0x500 : {
+    __chunk_a_start = .;
     KEEP(*(.prom0_tail))
   } > PROM0
 
@@ -70,8 +87,10 @@ SECTIONS {
    * the last 2 bytes of the linked payload.bin (placed there by
    * payload.ld's .payload_checksum section).  After splitting it
    * ends up as the last 2 bytes of payload_b.bin.  No special
-   * placement needed here. */
+   * placement needed here.  __chunk_b_start emitted here for the
+   * same reason as __chunk_a_start above. */
   .prom1 0x2000 : {
+    __chunk_b_start = .;
     KEEP(*(.prom1))
   } > PROM1
 
