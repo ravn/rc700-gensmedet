@@ -38,7 +38,7 @@ BSS_HI = 0xEDFF
 
 # Sections that are allowed to live outside the resident range.
 BSS_SECTIONS = {"bss_compiler", "SCRATCH_BSS"}
-PROM0_SECTIONS = {"RESET", "INIT_CODE", "INIT_RODATA"}
+PROM0_SECTIONS = {"RESET", "INIT_CODE", "INIT_RODATA", "PAYLOAD_HEADER"}
 
 # Const/equ symbols (no real address, just a numeric definition).
 def is_const(line: str) -> bool:

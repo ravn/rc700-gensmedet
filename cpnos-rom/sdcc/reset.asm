@@ -1,15 +1,30 @@
-; cpnos-rom reset vector — z88dk SDCC port of reset.s.
+; cpnos-rom reset vector -- z88dk SDCC port of reset.s.
 ;
-; Runs at cold boot with undefined SP — must set one before any C
-; code gets pushed onto it.  Then tail-jump into the asm relocator
-; which copies PROM1 to RAM and jumps to _cpnos_cold_entry.
+; Runs at cold boot with undefined SP -- must set one before any C
+; code gets pushed onto it.  Then tail-jump into the C relocator
+; (relocator.c, in INIT_CODE) which copies the chunks to RAM, zeroes
+; the BSS extents, verifies the resident checksum, and jumps to
+; _cpnos_cold_entry.
 ;
-; SP = 0xF700: same value as clang __stack_top (payload.ld).  Stack
-; grows down through 0xF621..0xF6FF (~223 B; max observed depth ~50 B
-; during init).  Sits below PIO_RX BSS at 0xF700+, above the resident
-; image's high water mark at 0xF7DF.  Setting SP into PROM-mapped
-; RAM at boot is safe because the PROM only shadows 0x0000..0x07FF
-; and 0x2000..0x27FF; everything above is real RAM.
+; SP = 0xEC00: stack lives BELOW the resident range 0xEE00..0xF7FF.
+;
+; This matters because the relocator's checksum pass (after memcpy +
+; BSS clear) word-sums the entire resident range and compares against
+; the patched magic 0xCAFE.  Under SDCC, _memset is a library call
+; that pushes registers around; if the stack lived inside the
+; resident region, those pushes would corrupt the bytes the checksum
+; is about to read.
+;
+; (Under clang Z80 __builtin_memset lowers to inline LDIR-from-self
+;  with ZERO stack pushes, so clang's reset.s can park SP at 0xF700
+;  without hitting this trap.  See payload.ld __stack_top.)
+;
+; Pushes go to 0xEBFE..0xEBFF and below.  That's plain RAM at boot --
+; PROM only shadows 0x0000..0x07FF and 0x2000..0x27FF; everything
+; else is real RAM.  cpnos.com loads later at 0xDF80..0xEC00 (top
+; exclusive), but at relocator time that region is unused, so a few
+; bytes of stack scribble in 0xEBxx is harmless.  By the time
+; cpnos_cold_entry runs, the resident handoff sets up its own stack.
 
     SECTION RESET
 
@@ -18,5 +33,5 @@
     PUBLIC _reset
 _reset:
     di
-    ld   sp, 0xF700
+    ld   sp, 0xEC00
     jp   _relocate

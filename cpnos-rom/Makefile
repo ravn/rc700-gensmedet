@@ -393,6 +393,14 @@ $(BUILDDIR)/netboot_mpm.o: netboot_mpm.c hal.h
 # relocator.ld discards — link fails on .bss relocation.
 CFLAGS_RELOC = $(subst -Xclang -target-feature -Xclang +static-stack,,$(CFLAGS))
 
+# ---- clang-specific relocator chain ------------------------------
+# Two-stage link: first payload.elf (resident), then relocator.elf
+# (PROM-image with relocator code + payload header + chunk bytes
+# embedded via #include ".inc").  The SDCC pipeline below uses a
+# single-stage link instead and provides its own relocator-build
+# rules.
+ifeq ($(COMPILER),clang)
+
 # Generated .inc files — re-emitted whenever the .bin or the
 # converter script changes.
 $(BUILDDIR)/%.inc: $(BUILDDIR)/%.bin tasks/scripts/bin2inc.py
@@ -490,13 +498,13 @@ $(BUILDDIR)/relocator.elf: $(RELOC_OBJS) $(RELOC_LD) $(BUILDDIR)/payload.elf
 # ---- Produce prom0.bin / prom1.bin (clang only) -------------------
 # SDCC provides its own cpnos.bin recipe at the bottom of this file.
 
-ifeq ($(COMPILER),clang)
 $(BUILDDIR)/cpnos.bin: $(BUILDDIR)/relocator.elf
 	$(OBJCOPY) -O binary --gap-fill=0xFF --pad-to=0x2800 $< $(BUILDDIR)/cpnos.raw
 	dd if=$(BUILDDIR)/cpnos.raw of=$(BUILDDIR)/prom0.bin bs=2048 count=1 status=none
 	dd if=$(BUILDDIR)/cpnos.raw of=$(BUILDDIR)/prom1.bin bs=2048 skip=4 count=1 status=none
 	cat $(BUILDDIR)/prom0.bin $(BUILDDIR)/prom1.bin > $@
-endif
+
+endif  # ifeq ($(COMPILER),clang)
 
 # ---- Size check ---------------------------------------------------
 
@@ -1261,12 +1269,17 @@ cpnos-trace: cpnos-install
 
 # Source-interleaved disassembly (requires -g, enabled in CFLAGS).
 # The -S flag interleaves the original C lines with emitted Z80 asm.
+# Clang-only (uses llvm-objdump on payload.elf).  SDCC has its own
+# cpnos-lis override at the bottom of this file that points at the
+# per-file .lst and the cpnos.map.
+ifeq ($(COMPILER),clang)
 cpnos-lis: $(BUILDDIR)/payload.elf
 	$(OBJDUMP) -d -S -r --symbolize-operands --triple=z80 $< > $(BUILDDIR)/cpnos.lis
 	@echo "wrote $(BUILDDIR)/cpnos.lis (with C source + symbol-resolved operands)"
 
 cpnos-map: $(BUILDDIR)/payload.elf
 	$(NM) --numeric-sort $<
+endif
 
 # Note: per-TU listings from .o files don't work reliably because
 # unlinked object files have incomplete DWARF (relocations unresolved
@@ -1325,23 +1338,54 @@ CFLAGS += -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RESIDENT_RODATA"
 SDCC_RESIDENT_CFLAGS := $(CFLAGS)
 SDCC_PRE_CFLAGS := $(filter-out -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RESIDENT_RODATA",$(CFLAGS)) \
                    -Cs"--codeseg RESIDENT_PRE_CODE" -Cs"--constseg RESIDENT_PRE_RODATA"
+# relocator.c lives in INIT_CODE/INIT_RODATA (PROM0 0x0000 anchor group,
+# packed by z88dk after RESET).  This is the SDCC equivalent of the
+# clang relocator.ld putting it in the relocator-side ELF.
+SDCC_INIT_CFLAGS := $(filter-out -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RESIDENT_RODATA",$(CFLAGS)) \
+                    -Cs"--codeseg INIT_CODE" -Cs"--constseg INIT_RODATA"
 $(BUILDDIR)/init.o:           CFLAGS := $(SDCC_PRE_CFLAGS)
 $(BUILDDIR)/netboot_mpm.o:    CFLAGS := $(SDCC_PRE_CFLAGS)
 $(BUILDDIR)/transport_sio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
 $(BUILDDIR)/transport_pio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
 $(BUILDDIR)/isr.o:            CFLAGS := $(SDCC_PRE_CFLAGS)
 $(BUILDDIR)/cfgtbl.o:         CFLAGS := $(SDCC_PRE_CFLAGS)
+$(BUILDDIR)/relocator.o:      CFLAGS := $(SDCC_INIT_CFLAGS)
 
-# .c objects (Option C uses no relocator.c, no runtime.s, no payload.elf,
-# no payload_checksum.c — that's clang-relocator-only; prom_loader.asm
-# does not checksum the resident image).
+# Standard SDCC C-object compile rule for relocator.c.  No .inc deps
+# (those are clang-only embeds; the SDCC build is single-link and the
+# resident bytes already live in their RESIDENT_* sections).
+$(BUILDDIR)/relocator.o: relocator.c payload_header.h compiler/compat.h
+	@mkdir -p $(BUILDDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Generate payload_header_data.s in symbolic mode -- emits `defw _sym`
+# references for everything resolvable by the linker (resident_dest,
+# cold_entry, scratch/pio_rx BSS extents, chunk_b_size).  Chunk LMAs
+# (0x0400 / 0x2000) are build-script constants matching build_prom_image.py.
+$(BUILDDIR)/payload_header_data.s: tasks/scripts/gen_payload_header.py \
+                                   payload_header.h Makefile
+	@mkdir -p $(BUILDDIR)
+	python3 tasks/scripts/gen_payload_header.py \
+	    --syntax=sdcc --symbolic \
+	    --chunk-a-src=0x0400 --chunk-b-src=0x2000 \
+	    --out=$@
+
+# .c objects (single-link: relocator.c + payload_header_data.s + the
+# resident sources all link in one z88dk pass).  No runtime.s / no
+# payload.elf / no payload_checksum.c -- those are clang-only artifacts
+# from the two-stage clang pipeline.
 SDCC_C_OBJS = $(BUILDDIR)/cpnos_main.o $(BUILDDIR)/resident.o \
               $(BUILDDIR)/cfgtbl.o $(BUILDDIR)/init.o \
               $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o \
-              $(NETBOOT_OBJ) $(BUILDDIR)/isr.o
+              $(NETBOOT_OBJ) $(BUILDDIR)/isr.o \
+              $(BUILDDIR)/relocator.o
 
 # Hand-written z88dk asm files (live in sdcc/ as tracked source).
-SDCC_ASM_SRCS = sdcc/sections.asm sdcc/reset.asm sdcc/prom_loader.asm \
+# prom_loader.asm dropped 2026-05-07 -- replaced by relocator.c
+# compiled under SDCC into INIT_CODE.  The unified relocator reads
+# its metadata from the payload header instead of from hardcoded
+# literals in prom_loader.asm.
+SDCC_ASM_SRCS = sdcc/sections.asm sdcc/reset.asm \
                 sdcc/bios_jt.asm sdcc/snios.asm sdcc/hal.asm
 
 # Linker invocation: -create-app makes z88dk-appmake emit one .bin
@@ -1379,6 +1423,7 @@ $(BUILDDIR)/xport_aliases.asm: $(BUILDDIR)/transport_stamp
 	} > $@
 
 $(BUILDDIR)/cpnos.cim: $(SDCC_C_OBJS) $(SDCC_ASM_SRCS) $(BUILDDIR)/xport_aliases.asm \
+                       $(BUILDDIR)/payload_header_data.s \
                        tasks/scripts/check_sdcc_layout.py
 	@mkdir -p $(BUILDDIR)
 	@# zcc wants to write outputs alongside the named -o file.  Run
@@ -1386,6 +1431,7 @@ $(BUILDDIR)/cpnos.cim: $(SDCC_C_OBJS) $(SDCC_ASM_SRCS) $(BUILDDIR)/xport_aliases
 	cd $(BUILDDIR) && $(CC) $(ZFLAGS_BASE) $(SDCC_ZLFLAGS) \
 	    $(addprefix ../,$(SDCC_ASM_SRCS)) \
 	    xport_aliases.asm \
+	    payload_header_data.s \
 	    $(notdir $(SDCC_C_OBJS)) \
 	    -o cpnos
 	@# HARD GATE: every public symbol must resolve into a section
@@ -1405,7 +1451,18 @@ $(BUILDDIR)/cpnos.cim: $(SDCC_C_OBJS) $(SDCC_ASM_SRCS) $(BUILDDIR)/xport_aliases
 # (cpnos_RESIDENT_JUMPTABLE.bin) that we dd-split: bytes 0..0x3FF →
 # PROM0 tail (RAM 0xEE00..0xF1FF), bytes 0x400..0x9FF → PROM1
 # (RAM 0xF200..0xF7FF, capped at 1536 B to clear display memory).
-$(BUILDDIR)/cpnos.bin: $(BUILDDIR)/cpnos.cim tasks/scripts/build_prom_image.py
+$(BUILDDIR)/cpnos.bin: $(BUILDDIR)/cpnos.cim tasks/scripts/build_prom_image.py \
+                       cpnos-build/patch_payload_checksum.py
+	@# Patch the resident image so its 16-bit word-additive sum
+	@# equals PAYLOAD_CHECKSUM_MAGIC (0xCAFE).  The relocator
+	@# verifies this AFTER copying both chunks to RAM and zeroing
+	@# the BSS extents -- a runaway BSS-clear or a missing PROM1
+	@# surfaces as "BAD CHECKSUM" rather than silent JP-0.
+	@# Patches the last 2 bytes (RAM 0xF7FE..0xF7FF), which are
+	@# snios.asm's MSGADR-high + RETCNT scratch -- both code paths
+	@# (SNDMSG / RCVMSG) overwrite those before reading, so the
+	@# link-time initial values don't matter.
+	python3 cpnos-build/patch_payload_checksum.py $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin
 	@RES_TOTAL=$$(wc -c < $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin | tr -d ' '); \
 	 RES_A=1024; \
 	 if [ $$RES_TOTAL -lt 1024 ]; then RES_A=$$RES_TOTAL; fi; \

@@ -42,10 +42,24 @@
  * relocator code in PROM0.  Linker-resolved at relocator-link time. */
 extern const struct payload_header payload_header;
 
-/* Init image: lives at PROM 0 0x0100 -- linked at the same VMA as
+/* Chunk-byte embeds — clang only.
+ *
+ * Under clang, the relocator is its own link separate from the resident
+ * payload.elf, so the chunk bytes have to be #include'd as `.inc` files
+ * (generated from .bin by tasks/scripts/bin2inc.py) into PROM0/PROM1
+ * sections that the relocator linker pins to the right LMAs.
+ *
+ * Under SDCC the build is single-link: the resident, the relocator, and
+ * the header all link in one z88dk pass and the resident bytes already
+ * live in their own RESIDENT_* sections.  No embeds — the linker knows
+ * where everything is and the gen-header script writes those addresses
+ * into the header.  Including these arrays under SDCC would emit
+ * duplicate bytes in unrelated sections. */
+#if defined(__clang__) && defined(__z80__)
+/* Init image: lives at PROM 0 0x0200 -- linked at the same VMA as
  * the .init output section in payload.elf so absolute references
  * inside init code resolve.  Never copied to RAM; runs in place
- * from PROM until PROM disable.  See tasks/todo.md, step 3. */
+ * from PROM until PROM disable. */
 SECTION_PROM0_INIT
 static const uint8_t init_image[] = {
 #include "init.inc"
@@ -66,11 +80,57 @@ SECTION_PROM1
 static const uint8_t payload_b[] = {
 #include "payload_b.inc"
 };
+#endif
 
 /* "BAD CHECKSUM" message copied into display memory at 0xF800 when
  * the integrity check fails — appears at the top-left of the screen
  * and is visible to mame_boot_test.lua's display-memory probe. */
 static const char BAD_CHECKSUM_MSG[] = "BAD CHECKSUM";
+
+/* Zero `len` bytes starting at `dst`.  Replaces __builtin_memset for
+ * portability:
+ *
+ *   - Clang Z80: __builtin_memset already lowers to inline LDIR-from-
+ *     self, so this wrapper just delegates.
+ *   - SDCC z88dk: __builtin_memset gets mapped to z88dk's `_memset`,
+ *     which is the sdcccall=0 (stack-arg) entry point.  Under
+ *     sdcccall=1 the compiler emits a register+stack-mix calling
+ *     convention that does not match `_memset`'s `pop hl/de/bc`
+ *     preamble -- you get garbage args, no zeroing, and a wrong SP
+ *     on return.  Side-step the whole library by writing the LDIR-
+ *     from-self loop inline as a naked sdcccall(1) function so the
+ *     relocator is self-contained.
+ *
+ * sdcccall(1) for `relocator_zero(void *dst, uint16_t len)` puts the
+ * first arg in HL and the second in DE -- exactly what the asm uses. */
+#if defined(__SDCC) || defined(__SCCZ80)
+static void relocator_zero(void *dst, uint16_t len) __naked
+{
+    (void)dst;
+    (void)len;
+    __asm
+        ld   a, d
+        or   a, e
+        ret  z
+        ld   (hl), 0
+        ld   b, d
+        ld   c, e
+        dec  bc
+        ld   a, b
+        or   a, c
+        ret  z
+        ld   d, h
+        ld   e, l
+        inc  de
+        ldir
+        ret
+    __endasm;
+}
+#else
+static inline void relocator_zero(void *dst, uint16_t len) {
+    __builtin_memset(dst, 0, len);
+}
+#endif
 
 /* Tail-called from reset.s.  SP is already set to __stack_top by
  * reset.s.  PROMs are still mapped — the payload disables them later.
@@ -108,8 +168,8 @@ NORETURN void relocate(void) {
      * by design (see top-of-file invariant). */
     const uint16_t (*p)[2] = h->bss_pairs;
     while ((*p)[0] != PAYLOAD_BSS_SENTINEL) {
-        __builtin_memset((void *)(*p)[0], 0,
-                         (size_t)((*p)[1] - (*p)[0]));
+        relocator_zero((void *)(*p)[0],
+                       (uint16_t)((*p)[1] - (*p)[0]));
         p++;
     }
 
@@ -126,11 +186,24 @@ NORETURN void relocate(void) {
         for (;;) { }
     }
 
-    /* JP cold entry.  Inline asm avoids the clang Z80 indirect-call
-     * runtime helper (`__call_iy`) that an ordinary function-pointer
-     * call would lower to — keeps the relocator self-contained and
-     * leaves the cold entry as a tail-jump (no stack frame). */
+    /* JP cold entry.
+     *
+     * Clang Z80: an ordinary function-pointer call lowers to the
+     * `__call_iy` runtime helper, which we don't link in.  Force a
+     * direct `jp (hl)` via a register-pinned local + inline asm; this
+     * is also a true tail-jump (no stack frame, no return address
+     * pushed for an entry that never returns).
+     *
+     * SDCC z88dk: the function-pointer call lowers cleanly (no runtime
+     * helper).  The 2 bytes of return-address stack the call pushes are
+     * irrelevant — cold_entry never returns and the resident handoff
+     * resets SP at PROM-disable time.  The portable spelling is also
+     * the one that survives -Werror on the host LSP build. */
+#if defined(__clang__) && defined(__z80__)
     register uint16_t entry __asm__("hl") = h->cold_entry;
     __asm__ volatile ("jp (hl)" : : "r"(entry));
+#else
+    ((void (*)(void))h->cold_entry)();
+#endif
     for (;;) { }   /* unreachable; satisfies NORETURN */
 }
