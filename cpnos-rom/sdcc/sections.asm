@@ -27,18 +27,12 @@
 ; `--defsym` / linker-script assignment.  SDCC needs them as PUBLIC
 ; numeric constants so cross-TU references resolve.
 
-    PUBLIC __ivt_start
-    defc __ivt_start = 0xF500    ; IVT base address (page-aligned).
-                                 ; KNOWN BUG (task #18): no SECTION
-                                 ; reservation backs this — _cursor_down
-                                 ; (0xF4FF) and _cursor_up (0xF516)
-                                 ; land inside this range.  Fixed at
-                                 ; step 7 of the header-driven plan
-                                 ; (see /Users/ravn/.claude/plans/
-                                 ; harmonic-sleeping-spring.md).
-
-    PUBLIC __ivt_end
-    defc __ivt_end = 0xF500 + 18 * 2
+    ; __ivt_start / __ivt_end are now defined as labels inside
+    ; SECTION bss_ivt at the head of SCRATCH_BSS (page-aligned by
+    ; SCRATCH_BSS's `org 0xEB00`).  The IVT pair is appended to the
+    ; payload header's bss_pairs list (gen_payload_header.py
+    ; --include-ivt) so the relocator zeroes the region before
+    ; checksum verification.  See bottom of this file.
 
     ; _pio_rx_buf_page is derived from HIGH(_pio_rx_buf) AFTER the BSS
     ; chain is laid out — see SECTION bss_pio_rx near the bottom of
@@ -143,16 +137,33 @@
 ;-----------------------------------------------------------------
 
     SECTION SCRATCH_BSS
-    org 0xEC00
+    org 0xEB00            ; Was 0xEC00; bumped 256 B earlier 2026-05-07
+                          ; in lockstep with cpnos-build CODE_BASE shift
+                          ; LDF80 -> LDE80 (TPA 55 KB -> ~54 KB).  The
+                          ; new 256 B at 0xEB00..0xEBFF hosts a page-
+                          ; aligned `bss_ivt` slot for IM2 vectors;
+                          ; bss_pio_rx + bss_compiler stay at 0xEC00 +
+                          ; 0xED00 unchanged.  See #29 / plan #19 step 7.
 
-    ; PIO-B receive ring — page-aligned 256-byte buffer.  Defined here
-    ; (not in transport_pio.c) so the linker can place it page-aligned
-    ; AND so _pio_rx_buf_page can be derived from HIGH(_pio_rx_buf)
-    ; instead of being a hardcoded literal that can drift from the
-    ; actual placement.  Lands first in the BSS chain (BSS @ 0xEC00 is
-    ; already page-aligned, so this is at exactly 0xEC00 with zero
-    ; alignment slack).  ISR reads via `ld h, _pio_rx_buf_page; ld l,
-    ; head` so the buffer MUST be page-aligned for the trick to work.
+    ; IM2 IVT — 36 B (18 entries × 2 B) at the head of the page so
+    ; dev_byte = 0..0x22 indexes correctly off `I = 0xEB`.  Page-aligned
+    ; by SCRATCH_BSS's `org 0xEB00` (no extra `align` needed).  The
+    ; payload header carries (__ivt_start, __ivt_end) in its bss_pairs
+    ; list (Makefile passes `--include-ivt` to gen_payload_header) so
+    ; the relocator zeroes this region before checksum verification.
+    SECTION bss_ivt
+    PUBLIC __ivt_start
+    PUBLIC __ivt_end
+__ivt_start:
+    defs 36
+__ivt_end:
+
+    ; PIO-B receive ring — page-aligned 256-byte buffer at 0xEC00.
+    ; Defined here (not in transport_pio.c) so the linker places it at
+    ; a page boundary AND so _pio_rx_buf_page can be derived from
+    ; HIGH(_pio_rx_buf) instead of being a hardcoded literal that can
+    ; drift from the actual placement.  ISR reads via `ld h,
+    ; _pio_rx_buf_page; ld l, head` so the buffer MUST be page-aligned.
     SECTION bss_pio_rx
     align 256
     PUBLIC _pio_rx_buf

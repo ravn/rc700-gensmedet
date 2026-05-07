@@ -42,13 +42,20 @@ LOCAL_SRC := src
 # 512 B of free RAM at 0xEC00..0xEDFF for the SDCC build's larger BSS
 # (libsdcc adds ~280 B vs clang's 220 B baseline).  Both compiler
 # builds now share this layout — clang accepts the smaller TPA fine
-# (its BSS already lives at 0xF524).  Tracked as the temporary fix
-# pending the relocatable-SPR refactor in RELOCATABLE_SPR.md.
-#   CODE 0xDF80..0xEBFF   NDOS DF83, ends 512 B before resident base
-#   DATA 0xDB80..0xDF7F   NDOSRL DB80, BDOSDS DD6A (offsets shifted -0x200)
-# TPA = 0x0100..0xDB7F = 0xDA80 = 55936 B (54.625 KB; CPNOS_TPA_KB ~55).
-CODE_BASE ?= LDF80
-DATA_BASE ?= DDB80
+# (its BSS already lives at 0xF524).
+#
+# Path 5 (2026-05-07): CODE_BASE shifted 0x100 further down to 0xDE80
+# to give an extra 256 B of slave-side RAM at 0xEB00..0xEBFF for the
+# SDCC build's page-aligned IVT slot (#29 / plan #19 step 7).  cpnos-rom
+# SCRATCH_BSS org moves from 0xEC00 -> 0xEB00 in lockstep, freeing a
+# fresh page boundary at 0xEB00 for `bss_ivt` while leaving bss_pio_rx
+# at 0xEC00 and bss_compiler at 0xED00 unchanged (no ISR or rx-buf
+# changes needed).  TPA shrinks 256 B, reported as ~54 KB.
+#   CODE 0xDE80..0xEAFF   NDOS DE83, ends 256 B before previous top
+#   DATA 0xDA80..0xDE7F   NDOSRL DA80, BDOSDS DC6A (offsets shifted -0x300)
+# TPA = 0x0100..0xDA7F = 0xD980 = 55680 B (54.375 KB; CPNOS_TPA_KB ~54).
+CODE_BASE ?= LDE80
+DATA_BASE ?= DDA80
 
 export CPMDrive_D := $(CURDIR)/d
 export CPMDrive_A := $(CURDIR)/a

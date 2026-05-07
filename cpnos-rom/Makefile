@@ -1382,6 +1382,7 @@ $(BUILDDIR)/payload_header_data.s: tasks/scripts/gen_payload_header.py \
 	python3 tasks/scripts/gen_payload_header.py \
 	    --syntax=sdcc --symbolic \
 	    --chunk-a-src=0x0400 --chunk-b-src=0x2000 \
+	    --include-ivt \
 	    --out=$@
 
 # .c objects (single-link: relocator.c + payload_header_data.s + the

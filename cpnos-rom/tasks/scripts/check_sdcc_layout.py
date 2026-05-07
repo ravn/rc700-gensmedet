@@ -41,7 +41,11 @@ RESIDENT_LO = 0xEE00
 RESIDENT_HI = 0xF7FF      # inclusive
 PROM0_LO = 0x0000
 PROM0_HI = 0x07FF
-BSS_LO = 0xEC00
+# BSS scratch range: extended down to 0xEB00 in lockstep with the
+# 2026-05-07 cpnos-build CODE_BASE shift LDF80 -> LDE80, so the SDCC
+# build can host a page-aligned `bss_ivt` slot at 0xEB00.  See #29 /
+# plan #19 step 7.
+BSS_LO = 0xEB00
 BSS_HI = 0xEDFF
 
 # Sections that are allowed to live outside the resident range.
