@@ -192,7 +192,14 @@ TRANSPORT ?= pio-irq
 ifeq ($(TRANSPORT),pio-irq)
 TRANSPORT_DEFSYMS = --defsym=_xport_send_byte=_transport_pio_send_byte \
                     --defsym=_xport_recv_byte=_transport_pio_recv_byte
-TRANSPORT_NAME = PIO-IRQ
+# Banner name shortened from "PIO-IRQ" (8 B incl. NUL) to "PIO" (4 B)
+# 2026-05-08: the 4 saved bytes are exactly the resident overflow we
+# hit on the SDCC pio-irq build (RESIDENT_RODATA tail was 4 B past
+# 0xF800 / display memory).  IRQ vs PROXY mode is still distinguishable
+# at runtime (only one transport is built; the make target name is
+# the source of truth) and the date+hash in the banner already
+# disambiguates the build.
+TRANSPORT_NAME = PIO
 else ifeq ($(TRANSPORT),sio)
 TRANSPORT_DEFSYMS = --defsym=_xport_send_byte=_transport_send_byte \
                     --defsym=_xport_recv_byte=_transport_recv_byte
@@ -205,7 +212,9 @@ else ifeq ($(TRANSPORT),pio-proxy)
 # wire — only the frame-level matters for correctness).
 TRANSPORT_DEFSYMS = --defsym=_xport_send_byte=_transport_pio_send_byte \
                     --defsym=_xport_recv_byte=_transport_pio_recv_byte
-TRANSPORT_NAME = PIO-PRX
+# Banner name shortened to 3 chars to keep both pio variants under the
+# resident size limit (see pio-irq comment above).
+TRANSPORT_NAME = PRX
 SERVER_CFLAGS += -DTRANSPORT_PROXY
 else
 $(error TRANSPORT must be 'pio-irq', 'sio', or 'pio-proxy')
@@ -1224,12 +1233,26 @@ cpnos-polypascal-test:
 	@echo "=== 4/4 syncing ROMs to IRQ-fix MAME tree ==="
 	cp $(MAME)/roms/rc702/roa375.ic66 $(MAME_IRQ)/roms/rc702/roa375.ic66
 	cp $(MAME)/roms/rc702/prom1.ic65  $(MAME_IRQ)/roms/rc702/prom1.ic65
-	@echo "=== generating $(BUILDDIR)/cpnos_polypascal_addrs.lua from payload.elf ==="
-	@KH=$$($(NM) $(BUILDDIR)/payload.elf | awk '/_kbd_head$$/{print $$1}'); \
-	 KR=$$($(NM) $(BUILDDIR)/payload.elf | awk '/_kbd_ring$$/{print $$1}'); \
-	 [ -n "$$KH" ] && [ -n "$$KR" ] || { echo "ERROR: kbd_head/kbd_ring missing from payload.elf"; exit 1; }; \
+	@echo "=== generating $(BUILDDIR)/cpnos_polypascal_addrs.lua ==="
+ifeq ($(COMPILER),sdcc)
+	@# z88dk's `cpnos.map` lines look like:
+	@#   _kbd_head    = $ED10 ; addr, public, ...
+	@KH=$$(awk '/^_kbd_head[ \t]+=[ \t]+\$$/ {gsub(/.*\$$|[ \t].*/,"",$$0); print $$0}' \
+	         $(BUILDDIR)/cpnos.map | head -1); \
+	 KR=$$(awk '/^_kbd_ring[ \t]+=[ \t]+\$$/ {gsub(/.*\$$|[ \t].*/,"",$$0); print $$0}' \
+	         $(BUILDDIR)/cpnos.map | head -1); \
+	 [ -n "$$KH" ] && [ -n "$$KR" ] || { \
+	   echo "ERROR: kbd_head/kbd_ring missing from $(BUILDDIR)/cpnos.map"; exit 1; }; \
 	 printf 'return {\n  kbd_head = 0x%s,\n  kbd_ring = 0x%s,\n}\n' "$$KH" "$$KR" \
 	   > $(BUILDDIR)/cpnos_polypascal_addrs.lua
+else
+	@KH=$$($(NM) $(BUILDDIR)/payload.elf | awk '/_kbd_head$$/{print $$1}'); \
+	 KR=$$($(NM) $(BUILDDIR)/payload.elf | awk '/_kbd_ring$$/{print $$1}'); \
+	 [ -n "$$KH" ] && [ -n "$$KR" ] || { \
+	   echo "ERROR: kbd_head/kbd_ring missing from payload.elf"; exit 1; }; \
+	 printf 'return {\n  kbd_head = 0x%s,\n  kbd_ring = 0x%s,\n}\n' "$$KH" "$$KR" \
+	   > $(BUILDDIR)/cpnos_polypascal_addrs.lua
+endif
 	@cat $(BUILDDIR)/cpnos_polypascal_addrs.lua
 	@echo "=== launching MAME with PolyPascal test driver (max ~4 min) ==="
 	-$(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
