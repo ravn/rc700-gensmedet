@@ -1422,10 +1422,37 @@ $(BUILDDIR)/xport_aliases.asm: $(BUILDDIR)/transport_stamp
 	  echo "    jp $(SDCC_XPORT_RECV)"; \
 	} > $@
 
+# Frame-pointer audit: produce a .s for every C source we compile so
+# the audit script can grep for IX+/IY+ stack-frame addressing (which
+# --fomit-frame-pointer is supposed to eliminate but in practice does
+# not, because SDCC spills to the stack when register pressure is
+# high).  See tasks/scripts/check_no_frame_ptr.py.
+SDCC_AUDIT_DIR = $(BUILDDIR)/audit
+SDCC_C_SRCS    = $(notdir $(SDCC_C_OBJS:.o=.c))
+SDCC_AUDIT_S   = $(addprefix $(SDCC_AUDIT_DIR)/,$(SDCC_C_SRCS:.c=.s))
+
+# `-S` produces only the .s (no .o), so this is a separate compile pass.
+# Mirror the same per-target codeseg overrides as the .o build so the
+# audit sees the same generated code.
+$(SDCC_AUDIT_DIR)/relocator.s:    SDCC_AUDIT_CFLAGS = $(SDCC_INIT_CFLAGS)
+$(SDCC_AUDIT_DIR)/init.o-codeseg-marker: ;
+$(foreach f,init netboot_mpm transport_sio transport_pio isr cfgtbl, \
+  $(eval $(SDCC_AUDIT_DIR)/$f.s: SDCC_AUDIT_CFLAGS = $(SDCC_PRE_CFLAGS)))
+
+$(SDCC_AUDIT_DIR)/%.s: %.c $(BUILDDIR)/cpnos_addrs.h $(BUILDDIR)/cpnos_buildinfo.h
+	@mkdir -p $(SDCC_AUDIT_DIR)
+	$(CC) $(if $(SDCC_AUDIT_CFLAGS),$(SDCC_AUDIT_CFLAGS),$(SDCC_RESIDENT_CFLAGS)) -S $< -o $@
+
 $(BUILDDIR)/cpnos.cim: $(SDCC_C_OBJS) $(SDCC_ASM_SRCS) $(BUILDDIR)/xport_aliases.asm \
                        $(BUILDDIR)/payload_header_data.s \
-                       tasks/scripts/check_sdcc_layout.py
+                       $(SDCC_AUDIT_S) \
+                       tasks/scripts/check_sdcc_layout.py \
+                       tasks/scripts/check_no_frame_ptr.py \
+                       tasks/check_no_frame_ptr_baseline.txt
 	@mkdir -p $(BUILDDIR)
+	@# Audit BEFORE the link so a regression fails fast.
+	python3 tasks/scripts/check_no_frame_ptr.py \
+	    tasks/check_no_frame_ptr_baseline.txt $(SDCC_AUDIT_S)
 	@# zcc wants to write outputs alongside the named -o file.  Run
 	@# from $(BUILDDIR) so per-section .bin files land there.
 	cd $(BUILDDIR) && $(CC) $(ZFLAGS_BASE) $(SDCC_ZLFLAGS) \

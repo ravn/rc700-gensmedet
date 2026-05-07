@@ -1,0 +1,24 @@
+# Known SDCC IX+/IY+ frame-pointer violators -- baseline for the
+# check_no_frame_ptr.py audit gate.
+#
+# Each line: <file>.s:<function>:<count>
+#
+# These are accepted as technical debt because eliminating them
+# requires either splitting the function into smaller pieces or
+# rewriting hot paths in inline asm.  Both options carry their own
+# risk.  Track via a task; do not silently grow this list.
+#
+# When a function on this list is refactored to fit in registers,
+# remove or update its line.  The gate will WARN if the actual
+# count is below the baseline (so a successful fix is visible).
+
+# relocator.c::relocate -- header magic check + BSS-pair iteration
+# + word-additive checksum loop, all with simultaneously-live locals.
+# Rewriting this in inline asm defeats the point of having a single
+# C source for both clang and SDCC.  See plan #19.
+relocator.s:relocate:10
+
+# resident.c::delete_line -- two ix-relative spills.  Likely fixable
+# by simplifying the per-row scroll/clear path; revisit when touching
+# the resident display code.
+resident.s:delete_line:2
