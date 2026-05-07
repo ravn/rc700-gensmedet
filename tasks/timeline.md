@@ -226,16 +226,73 @@
     from time-sinks proactively), `feedback_relink_dependencies_atomically.md`,
     `feedback_kill_stale_servers_on_test_target.md`).
 
-- **Pending** (plan #19 steps 6-8):
-  - Step 6: compile `relocator.c` under SDCC; replace `prom_loader.asm`
-    with the unified C relocator (single source of truth for both
-    compilers).  Requires splitting SDCC's currently-single z88dk link
-    into payload-link + relocator-link (per the architectural
-    invariant that the payload link must not know about PROMs).
-  - Step 7: add `RESIDENT_IVT` section + IVT pair to the header.
-    Closes task #18.
-  - Step 8: delete `sdcc/prom_loader.asm`; extend `check_sdcc_layout.py`
-    with header-presence + IVT-overlap checks.
+- **Reached** (afternoon/evening continuation 2026-05-07, steps 6-8):
+  - **Step 6** (commit `d2485c8`): `relocator.c` compiles under SDCC and
+    replaces `prom_loader.asm` at link time.  SDCC slave boots through
+    the unified C relocator (banner `RC702 CP/NOS 55K SIO sdcc ...` on
+    display, slave reaches netboot wait loop).  Two side-fixes folded
+    in: SDCC `reset.asm` SP changed 0xF700 → 0xEC00 (library calls
+    during the relocator must not push into resident bytes the
+    checksum is about to read), and a `__naked` `relocator_zero` helper
+    inlines LDIR-from-self to side-step a z88dk-zsdcc 4.5.0 calling-
+    convention mismatch where `--sdcccall=1` codegen for `memset(d,0,n)`
+    doesn't match `_memset`'s sdcccall=0 stack-arg preamble (filed
+    upstream-bug task #26).
+  - **Step 7 clang side** (commit `0e8fc58`): `--include-ivt` added to
+    `gen_payload_header.py` invocation; `(__ivt_start, __ivt_end)`
+    lands in the header's bss_pairs list and the relocator zeroes the
+    IVT region during the BSS-clear pass before checksum verification.
+  - **Step 8** (commit `302ce24`): `sdcc/prom_loader.asm` physically
+    deleted; `check_sdcc_layout.py` extended with payload-header sanity
+    check (verifies magic 0x6350, version 0x0001, sentinel pair within
+    64 B after header).  Both fail paths verified by manual tampering.
+  - **Persistent SDCC IX+/IY+ frame-pointer regression gate**
+    (commit `55d68c2`): `tasks/scripts/check_no_frame_ptr.py` scans
+    per-source `.s` files for `(ix±d)` / `(iy±d)` operands, identifies
+    the violating function, and fails the build if any new (file,
+    function) appears or a baselined function's count grows.  Two
+    known violators captured (`relocator.c::relocate` 10 hits,
+    `resident.c::delete_line` 2 hits — tasks #27/#28).
+  - **`--opt-code-size` investigation + revert** (commit `8429b8d`):
+    User flagged that SDCC was at default speed-tuned codegen.
+    Lifting `--opt-code-size` to zcc level (matching
+    `rcbios-in-c/sdcc/Makefile`'s established pattern, captured as
+    HARD memory rule `feedback_check_sibling_subprojects.md`) flips
+    z88dk's peephole file from `sdcc_peeph.3` to `sdcc_peeph_cs.3`
+    and saves ~17 B across the resident.  But `--opt-code-size` also
+    factors out an 11 B `___sdcc_enter_ix` shared helper — amortises
+    only with many IX-frame functions, and our build has just 2
+    (the audit's known violators).  Net: +5 B resident, overflows
+    display memory at 0xF800.  Reverted; documented in Makefile
+    comment for the next attempt.
+
+- **Memory-map gap analysis surfaced clean fix for #29 (2026-05-07
+  evening)**: display memory is 0xF800..0xFFCF (2000 chars, 80×25);
+  bytes 0xFFD0..0xFFFF are scratch RAM, of which only 4 (the CRT
+  frame counter at 0xFFFC..0xFFFF) are claimed.  **44 B free at
+  0xFFD0..0xFFFB** -- enough to host the 36 B IVT with 8 B spare,
+  outside the resident region entirely.  Cost: reconfigure each
+  device's vector low byte in `port_init[]` from 0x00..0x22 to
+  0xD0..0xF2, set `I = 0xFF`.  Closes #18 + plan #19 step 7 SDCC
+  side without ANY code-size trim, and reclaims 36 B of clang
+  resident.  Tracked as **#29** (description rewritten this evening).
+
+- **Two more memory rules captured (session 47 evening)**:
+  `feedback_no_stale_dump_files.md` (`rm -f /tmp/foo` BEFORE every
+  producer-command iteration); `feedback_no_dotall_backtracking.md`
+  (don't combine Python `re.DOTALL` with non-greedy `.*?` over
+  multi-line source — catastrophic backtracking).
+
+- **Plan #19 status**: 7 of 8 structural steps fully done (1-6, 8);
+  step 7 done on clang side; SDCC side unblocked by #29's new approach
+  (relocate IVT to 0xFFD0).  No more architectural unknowns.
+
+- **Pending** (separate from plan #19):
+  - **#29** relocate IVT to 0xFFD0 (cleanly closes step 7 SDCC).
+  - **#27/#28** drive IX-spill audit baseline toward zero.
+  - **#26** file the SDCC `--sdcccall=1`/`_memset` mismatch upstream.
+  - **#21** runtime version check at boot (low priority).
+  - **#13** hunt remaining JP-0 sources in SDCC build (gated on #29).
 
 ## Phase 46: cpnos-rom SDCC port reaches NDOS handoff (May 6, 2026 evening) — branch `main` in rc700-gensmedet
 
