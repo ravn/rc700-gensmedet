@@ -1469,7 +1469,8 @@ $(BUILDDIR)/cpnos.cim: $(SDCC_C_OBJS) $(SDCC_ASM_SRCS) $(BUILDDIR)/xport_aliases
 	@# can land them outside the resident PROM-loaded range.  This
 	@# audit fires the moment any symbol is mis-placed (including
 	@# section overlaps).  It is a build-failure gate, not advisory.
-	python3 tasks/scripts/check_sdcc_layout.py $(BUILDDIR)/cpnos.map
+	python3 tasks/scripts/check_sdcc_layout.py $(BUILDDIR)/cpnos.map \
+	    $(BUILDDIR)/cpnos_RESET.bin
 	@touch $@
 
 # Override $(BUILDDIR)/cpnos.bin for SDCC: assemble PROM0 + PROM1 from
