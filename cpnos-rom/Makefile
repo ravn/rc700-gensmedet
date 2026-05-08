@@ -299,7 +299,12 @@ integration-test test: cpnos-polypascal-test
 .PHONY: cpnos-ppas-test
 cpnos-ppas-test: cpnos-polypascal-test
 
-cpnos: $(BUILDDIR)/cpnos.bin cpnos-size cpnos-lis
+# `make cpnos` builds AND auto-installs the MAME PROMs (cpnos-mame-install).
+# This closes the stale-ROM-in-MAME bug class: `make cpnos` followed by
+# any MAME launch (Make-driven or direct via `regnecentralend`) is
+# guaranteed to load the just-built code.  Use `cpnos-install` for the
+# full install including cpmsim disk-side cpnos.com.
+cpnos: $(BUILDDIR)/cpnos.bin cpnos-mame-install cpnos-size cpnos-lis
 
 # Flag changes (e.g. -DRC702_SLAVEID=) must invalidate all objects.
 $(ALL_OBJS): Makefile $(BUILDDIR)/transport_stamp
@@ -712,14 +717,63 @@ cpnos-build/d/cpnos.com: $(wildcard cpnos-build/src/*.asm cpnos-build/src/*.s) c
 # Depends on cpnos-disk-install so a single `make cpnos-install` (and
 # anything that pulls in cpnos-install — cpnet-smoke, cpnos-mame, etc.)
 # guarantees the disk-side cpnos.com matches the freshly-built PROM.
-cpnos-install: $(BUILDDIR)/cpnos.bin cpnos-disk-install
-	@P0=$$(wc -c < $(BUILDDIR)/prom0.bin | tr -d ' '); \
-	 { cat $(BUILDDIR)/prom0.bin; perl -e "print \"\\xff\" x (4096 - $$P0)"; } \
-	   > $(BUILDDIR)/prom0_padded.ic66
-	cp $(BUILDDIR)/prom0_padded.ic66 $(MAME_PROM0)
-	cp $(BUILDDIR)/prom1.bin         $(MAME_PROM1)
-	@echo "installed cpnos prom0 -> $(MAME_PROM0)"
-	@echo "installed cpnos prom1 -> $(MAME_PROM1)"
+#
+# 2026-05-08: split into mame-side and disk-side halves so `make cpnos`
+# can auto-refresh the MAME PROMs without the cpmsim disk-write
+# overhead (which requires cpmtools + the cpmsim disk image).  The
+# stale-PROM-in-MAME bug class -- builds fresh PROM in $(BUILDDIR)
+# but MAME loads the previous-install ROM until cpnos-install runs --
+# wasted hours of debugging on 2026-05-08 (slave-side instrumentation
+# never appeared to fire because the new instrumentation wasn't
+# loaded).  HARD RULE feedback_check_banner_timestamp.md captures the
+# pre-flight check; this Makefile change closes the loop on the most
+# common path (anyone running `make cpnos` gets fresh MAME PROMs).
+
+# prom0_padded.ic66 / prom1.bin are MAME's loaded ROM files.  Both
+# are side-effects of cpnos.bin's recipe (which generates prom0.bin,
+# prom1.bin, and pads prom0.bin to 4 KB as prom0_padded.ic66 in one
+# pass).  Declared here as targets of cpnos.bin's recipe so make's
+# dep chain can propagate cpnos.bin updates → MAME ROM updates.
+# Empty rule (no recipe) — the actual generation lives in the
+# cpnos.bin recipe further down.
+$(BUILDDIR)/prom0_padded.ic66 $(BUILDDIR)/prom1.bin: $(BUILDDIR)/cpnos.bin
+	@:
+
+# MAME ROM file targets: copy from build artifacts whenever they're
+# newer.  Make tracks timestamps so subsequent builds auto-refresh.
+$(MAME_PROM0): $(BUILDDIR)/prom0_padded.ic66
+	cp $< $@
+	@echo "installed cpnos prom0 -> $@"
+
+$(MAME_PROM1): $(BUILDDIR)/prom1.bin
+	cp $< $@
+	@echo "installed cpnos prom1 -> $@"
+
+# Just the MAME-side install (no cpmsim disk write).  Pulled in by the
+# default `cpnos` target so a plain `make cpnos` is safe to follow with
+# any MAME launch -- direct or via Make.
+cpnos-mame-install: $(MAME_PROM0) $(MAME_PROM1)
+
+# Full install: MAME PROMs + cpmsim disk-side cpnos.com.
+cpnos-install: cpnos-mame-install cpnos-disk-install
+
+# Verify the installed MAME PROMs match the latest build.  Use as a
+# pre-flight check before any direct MAME launch (`regnecentralend`
+# outside Make).  Fails with a clear error message + remediation if
+# the install is stale.  HARD RULE feedback_check_banner_timestamp.md.
+.PHONY: verify-mame-roms-current
+verify-mame-roms-current:
+	@if [ ! -f $(MAME_PROM0) ] || [ $(BUILDDIR)/prom0_padded.ic66 -nt $(MAME_PROM0) ]; then \
+	    echo "STALE ROM: $(MAME_PROM0) older than $(BUILDDIR)/prom0_padded.ic66"; \
+	    echo "  remediation: make COMPILER=$(COMPILER) cpnos-mame-install"; \
+	    exit 1; \
+	fi
+	@if [ ! -f $(MAME_PROM1) ] || [ $(BUILDDIR)/prom1.bin -nt $(MAME_PROM1) ]; then \
+	    echo "STALE ROM: $(MAME_PROM1) older than $(BUILDDIR)/prom1.bin"; \
+	    echo "  remediation: make COMPILER=$(COMPILER) cpnos-mame-install"; \
+	    exit 1; \
+	fi
+	@echo "MAME ROMs current ($(MAME_PROM0), $(MAME_PROM1))"
 
 # ---- cpnet-smoke: end-to-end test against live MP/M ---------------
 #
@@ -1666,6 +1720,14 @@ $(BUILDDIR)/cpnos.bin: $(BUILDDIR)/cpnos.cim tasks/scripts/build_prom_image.py \
 	python3 tasks/scripts/build_prom_image.py $(BUILDDIR)/prom1.bin 2048 \
 	    0x000:$(BUILDDIR)/resident_b.bin
 	cat $(BUILDDIR)/prom0.bin $(BUILDDIR)/prom1.bin > $@
+	@# Generate prom0_padded.ic66 (4 KB image MAME loads) here so all
+	@# PROM file outputs come from one recipe.  prom0.bin is 2 KB; pad
+	@# with 0xFF to 4 KB.  Earlier this was inside cpnos-install's
+	@# recipe; moved here so cpnos.bin's dep chain can propagate to
+	@# MAME ROM files automatically (no stale-ROM-in-MAME bug class).
+	@P0=$$(wc -c < $(BUILDDIR)/prom0.bin | tr -d ' '); \
+	 { cat $(BUILDDIR)/prom0.bin; perl -e "print \"\\xff\" x (4096 - $$P0)"; } \
+	   > $(BUILDDIR)/prom0_padded.ic66
 	@P0_RESET=$$(wc -c < $(BUILDDIR)/cpnos_RESET.bin | tr -d ' '); \
 	 RES_TOTAL=$$(wc -c < $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin | tr -d ' '); \
 	 RES_A=$$(wc -c < $(BUILDDIR)/resident_a.bin | tr -d ' '); \
