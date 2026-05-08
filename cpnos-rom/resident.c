@@ -131,6 +131,45 @@ USED uint8_t pio_par_byte;
 USED uint8_t pio_par_count;
 
 #if MIRROR_SIOB && defined(__SDCC)
+/* BIOS-JT call trace buffer + idx; defined in sdcc/sections.asm
+ * inside bss_ivt's 220 B of unused padding.  Declared here at file
+ * scope so SDCC emits the right EXTERNs in the asm output (inline-
+ * asm references alone are invisible to SDCC's extern emitter). */
+extern uint8_t bios_log_buf[219];
+extern uint8_t bios_log_idx;
+
+/* Naked helper: append A (tag byte) to the log buffer if not full,
+ * preserving all caller registers (incl. A and F).  Each shim
+ * call-site shrinks to `push af; ld a, TAG; call _bios_log_byte;
+ * pop af` (6 bytes) instead of inlining the full ~38-byte sequence
+ * 6 times.  Saves ~190 bytes of resident across the 6 log sites. */
+RESIDENT
+USED void bios_log_byte(void) __naked {
+    ASM_VOLATILE(
+        "push hl\n\t"
+        "push de\n\t"
+        "push bc\n\t"
+        "ld   c, a\n\t"
+        "ld   a, (_bios_log_idx)\n\t"
+        "cp   219\n\t"
+        "jr   nc, _bioslog_byte_full\n\t"
+        "ld   e, a\n\t"
+        "ld   d, 0\n\t"
+        "ld   hl, _bios_log_buf\n\t"
+        "add  hl, de\n\t"
+        "ld   (hl), c\n\t"
+        "inc  a\n\t"
+        "ld   (_bios_log_idx), a\n\t"
+    "_bioslog_byte_full:\n\t"
+        "pop  bc\n\t"
+        "pop  de\n\t"
+        "pop  hl\n\t"
+        "ret\n\t"
+    );
+}
+#endif
+
+#if MIRROR_SIOB && defined(__SDCC)
 /* Boot-time probe (issue #57): emits one labelled hex line over SIO-B
  * showing the state of every buffer impl_conin / impl_const can read.
  * Called at end of init_hardware ('I'), pre-NDOS-handoff ('H'), and
@@ -461,6 +500,33 @@ void impl_conout(uint8_t c) {
  * impl ever changes its return convention, both halves are visible
  * in one diff.
  * ------------------------------------------------------------------ */
+
+/* BIOS-JT trace logging (issue #60 diagnosis, 2026-05-08).
+ *
+ * Each instrumented shim writes one byte to __bios_log_buf at every
+ * entry and exit:
+ *    entry: slot | 0x10
+ *    exit : slot | 0x20
+ * Slot IDs: 2 = CONST, 3 = CONIN, 4 = CONOUT.  Buffer is 219 B in
+ * unused IVT padding (sdcc/sections.asm); when full, logging stops
+ * (no wrap, so earliest calls survive).  Buffer + idx live in
+ * bss_ivt which the relocator zeroes pre-NDOS; we start at idx=0
+ * with all bytes 0x00.
+ *
+ * Inline asm is gated on `MIRROR_SIOB && defined(__SDCC)` so clang's
+ * original 6-instruction shims are unaffected.  Each block preserves
+ * AF (incl. flags), BC, HL so the shim's pre/post register state is
+ * unchanged from NDOS's POV.  Labels are globally unique because
+ * z88dk-z80asm requires it (no local `1:`/`1f` syntax in this
+ * dialect).
+ */
+
+/* BIOS-JT shims: original 6-instruction form.  Earlier
+ * bug-#60-diagnostic instrumentation was removed once empirical
+ * trace showed NDOS never reaches BIOS-JT calls under bug #2 (slave
+ * crashes during NDOS COLDST's BIOS-JT walk, before CCP starts).
+ * Frees ~70 B for SNIOS-side instrumentation which is the right
+ * diagnosis layer. */
 
 USED void bios_const_shim(void) __naked {
     ASM_VOLATILE(
