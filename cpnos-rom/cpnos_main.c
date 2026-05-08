@@ -22,12 +22,17 @@
 
 #include <stdint.h>
 #include "hal.h"
+#include "compiler/compat.h"
 #include "transport.h"
-#include "cpnos_addrs.h"           /* CPNOS_BDOS_ADDR — extracted from cpnos.sym */
-#include "clang/cpnos_buildinfo.h" /* BUILD_INFO_STR — regenerated every build */
+#include "cpnos_addrs.h"     /* CPNOS_BDOS_ADDR — extracted from cpnos.sym */
+#include "cpnos_buildinfo.h" /* BUILD_INFO_STR — regenerated every build;
+                              * found via -I$(BUILDDIR) on the compile line */
 
 extern void init_hardware(void);
 extern void cfgtbl_init(void);
+#if MIRROR_SIOB && defined(__SDCC)
+extern void boot_probe(uint8_t tag);
+#endif
 #include "cfgtbl.h"
 
 /* BIOS jump table base = BIOS_BASE.  `_bios_boot` is the first entry
@@ -40,8 +45,8 @@ extern void cfgtbl_init(void);
 extern uint8_t bios_boot[];
 extern uint8_t snios_ntwkin(void);
 extern void enable_interrupts(void);
-extern void jump_to(uint16_t addr) __attribute__((noreturn));
-extern void enter_coldst(void) __attribute__((noreturn));
+extern NORETURN void jump_to(uint16_t addr);
+extern NORETURN void enter_coldst(void);
 
 #if defined(PIO_SPEED_TEST) || defined(PIO_LOOPBACK_TEST)
 extern void     transport_pio_send_byte(uint8_t c);
@@ -341,19 +346,21 @@ extern void impl_conout(uint8_t c);
  * the dots fill in below it.  Previously the banner was printed by
  * nos_handoff() AFTER netboot, so the dots appeared on row 0 and the
  * banner on row 1 — backwards from what operators expect. */
-__attribute__((section(".init.text")))
+SECTION_INIT_TEXT
 static void print_banner(void) {
-    /* "RC702 CP/NOS NNK WWW-MMM yyyy-mm-dd HH:MM hash\r\n".
+    /* "RC702 CP/NOS NNK WWW-MMM cc yyyy-mm-dd HH:MM hash\r\n".
      * NNK is the TPA size in KB (CPNOS_TPA_KB, build-time from
      * cpnos.sym).  WWW-MMM is the TRANSPORT_NAME literal (define
      * via Makefile -DTRANSPORT_NAME='"PIO-IRQ"' / "SIO" / "PIO-PRX").
-     * Both are stringified at compile time -- no runtime patching,
-     * no vtable load, just a static literal in .resident.data. */
+     * `cc` is CPNOS_COMPILER_NAME ("clang" / "sdcc" / "hitech") —
+     * picked at preprocess time so the banner unambiguously identifies
+     * which build produced the running image, regardless of how it was
+     * deployed.  All three pieces stringify at compile time. */
 #define _STR(x) #x
 #define STR(x) _STR(x)
-    static const __attribute__((section(".init.rodata"))) char banner[] =
+    static const SECTION_INIT_RODATA char banner[] =
         "RC702 CP/NOS " STR(CPNOS_TPA_KB) "K "
-        TRANSPORT_NAME " " BUILD_INFO_STR "\r\n";
+        TRANSPORT_NAME " " CPNOS_COMPILER_NAME " " BUILD_INFO_STR "\r\n";
     for (const char *p = banner; *p; ++p) impl_conout((uint8_t)*p);
 #undef STR
 #undef _STR
@@ -376,7 +383,7 @@ static void print_banner(void) {
  * .init.rodata into a link-time error.  The `zp_init_data` name is
  * file-scope (no static + no dot in symbol) so linker-script
  * ASSERTs can reference it directly. */
-__attribute__((section(".resident.data"), used))
+SECTION_RESIDENT_DATA
 const uint8_t zp_init_data[8] = {
     0xC3,
     (uint8_t)((BIOS_JT_COPY_ADDR + 3) & 0xFF),
@@ -395,7 +402,7 @@ const uint8_t zp_init_data[8] = {
  * instruction itself, plus everything after it, must execute from
  * RAM.  Tail-called by cpnos_cold_entry() with `entry` = 0 on
  * netboot failure, otherwise NDOS's cold-start vector. */
-[[noreturn]]
+NORETURN
 static void resident_handoff(uint16_t entry) {
     /* Disable the PROMs -- exposes RAM underneath for the TPA and
      * netboot-loaded image.  We're at 0xED00 (RAM); still running. */
@@ -413,7 +420,6 @@ static void resident_handoff(uint16_t entry) {
     /* Prime SNIOS: drain SIO RX, seed NETST=ACTIVE, clear SIZ.  NDOS's
      * own NTWKIN may re-run this; idempotent. */
     snios_ntwkin();
-    BOOT_MARK(17, 'S');                /* SNIOS primed */
 
     /* No snios_jt memcpy: cpnos-build/src/cpnios-shim.asm pins NIOS
      * directly at our resident _snios_jt symbol (0xED33) via the LINK
@@ -439,6 +445,13 @@ static void resident_handoff(uint16_t entry) {
          *    JPs to NDOS+3 (COLDST). */
         __builtin_memcpy((void *)BIOS_JT_COPY_ADDR, bios_boot, 51);
 
+        /* TODO (cpnos-rom dual-compile, Phase 2): clang Z80 register-
+         * class constraints don't parse under SDCC.  Same gap as the
+         * LDDR site in resident.c::insert_line.  Replacement plan: a
+         * shared `mem_copy_forward(dst, src, count)` helper exported
+         * from runtime.s (per-compiler asm body, same C signature).
+         * See tasks/sdcc-port.md. */
+#if defined(__clang__) && defined(__z80__)
         const void *src = zp_init_data;
         void       *dst = (void *)0;
         unsigned    n   = sizeof(zp_init_data);
@@ -446,8 +459,25 @@ static void resident_handoff(uint16_t entry) {
             : "+{de}"(dst), "+{hl}"(src), "+{bc}"(n)
             :
             : "memory");
+#else
+        /* SDCC: clang's "+{de}"/"+{hl}"/"+{bc}" register-class
+         * constraints don't parse.  Inline LDIR with literal addresses
+         * keeps the size cost identical to clang's version.  Without
+         * this copy NDOS COLDST jumps via uninitialised ZP and the
+         * slave hangs after BOOT_MARK 'P'. */
+        ASM_VOLATILE(
+            "ld   hl, _zp_init_data\n\t"
+            "ld   de, 0\n\t"
+            "ld   bc, 8\n\t"          /* sizeof(zp_init_data) */
+            "ldir\n\t"
+        );
+#endif
 
         BOOT_MARK(18, 'J');             /* about to JP NDOS COLDST */
+#if MIRROR_SIOB && defined(__SDCC)
+        /* Probe pre-handoff buffer state (issue #57). */
+        boot_probe('H');
+#endif
         enter_coldst();
     }
     for (;;) { }
@@ -459,8 +489,8 @@ static void resident_handoff(uint16_t entry) {
  * runtime stubs) work because the relocator already populated
  * 0xED00+ before JPing here.  PROMs are still mapped through
  * netboot completion; resident_handoff (RAM) does the OUT. */
-__attribute__((section(".init.text")))
-[[noreturn]] void cpnos_cold_entry(void) {
+SECTION_INIT_TEXT
+NORETURN void cpnos_cold_entry(void) {
     cfgtbl_init();
     init_hardware();
 

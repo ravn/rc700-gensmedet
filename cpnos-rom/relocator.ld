@@ -41,37 +41,84 @@ SECTIONS {
     *(.rodata*)
   } > PROM0
 
-  __reloc_code_end = .;
-  ASSERT(__reloc_code_end <= 0x100,
-         "relocator code exceeds 256 B reservation (shrink or raise .prom0_init base)")
+  /* Payload header — emitted by tasks/scripts/gen_payload_header.py
+   * from the payload ELF's symbols.  Placed right after the relocator
+   * code so the bytes are at a known runtime address that the relocator
+   * reads via the `_payload_header` extern.  Contents: magic/version,
+   * resident_dest, chunk-A/B src/size, cold_entry, checksum_magic, and
+   * a list of (start, end) BSS-pairs to zero before checksum.  Replaces
+   * the previous --defsym injection mechanism — see plan
+   * /Users/ravn/.claude/plans/harmonic-sleeping-spring.md. */
+  .payload_header : {
+    KEEP(*(.payload_header))
+  } > PROM0
 
-  /* Init image -- 0x100..0x3FF.  Bytes are extracted from the payload
+  __reloc_code_end = .;
+  ASSERT(__reloc_code_end <= 0x2A0,
+         "relocator code + header exceeds 672 B reservation (shrink relocator or raise .prom0_init base)")
+
+  /* Init image -- 0x2A0..0x51F.  Bytes are extracted from the payload
    * ELF's .init output section by `objcopy --only-section=.init`,
    * then #embed'd into relocator.c's `init_image[]` and placed here.
    * VMA == LMA so init code's absolute references resolve when it
-   * executes in place from PROM. */
-  .prom0_init 0x100 : {
+   * executes in place from PROM.  Base history:
+   *   0x100 → 0x200 (2026-05-07) to give the data-driven relocator
+   *                  + header more code budget
+   *   0x200 → 0x280 (2026-05-08) for dual-header memcmp + PROM
+   *                  MISMATCH msg + build_date_str field
+   *   0x280 → 0x2A0 (2026-05-08) to fit a tiny 8237 DMA + 8275 CRT
+   *                  init in the relocator so its display messages
+   *                  reach the operator without depending on the
+   *                  8275's power-on default state.  .prom0_tail
+   *                  shifts to 0x520 in lockstep so the init slot
+   *                  stays 640 B (init.bin fits with 10 B
+   *                  headroom).  PROM0_TAIL_SIZE drops to 736 B
+   *                  for clang; chunk_b grows by 32 B in lockstep
+   *                  (within PROM1's 1998 B post-dup-header
+   *                  capacity). */
+  .prom0_init 0x2A0 : {
     KEEP(*(.prom0_init))
   } > PROM0
 
   __init_end = .;
-  ASSERT(__init_end <= 0x400,
-         "init image exceeds 768 B PROM 0 reservation (raise .prom0_tail base)")
+  ASSERT(__init_end <= 0x520,
+         "init image exceeds 640 B PROM 0 reservation (raise .prom0_tail base)")
 
-  /* Resident payload chunk A — PROM0 tail at 0x0400.  First
+  /* Resident payload chunk A — PROM0 tail at 0x0520.  First
    * PROM0_TAIL_SIZE bytes of resident payload.  Makefile's
-   * PROM0_TAIL_SIZE must match (0x800 - 0x400 = 1024 bytes
-   * available between 0x400 and 0x800). */
-  .prom0_tail 0x400 : {
+   * PROM0_TAIL_SIZE must match (0x800 - 0x520 = 736 bytes available
+   * between 0x520 and 0x800).  __chunk_a_start emitted here so
+   * gen_payload_header.py / the header can resolve `chunk_a_src`
+   * to the actual placement (no hardcoded constant outside this file).
+   * Base bumped from 0x500 to 0x520 (2026-05-08) in lockstep with
+   * .prom0_init's bump to 0x2A0 -- gives the relocator the 32 B it
+   * needs for the in-place 8237 DMA + 8275 CRT init. */
+  .prom0_tail 0x520 : {
+    __chunk_a_start = .;
     KEEP(*(.prom0_tail))
   } > PROM0
 
-  /* Resident payload chunk B — all of PROM1.  Integrity checksum is
-   * the last 2 bytes of the linked payload.bin (placed there by
-   * payload.ld's .payload_checksum section).  After splitting it
-   * ends up as the last 2 bytes of payload_b.bin.  No special
-   * placement needed here. */
-  .prom1 0x2000 : {
+  /* Duplicate payload header at PROM1 byte 0 — emitted by
+   * gen_payload_header.py into .payload_header_p1.  Same bytes as
+   * .payload_header in PROM0; the relocator memcmp's them at boot so
+   * a stale-PROM mismatch (PROM0 build N-1 + PROM1 build N) surfaces
+   * BEFORE the word-additive checksum stage.  See
+   * tasks/dual-header-plan-2026-05-08.md.  chunk_b's LMA shifts to
+   * 0x2000 + sizeof(payload_header); chunk_b_size derivation in
+   * payload.ld is unaffected (still payload_size - chunk_a_size). */
+  .payload_header_p1 0x2000 : {
+    KEEP(*(.payload_header_p1))
+  } > PROM1
+
+  /* Resident payload chunk B — rest of PROM1 after the duplicate
+   * header.  Integrity checksum is the last 2 bytes of the linked
+   * payload.bin (placed there by payload.ld's .payload_checksum
+   * section).  After splitting it ends up as the last 2 bytes of
+   * payload_b.bin.  __chunk_b_start emitted here for the same reason
+   * as __chunk_a_start above; the linker resolves it to 0x2000 +
+   * sizeof(payload_header) automatically. */
+  .prom1 : {
+    __chunk_b_start = .;
     KEEP(*(.prom1))
   } > PROM1
 

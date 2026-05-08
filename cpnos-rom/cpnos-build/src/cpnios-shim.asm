@@ -16,9 +16,14 @@
 ; the runtime memcpy in cpnos_main.c::nos_handoff().
 ;
 ; The literal MUST equal cpnos-rom's `_snios_jt` address (= bios_jt
-; base 0xEE00 + sizeof(bios_jt) = 0xEE00 + 51 = 0xEE33).  An
+; base 0xED00 + sizeof(bios_jt) = 0xED00 + 51 = 0xED33).  An
 ; ASSERT in cpnos-rom/payload.ld catches drift if either side moves.
+;
+; 2026-05-08: Resident lowered from 0xEE00 to 0xED00 (+256 B
+; resident headroom to fit debug probes / future BIOS expansion);
+; cpnos.com correspondingly shifted down (CODE_BASE LDD80,
+; DATA_BASE LD980 in cpnos-build/Makefile).
 
-NIOS	EQU	0EE33h
+NIOS	EQU	0ED33h
 	public	NIOS
 	end

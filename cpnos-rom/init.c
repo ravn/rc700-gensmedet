@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include "hal.h"
+#include "compiler/compat.h"
 
 /* ISRs + helpers from isr.s. */
 extern void isr_crt(void);
@@ -17,6 +18,10 @@ extern void isr_pio_kbd(void);
 extern void isr_pio_par(void);
 extern void set_i_reg(uint8_t page);
 extern void enable_im2(void);
+/* Defined in resident.c.  SDCC's asm emitter only attaches EXTERN
+ * directives for file-scope `extern` declarations — block-scope ones
+ * compile but link as undefined symbols. */
+extern void clear_screen(void);
 
 /* IVT at __ivt_start (page-aligned, supplied by payload.ld).  Each
  * slot is 2 bytes, so slot N lives at __ivt_start + 2N.
@@ -39,7 +44,7 @@ extern uint8_t _ivt_start[];
 /* Unified port-init table.  Each pair (port, value) is written in
  * order with OUT (C),A.  Centralises ~30 scattered port writes into
  * one table + one loop — smaller than inline port_out calls. */
-__attribute__((section(".init.rodata")))
+SECTION_INIT_RODATA
 static const uint8_t port_init[] = {
     /* CTC ch0: vector=0, SIO-A baud timer. */
     PORT_CTC0, 0x00,   PORT_CTC0, 0x47,   PORT_CTC0, 0x01,
@@ -112,7 +117,7 @@ static const uint8_t port_init[] = {
     PORT_CRT_CMD,   0x23,
 };
 
-__attribute__((section(".init.text")))
+SECTION_INIT_TEXT
 static void setup_ivt(void) {
     /* 18 x 16-bit slots at IVT_ADDR (page-aligned).  All slots default
      * to isr_noop; CTC ch2 (slot 2) gets the CRT refresh ISR. */
@@ -131,7 +136,7 @@ static void setup_ivt(void) {
     enable_im2();
 }
 
-__attribute__((section(".init.text")))
+SECTION_INIT_TEXT
 void init_hardware(void) {
     /* IVT + IM2 first so any stray interrupt lands on isr_noop rather
      * than the reset vector.  Interrupts stay disabled; resident_entry
@@ -157,7 +162,6 @@ void init_hardware(void) {
     /* Clear display with spaces so subsequent CONOUT output is
      * readable against a blank background.  Call into resident.c's
      * clear_screen instead of inlining a 4th copy of the LDIR set. */
-    extern void clear_screen(void);
     clear_screen();
 
     /* Visible bring-up marker: 'I' at BOOT_MARK index 0 (display row 0,
