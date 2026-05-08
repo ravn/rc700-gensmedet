@@ -364,6 +364,23 @@ $(BUILDDIR)/cpnos_addrs.h: cpnos-build/d/cpnos.com
 	 echo "#define CPNOS_NDOS_ADDR 0x$$N" >> $@.tmp; \
 	 echo "#define CPNOS_NDOSE_ADDR $$NDOSE   /* NDOS + 3, the BDOS dispatch entry */" >> $@.tmp; \
 	 echo "#define CPNOS_TPA_KB $$TPA_KB" >> $@.tmp
+	@# IVT-clobber guard: cpnos.com loads at NDOS and the slave's IVT
+	@# starts at 0xEB00 (head of SCRATCH_BSS).  If cpnos.com grows past
+	@# (0xEB00 - NDOS) bytes, its tail clobbers the IVT during netboot's
+	@# LDIR -- silent until an IRQ fires after handoff and jumps to
+	@# garbage.  Adjacent today (3200 B at 0xDE80 ends at 0xEAFF, exactly
+	@# one byte before IVT).  Fail the build before we lose hours to
+	@# random ISR crashes.
+	@N=$$(perl -ne 'while (/([0-9A-Fa-f]{4})\s+NDOS\b/g) { print "$$1"; last }' cpnos-build/d/cpnos.sym); \
+	 NV=$$((0x$$N)); \
+	 SZ=$$(wc -c < cpnos-build/d/cpnos.com); \
+	 MAX=$$(( 0xEB00 - NV )); \
+	 if [ "$$SZ" -gt "$$MAX" ]; then \
+	     echo "ERROR: cpnos.com is $$SZ B at NDOS=0x$$N -> tail at $$(printf '0x%04X' $$((NV + SZ - 1)))" \
+	          " would clobber IVT at 0xEB00 (max $$MAX B)"; \
+	     rm -f $@.tmp; exit 1; \
+	 fi; \
+	 echo "cpnos.com fits below IVT: $$SZ B at 0x$$N (tail $$(printf '0x%04X' $$((NV + SZ - 1))), $$(($$MAX - SZ)) B clearance)"
 	@mv $@.tmp $@
 	@echo "cpnos_addrs.h: $$(grep -E 'BDOS_ADDR|NDOS_ADDR|NDOSE_ADDR|TPA_KB' $@ | tr '\n' ' ')"
 

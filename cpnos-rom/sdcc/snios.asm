@@ -417,8 +417,11 @@ _jump_to:
     jp   (hl)
 
 ;----------------------------------------------------------------
-;  Local scratch — lives in RESIDENT_DATA.
+;  Local scratch — uninitialised, written before every read inside
+;  every entry point in this file.  Moved out of RESIDENT_DATA into
+;  bss_compiler 2026-05-08 so the 3 zero bytes don't burn PROM space
+;  -- BSS-clear zeroes them anyway, and resident was at the F7FF cap.
 ;----------------------------------------------------------------
-    SECTION RESIDENT_DATA
-MSGADR: defw 0
-RETCNT: defb 0
+    SECTION bss_compiler
+MSGADR: defs 2
+RETCNT: defs 1
