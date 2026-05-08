@@ -582,6 +582,18 @@ $(BUILDDIR)/cpnos.bin: $(BUILDDIR)/relocator.elf
 	dd if=$(BUILDDIR)/cpnos.raw of=$(BUILDDIR)/prom0.bin bs=2048 count=1 status=none
 	dd if=$(BUILDDIR)/cpnos.raw of=$(BUILDDIR)/prom1.bin bs=2048 skip=4 count=1 status=none
 	cat $(BUILDDIR)/prom0.bin $(BUILDDIR)/prom1.bin > $@
+	@# Pad prom0.bin to 4 KB as MAME's roa375.ic66 socket image.
+	@# Mirrors the SDCC recipe so the prom0_padded.ic66 -> roa375.ic66
+	@# install dependency fires for clang too — without this the
+	@# install rule sees a stale prom0_padded.ic66 (older than the
+	@# MAME ROM in place) and skips, leaving MAME with a PROM0 from
+	@# whichever build last touched it.  Mismatched PROM0 + PROM1 ->
+	@# relocator's word-additive checksum fails -> "BAD CHECKSUM" on
+	@# the display.  Symptom seen 2026-05-08 when running clang trace
+	@# after a fresh SDCC build.
+	@P0=$$(wc -c < $(BUILDDIR)/prom0.bin | tr -d ' '); \
+	 { cat $(BUILDDIR)/prom0.bin; perl -e "print \"\\xff\" x (4096 - $$P0)"; } \
+	   > $(BUILDDIR)/prom0_padded.ic66
 
 endif  # ifeq ($(COMPILER),clang)
 
@@ -1386,6 +1398,68 @@ endif
 	@echo "--- result ---"
 	@cat /tmp/cpnos_polypascal_result.txt 2>/dev/null || echo '(no result file)'
 	@grep -q '^PASS' /tmp/cpnos_polypascal_result.txt 2>/dev/null
+
+# BIOS-JT register-state trace (issue #60, task #36).  Hooks every JP
+# entry in the resident BIOS jump table (0xED00..0xED32), the resident
+# SNIOS jump table (0xED33..0xED4A), and the NDOS-patched BIOS-JT
+# copy at 0xCF00..0xCF32 via memory read taps; logs full Z80 register
+# state on entry and on the matching ret.  Output:
+#   /tmp/cpnos_bios_jt_trace_$(COMPILER).log
+#
+# Topology mirrors polypascal-test (MAME_IRQ + MP/M + PIO-B bridge)
+# so the trace exercises the same path bug #36 manifests on.  Trace
+# Lua self-exits after 25s so the run is bounded.
+#
+# Usage:
+#   make COMPILER=clang cpnos-bios-jt-trace
+#   make COMPILER=sdcc  cpnos-bios-jt-trace
+#   diff -u /tmp/cpnos_bios_jt_trace_clang.log \
+#           /tmp/cpnos_bios_jt_trace_sdcc.log | less
+cpnos-bios-jt-trace:
+	@echo "=== 1/4 building cpnos-rom + installing ==="
+	$(MAKE) MIRROR_SIOB=1 cpnos-install
+	@echo "=== 2/4 (re)starting MP/M with fresh disks ==="
+	-screen -S mpm -X quit >/dev/null 2>&1 || true
+	@sleep 1
+	@if lsof -nP -iTCP:4002 -sTCP:LISTEN 2>/dev/null | grep -q .; then \
+	    echo "ERROR: port 4002 already bound -- kill the squatter first:"; \
+	    lsof -nP -iTCP:4002 -sTCP:LISTEN; \
+	    exit 1; \
+	fi
+	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	@echo "=== 3/4 waiting for MP/M CP/NET server on :4002 ==="
+	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
+	@sleep 2
+	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
+	       /tmp/cpnos_bios_jt_trace.log
+	@echo "=== syncing ROMs to IRQ-fix MAME tree ==="
+	cp $(MAME)/roms/rc702/roa375.ic66 $(MAME_IRQ)/roms/rc702/roa375.ic66
+	cp $(MAME)/roms/rc702/prom1.ic65  $(MAME_IRQ)/roms/rc702/prom1.ic65
+	@echo "=== 4/4 launching MAME with BIOS-JT trace lua (~30s) ==="
+	-$(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run 30 \
+	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
+	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
+	    -piob cpnet_bridge \
+	    -bitb3 socket.127.0.0.1:4002 \
+	    -autoboot_script mame_bios_jt_trace.lua
+	@if [ ! -s /tmp/cpnos_bios_jt_trace.log ]; then \
+	    echo "FAIL: trace log empty or missing -- did the autoboot_script run?"; \
+	    exit 1; \
+	fi
+	@mv /tmp/cpnos_bios_jt_trace.log /tmp/cpnos_bios_jt_trace_$(COMPILER).log
+	@echo "--- banner timestamp (verify build is current) ---"
+	@head -1 /tmp/cpnos_siob.raw 2>/dev/null | tr -d '\0' | head -c 200; echo
+	@echo "--- trace summary ---"
+	@wc -l /tmp/cpnos_bios_jt_trace_$(COMPILER).log
+	@awk '/ ENTRY /{print $$3, $$4}' /tmp/cpnos_bios_jt_trace_$(COMPILER).log \
+	    | sort | uniq -c | sort -rn
+	@echo "--- first 10 events ---"
+	@head -10 /tmp/cpnos_bios_jt_trace_$(COMPILER).log
+	@echo "--- last 10 events ---"
+	@tail -10 /tmp/cpnos_bios_jt_trace_$(COMPILER).log
+	@echo "--- trace saved to /tmp/cpnos_bios_jt_trace_$(COMPILER).log ---"
 
 # Interactive: boot CP/NOS, leave MAME running at the E> prompt so a
 # human can type on the native keyboard (PIO-A path).  SIO-B output
