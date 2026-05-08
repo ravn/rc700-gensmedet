@@ -160,6 +160,24 @@ __ivt_start:
     defs 36
 __ivt_end:
 
+    ; BIOS-JT call trace buffer (issue #60 diagnosis).  Lives in the
+    ; 220 B of unused IVT padding (bss_ivt is 256 B page-aligned but
+    ; only 36 B of vectors are populated).  Each shim writes 1 byte
+    ; per entry and per exit (slot|0x10 entry, slot|0x20 exit), then
+    ; advances _bios_log_idx.  When idx reaches the buffer end the
+    ; shim stops logging (no wrap-around -- earlier calls preserved).
+    ; MAME Lua dumps _bios_log_buf at end of test for diff against
+    ; clang reference.  Linker places this at __ivt_end via the IVT
+    ; padding; address derived, no literal.  Names are single-
+    ; underscore so the C-side `extern uint8_t bios_log_buf[]`
+    ; resolves cleanly under z88dk SDCC's underscore-prefix convention.
+    PUBLIC _bios_log_buf
+    PUBLIC _bios_log_idx
+_bios_log_buf:
+    defs 219
+_bios_log_idx:
+    defs 1
+
     ; PIO-B receive ring — page-aligned 256-byte buffer at 0xEB00.
     ; Defined here (not in transport_pio.c) so the linker places it at
     ; a page boundary AND so _pio_rx_buf_page can be derived from
