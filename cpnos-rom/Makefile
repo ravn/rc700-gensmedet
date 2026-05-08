@@ -301,13 +301,23 @@ $(ALL_OBJS): Makefile $(BUILDDIR)/transport_stamp
 # after a `TRANSPORT=pio-irq` build (or vice versa) actually picks up
 # the new -DTRANSPORT_NAME / --defsym aliases instead of relinking
 # stale .o files.  The stamp's content is the current TRANSPORT value.
-.PHONY: $(BUILDDIR)/transport_stamp
-$(BUILDDIR)/transport_stamp:
-	@mkdir -p $(BUILDDIR)
-	@if [ ! -f $@ ] || [ "$$(cat $@ 2>/dev/null)" != "$(TRANSPORT)" ]; then \
-	    echo "$(TRANSPORT)" > $@; \
-	    echo "transport stamp: $(TRANSPORT)"; \
-	fi
+#
+# Run via $(shell) at parse time so the file's mtime only updates
+# when TRANSPORT actually changes -- a recipe with `.PHONY` would mark
+# the target "always out of date" and propagate that to every .o
+# file (since `$(ALL_OBJS): $(BUILDDIR)/transport_stamp`), forcing a
+# full re-compile on every `make` invocation.
+ifeq ($(filter clean cpnos-clean,$(MAKECMDGOALS)),)
+_DUMMY_TRANSPORT_STAMP := $(shell mkdir -p $(BUILDDIR); \
+    if [ ! -f $(BUILDDIR)/transport_stamp ] || \
+       [ "`cat $(BUILDDIR)/transport_stamp 2>/dev/null`" != "$(TRANSPORT)" ]; then \
+        echo "$(TRANSPORT)" > $(BUILDDIR)/transport_stamp; \
+        echo "transport stamp: $(TRANSPORT)" >&2; \
+    fi)
+endif
+
+# No-op rule -- the file is created/updated by $(shell) at parse time.
+$(BUILDDIR)/transport_stamp: ;
 
 # ---- Compile ------------------------------------------------------
 
@@ -354,22 +364,20 @@ $(BUILDDIR)/cpnos_addrs.h: cpnos-build/d/cpnos.com
 # the signon banner reflects the moment this PROM was burnt.  The
 # `cmp` dance avoids pointlessly retouching the file (and rebuilding
 # cpnos_main.o) when neither field changed since last build.
-.PHONY: $(BUILDDIR)/cpnos_buildinfo.h
-$(BUILDDIR)/cpnos_buildinfo.h:
-	@mkdir -p $(BUILDDIR)
-	@D=$$(date -u +"%Y-%m-%d %H:%M"); \
-	 H=$$(git rev-parse --short HEAD 2>/dev/null || echo "????"); \
-	 if ! git diff --quiet -- . 2>/dev/null; then H="$$H+"; fi; \
-	 { \
-	   echo '#ifndef CPNOS_BUILDINFO_H'; \
-	   echo '#define CPNOS_BUILDINFO_H'; \
-	   echo "#define BUILD_DATE_STR \"$$D\""; \
-	   echo "#define GIT_HASH_STR   \"$$H\""; \
-	   echo '#define BUILD_INFO_STR BUILD_DATE_STR " " GIT_HASH_STR'; \
-	   echo '#endif'; \
-	 } > $@.tmp; \
-	 if cmp -s $@.tmp $@ 2>/dev/null; then rm -f $@.tmp; \
-	 else mv $@.tmp $@; echo "buildinfo: $$D $$H"; fi
+#
+# Run via $(shell) at parse time, NOT a make recipe, for the same
+# reason as transport_stamp above -- a `.PHONY` target propagates
+# "always rebuild" to dependents (cpnos_main.o + audit/cpnos_main.s),
+# forcing a slow audit pass on every `make`.  $(shell) lets the
+# .h file's mtime stay stable when content didn't change, so
+# dependents correctly skip rebuild.
+ifeq ($(filter clean cpnos-clean,$(MAKECMDGOALS)),)
+_DUMMY_BUILDINFO := $(shell tasks/scripts/regen_buildinfo.sh \
+    $(BUILDDIR)/cpnos_buildinfo.h)
+endif
+
+# No-op rule -- the file is created/updated by $(shell) at parse time.
+$(BUILDDIR)/cpnos_buildinfo.h: ;
 
 $(BUILDDIR)/cpnos_main.o: cpnos_main.c hal.h $(BUILDDIR)/cpnos_addrs.h $(BUILDDIR)/cpnos_buildinfo.h
 	@mkdir -p $(BUILDDIR)
@@ -1487,9 +1495,20 @@ $(SDCC_AUDIT_DIR)/init.o-codeseg-marker: ;
 $(foreach f,init netboot_mpm transport_sio transport_pio isr cfgtbl, \
   $(eval $(SDCC_AUDIT_DIR)/$f.s: SDCC_AUDIT_CFLAGS = $(SDCC_PRE_CFLAGS)))
 
-$(SDCC_AUDIT_DIR)/%.s: %.c $(BUILDDIR)/cpnos_addrs.h $(BUILDDIR)/cpnos_buildinfo.h
+# Audit %.s depends on the .c source + cpnos_addrs.h (stable; only
+# regenerates when cpnos.com gets new addresses).  Does NOT depend on
+# cpnos_buildinfo.h -- only cpnos_main.c uses BUILD_DATE_STR /
+# GIT_HASH_STR / BUILD_INFO_STR (banner string), so only the cpnos_main
+# audit .s needs the rebuild trigger.  Without this split, every
+# `make` regenerated cpnos_buildinfo.h's timestamp and re-ran the
+# audit pass on all 9 sources -- 5-9 minutes of wasted work.
+$(SDCC_AUDIT_DIR)/%.s: %.c $(BUILDDIR)/cpnos_addrs.h
 	@mkdir -p $(SDCC_AUDIT_DIR)
 	$(CC) $(if $(SDCC_AUDIT_CFLAGS),$(SDCC_AUDIT_CFLAGS),$(SDCC_RESIDENT_CFLAGS)) -S $< -o $@
+
+# Per-target extra dep: cpnos_main.s also re-runs when the banner
+# changes.  Same logic as cpnos_main.o's dep on cpnos_buildinfo.h.
+$(SDCC_AUDIT_DIR)/cpnos_main.s: $(BUILDDIR)/cpnos_buildinfo.h
 
 $(BUILDDIR)/cpnos.cim: $(SDCC_C_OBJS) $(SDCC_ASM_SRCS) $(BUILDDIR)/xport_aliases.asm \
                        $(BUILDDIR)/payload_header_data.s \
