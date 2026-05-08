@@ -294,6 +294,74 @@
   - **#21** runtime version check at boot (low priority).
   - **#13** hunt remaining JP-0 sources in SDCC build (gated on #29).
 
+## Phase 47b: Path 6 TPA shrink + SDCC slave reaches CCP (May 8, 2026) — branch `session47-cpnos-header-driven-relocator` then `session47-analysis-2026-05-08`
+
+- **Goal**: get the SDCC `cpnos-polypascal-test` past the post-NDOS-
+  handoff hang.  Slave reached netboot completion (25 sectors received,
+  cpnos.com stamp printed) but never produced an `E>` prompt under
+  TRANSPORT=pio-irq; clang at the same checkpoint reaches `E>` cleanly.
+
+- **Reached**:
+  - **Comparison disassembly** (`cpnos-rom/tasks/compare-clang-vs-sdcc-handoff-2026-05-08.md`):
+    side-by-side analysis of resident_handoff / enter_coldst / BIOS jt /
+    cfgtbl placement.  Found three candidate divergences (port-bus shape,
+    IVT-at-0xEB00 stack collision, cfgtbl in BSS vs RESIDENT_DATA);
+    documented two as benign, one as latent class-of-risk fix.
+  - **commit `d9bbc8b`** "sdcc: __port_out mirrors port high byte;
+    IVT-clobber build assert" — closes the bus-shape divergence
+    (deterministic `B = port_high` before `OUT (C),A` matching clang's
+    `D3 nn`); adds Makefile assert that cpnos.com size + NDOS load
+    address fits below the IVT page.  Side fix: MSGADR/RETCNT moved
+    from RESIDENT_DATA to bss_compiler so they don't burn 3 zero PROM
+    bytes (write-before-read at every entry point makes the move safe).
+  - **commit `8573a09`** "Path 6: shrink TPA 256 B to grow resident
+    from 2560 to 2816 B" — the actual fix.  cpnos-build CODE_BASE
+    LDE80 → LDD80 (cpnos.com 0xDE80 → 0xDD80), DATA_BASE LDA80 →
+    LD980, NIOS in cpnios-shim.asm 0xEE33 → 0xED33.  cpnos-rom
+    resident lower bound 0xEE00 → 0xED00 (PROM1 chunk-B cap raised
+    1536 → 1792 B).  SDCC SCRATCH_BSS slid 0xEB00 → 0xEA00.
+    `sdcc/reset.asm` SP moved to 0xDD80 (clear of resident, BSS-clear,
+    netboot LDIR, AND IVT).  Side fix: Makefile cpnos.bin recipe pads
+    the resident image to even bytes with 0xFF if z88dk produced odd
+    (checksum patcher needs even input).
+  - **Workspace bump `a9c9175`** (in `/Users/ravn/z80`):
+    rc700-gensmedet pointer `b75b7ae` → `8573a09`, recording 19
+    commits at workspace level (Phase 47 step 7 SDCC + Path 6 cluster
+    + build-speed cluster + SDCC polypascal harness).
+
+  Verification: `make cpnos-polypascal-test COMPILER=clang` PASS
+  end-to-end.  `make cpnos-polypascal-test COMPILER=sdcc TRANSPORT=
+  pio-irq` reaches CCP (was hanging at NDOS handoff before Path 6),
+  but FAILs stage 1 because CCP receives 0x10 (Ctrl-P) bytes from
+  CONIN repeatedly and prints "Ctl-P OFF" instead of `E>`.
+
+- **Open** (analysis branch `session47-analysis-2026-05-08`):
+  - **Ctrl-P flood from CONIN under SDCC pio-irq** — three suspects:
+    MAME null_modem TX→RX loopback, PIO-A spurious IRQ, SIO-B FIFO
+    power-on state.  Naive fix attempts (drain SIO-B FIFO at init,
+    SP relocation, B=H mirror) did NOT close it.  See
+    `cpnos-rom/tasks/session47-analysis-2026-05-08.md` for the full
+    suspect ranking and rejected-fix log.
+  - **polypascal-test driver hardcodes `clang/...` addrs lua path** —
+    doesn't honour `COMPILER=sdcc`; would mis-inject keys into
+    SDCC-build BSS at clang's addresses.  Not a stage-1 issue (no
+    inject needed for the boot prompt) but blocks stage 2+.
+  - **Makefile odd-resident-pad shell hack** — should be a z88dk
+    align directive (or a relocator-side accept-odd fix).
+  - **reset.asm SP moved through 4 different layouts in 2 sessions** —
+    convert to `defc __stack_top = ...` derived from symbols, not a
+    literal in a comment.
+
+  Lessons:
+  - "Same problem, three candidate fixes, none close it" → step back
+    and instrument before proposing fix #4.
+  - Resident at the byte-cap blocks debug instrumentation as a class.
+    The 256 B Path 6 grow buys headroom; future SDCC work should
+    target keeping ≥64 B free for probes.
+  - Plan-mode-then-execute workflow caught a stale plan (the existing
+    `harmonic-sleeping-spring.md` was plan #19 done; rewrote it for
+    the workspace bump task).
+
 ## Phase 46: cpnos-rom SDCC port reaches NDOS handoff (May 6, 2026 evening) — branch `main` in rc700-gensmedet
 
 - **Goal**: continue the SDCC dual-compile port (Phase 45) past the
