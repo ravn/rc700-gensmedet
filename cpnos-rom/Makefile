@@ -10,6 +10,13 @@
 #
 # Phase 0: proof-of-life.  All code lands in PROM0, PROM1 is 0xFF-padded.
 
+# Parallel build by default -- the SDCC compile pass is per-source
+# (9 .c files + audit pass) so it parallelises cleanly.  `make -j N`
+# on the command line overrides; `make -j1` forces serial.  uname -based
+# detection so this is portable to Linux containers as well as macOS.
+NCPU := $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
+MAKEFLAGS += -j$(NCPU)
+
 ENABLE_FDC ?= 0
 
 # Mirror every impl_conout byte to SIO-B as well as the CRT.  Default 1
@@ -274,7 +281,7 @@ $(BUILDDIR)/payload.ld: payload.ld $(BUILDDIR)/transport_stamp
 RELOC_OBJS = $(BUILDDIR)/reset.o $(BUILDDIR)/relocator.o $(BUILDDIR)/payload_header_data.o
 RELOC_LD = relocator.ld
 
-ALL_OBJS = $(PAYLOAD_OBJS) $(RELOC_OBJS)
+ALL_OBJS = $(PAYLOAD_OBJS) $(RELOC_OBJS) $(SDCC_C_OBJS) $(SDCC_AUDIT_S)
 
 .PHONY: all cpnos cpnos-size cpnos-burn cpnos-disasm cpnos-clean \
         integration-test test cpnos-polypascal-test
@@ -383,7 +390,7 @@ $(BUILDDIR)/cpnos_main.o: cpnos_main.c hal.h $(BUILDDIR)/cpnos_addrs.h $(BUILDDI
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/resident.o: resident.c hal.h
+$(BUILDDIR)/resident.o: resident.c hal.h $(BUILDDIR)/cpnos_addrs.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -415,7 +422,7 @@ $(BUILDDIR)/netboot.o: netboot.c transport.h hal.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/netboot_mpm.o: netboot_mpm.c hal.h
+$(BUILDDIR)/netboot_mpm.o: netboot_mpm.c hal.h $(BUILDDIR)/cpnos_addrs.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
