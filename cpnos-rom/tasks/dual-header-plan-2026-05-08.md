@@ -117,3 +117,35 @@ Each step is independently testable and reversible.  If step 2 fails
 (linker section ordering), step 1's print already provides operator
 visibility into which build is running -- partial benefit if step 2
 needs investigation.
+
+## Follow-ups added 2026-05-08
+
+### Move screen init before PROM check (operator visibility)
+
+Today's relocator stamps "PROM MISMATCH" / "BAD CHECKSUM" /
+build_date_str into display memory at 0xF800 and relies on the 8275
+CRT controller being in its hardware-reset state with a default
+refresh program that drives display memory visibly.  Empirically
+that works on MAME and on the bench, but it's not guaranteed by the
+datasheet -- if a future hardware variant needs explicit init or
+the 8275 latches into a non-display state on power-on, the
+relocator's status messages would be invisible and the operator
+would see a black screen for both the success and failure paths.
+
+Action: move the 8275 control-port + DMA-channel + clock-gate
+sequence (currently inside init_hardware in the resident, runs
+post-handoff) up into the relocator, BEFORE the dual-header
+memcmp.  The whole point of the dual-header check is operator
+visibility into a stale-PROM mismatch BEFORE the relocator does
+anything destructive; the check is only useful if the message
+reaches the operator -- relying on CRT default state is the weak
+link.
+
+Cost: ~30-50 bytes in PROM0 (currently 640 B reservation with
+~50 B headroom after step 2+3).  May require bumping `.prom0_init`
+from 0x280 again if headroom runs out -- shrinks init slot
+correspondingly.  Init.bin is currently 630 B in the 640 B slot
+(10 B headroom), so the next bump probably requires a parallel
+init-code shrink.
+
+Recorded by user 2026-05-08 evening; no commit yet.
