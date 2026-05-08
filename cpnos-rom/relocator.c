@@ -157,6 +157,22 @@ NORETURN void relocate(void) {
     /* Magic check.  Halts loudly on stale/missing/corrupt header. */
     if (h->magic != PAYLOAD_HEADER_MAGIC) for (;;) { }
 
+    /* Stamp the build date into display memory at row 0, columns 0..15.
+     * The 8275 CRT controller drives the screen from RAM at 0xF800 in
+     * its hardware-reset state, so the operator sees this string AT
+     * BOOT -- before SIO-B is initialised, before any resident-code
+     * banner runs.  If a later step in the relocator hangs (e.g. a
+     * BAD CHECKSUM) the operator can read off which build was being
+     * relocated when the hang happened.  16 bytes verbatim, no
+     * brackets / no terminator.  Any later relocator failure that
+     * writes its own message (e.g. "BAD CHECKSUM" at column 0)
+     * overwrites the prefix, so the build date moves to a later
+     * column position only if we want both visible -- today, the
+     * BAD CHECKSUM print clobbers it, which is fine: the failure
+     * message takes priority for a halted boot. */
+    __builtin_memcpy((void *)0xF800, h->build_date_str,
+                     sizeof h->build_date_str);
+
     /* Chunk A, then chunk B. */
     uint8_t *dest = (uint8_t *)h->resident_dest;
     __builtin_memcpy(dest,

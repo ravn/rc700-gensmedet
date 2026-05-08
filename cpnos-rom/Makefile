@@ -494,14 +494,21 @@ $(BUILDDIR)/relocator.o: relocator.c payload_header.h \
 # cold entry, etc.) in lieu of --defsym injection.  Re-emit whenever
 # payload.elf or the generator script changes.
 $(BUILDDIR)/payload_header_data.s: $(BUILDDIR)/payload.elf $(BUILDDIR)/payload.bin \
+                                   $(BUILDDIR)/cpnos_buildinfo.h \
                                    tasks/scripts/gen_payload_header.py
-	python3 tasks/scripts/gen_payload_header.py \
+	@# Extract BUILD_DATE_STR from cpnos_buildinfo.h so the header's
+	@# build_date_str field carries the same string the resident
+	@# banner prints later.  Single source of truth, no drift.
+	@BUILD_DATE_STR=$$(awk -F'"' '/BUILD_DATE_STR/{print $$2; exit}' \
+	    $(BUILDDIR)/cpnos_buildinfo.h); \
+	 python3 tasks/scripts/gen_payload_header.py \
 	    --syntax=clang \
 	    --payload-elf=$(BUILDDIR)/payload.elf \
 	    --payload-bin=$(BUILDDIR)/payload.bin \
 	    --chunk-a-size=$(PROM0_TAIL_SIZE) \
 	    --llvm-nm=$(NM) \
 	    --include-ivt \
+	    --build-date-str="$$BUILD_DATE_STR" \
 	    --out=$@
 
 $(BUILDDIR)/payload_header_data.o: $(BUILDDIR)/payload_header_data.s
@@ -1592,12 +1599,16 @@ $(BUILDDIR)/relocator.o: relocator.c payload_header.h compiler/compat.h
 # cold_entry, scratch/pio_rx BSS extents, chunk_b_size).  Chunk LMAs
 # (0x0400 / 0x2000) are build-script constants matching build_prom_image.py.
 $(BUILDDIR)/payload_header_data.s: tasks/scripts/gen_payload_header.py \
-                                   payload_header.h Makefile
+                                   payload_header.h Makefile \
+                                   $(BUILDDIR)/cpnos_buildinfo.h
 	@mkdir -p $(BUILDDIR)
-	python3 tasks/scripts/gen_payload_header.py \
+	@BUILD_DATE_STR=$$(awk -F'"' '/BUILD_DATE_STR/{print $$2; exit}' \
+	    $(BUILDDIR)/cpnos_buildinfo.h); \
+	 python3 tasks/scripts/gen_payload_header.py \
 	    --syntax=sdcc --symbolic \
 	    --chunk-a-src=0x0400 --chunk-b-src=0x2000 \
 	    --include-ivt \
+	    --build-date-str="$$BUILD_DATE_STR" \
 	    --out=$@
 
 # .c objects (single-link: relocator.c + payload_header_data.s + the

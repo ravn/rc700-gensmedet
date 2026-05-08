@@ -127,6 +127,20 @@ VERSION = 0x0001
 CHECKSUM_MAGIC = 0xCAFE
 SENTINEL = 0xFFFF
 
+BUILD_DATE_STR_LEN = 16  # matches char build_date_str[16] in struct
+
+
+def build_date_fields(date_str: str):
+    """Encode a 16-char date string as 8 little-endian word fields.
+    Pads or truncates to BUILD_DATE_STR_LEN to keep the field size
+    invariant -- the relocator reads exactly 16 bytes."""
+    pad = (date_str + " " * BUILD_DATE_STR_LEN)[:BUILD_DATE_STR_LEN]
+    out = []
+    for i in range(0, BUILD_DATE_STR_LEN, 2):
+        word = ord(pad[i]) | (ord(pad[i + 1]) << 8)
+        out.append((f"build_date_w{i // 2}", word))
+    return out
+
 
 def main() -> int:
     p = argparse.ArgumentParser()
@@ -150,6 +164,13 @@ def main() -> int:
                    help="llvm-nm binary (clang only)")
     p.add_argument("--include-ivt", action="store_true",
                    help="Add (__ivt_start, __ivt_end) to bss_pairs")
+    p.add_argument("--build-date-str", default="????-??-?? ??:??",
+                   help="Build date stamp written into the header's "
+                        "build_date_str[16] field, ASCII, 16 chars "
+                        "(\"YYYY-MM-DD HH:MM\"). Read by the relocator "
+                        "and copied to display memory at boot so the "
+                        "operator can identify the build before any "
+                        "resident code runs.")
     p.add_argument("--symbolic", action="store_true",
                    help="Emit linker-symbol references instead of resolved "
                         "values (SDCC single-link mode -- header is part of "
@@ -189,6 +210,9 @@ def main() -> int:
             ("chunk_b_size",   chunk_b_size),
             ("cold_entry",     sym("_cpnos_cold_entry")),
             ("checksum_magic", CHECKSUM_MAGIC),
+        ]
+        fields += build_date_fields(args.build_date_str)
+        fields += [
             ("scratch_bss_start", sym("__scratch_bss_start")),
             ("scratch_bss_end",   sym("__scratch_bss_end")),
             ("pio_rx_bss_start",  sym("__pio_rx_bss_start")),
@@ -207,7 +231,8 @@ def main() -> int:
             fmt_clang(out, fields)
         print(f"gen_payload_header: wrote {args.out} (clang, "
               f"chunk_a={chunk_a_size} chunk_b={chunk_b_size}, "
-              f"payload_size={payload_size})")
+              f"payload_size={payload_size}, "
+              f"build_date='{args.build_date_str}')")
         return 0
 
     # SDCC.  Two sub-modes:
@@ -239,6 +264,9 @@ def main() -> int:
             ("chunk_b_size",   "__payload_chunk_b_size"),
             ("cold_entry",     "_cpnos_cold_entry"),
             ("checksum_magic", CHECKSUM_MAGIC),
+        ]
+        fields += build_date_fields(args.build_date_str)
+        fields += [
             ("scratch_bss_start", "__scratch_bss_start"),
             ("scratch_bss_end",   "__scratch_bss_end"),
             ("pio_rx_bss_start",  "__pio_rx_bss_start"),
@@ -257,7 +285,8 @@ def main() -> int:
             fmt_sdcc(out, fields)
         print(f"gen_payload_header: wrote {args.out} (sdcc symbolic, "
               f"chunk_a_src={args.chunk_a_src:#06x} "
-              f"chunk_b_src={args.chunk_b_src:#06x})")
+              f"chunk_b_src={args.chunk_b_src:#06x}, "
+              f"build_date='{args.build_date_str}')")
         return 0
 
     # Non-symbolic SDCC: read map.
@@ -292,6 +321,9 @@ def main() -> int:
         ("chunk_b_size",   chunk_b_size),
         ("cold_entry",     sym("_cpnos_cold_entry")),
         ("checksum_magic", CHECKSUM_MAGIC),
+    ]
+    fields += build_date_fields(args.build_date_str)
+    fields += [
         ("scratch_bss_start", sym("__scratch_bss_start")),
         ("scratch_bss_end",   sym("__scratch_bss_end")),
         ("pio_rx_bss_start",  sym("__pio_rx_bss_start")),
@@ -310,7 +342,8 @@ def main() -> int:
         fmt_sdcc(out, fields)
     print(f"gen_payload_header: wrote {args.out} (sdcc resolved, "
           f"chunk_a={chunk_a_size} chunk_b={chunk_b_size}, "
-          f"payload_size={payload_size})")
+          f"payload_size={payload_size}, "
+          f"build_date='{args.build_date_str}')")
     return 0
 
 

@@ -85,6 +85,17 @@ struct payload_header {
      * validated by the same relocator code. */
     uint16_t checksum_magic;
 
+    /* Build date stamp, ASCII "YYYY-MM-DD HH:MM" (exactly 16 bytes,
+     * no NUL).  Written to display memory at boot by the relocator so
+     * the operator sees which build is being relocated BEFORE any
+     * resident-code banner runs.  Also carried at PROM1 byte 0 in a
+     * duplicate header so the relocator can detect cross-PROM
+     * mismatch (PROM0 from build N-1 + PROM1 from build N) -- see
+     * tasks/dual-header-plan-2026-05-08.md.  Field size is 16 bytes
+     * (= 8 words) -- preserves the all-words-aligned header invariant
+     * the word-additive checksum depends on. */
+    char build_date_str[16];
+
     /* BSS regions to zero — variable-length, terminated by a pair
      * with start == PAYLOAD_BSS_SENTINEL.  Each pair is (start, end),
      * end exclusive (matches the C-array bound convention).  Today's
