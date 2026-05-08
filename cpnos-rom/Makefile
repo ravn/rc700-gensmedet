@@ -769,13 +769,31 @@ $(BUILDDIR)/prom0_padded.ic66 $(BUILDDIR)/prom1.bin: $(BUILDDIR)/cpnos.bin
 
 # MAME ROM file targets: copy from build artifacts whenever they're
 # newer.  Make tracks timestamps so subsequent builds auto-refresh.
+# Also mirror to MAME_IRQ tree if it exists -- pio-irq targets and
+# cpnos-bios-jt-trace launch from there, and an ad-hoc
+# `regnecentralend` against MAME_IRQ would otherwise see whatever
+# was in $(MAME_IRQ)/roms/rc702 from the previous polypascal-test
+# (sync-on-launch in those targets) and silently boot a stale build.
+# Same bug class as the asymmetric-recipe fix at 4e7f1de but on the
+# MAME-tree axis.  Conditional `-d` check so the rule passes when
+# MAME_IRQ doesn't exist on a given checkout.
 $(MAME_PROM0): $(BUILDDIR)/prom0_padded.ic66
 	cp $< $@
-	@echo "installed cpnos prom0 -> $@"
+	@if [ -d $(MAME_IRQ)/roms/rc702 ]; then \
+	    cp $@ $(MAME_IRQ)/roms/rc702/$(notdir $@); \
+	    echo "installed cpnos prom0 -> $@ (+ MAME_IRQ)"; \
+	else \
+	    echo "installed cpnos prom0 -> $@"; \
+	fi
 
 $(MAME_PROM1): $(BUILDDIR)/prom1.bin
 	cp $< $@
-	@echo "installed cpnos prom1 -> $@"
+	@if [ -d $(MAME_IRQ)/roms/rc702 ]; then \
+	    cp $@ $(MAME_IRQ)/roms/rc702/$(notdir $@); \
+	    echo "installed cpnos prom1 -> $@ (+ MAME_IRQ)"; \
+	else \
+	    echo "installed cpnos prom1 -> $@"; \
+	fi
 
 # Just the MAME-side install (no cpmsim disk write).  Pulled in by the
 # default `cpnos` target so a plain `make cpnos` is safe to follow with
