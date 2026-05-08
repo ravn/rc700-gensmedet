@@ -552,14 +552,18 @@ $(BUILDDIR)/init.bin: $(BUILDDIR)/payload.elf
 # the init/resident split (step 3) PROM 0 layout is:
 #   0x0000 reset (0x0F)
 #   0x0010 relocator code + payload header (~0x200 B, capped at 0x200)
-#   0x0200 init.bin (.init runs in place, up to 0x300)
-#   0x0500 .prom0_tail = first PROM0_TAIL_SIZE bytes of resident
-#   0x2000 .prom1     = remaining resident bytes
-# PROM0_TAIL_SIZE = 0x800 - 0x500 = 0x300 = 768 bytes (was 1024
-# before 2026-05-07 .init bump from 0x100 to 0x200 to give the
-# data-driven relocator more code budget; PROM1 absorbs the 256 B
-# difference, still within its 1536 B clearance from display memory).
-PROM0_TAIL_SIZE = 768
+#   0x02A0 init.bin (.init runs in place, up to 0x520)
+#   0x0520 .prom0_tail = first PROM0_TAIL_SIZE bytes of resident
+#   0x2032 .prom1     = remaining resident bytes (after dup-header)
+# PROM0_TAIL_SIZE = 0x800 - 0x520 = 0x2E0 = 736 bytes.  History:
+#   1024 (initial) -> 768 (2026-05-07 .init bump 0x100->0x200 for
+#                           data-driven relocator code budget)
+#                  -> 736 (2026-05-08 .prom0_init bump 0x280->0x2A0 +
+#                           .prom0_tail bump 0x500->0x520 to fit the
+#                           relocator's display-init port sequence).
+# PROM1 absorbs the difference each time, well within capacity (1998 B
+# after dup-header at PROM1 byte 0).
+PROM0_TAIL_SIZE = 736
 $(BUILDDIR)/payload_a.bin $(BUILDDIR)/payload_b.bin: $(BUILDDIR)/payload.bin
 	dd if=$< of=$(BUILDDIR)/payload_a.bin bs=1 count=$(PROM0_TAIL_SIZE) status=none
 	dd if=$< of=$(BUILDDIR)/payload_b.bin bs=1 skip=$(PROM0_TAIL_SIZE) status=none

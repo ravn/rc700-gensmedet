@@ -13,9 +13,10 @@
 # count is below the baseline (so a successful fix is visible).
 
 # relocator.c::relocate -- header magic check + BSS-pair iteration
-# + word-additive checksum loop, all with simultaneously-live locals.
-# Rewriting this in inline asm defeats the point of having a single
-# C source for both clang and SDCC.  See plan #19.
+# + word-additive checksum loop + dual-header memcmp, all with
+# simultaneously-live locals SDCC spills to IX-relative stack.
+# Rewriting in inline asm defeats the point of a shared C source.
+# See plan #19 + dual-header-plan-2026-05-08.md.  Tracked as task #27.
 relocator.s:relocate:10
 
 # resident.c::delete_line -- two ix-relative spills.  Likely fixable

@@ -54,36 +54,46 @@ SECTIONS {
   } > PROM0
 
   __reloc_code_end = .;
-  ASSERT(__reloc_code_end <= 0x280,
-         "relocator code + header exceeds 640 B reservation (shrink relocator or raise .prom0_init base)")
+  ASSERT(__reloc_code_end <= 0x2A0,
+         "relocator code + header exceeds 672 B reservation (shrink relocator or raise .prom0_init base)")
 
-  /* Init image -- 0x280..0x4FF.  Bytes are extracted from the payload
+  /* Init image -- 0x2A0..0x51F.  Bytes are extracted from the payload
    * ELF's .init output section by `objcopy --only-section=.init`,
    * then #embed'd into relocator.c's `init_image[]` and placed here.
    * VMA == LMA so init code's absolute references resolve when it
    * executes in place from PROM.  Base history:
    *   0x100 → 0x200 (2026-05-07) to give the data-driven relocator
    *                  + header more code budget
-   *   0x200 → 0x280 (2026-05-08) to give the relocator the dual-
-   *                  header memcmp + PROM_MISMATCH_MSG + the
-   *                  build_date_str field's 16 bytes more room.
-   *                  Init slot shrinks to 640 B; init.bin = 630 B
-   *                  with 10 B headroom.  payload.ld matches. */
-  .prom0_init 0x280 : {
+   *   0x200 → 0x280 (2026-05-08) for dual-header memcmp + PROM
+   *                  MISMATCH msg + build_date_str field
+   *   0x280 → 0x2A0 (2026-05-08) to fit a tiny 8237 DMA + 8275 CRT
+   *                  init in the relocator so its display messages
+   *                  reach the operator without depending on the
+   *                  8275's power-on default state.  .prom0_tail
+   *                  shifts to 0x520 in lockstep so the init slot
+   *                  stays 640 B (init.bin fits with 10 B
+   *                  headroom).  PROM0_TAIL_SIZE drops to 736 B
+   *                  for clang; chunk_b grows by 32 B in lockstep
+   *                  (within PROM1's 1998 B post-dup-header
+   *                  capacity). */
+  .prom0_init 0x2A0 : {
     KEEP(*(.prom0_init))
   } > PROM0
 
   __init_end = .;
-  ASSERT(__init_end <= 0x500,
+  ASSERT(__init_end <= 0x520,
          "init image exceeds 640 B PROM 0 reservation (raise .prom0_tail base)")
 
-  /* Resident payload chunk A — PROM0 tail at 0x0500.  First
+  /* Resident payload chunk A — PROM0 tail at 0x0520.  First
    * PROM0_TAIL_SIZE bytes of resident payload.  Makefile's
-   * PROM0_TAIL_SIZE must match (0x800 - 0x500 = 768 bytes available
-   * between 0x500 and 0x800).  __chunk_a_start emitted here so
+   * PROM0_TAIL_SIZE must match (0x800 - 0x520 = 736 bytes available
+   * between 0x520 and 0x800).  __chunk_a_start emitted here so
    * gen_payload_header.py / the header can resolve `chunk_a_src`
-   * to the actual placement (no hardcoded 0x500 outside this file). */
-  .prom0_tail 0x500 : {
+   * to the actual placement (no hardcoded constant outside this file).
+   * Base bumped from 0x500 to 0x520 (2026-05-08) in lockstep with
+   * .prom0_init's bump to 0x2A0 -- gives the relocator the 32 B it
+   * needs for the in-place 8237 DMA + 8275 CRT init. */
+  .prom0_tail 0x520 : {
     __chunk_a_start = .;
     KEEP(*(.prom0_tail))
   } > PROM0

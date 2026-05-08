@@ -35,6 +35,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "compiler/compat.h"
+#include "hal.h"
 #include "payload_header.h"
 
 /* Header — emitted by tasks/scripts/genpayload_header.py into the
@@ -86,6 +87,46 @@ static const uint8_t payload_b[] = {
  * the integrity check fails — appears at the top-left of the screen
  * and is visible to mame_boot_test.lua's display-memory probe. */
 static const char BAD_CHECKSUM_MSG[] = "BAD CHECKSUM";
+
+/* Minimum 8237 DMA + 8275 CRT init to drive display memory at 0xF800
+ * visibly.  Subset of init_hardware's port_init table -- only the
+ * channels that drive the screen, no IRQ enables, no SIO setup, no
+ * CTC (relocator runs DI and never refreshes the screen via an ISR).
+ * Runs as the FIRST thing in relocate() so the build_date_str /
+ * "PROM MISMATCH" / "BAD CHECKSUM" messages later in the function
+ * reach the operator regardless of whether the 8275 was in its
+ * default-display state at power-on.  Pairs (port, value), iterated
+ * by an inline loop -- same shape as init.c's port_init table.
+ * Port numbers are 8-bit literals here (memory addresses go through
+ * symbolic constants per HARD RULE feedback_no_literal_addresses,
+ * port numbers are an explicit exception). */
+/* Non-static so the asm symbol `_reloc_display_init` is emitted at
+ * file-global scope.  `static const` would land in the same .rodata
+ * but with internal linkage; clang Z80 then can't resolve the asm
+ * `ld hl, _reloc_display_init` reference inside the inline asm
+ * below (the C-side has no use of the address, so the compiler
+ * has nothing to anchor an internal symbol to). */
+const uint8_t reloc_display_init[] = {
+    /* 8237 DMA: master clear, ch2 single mem->IO autoinit, base/wc
+     * pointing at display memory, unmask ch2. */
+    PORT_DMA_CMD,        0x20,
+    PORT_DMA_MODE,       0x58 | 2,
+    PORT_DMA_CLBP,       0,
+    PORT_DMA_CH2_ADDR,   DISPLAY_ADDR & 0xFF,
+    PORT_DMA_CH2_ADDR,   (DISPLAY_ADDR >> 8) & 0xFF,
+    PORT_DMA_CH2_WC,     (DISPLAY_SIZE - 1) & 0xFF,
+    PORT_DMA_CH2_WC,     ((DISPLAY_SIZE - 1) >> 8) & 0xFF,
+    PORT_DMA_SMSK,       0x02,
+    /* 8275 CRT: reset (cmd=0x00), 4 geometry params, enable inter-
+     * rupts (cmd=0xE0; harmless, we stay DI), start (cmd=0x23). */
+    PORT_CRT_CMD,    0x00,
+    PORT_CRT_PARAM,  0x4F,
+    PORT_CRT_PARAM,  0x98,
+    PORT_CRT_PARAM,  0x7A,
+    PORT_CRT_PARAM,  0x6D,
+    PORT_CRT_CMD,    0xE0,
+    PORT_CRT_CMD,    0x23,
+};
 
 #ifdef CPNOS_HAS_P1_HEADER
 /* Duplicate header at PROM1 byte 0 (LMA 0x2000), emitted by
@@ -169,6 +210,35 @@ NORETURN void relocate(void) {
 
     /* Magic check.  Halts loudly on stale/missing/corrupt header. */
     if (h->magic != PAYLOAD_HEADER_MAGIC) for (;;) { }
+
+    /* Display init -- programs the 8237 DMA ch2 + 8275 CRT so the
+     * subsequent build_date_str stamp / PROM-MISMATCH / BAD-CHECKSUM
+     * messages are visible.  Runs DI; safe before any other setup.
+     *
+     * Hand-coded asm because the relocator builds without
+     * +static-stack: a C-level for-loop with `_port_out(port, val)`
+     * lowers to ~90 B of stack-relative spill code on clang Z80
+     * (locals via `push hl; ld hl,N; add hl,sp; ...`).  The asm
+     * loop below is ~10 B and uses OUT (C),A which the C-level
+     * `_port_out(uint16_t)` indirectly emits anyway.  Both
+     * compilers see identical 8-bit port + 8-bit value pairs from
+     * the reloc_display_init[] table.  Iteration count is hard-
+     * coded (SDCC's __asm__ doesn't support GCC extended-asm
+     * operand placeholders); STATIC_ASSERT below guarantees the
+     * count matches the table. */
+    STATIC_ASSERT(sizeof(reloc_display_init) == 30,
+                  "reloc_display_init size changed -- update djnz count below");
+    ASM_VOLATILE(
+        "ld   hl, _reloc_display_init\n\t"
+        "ld   b, 15\n\t"
+        "l_reloc_disp_loop:\n\t"
+        "ld   c, (hl)\n\t"
+        "inc  hl\n\t"
+        "ld   a, (hl)\n\t"
+        "inc  hl\n\t"
+        "out  (c), a\n\t"
+        "djnz l_reloc_disp_loop\n\t"
+    );
 
     /* Stamp the build date into display memory at row 0, columns 0..15.
      * The 8275 CRT controller drives the screen from RAM at 0xF800 in

@@ -148,4 +148,25 @@ correspondingly.  Init.bin is currently 630 B in the 640 B slot
 (10 B headroom), so the next bump probably requires a parallel
 init-code shrink.
 
-Recorded by user 2026-05-08 evening; no commit yet.
+Recorded by user 2026-05-08 evening.
+
+**Status: DONE 2026-05-08 18:11.**  Implemented as a 30 B port-init
+table (`reloc_display_init[]`) + ~10 B inline-asm OUT-loop in
+relocator.c, runs as the very first thing in `relocate()` after
+the magic check.  Sequence: 8237 DMA ch2 setup (master clear, ch2
+mode mem->IO autoinit, base/wc pointing at 0xF800 for 2000 bytes,
+unmask), then 8275 CRT (reset, 4 geometry params for 80x25/7-scan,
+enable interrupts, start command 0x23).  No CTC -- relocator runs
+DI and never refreshes via ISR; the 8275 is self-clocked and
+maintains a static-content display through DMA autoinit.
+
+Slot bumps required to fit:
+  .prom0_init  0x280 -> 0x2A0  (+32 B for relocator code)
+  .prom0_tail  0x500 -> 0x520  (+32 B in lockstep, init slot stays 640 B)
+  PROM0_TAIL_SIZE  768  -> 736 (clang only; PROM1 absorbs the 32 B)
+
+The C-side for-loop with `_port_out(uint16_t, uint8_t)` lowered to
+~90 B on clang Z80 (relocator builds without +static-stack, so
+locals spill to stack via `push hl; ld hl,N; add hl,sp; ...`
+pattern -- same root cause as task #27).  Inline asm is ~10 B.
+Updated check_no_frame_ptr.py baseline to reflect.
