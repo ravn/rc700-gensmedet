@@ -30,6 +30,9 @@
 
 extern void init_hardware(void);
 extern void cfgtbl_init(void);
+#if MIRROR_SIOB && defined(__SDCC)
+extern void boot_probe(uint8_t tag);
+#endif
 #include "cfgtbl.h"
 
 /* BIOS jump table base = BIOS_BASE.  `_bios_boot` is the first entry
@@ -471,6 +474,10 @@ static void resident_handoff(uint16_t entry) {
 #endif
 
         BOOT_MARK(18, 'J');             /* about to JP NDOS COLDST */
+#if MIRROR_SIOB && defined(__SDCC)
+        /* Probe pre-handoff buffer state (issue #57). */
+        boot_probe('H');
+#endif
         enter_coldst();
     }
     for (;;) { }

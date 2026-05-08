@@ -130,10 +130,70 @@ uint8_t kbd_tail;   /* written by CONIN */
 USED uint8_t pio_par_byte;
 USED uint8_t pio_par_count;
 
+#if MIRROR_SIOB && defined(__SDCC)
+/* Boot-time probe (issue #57): emits one labelled hex line over SIO-B
+ * showing the state of every buffer impl_conin / impl_const can read.
+ * Called at end of init_hardware ('I'), pre-NDOS-handoff ('H'), and
+ * once on the first impl_const "data available" return ('S' = SIO-B
+ * fired, 'K' = kbd_ring fired).  Removable once the 0x10 originator
+ * is identified.
+ *
+ * Line shape: "[T]khktrrphpt" + 4*kbd_ring bytes + CR LF
+ * (3 + 5*2 + 4*2 + 2 = 23 bytes per probe). */
+#ifndef TRANSPORT_PROXY
+extern volatile uint8_t pio_rx_head;
+extern volatile uint8_t pio_rx_tail;
+#endif
+
+RESIDENT
+static void p_hex(uint8_t b) {
+    static const char hexd[] = "0123456789ABCDEF";
+    console_putc((uint8_t)hexd[(b >> 4) & 0x0F]);
+    console_putc((uint8_t)hexd[b & 0x0F]);
+}
+
+RESIDENT
+void boot_probe(uint8_t tag) {
+    console_putc('[');
+    console_putc(tag);
+    console_putc(']');
+    p_hex(kbd_head);
+    p_hex(kbd_tail);
+#ifndef TRANSPORT_PROXY
+    p_hex(pio_rx_head);
+    p_hex(pio_rx_tail);
+#else
+    p_hex(0xFF);
+    p_hex(0xFF);
+#endif
+    p_hex(kbd_ring[0]);
+    p_hex(kbd_ring[1]);
+    console_putc('\r');
+    console_putc('\n');
+}
+#endif
+
+#if MIRROR_SIOB && defined(__SDCC)
+/* One-shot flags packed: bit 0 = SIO-B path probed, bit 1 = kbd_ring
+ * path probed.  Probe fires the first time impl_const sees data
+ * available on each path, then disarms.  See boot_probe (above). */
+static uint8_t probe_once;
+#endif
+
 RESIDENT
 uint8_t impl_const(void) {
-    if (_port_in(PORT_SIO_B_CTRL) & SIO_RR0_RX_CHAR_AVAIL) return 0xFF;
-    if (kbd_head != kbd_tail) return 0xFF;
+    if (_port_in(PORT_SIO_B_CTRL) & SIO_RR0_RX_CHAR_AVAIL) {
+#if MIRROR_SIOB && defined(__SDCC)
+        if (!(probe_once & 0x01)) { probe_once |= 0x01; boot_probe('S'); }
+#endif
+        return 0xFF;
+    }
+    if (kbd_head != kbd_tail) {
+#if MIRROR_SIOB && defined(__SDCC)
+        if (!(probe_once & 0x02)) { probe_once |= 0x02; boot_probe('K'); }
+#endif
+        return 0xFF;
+    }
     return 0x00;
 }
 

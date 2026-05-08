@@ -18,11 +18,13 @@
 --   "PASS"  + a one-line summary, OR
 --   "FAIL: <reason>"
 
--- BSS addresses for kbd_head/kbd_ring are extracted from the linked
--- payload.elf at build time into clang/cpnos_polypascal_addrs.lua so
--- the harness automatically tracks scratch_bss layout changes (Phase
--- B moved these from 0xEA24/0xEA2A to 0xEB24/0xEB2A).
-local addrs = dofile("clang/cpnos_polypascal_addrs.lua")
+-- BSS addresses for kbd_head/kbd_ring are extracted at build time into
+-- $(BUILDDIR)/cpnos_polypascal_addrs.lua, where BUILDDIR == COMPILER.
+-- Honour COMPILER= so SDCC runs read the SDCC addresses (kbd_ring at
+-- 0xEC03 in bss_compiler) instead of clang's (0xF52C in scratch_bss).
+-- Issue #58.
+local compiler = os.getenv("COMPILER") or "clang"
+local addrs = dofile(compiler .. "/cpnos_polypascal_addrs.lua")
 local KBD_HEAD = addrs.kbd_head
 local KBD_RING = addrs.kbd_ring
 
