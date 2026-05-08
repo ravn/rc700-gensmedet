@@ -36,7 +36,7 @@ MEMORY {
    * The relocator embeds init.bin into PROM 0 at exactly this
    * VMA so absolute references resolve.  Init/resident split,
    * step 3 (tasks/todo.md). */
-  INIT    (rx)  : ORIGIN = 0x0200, LENGTH = 0x0300
+  INIT    (rx)  : ORIGIN = 0x0280, LENGTH = 0x0280
 
   /* Payload (resident): copied to RAM at 0xED00 by the relocator.
    * Limited by the combined size of the two 2 KB EPROMs minus the
@@ -94,7 +94,7 @@ SECTIONS {
    * Symbols inside .init can call resident-RAM symbols at 0xED00+
    * because the relocator populates that range before any init code
    * runs (cpnos_cold_entry in resident orchestrates the calls). */
-  .init 0x0200 : {
+  .init 0x0280 : {
     __init_start = .;
     *(.init.text)
     *(.init.text.*)
@@ -104,7 +104,7 @@ SECTIONS {
   } > INIT
 
   __init_size = __init_end - __init_start;
-  ASSERT(__init_size <= 0x0300, ".init exceeds 768 B INIT region budget")
+  ASSERT(__init_size <= 0x0280, ".init exceeds 640 B INIT region budget (slot 0x280..0x4FF)")
 
   .payload 0xED00 : {
     __payload_start = .;

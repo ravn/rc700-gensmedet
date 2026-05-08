@@ -487,7 +487,12 @@ $(BUILDDIR)/%.inc: $(BUILDDIR)/%.bin tasks/scripts/bin2inc.py
 $(BUILDDIR)/relocator.o: relocator.c payload_header.h \
                    $(BUILDDIR)/init.inc $(BUILDDIR)/payload_a.inc $(BUILDDIR)/payload_b.inc
 	@mkdir -p $(BUILDDIR)
-	$(CC) $(CFLAGS_RELOC) -c $< -o $@
+	@# CPNOS_HAS_P1_HEADER: tells the relocator that
+	@# gen_payload_header emits a duplicate PROM1-byte-0 header (.payload_header_p1),
+	@# so the cross-PROM mismatch memcmp gate is enabled.  SDCC build doesn't
+	@# define this flag (yet -- see dual-header-plan-2026-05-08.md), so
+	@# its relocator skips the memcmp and continues the same as before.
+	$(CC) $(CFLAGS_RELOC) -DCPNOS_HAS_P1_HEADER -c $< -o $@
 
 # Generate payload_header_data.s from the linked payload.elf.  Carries
 # the metadata the relocator reads at boot (chunk sizes, BSS extents,
@@ -1602,6 +1607,12 @@ $(BUILDDIR)/payload_header_data.s: tasks/scripts/gen_payload_header.py \
                                    payload_header.h Makefile \
                                    $(BUILDDIR)/cpnos_buildinfo.h
 	@mkdir -p $(BUILDDIR)
+	@# --no-emit-p1-header: SDCC's sections.asm doesn't yet anchor a
+	@# PAYLOAD_HEADER_P1 section at PROM1 byte 0; until it does, the
+	@# z88dk linker would float the unanchored section into the
+	@# resident chain at 0xED00 and check_sdcc_layout.py would fail
+	@# the build with "section overlap".  Step-2 implementation
+	@# pending in dual-header-plan-2026-05-08.md.
 	@BUILD_DATE_STR=$$(awk -F'"' '/BUILD_DATE_STR/{print $$2; exit}' \
 	    $(BUILDDIR)/cpnos_buildinfo.h); \
 	 python3 tasks/scripts/gen_payload_header.py \
@@ -1609,6 +1620,7 @@ $(BUILDDIR)/payload_header_data.s: tasks/scripts/gen_payload_header.py \
 	    --chunk-a-src=0x0400 --chunk-b-src=0x2000 \
 	    --include-ivt \
 	    --build-date-str="$$BUILD_DATE_STR" \
+	    --no-emit-p1-header \
 	    --out=$@
 
 # .c objects (single-link: relocator.c + payload_header_data.s + the

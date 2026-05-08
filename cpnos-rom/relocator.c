@@ -87,6 +87,19 @@ static const uint8_t payload_b[] = {
  * and is visible to mame_boot_test.lua's display-memory probe. */
 static const char BAD_CHECKSUM_MSG[] = "BAD CHECKSUM";
 
+#ifdef CPNOS_HAS_P1_HEADER
+/* Duplicate header at PROM1 byte 0 (LMA 0x2000), emitted by
+ * gen_payload_header.py into .payload_header_p1 and anchored by
+ * relocator.ld.  Same bytes as `payload_header` in PROM0; the
+ * relocator compares them word-by-word at boot to detect
+ * cross-PROM mismatch (e.g. PROM0 from build N-1 + PROM1 from
+ * build N).  C name has no leading underscore so clang's
+ * `_<name>` mangling rule lines up with the asm symbol
+ * `_payload_header_p1` emitted by gen_payload_header.py. */
+extern const struct payload_header payload_header_p1;
+static const char PROM_MISMATCH_MSG[] = "PROM MISMATCH";
+#endif
+
 /* Zero `len` bytes starting at `dst`.  Replaces __builtin_memset for
  * portability:
  *
@@ -172,6 +185,27 @@ NORETURN void relocate(void) {
      * message takes priority for a halted boot. */
     __builtin_memcpy((void *)0xF800, h->build_date_str,
                      sizeof h->build_date_str);
+
+#ifdef CPNOS_HAS_P1_HEADER
+    /* Cross-PROM mismatch check.  Word-wise compare across the
+     * fixed-portion header (the variable-length bss_pairs is a
+     * flexible array, excluded from sizeof).  Any mismatch in
+     * magic/version/resident_dest/chunk_*_src/chunk_*_size/
+     * cold_entry/checksum_magic/build_date_str surfaces here.  Open-
+     * coded inline to keep the relocator within its 512 B PROM0
+     * reservation.  Halts before any chunk copy. */
+    {
+        const uint16_t *a = (const uint16_t *)h;
+        const uint16_t *b = (const uint16_t *)&payload_header_p1;
+        for (uint16_t i = sizeof(struct payload_header) >> 1; i; --i) {
+            if (*a++ != *b++) {
+                __builtin_memcpy((void *)0xF800, PROM_MISMATCH_MSG,
+                                 sizeof PROM_MISMATCH_MSG - 1);
+                for (;;) { }
+            }
+        }
+    }
+#endif
 
     /* Chunk A, then chunk B. */
     uint8_t *dest = (uint8_t *)h->resident_dest;
