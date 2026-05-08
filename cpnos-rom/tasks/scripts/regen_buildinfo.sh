@@ -2,9 +2,12 @@
 #
 # regen_buildinfo.sh OUT_HEADER
 #
-# Regenerate cpnos_buildinfo.h with the current UTC date + short git
-# hash, but only update the file's mtime when the content actually
-# differs from what's on disk.  Called from cpnos-rom/Makefile via
+# Regenerate cpnos_buildinfo.h with the current LOCAL date + short
+# git hash, but only update the file's mtime when the content
+# actually differs from what's on disk.  Local time is what the
+# operator on the bench reads on their wall clock when verifying a
+# build, so the banner uses local; UTC was tried and dropped 2026-05-08.
+# Called from cpnos-rom/Makefile via
 # $(shell ...) at parse time so the .h's mtime tracks REAL content
 # changes -- a Makefile recipe with `.PHONY` would mark the target
 # "always out of date" and propagate that to every dependent .o /
@@ -18,7 +21,7 @@ set -e
 OUT="$1"
 [ -z "$OUT" ] && { echo "usage: $0 <out-header>" >&2; exit 2; }
 
-D=$(date -u +'%Y-%m-%d %H:%M')
+D=$(date +'%Y-%m-%d %H:%M')
 H=$(git rev-parse --short HEAD 2>/dev/null || echo '????')
 if ! git diff --quiet -- . 2>/dev/null; then H="${H}+"; fi
 

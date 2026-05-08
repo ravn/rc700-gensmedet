@@ -7,7 +7,10 @@ operators see exactly which build of the cpnos monolith landed.
 Usage: stamp_cpnos.py <input.com> <output.com> [<stamp>]
 
 If <stamp> is omitted, build it as 'YYYY-MM-DD HH:MM <git-hash>' from
-the current UTC time and the working tree's git HEAD.
+the current LOCAL time and the working tree's git HEAD.  Local time
+matches the operator's wall clock when verifying a build off the
+bench (e.g., "I burned this PROM at 11:47 -- which cpnos.com is in
+that image?"); UTC was tried and dropped 2026-05-08.
 
 Layout (last 24 B of the .COM file, byte-stable across builds):
   +0..+22  ASCII text (right-padded with spaces if shorter)
@@ -18,7 +21,7 @@ import os, sys, time, subprocess
 LEN = 24
 
 def make_default_stamp() -> str:
-    ts = time.strftime("%Y-%m-%d %H:%M", time.gmtime())
+    ts = time.strftime("%Y-%m-%d %H:%M", time.localtime())
     try:
         h = subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"],

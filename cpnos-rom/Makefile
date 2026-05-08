@@ -1232,7 +1232,22 @@ conout-acid: cpnos-install testutil/acid.com
 # scrape /tmp/cpnos_siob.raw for completion markers.  MP/M is
 # restarted from scratch so the run is hermetic.
 cpnos-polypascal-test:
-	@echo "=== 1/4 (re)starting MP/M with fresh disks ==="
+	@# Build + install cpnos.com onto the mpm-net2 library disk BEFORE
+	@# starting cpmsim.  cpmsim opens the disk image at startup and
+	@# caches sector reads internally; if we update the disk file via
+	@# `cpmcp` AFTER cpmsim has it open, mpm-net2 happily serves the
+	@# pre-update bytes -- the slave then netboots a stale cpnos.com
+	@# whose NDOS / BDOS addresses don't match the freshly-built
+	@# cpnos_addrs.h, the post-handoff JP lands in the wrong place,
+	@# and the slave warm-boots back to its own banner without ever
+	@# reaching E>.  Symptom in /tmp/cpnos_siob.raw: slave banner with
+	@# the current build's timestamp + 25 netboot dots + a SECOND,
+	@# OLDER banner from the previous build.  Fixed 2026-05-08 by
+	@# moving the install BEFORE the cpmsim restart so mpm-net2 reads
+	@# fresh disk content.
+	@echo "=== 1/4 building cpnos-rom with MIRROR_SIOB=1 + installing ==="
+	$(MAKE) MIRROR_SIOB=1 cpnos-install
+	@echo "=== 2/4 (re)starting MP/M with fresh disks ==="
 	-screen -S mpm -X quit >/dev/null 2>&1 || true
 	@sleep 1
 	@if lsof -nP -iTCP:4002 -sTCP:LISTEN 2>/dev/null | grep -q .; then \
@@ -1241,11 +1256,9 @@ cpnos-polypascal-test:
 	    exit 1; \
 	fi
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
-	@echo "=== 2/4 waiting for MP/M CP/NET server on :4002 ==="
+	@echo "=== 3/4 waiting for MP/M CP/NET server on :4002 ==="
 	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
 	@sleep 2
-	@echo "=== 3/4 building cpnos-rom with MIRROR_SIOB=1 + installing ==="
-	$(MAKE) MIRROR_SIOB=1 cpnos-install
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt
 	@echo "=== 4/4 syncing ROMs to IRQ-fix MAME tree ==="
