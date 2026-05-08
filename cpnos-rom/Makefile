@@ -365,8 +365,8 @@ $(BUILDDIR)/cpnos_addrs.h: cpnos-build/d/cpnos.com
 	 echo "#define CPNOS_NDOSE_ADDR $$NDOSE   /* NDOS + 3, the BDOS dispatch entry */" >> $@.tmp; \
 	 echo "#define CPNOS_TPA_KB $$TPA_KB" >> $@.tmp
 	@# IVT-clobber guard: cpnos.com loads at NDOS and the slave's IVT
-	@# starts at 0xEB00 (head of SCRATCH_BSS).  If cpnos.com grows past
-	@# (0xEB00 - NDOS) bytes, its tail clobbers the IVT during netboot's
+	@# starts at 0xEA00 (head of SCRATCH_BSS).  If cpnos.com grows past
+	@# (0xEA00 - NDOS) bytes, its tail clobbers the IVT during netboot's
 	@# LDIR -- silent until an IRQ fires after handoff and jumps to
 	@# garbage.  Adjacent today (3200 B at 0xDE80 ends at 0xEAFF, exactly
 	@# one byte before IVT).  Fail the build before we lose hours to
@@ -374,10 +374,10 @@ $(BUILDDIR)/cpnos_addrs.h: cpnos-build/d/cpnos.com
 	@N=$$(perl -ne 'while (/([0-9A-Fa-f]{4})\s+NDOS\b/g) { print "$$1"; last }' cpnos-build/d/cpnos.sym); \
 	 NV=$$((0x$$N)); \
 	 SZ=$$(wc -c < cpnos-build/d/cpnos.com); \
-	 MAX=$$(( 0xEB00 - NV )); \
+	 MAX=$$(( 0xEA00 - NV )); \
 	 if [ "$$SZ" -gt "$$MAX" ]; then \
 	     echo "ERROR: cpnos.com is $$SZ B at NDOS=0x$$N -> tail at $$(printf '0x%04X' $$((NV + SZ - 1)))" \
-	          " would clobber IVT at 0xEB00 (max $$MAX B)"; \
+	          " would clobber IVT at 0xEA00 (max $$MAX B)"; \
 	     rm -f $@.tmp; exit 1; \
 	 fi; \
 	 echo "cpnos.com fits below IVT: $$SZ B at 0x$$N (tail $$(printf '0x%04X' $$((NV + SZ - 1))), $$(($$MAX - SZ)) B clearance)"
@@ -1577,12 +1577,12 @@ $(BUILDDIR)/cpnos.cim: $(SDCC_C_OBJS) $(SDCC_ASM_SRCS) $(BUILDDIR)/xport_aliases
 	@touch $@
 
 # Override $(BUILDDIR)/cpnos.bin for SDCC: assemble PROM0 + PROM1 from
-# z88dk's per-section .bin outputs.  Single `org 0xEE00` for resident
-# (matches clang's _bios_boot=0xEE00 placement so cpnos.com's hardcoded
-# NIOS=0xEE33 lands on _snios_jt).  z88dk emits one binary file
+# z88dk's per-section .bin outputs.  Single `org 0xED00` for resident
+# (matches clang's _bios_boot=0xED00 placement so cpnos.com's hardcoded
+# NIOS=0xED33 lands on _snios_jt).  z88dk emits one binary file
 # (cpnos_RESIDENT_JUMPTABLE.bin) that we dd-split: bytes 0..0x3FF →
-# PROM0 tail (RAM 0xEE00..0xF1FF), bytes 0x400..0x9FF → PROM1
-# (RAM 0xF200..0xF7FF, capped at 1536 B to clear display memory).
+# PROM0 tail (RAM 0xED00..0xF0FF), bytes 0x400..0xAFF → PROM1
+# (RAM 0xF100..0xF7FF, capped at 1792 B to clear display memory).
 $(BUILDDIR)/cpnos.bin: $(BUILDDIR)/cpnos.cim tasks/scripts/build_prom_image.py \
                        cpnos-build/patch_payload_checksum.py
 	@# Patch the resident image so its 16-bit word-additive sum
@@ -1594,6 +1594,15 @@ $(BUILDDIR)/cpnos.bin: $(BUILDDIR)/cpnos.cim tasks/scripts/build_prom_image.py \
 	@# snios.asm's MSGADR-high + RETCNT scratch -- both code paths
 	@# (SNDMSG / RCVMSG) overwrite those before reading, so the
 	@# link-time initial values don't matter.
+	@# patch_payload_checksum.py needs an even-sized image (word
+	@# arithmetic).  If z88dk produced an odd resident, append one
+	@# 0xFF pad byte first -- the checksum patcher overwrites the
+	@# last two bytes anyway, so the pad is invisible at runtime.
+	@RES_TOTAL=$$(wc -c < $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin | tr -d ' '); \
+	 if [ $$((RES_TOTAL % 2)) -ne 0 ]; then \
+	   printf '\xFF' >> $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin; \
+	   echo "appended 1 B pad to make resident even ($$RES_TOTAL -> $$((RES_TOTAL + 1)))"; \
+	 fi
 	python3 cpnos-build/patch_payload_checksum.py $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin
 	@RES_TOTAL=$$(wc -c < $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin | tr -d ' '); \
 	 RES_A=1024; \
@@ -1616,9 +1625,9 @@ $(BUILDDIR)/cpnos.bin: $(BUILDDIR)/cpnos.cim tasks/scripts/build_prom_image.py \
 	 RES_A=$$(wc -c < $(BUILDDIR)/resident_a.bin | tr -d ' '); \
 	 RES_B=$$(wc -c < $(BUILDDIR)/resident_b.bin | tr -d ' '); \
 	 echo "PROM0:    reset+loader $$P0_RESET B + resident chunk A $$RES_A B / 1024"; \
-	 echo "PROM1:    resident chunk B $$RES_B B / 1536"; \
-	 echo "Resident: $$RES_TOTAL B total in RAM 0xEE00..0xF7FF"; \
-	 test $$RES_B -le 1536 || { echo "ERROR: resident overflows 1.5 KB (would clobber display memory at 0xF800)"; exit 1; }
+	 echo "PROM1:    resident chunk B $$RES_B B / 1792"; \
+	 echo "Resident: $$RES_TOTAL B total in RAM 0xED00..0xF7FF"; \
+	 test $$RES_B -le 1792 || { echo "ERROR: resident overflows 1.75 KB (would clobber display memory at 0xF800)"; exit 1; }
 
 # Override cpnos-size for SDCC (no payload.bin / payload.elf).
 cpnos-size: $(BUILDDIR)/cpnos.bin

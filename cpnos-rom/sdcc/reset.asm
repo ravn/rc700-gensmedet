@@ -19,12 +19,19 @@
 ;  with ZERO stack pushes, so clang's reset.s can park SP at 0xF700
 ;  without hitting this trap.  See payload.ld __stack_top.)
 ;
-; Pushes go to 0xEBFE..0xEBFF and below.  That's plain RAM at boot --
-; PROM only shadows 0x0000..0x07FF and 0x2000..0x27FF; everything
-; else is real RAM.  cpnos.com loads later at 0xDF80..0xEC00 (top
-; exclusive), but at relocator time that region is unused, so a few
-; bytes of stack scribble in 0xEBxx is harmless.  By the time
-; cpnos_cold_entry runs, the resident handoff sets up its own stack.
+; SP=0xDD80 (Path 6, 2026-05-08): one byte below where cpnos.com's
+; CODE section will load via netboot LDIR (0xDD80..0xE9FF).  Stack
+; grows DOWN from 0xDD80 into TPA RAM (0x0100..0xDD7F) which is
+; pre-zeroed at boot and unused until CCP loads -- by which time
+; enter_coldst has reset SP=0x0100 anyway.
+;
+; This SP value clears every hazard simultaneously:
+;   - resident region 0xED00..0xF7FF (relocator's checksum reads it)
+;   - BSS-clear extents 0xEA00..0xECFF (relocator's memset wipes them)
+;   - cpnos.com load region 0xDD80..0xE9FF (netboot LDIR overwrites)
+;   - IVT 0xEA00..0xEA23 (must stay intact once EI is on)
+; Stack lives at 0xDC00..0xDD7E during init+netboot+resident_handoff,
+; far from anything that's actively being read or written.
 
     SECTION RESET
 
@@ -33,5 +40,5 @@
     PUBLIC _reset
 _reset:
     di
-    ld   sp, 0xEC00
+    ld   sp, 0xDD80
     jp   _relocate

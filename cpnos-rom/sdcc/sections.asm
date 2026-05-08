@@ -1,24 +1,26 @@
 ; cpnos-rom z88dk section layout for SDCC build (Option C+).
 ;
-; Single contiguous resident image at VMA 0xEE00..0xF7FF (2.5 KB),
+; Single contiguous resident image at VMA 0xED00..0xF7FF (2.75 KB),
 ; physically split across PROM0 tail (0x0400..0x07FF, 1 KB) and
-; PROM1 (0x2000..0x25FF, 1.5 KB).  prom_loader copies both chunks
+; PROM1 (0x2000..0x26FF, 1.75 KB).  prom_loader copies both chunks
 ; to RAM at boot.
+;
+; 2026-05-08: lowered from 0xEE00 to 0xED00 (+256 B) by shifting
+; cpnos.com down 256 B (cpnos-build CODE_BASE LDE80 -> LDD80) and
+; matching NIOS=0xED33 in cpnios-shim.asm.  Resident grew from
+; 2560 B to 2816 B; TPA shrunk from ~54 KB to ~53 KB.
 ;
 ; Layout pinned by clang's payload.ld (we mirror it for source/ABI
 ; compatibility):
 ;
-;   0xEE00  RESIDENT_JUMPTABLE  _bios_boot — CP/M BIOS jump table base
-;   0xEE33  RESIDENT_SNIOS_JT   _snios_jt — DRI SNIOS jt (NDOS ABI)
+;   0xED00  RESIDENT_JUMPTABLE  _bios_boot — CP/M BIOS jump table base
+;   0xED33  RESIDENT_SNIOS_JT   _snios_jt — DRI SNIOS jt (NDOS ABI)
 ;   ...     RESIDENT_SNIOS      SNIOS body, ISRs, all other code
-;   0xF500  __ivt_start          IVT (Z80 IM2 vector table, 36 B)
-;   0xF700  __stack_top          stack base (grows down)
+;   ...     __ivt_start          IVT (Z80 IM2 vector table, 36 B; in BSS)
 ;   0xF800  display memory       hardware-mapped CRT video RAM
 ;
-; Cold-init BSS at 0xEC00..0xEDFF lives in the same RAM region that
-; cpnos.com loads into (0xE180..0xEE00).  This works because cold-init
-; finishes BEFORE netboot starts overwriting BSS — see cpnos_main.c
-; ordering (cfgtbl_init / init_hardware / banner / netboot_mpm).
+; Cold-init BSS at 0xEA00..0xECFF lives in the RAM region between
+; cpnos.com tail (now 0xE9FF post-Path-6) and resident base (0xED00).
 ;
 ; PROM disable (OUT 0x18,A) does NOT happen in PROM0 — it lives in
 ; resident_handoff (cpnos_main.c) which runs from RAM after netboot.
@@ -63,23 +65,23 @@
     SECTION PAYLOAD_HEADER
 
 ;-----------------------------------------------------------------
-; RESIDENT — single contiguous block at 0xEE00..0xF7FF (~2.5 KB).
+; RESIDENT — single contiguous block at 0xED00..0xF7FF (~2.75 KB).
 ;
-; cpnos.com (cpnos-build) hardcodes NIOS = 0xEE33 in cpnios-shim.asm.
-; That requires _snios_jt at exactly 0xEE33, which means _bios_boot
-; at 0xEE00 (BIOS jt is 51 bytes; SNIOS jt starts immediately after
-; at 0xEE00+51 = 0xEE33).  Mirrors clang's _bios_boot=0xEE00 layout.
+; cpnos.com (cpnos-build) hardcodes NIOS = 0xED33 in cpnios-shim.asm.
+; That requires _snios_jt at exactly 0xED33, which means _bios_boot
+; at 0xED00 (BIOS jt is 51 bytes; SNIOS jt starts immediately after
+; at 0xED00+51 = 0xED33).  Mirrors clang's _bios_boot=0xED00 layout.
 ;
 ; Section ordering (BIOS_JT first, then SNIOS, then everything else)
 ; matches clang's payload.ld so the resident image is structurally
 ; identical between the two builds.  Makefile dd-splits the resulting
 ; single per-section binary into PROM0 tail (first 1024 B → RAM
-; 0xEE00..0xF1FF) and PROM1 (next ≤1536 B → RAM 0xF200..0xF7FF;
-; loader caps at 1536 to clear display memory at 0xF800).
+; 0xED00..0xF0FF) and PROM1 (next ≤1792 B → RAM 0xF100..0xF7FF;
+; loader caps at 1792 to clear display memory at 0xF800).
 ;-----------------------------------------------------------------
 
     SECTION RESIDENT_JUMPTABLE
-    org 0xEE00
+    org 0xED00
 
     SECTION RESIDENT_SNIOS_JT
     SECTION RESIDENT_SNIOS
@@ -137,17 +139,17 @@
 ;-----------------------------------------------------------------
 
     SECTION SCRATCH_BSS
-    org 0xEB00            ; Was 0xEC00; bumped 256 B earlier 2026-05-07
-                          ; in lockstep with cpnos-build CODE_BASE shift
-                          ; LDF80 -> LDE80 (TPA 55 KB -> ~54 KB).  The
-                          ; new 256 B at 0xEB00..0xEBFF hosts a page-
-                          ; aligned `bss_ivt` slot for IM2 vectors;
-                          ; bss_pio_rx + bss_compiler stay at 0xEC00 +
-                          ; 0xED00 unchanged.  See #29 / plan #19 step 7.
+    org 0xEA00            ; 2026-05-08 (Path 6): bumped 256 B further
+                          ; from 0xEB00 in lockstep with cpnos-build
+                          ; CODE_BASE shift LDE80 -> LDD80 (TPA ~54 KB ->
+                          ; ~53 KB).  Resident extends down to 0xED00
+                          ; absorbing the freed 256 B above bss_compiler.
+                          ; bss_ivt at 0xEA00 (page-aligned), bss_pio_rx
+                          ; at 0xEB00 (next page), bss_compiler at 0xEC00.
 
     ; IM2 IVT — 36 B (18 entries × 2 B) at the head of the page so
-    ; dev_byte = 0..0x22 indexes correctly off `I = 0xEB`.  Page-aligned
-    ; by SCRATCH_BSS's `org 0xEB00` (no extra `align` needed).  The
+    ; dev_byte = 0..0x22 indexes correctly off `I = 0xEA`.  Page-aligned
+    ; by SCRATCH_BSS's `org 0xEA00` (no extra `align` needed).  The
     ; payload header carries (__ivt_start, __ivt_end) in its bss_pairs
     ; list (Makefile passes `--include-ivt` to gen_payload_header) so
     ; the relocator zeroes this region before checksum verification.
@@ -158,7 +160,7 @@ __ivt_start:
     defs 36
 __ivt_end:
 
-    ; PIO-B receive ring — page-aligned 256-byte buffer at 0xEC00.
+    ; PIO-B receive ring — page-aligned 256-byte buffer at 0xEB00.
     ; Defined here (not in transport_pio.c) so the linker places it at
     ; a page boundary AND so _pio_rx_buf_page can be derived from
     ; HIGH(_pio_rx_buf) instead of being a hardcoded literal that can
@@ -185,7 +187,7 @@ _pio_rx_buf:
 ;
 ; SCRATCH_BSS itself is empty (size 0); the actual BSS bytes live
 ; in its sub-sections.  Span the whole chain by using the head of
-; the first sub-section (bss_pio_rx, page-aligned at 0xEC00) and
+; the first sub-section (bss_pio_rx, page-aligned at 0xEB00) and
 ; the tail of the last (bss_string).
 ;
 ; chunk_a_size is fixed at 1024 to match build_prom_image.py's dd-split.
@@ -210,4 +212,4 @@ _pio_rx_buf:
     PUBLIC __payload_chunk_a_size
     PUBLIC __payload_chunk_b_size
     defc __payload_chunk_a_size = 1024
-    defc __payload_chunk_b_size = __RESIDENT_DATA_tail - 0xEE00 - 1024
+    defc __payload_chunk_b_size = __RESIDENT_DATA_tail - 0xED00 - 1024

@@ -51,11 +51,19 @@ LOCAL_SRC := src
 # fresh page boundary at 0xEB00 for `bss_ivt` while leaving bss_pio_rx
 # at 0xEC00 and bss_compiler at 0xED00 unchanged (no ISR or rx-buf
 # changes needed).  TPA shrinks 256 B, reported as ~54 KB.
-#   CODE 0xDE80..0xEAFF   NDOS DE83, ends 256 B before previous top
-#   DATA 0xDA80..0xDE7F   NDOSRL DA80, BDOSDS DC6A (offsets shifted -0x300)
-# TPA = 0x0100..0xDA7F = 0xD980 = 55680 B (54.375 KB; CPNOS_TPA_KB ~54).
-CODE_BASE ?= LDE80
-DATA_BASE ?= DDA80
+#
+# Path 6 (2026-05-08): CODE_BASE shifted 0x100 further down to 0xDD80
+# to extend cpnos-rom's resident region by 256 B (lower bound 0xEE00 ->
+# 0xED00).  Triggered by SDCC build hitting the 2560 B resident cap
+# (couldn't fit even a 4-byte SIO-B trace probe needed for diagnosing
+# the post-handoff hang under PIO-IRQ).  NIOS=0xED33 in cpnios-shim.asm
+# matches the new _snios_jt = 0xED33 (= bios_boot 0xED00 + 51).  TPA
+# shrinks another 256 B (~53 KB).
+#   CODE 0xDD80..0xE9FF   NDOS DD83, ends 256 B earlier
+#   DATA 0xD980..0xDD7F   NDOSRL D980, BDOSDS DB6A
+# TPA = 0x0100..0xD97F = 0xD880 = 55424 B (54.125 KB; CPNOS_TPA_KB ~53).
+CODE_BASE ?= LDD80
+DATA_BASE ?= DD980
 
 export CPMDrive_D := $(CURDIR)/d
 export CPMDrive_A := $(CURDIR)/a
