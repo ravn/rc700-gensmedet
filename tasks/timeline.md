@@ -266,16 +266,26 @@
     display memory at 0xF800.  Reverted; documented in Makefile
     comment for the next attempt.
 
-- **Memory-map gap analysis surfaced clean fix for #29 (2026-05-07
-  evening)**: display memory is 0xF800..0xFFCF (2000 chars, 80×25);
-  bytes 0xFFD0..0xFFFF are scratch RAM, of which only 4 (the CRT
-  frame counter at 0xFFFC..0xFFFF) are claimed.  **44 B free at
-  0xFFD0..0xFFFB** -- enough to host the 36 B IVT with 8 B spare,
-  outside the resident region entirely.  Cost: reconfigure each
-  device's vector low byte in `port_init[]` from 0x00..0x22 to
-  0xD0..0xF2, set `I = 0xFF`.  Closes #18 + plan #19 step 7 SDCC
-  side without ANY code-size trim, and reclaims 36 B of clang
-  resident.  Tracked as **#29** (description rewritten this evening).
+- **Memory-map gap analysis (2026-05-07 evening) — initial 0xFFD0
+  IVT plan was WRONG; corrected 2026-05-08**: display memory is
+  0xF800..0xFFCF (2000 chars, 80×25); bytes 0xFFD0..0xFFFF are 48 B
+  of scratch RAM (CRT frame counter at 0xFFFC..0xFFFF + 44 B free).
+  Initial plan was to host the IVT there with `I = 0xFF` -- **this
+  is unsafe**: under Z80 IM 2 the I register fixes a 256 B page and
+  the CPU reads its ISR pointer from anywhere in that page based on
+  the device-supplied vector low byte; with I = 0xFF the page is
+  0xFF00..0xFFFF, of which 0xFF00..0xFFCF IS on-screen character
+  RAM.  Any spurious or misprogrammed vector with low byte < 0xD0
+  jumps to a pointer composed of screen bytes.  All pages I=0xF8..
+  0xFF are similarly forbidden.  Valid IVT pages are pages whose
+  entire 256 B range is owned by the slave AND not display: the
+  actual fix landed in Phase 47b (Path 6) by placing the SDCC IVT
+  inside a page-aligned `bss_ivt` SECTION in scratch BSS at 0xEA00
+  (I = 0xEA), zero resident cost.  The 44 B at 0xFFD0..0xFFFB stays
+  scratch RAM (frame counter, future use), NOT IVT.  Tracked as
+  **#29**; SDCC side closed by Path 6, clang side still uses
+  `__ivt_start = 0xF500` in resident (could mirror SDCC for symmetry
+  to free 36 B of clang resident).
 
 - **Two more memory rules captured (session 47 evening)**:
   `feedback_no_stale_dump_files.md` (`rm -f /tmp/foo` BEFORE every
@@ -284,15 +294,101 @@
   multi-line source — catastrophic backtracking).
 
 - **Plan #19 status**: 7 of 8 structural steps fully done (1-6, 8);
-  step 7 done on clang side; SDCC side unblocked by #29's new approach
-  (relocate IVT to 0xFFD0).  No more architectural unknowns.
+  step 7 done on clang side; SDCC side closed by Phase 47b Path 6
+  (IVT placed in `bss_ivt` page-aligned section at 0xEA00).  No more
+  architectural unknowns.
 
 - **Pending** (separate from plan #19):
-  - **#29** relocate IVT to 0xFFD0 (cleanly closes step 7 SDCC).
+  - **#29** clang-side mirror: move `__ivt_start` from 0xF500 in
+    resident to a BSS-scratch page (matches SDCC) to free 36 B of
+    clang resident.  Optional symmetry fix; no functional blocker.
   - **#27/#28** drive IX-spill audit baseline toward zero.
   - **#26** file the SDCC `--sdcccall=1`/`_memset` mismatch upstream.
   - **#21** runtime version check at boot (low priority).
   - **#13** hunt remaining JP-0 sources in SDCC build (gated on #29).
+
+## Phase 47c: clang IVT mirror + #29 plan correction (May 8, 2026 evening) — branch `session47-analysis-2026-05-08` in z80, `main` in rc700-gensmedet
+
+- **Goal**: extend Phase 47b's structural IVT cleanup to the clang
+  side and fix a wrong-headed plan that had crept into CLAUDE.md /
+  timeline.md / a draft #29 doc -- "place IVT at 0xFFD0 with I=0xFF".
+
+- **Catch**: under Z80 IM 2 the I register fixes a 256 B page; the
+  CPU reads its ISR pointer from anywhere in that page determined by
+  the device-supplied vector low byte.  With I=0xFF the page is
+  0xFF00..0xFFFF, of which **0xFF00..0xFFCF IS on-screen character
+  RAM** (display memory occupies 0xF800..0xFFCF on RC702).  Any
+  spurious or misprogrammed vector with low byte < 0xD0 would jump
+  to a pointer composed of screen bytes.  All pages I=0xF8..0xFF are
+  similarly forbidden.  The 48 B at 0xFFD0..0xFFFF is fine as scratch
+  RAM (frame counter at 0xFFFC..0xFFFF + 44 B free) but unsuitable
+  as an IM 2 IVT page.  Captured as new HARD-RULE memory entry
+  `project_rc702_ivt_page_constraint.md`.
+
+- **Reached**:
+  - `cpnos-rom/payload.ld` — IVT relocated from literal `__ivt_start
+    = 0xF500;` (above resident, costing 36 B of resident-adjacent
+    BSS slack) to a `.ivt (NOLOAD)` SECTION pinned at **0xEA00** in
+    a new IVT MEMORY region.  Same page as SDCC's `bss_ivt`
+    (sdcc/sections.asm:156); cross-compiler structural parity
+    achieved.  The 0xEA00 page is in the 768 B gap between
+    cpnos.com's tail (0xE9FF; cpnos.com is 3200 B at NDOS=0xDD80)
+    and the resident region (0xED00).  No literal IVT address
+    remains; `init.c::setup_ivt` derives `IVT_ADDR` from the linker
+    symbol and `set_i_reg(IVT_ADDR >> 8)` produces I=0xEA.  ASSERTs
+    updated: new `__cpnos_load_end <= 0xEA00` enforces clang's
+    cpnos.com-vs-IVT clearance (Makefile:391 already enforced this
+    for SDCC at 0xEA00; now applies symmetrically).  Net: payload
+    1733 B → 1732 B; `__scratch_bss_start` 0xF524 → 0xF500 (36 B
+    BSS recovered).  All 11 link-time ASSERTs pass.
+
+  - **Functional verification** via custom Lua probe of CRT frame
+    counter at 0xFFFC..0xFFFF: counter incremented 0x000000 → 0x18A
+    across 8 emu seconds (~50 Hz, exactly the VRTC rate); MAME CPU
+    state shows `I = 0xEA` live; PC sits in slave main loop
+    (0xF305..0xF315) servicing IRQs.  This is the value-oracle the
+    "no commit on lit+size alone" rule asks for: not just that
+    things link clean and pass ASSERTs, but that IM 2 IRQ delivery
+    actually works through the new IVT page.
+
+  - **Doc corrections**: top-level `CLAUDE.md` item (12), this
+    timeline's Phase 47 entry (lines 269-291), and a new
+    `cpnos-rom/tasks/issue-29-ivt-relocation-plan.md` capturing
+    actual fix vs. wrong initial plan.  Sweep of project for stale
+    "0xFFD0 IVT" / "I=0xFF" references: clean (remaining 0xFFD0
+    references are all legitimate -- rcbios WorkArea at 0xFFD0,
+    lessons.md ORG context, status-line-26 display-row mention).
+
+- **Tasks filed** (`tasks/todo.md` Parked):
+  - `cpnos-warmboot-test` is the wrong harness for `TRANSPORT=
+    pio-irq` builds (wires SIO-A but slave talks PIO-B; appeared as
+    a hang during this session's verification, but baseline showed
+    same symptom -- harness mismatch, not regression).
+  - `mame_boot_test.lua` finish() never fires under canonical 8 s
+    `cpnos-mame` -- emulation runs out before the lua's 60 s
+    frame-timeout, leaving the result file empty.
+
+- **Lessons (extracted as new memory rule via the
+  feedback_extract_rules_from_time_sinks meta-rule)**:
+  - `project_rc702_ivt_page_constraint.md` -- IM 2 IVT page (I*256)
+    cannot overlap RC702 display memory at 0xF800..0xFFCF; pages
+    I=0xF8..0xFF are forbidden.  The 0xFFD0 scratch tail looks like
+    free RAM but cannot host an IVT.
+
+  - "If you need more space, lower TPA more" (user, this session)
+    is the right framing for cross-compiler resident pressure: the
+    resident-vs-TPA boundary is the binding constraint, not the
+    intra-resident layout.  Path 6 (Phase 47b) demonstrated this
+    on SDCC; the clang IVT mirror this session validates the same
+    boundary works for clang.
+
+  - Wrong-test-harness symptom looks identical to genuine boot
+    regression (banner prints, no E>).  Verify by stashing
+    candidate changes and re-running -- if baseline shows the same
+    symptom, the harness is wrong, not the change.  This caught
+    me wasting time on `cpnos-warmboot-test` before remembering
+    that pio-irq builds need `pio-irq-netboot` (memory rule
+    `project_pio_irq_test_topology.md`).
 
 ## Phase 47b: Path 6 TPA shrink + SDCC slave reaches CCP (May 8, 2026) — branch `session47-cpnos-header-driven-relocator` then `session47-analysis-2026-05-08`
 

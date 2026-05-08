@@ -31,10 +31,13 @@ extern void clear_screen(void);
  *   slot 16    (vec 0x20):       PIO-A keyboard
  *   slot 17    (vec 0x22):       PIO-B (unused)
  *
- * Option β (2026-04-30): IVT moved from 0xEC00 to 0xF500 so cpnos.com
- * can load up to 0xED00.  The address is owned by the linker; the ld
- * ASSERTs catch overlaps with .payload, .scratch_bss, or the stack
- * region (issue #35). */
+ * 2026-05-08: IVT moved from 0xF500 (above resident) to 0xEA00 (in the
+ * cpnos.com→resident gap opened by Path 6's CODE_BASE shift) to mirror
+ * the SDCC layout and free 36 B of scratch BSS.  Page placement is
+ * owned by the linker (.ivt SECTION at 0xEA00 in payload.ld); the
+ * ASSERTs in payload.ld catch overlap with cpnos.com / .payload /
+ * .scratch_bss / stack.  IVT_ADDR derives the page byte for `I`
+ * register loading, no literal address in C. */
 extern uint8_t _ivt_start[];
 #define IVT_ADDR     ((uint16_t)(uintptr_t)_ivt_start)
 #define IVT_ENTRIES  18

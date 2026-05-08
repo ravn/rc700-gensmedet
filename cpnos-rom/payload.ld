@@ -44,6 +44,19 @@ MEMORY {
    * ASSERTs once it consumes both artifacts. */
   PAYLOAD (rwx) : ORIGIN = 0xED00, LENGTH = 0x1000
 
+  /* IM 2 IVT (Z80 vector table, 36 B = 18 vectors × 2 B).  Page-aligned
+   * by construction (ORIGIN is a page boundary) so `I = HIGH(__ivt_start)`
+   * = 0xEA suffices.  Lives in the 768 B gap between cpnos.com's tail
+   * (0xE9FF, see cpnos-build assert) and the resident region at 0xED00.
+   * Mirrors the SDCC layout (see sdcc/sections.asm `bss_ivt` SECTION at
+   * 0xEA00).  Pre-2026-05-08 this was a literal `__ivt_start = 0xF500;`
+   * pinned above the resident region; the move recovers 36 B of resident
+   * payload space and matches the cross-compiler structural design.
+   * The 0xFFD0/I=0xFF alternative is FORBIDDEN: I-page 0xFF00..0xFFFF
+   * overlaps display memory at 0xFF00..0xFFCF, see issue-29 plan +
+   * project_rc702_ivt_page_constraint memory rule. */
+  IVT     (rw)  : ORIGIN = 0xEA00, LENGTH = 0x100  /* page-aligned, slave-owned RAM in cpnos.com gap */
+
   /* Zero-init RAM used by C code (static locals without initializer,
    * runtime-populated tables).  NOT carried in the ROM image — the
    * relocator doesn't touch this region.  Power-on RAM = 0x00 in MAME
@@ -51,16 +64,19 @@ MEMORY {
    * the prior image having left it in a sensible state.
    *
    * Option β (2026-04-30, post init/resident split): scratch BSS moved
-   * to a single region above IVT (0xF524..0xF6FF) so cpnos.com can
-   * load up to 0xED00.  The 0xF410..0xF4FF range is RESERVED FOR THE
-   * STACK -- reset.s sets SP=0xF500, stack grows down into that 240 B
-   * region.  Anything in BSS that ends up below 0xF500 would be
-   * silently corrupted by stack pushes -- the linker ASSERTs below
-   * catch this.  cfgtbl, _msg, kbd_ring, and static-stack frames all
-   * live here.  The two `.scratch_bss*` input sections are kept
-   * distinct (legacy section attrs in source) but mapped to one
-   * SCRATCH region. */
-  SCRATCH (rwx) : ORIGIN = 0xF524, LENGTH = 0x1DC  /* above IVT, below PIO_RX */
+   * to a single region above the (then-resident) IVT so cpnos.com could
+   * load up to 0xED00.  Path 6 (2026-05-08) lowered cpnos.com's CODE_BASE
+   * to 0xDD80, opening the 0xEA00..0xECFF gap.  IVT subsequently moved
+   * out of resident (above) into that gap, freeing the original 0xF500
+   * page.  SCRATCH region now starts where the old IVT did.  The
+   * 0xF410..0xF4FF range is RESERVED FOR THE STACK -- reset.s sets
+   * stack-top per `__stack_top` below; anything in BSS that ends up below
+   * `__stack_low` would be silently corrupted by stack pushes -- the
+   * linker ASSERTs below catch this.  cfgtbl, _msg, kbd_ring, and
+   * static-stack frames all live here.  The two `.scratch_bss*` input
+   * sections are kept distinct (legacy section attrs in source) but
+   * mapped to one SCRATCH region. */
+  SCRATCH (rwx) : ORIGIN = 0xF500, LENGTH = 0x200  /* below stack/PIO_RX */
 
   /* PIO-B receive ring buffer (.pio_rx_buf section).  Page-aligned
    * 256-byte buffer at 0xF700 — the head/tail are 8-bit so wrap is
@@ -70,10 +86,10 @@ MEMORY {
   PIO_RX (rwx) : ORIGIN = 0xF700, LENGTH = 0x100
 }
 
-/* IVT location shared with init.c (setup_ivt).  Defined here so the
- * ASSERTs can check overlap with .payload / .scratch_bss.  Issue #35. */
-__ivt_start = 0xF500;
-__ivt_end   = __ivt_start + 18 * 2;
+/* IVT symbols `__ivt_start` / `__ivt_end` are emitted by the .ivt output
+ * section (see SECTIONS below) inside the IVT MEMORY region at 0xEA00.
+ * No literal address here -- the linker derives both from the section
+ * placement and init.c reads `__ivt_start` for `I` register loading. */
 
 /* PIO ring page address — derived from the actual placement of the
  * .pio_rx_bss section, not a hardcoded literal.  The previous design
@@ -87,6 +103,18 @@ __ivt_end   = __ivt_start + 18 * 2;
  * in `ld h, _pio_rx_buf_page`. */
 
 SECTIONS {
+  /* IM 2 IVT (NOLOAD: not in ROM image; relocator's BSS-clear pass
+   * zeroes it via the (__ivt_start, __ivt_end) entry in the payload
+   * header's bss_pairs list, see Makefile `--include-ivt`).  Page-
+   * aligned by IVT MEMORY region origin; init.c::setup_ivt populates
+   * 18 vector words at runtime.  Living symbol of the structural
+   * "no literal addresses" rule. */
+  .ivt 0xEA00 (NOLOAD) : {
+    __ivt_start = .;
+    . = . + 18 * 2;
+    __ivt_end = .;
+  } > IVT
+
   /* Init-only output section -- runs in place from PROM 0 at 0x0100.
    * The Makefile extracts these bytes via `objcopy --only-section=.init`
    * into init.bin and the relocator embeds them at PROM 0 0x0100 so
@@ -220,12 +248,16 @@ SECTIONS {
    * CPNOS_NDOS_ADDR + 0xC80).  Together these turn the kind of silent
    * memory corruption that broke Option β bring-up into link-time
    * failures with clear messages. */
+  ASSERT(__cpnos_load_end <= 0xEA00,
+         "cpnos.com CODE end overflows IVT region at 0xEA00")
   ASSERT(__cpnos_load_end <= 0xED00,
          "cpnos.com CODE end overflows resident BIOS at 0xED00")
+  ASSERT(__ivt_end <= 0xED00,
+         "IVT extends into resident BIOS at 0xED00")
   ASSERT(__stack_top > __cpnos_load_end,
          "stack top <= cpnos.com load end -- pushes will corrupt loaded image")
-  ASSERT(__payload_end <= __ivt_start,
-         "resident payload extends into IVT region")
+  ASSERT(__payload_end <= __scratch_bss_start,
+         "resident payload extends into scratch_bss region")
   ASSERT(__scratch_bss_end <= __stack_low,
          "scratch_bss extends into stack growth area")
 
@@ -267,7 +299,10 @@ SECTIONS {
 #endif
 
   /* Issue #35: IVT must not overlap payload or BSS (memcpy / BSS
-   * clear would stomp the vector table). */
+   * clear would stomp the vector table).  Post-2026-05-08 the IVT
+   * lives at 0xEA00..0xEA23, well below both payload (0xED00+) and
+   * scratch_bss (0xF500+), so these checks are slack but kept as
+   * tripwires against future layout drift. */
   ASSERT(__ivt_end <= __payload_start || __ivt_start >= __payload_end,
          "IVT overlaps .payload")
   ASSERT(__ivt_end <= __scratch_bss_start || __ivt_start >= __scratch_bss_end,
