@@ -41,6 +41,13 @@ RESIDENT_LO = 0xED00
 RESIDENT_HI = 0xF7FF      # inclusive
 PROM0_LO = 0x0000
 PROM0_HI = 0x07FF
+# PROM1 is mapped at LMA 0x2000..0x27FF.  Hosts PAYLOAD_HEADER_P1 (the
+# duplicate header for cross-PROM mismatch detection, #62) at byte 0;
+# resident chunk B follows.  Chunk B is part of the resident chain
+# (anchored at 0xED00 VMA) and gets its LMA from the dd-split, NOT from
+# z88dk -- so chunk B never appears as a separate section in cpnos.map.
+PROM1_LO = 0x2000
+PROM1_HI = 0x27FF
 # BSS scratch range: extended down to 0xEA00 in lockstep with the
 # 2026-05-08 cpnos-build CODE_BASE shift LDE80 -> LDD80 (Path 6), so
 # the SDCC build can grow resident from 2560 B to 2816 B and host a
@@ -51,6 +58,7 @@ BSS_HI = 0xECFF
 # Sections that are allowed to live outside the resident range.
 BSS_SECTIONS = {"bss_compiler", "SCRATCH_BSS"}
 PROM0_SECTIONS = {"RESET", "INIT_CODE", "INIT_RODATA", "PAYLOAD_HEADER"}
+PROM1_SECTIONS = {"PAYLOAD_HEADER_P1"}
 
 # Const/equ symbols (no real address, just a numeric definition).
 def is_const(line: str) -> bool:
@@ -214,6 +222,13 @@ def main(map_path, reset_bin_path=None):
                 violations.append(
                     f"section {name} ({head:04X}..{tail-1:04X}) "
                     f"outside PROM0 range")
+            continue
+        if name in PROM1_SECTIONS:
+            if not (addr_in(head, PROM1_LO, PROM1_HI)
+                    and addr_in(tail - 1, PROM1_LO, PROM1_HI)):
+                violations.append(
+                    f"section {name} ({head:04X}..{tail-1:04X}) "
+                    f"outside PROM1 range {PROM1_LO:04X}..{PROM1_HI:04X}")
             continue
         if name in BSS_SECTIONS:
             if not (addr_in(head, BSS_LO, BSS_HI + 1)

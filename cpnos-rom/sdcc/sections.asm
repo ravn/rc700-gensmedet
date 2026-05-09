@@ -80,6 +80,18 @@
 ; loader caps at 1792 to clear display memory at 0xF800).
 ;-----------------------------------------------------------------
 
+    ; PAYLOAD_HEADER_P1 — duplicate of PAYLOAD_HEADER pinned at PROM1
+    ; byte 0 (LMA 0x2000).  Same bytes as PAYLOAD_HEADER in PROM0; the
+    ; relocator memcmps them at boot to detect cross-PROM mismatch
+    ; (PROM0 from build N-1 + PROM1 from build N — the bug class that
+    ; previously surfaced as "BAD CHECKSUM" with no operator hint of
+    ; which PROMs were involved).  Anchored with `org 0x2000` so z88dk
+    ; emits a separate per-section .bin (cpnos_PAYLOAD_HEADER_P1.bin)
+    ; that the Makefile prepends to PROM1 ahead of resident chunk B.
+    ; #62.
+    SECTION PAYLOAD_HEADER_P1
+    org 0x2000
+
     SECTION RESIDENT_JUMPTABLE
     org 0xED00
 

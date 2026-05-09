@@ -1437,11 +1437,14 @@ $(BUILDDIR)/cpnos_cold.o:     CFLAGS := $(SDCC_INIT_CFLAGS)
 $(BUILDDIR)/transport_sio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
 $(BUILDDIR)/transport_pio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
 $(BUILDDIR)/isr.o:            CFLAGS := $(SDCC_PRE_CFLAGS)
-$(BUILDDIR)/relocator.o:      CFLAGS := $(SDCC_INIT_CFLAGS)
+$(BUILDDIR)/relocator.o:      CFLAGS := $(SDCC_INIT_CFLAGS) -DCPNOS_HAS_P1_HEADER
 
 # Standard SDCC C-object compile rule for relocator.c.  No .inc deps
 # (those are clang-only embeds; the SDCC build is single-link and the
 # resident bytes already live in their RESIDENT_* sections).
+# -DCPNOS_HAS_P1_HEADER turns on the cross-PROM mismatch memcmp gate
+# in relocator.c, parallel to the clang-side definition in the
+# clang relocator.o recipe (#62).
 $(BUILDDIR)/relocator.o: relocator.c payload_header.h compiler/compat.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -1454,20 +1457,21 @@ $(BUILDDIR)/payload_header_data.s: tasks/scripts/gen_payload_header.py \
                                    payload_header.h Makefile \
                                    $(BUILDDIR)/cpnos_buildinfo.h
 	@mkdir -p $(BUILDDIR)
-	@# --no-emit-p1-header: SDCC's sections.asm doesn't yet anchor a
-	@# PAYLOAD_HEADER_P1 section at PROM1 byte 0; until it does, the
-	@# z88dk linker would float the unanchored section into the
-	@# resident chain at 0xED00 and check_sdcc_layout.py would fail
-	@# the build with "section overlap".  Step-2 implementation
-	@# pending in dual-header-plan-2026-05-08.md.
+	@# Dual-header at PROM1 byte 0 (#62): sdcc/sections.asm anchors
+	@# PAYLOAD_HEADER_P1 at LMA 0x2000, gen_payload_header.py emits
+	@# the duplicate section.  Chunk B starts at PROM1 + sizeof(header)
+	@# = 0x2000 + 0x32 = 0x2032; the dd-split in the cpnos.bin recipe
+	@# places resident chunk B at PROM1 byte 0x32, after the header.
+	@# (Header size 0x32 is the link-time __PAYLOAD_HEADER_size; if
+	@# the BSS-pair list grows the header expands, chunk_b_src must
+	@# follow -- check_sdcc_layout.py's PROM1 audit catches drift.)
 	@BUILD_DATE_STR=$$(awk -F'"' '/BUILD_DATE_STR/{print $$2; exit}' \
 	    $(BUILDDIR)/cpnos_buildinfo.h); \
 	 python3 tasks/scripts/gen_payload_header.py \
 	    --syntax=sdcc --symbolic \
-	    --chunk-a-src=0x0520 --chunk-b-src=0x2000 \
+	    --chunk-a-src=0x0520 --chunk-b-src=0x2032 \
 	    --include-ivt \
 	    --build-date-str="$$BUILD_DATE_STR" \
-	    --no-emit-p1-header \
 	    --out=$@
 
 # .c objects (single-link: relocator.c + payload_header_data.s + the
@@ -1676,8 +1680,12 @@ $(BUILDDIR)/cpnos.bin: $(BUILDDIR)/cpnos.cim tasks/scripts/build_prom_image.py \
 	python3 tasks/scripts/build_prom_image.py $(BUILDDIR)/prom0.bin 2048 \
 	    0x000:$(BUILDDIR)/cpnos_RESET.bin \
 	    0x520:$(BUILDDIR)/resident_a.bin
+	@# PROM1: PAYLOAD_HEADER_P1 (50 B) at byte 0, resident chunk B at
+	@# byte 0x32.  Header offset must match --chunk-b-src=0x2032 in
+	@# the gen_payload_header.py invocation (#62).
 	python3 tasks/scripts/build_prom_image.py $(BUILDDIR)/prom1.bin 2048 \
-	    0x000:$(BUILDDIR)/resident_b.bin
+	    0x000:$(BUILDDIR)/cpnos_PAYLOAD_HEADER_P1.bin \
+	    0x032:$(BUILDDIR)/resident_b.bin
 	cat $(BUILDDIR)/prom0.bin $(BUILDDIR)/prom1.bin > $@
 	@# Generate prom0_padded.ic66 (4 KB image MAME loads) here so all
 	@# PROM file outputs come from one recipe.  prom0.bin is 2 KB; pad
