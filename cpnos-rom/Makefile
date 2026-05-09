@@ -250,7 +250,7 @@ endif
 # at runtime.  The payload linker doesn't know about the two EPROMs;
 # a separate relocator stitches it back together at cold boot.
 PAYLOAD_OBJS = $(BUILDDIR)/runtime.o $(BUILDDIR)/bios_jt.o \
-               $(BUILDDIR)/cpnos_main.o \
+               $(BUILDDIR)/cpnos_main.o $(BUILDDIR)/cpnos_cold.o \
                $(BUILDDIR)/resident.o $(BUILDDIR)/cfgtbl.o $(BUILDDIR)/init.o \
                $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o \
                $(NETBOOT_OBJ) \
@@ -410,6 +410,10 @@ endif
 
 # No-op rule -- the file is created/updated by $(shell) at parse time.
 $(BUILDDIR)/cpnos_buildinfo.h: ;
+
+$(BUILDDIR)/cpnos_cold.o: cpnos_cold.c hal.h $(BUILDDIR)/cpnos_buildinfo.h
+	@mkdir -p $(BUILDDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILDDIR)/cpnos_main.o: cpnos_main.c hal.h $(BUILDDIR)/cpnos_addrs.h $(BUILDDIR)/cpnos_buildinfo.h
 	@mkdir -p $(BUILDDIR)
@@ -1429,6 +1433,7 @@ SDCC_INIT_CFLAGS := $(filter-out -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RES
 $(BUILDDIR)/init.o:           CFLAGS := $(SDCC_INIT_CFLAGS)
 $(BUILDDIR)/netboot_mpm.o:    CFLAGS := $(SDCC_INIT_CFLAGS)
 $(BUILDDIR)/cfgtbl.o:         CFLAGS := $(SDCC_INIT_CFLAGS)
+$(BUILDDIR)/cpnos_cold.o:     CFLAGS := $(SDCC_INIT_CFLAGS)
 $(BUILDDIR)/transport_sio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
 $(BUILDDIR)/transport_pio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
 $(BUILDDIR)/isr.o:            CFLAGS := $(SDCC_PRE_CFLAGS)
@@ -1459,7 +1464,7 @@ $(BUILDDIR)/payload_header_data.s: tasks/scripts/gen_payload_header.py \
 	    $(BUILDDIR)/cpnos_buildinfo.h); \
 	 python3 tasks/scripts/gen_payload_header.py \
 	    --syntax=sdcc --symbolic \
-	    --chunk-a-src=0x0400 --chunk-b-src=0x2000 \
+	    --chunk-a-src=0x0520 --chunk-b-src=0x2000 \
 	    --include-ivt \
 	    --build-date-str="$$BUILD_DATE_STR" \
 	    --no-emit-p1-header \
@@ -1469,7 +1474,8 @@ $(BUILDDIR)/payload_header_data.s: tasks/scripts/gen_payload_header.py \
 # resident sources all link in one z88dk pass).  No runtime.s / no
 # payload.elf / no payload_checksum.c -- those are clang-only artifacts
 # from the two-stage clang pipeline.
-SDCC_C_OBJS = $(BUILDDIR)/cpnos_main.o $(BUILDDIR)/resident.o \
+SDCC_C_OBJS = $(BUILDDIR)/cpnos_main.o $(BUILDDIR)/cpnos_cold.o \
+              $(BUILDDIR)/resident.o \
               $(BUILDDIR)/cfgtbl.o $(BUILDDIR)/init.o \
               $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o \
               $(NETBOOT_OBJ) $(BUILDDIR)/isr.o \
@@ -1662,9 +1668,14 @@ print(f'  bumped header chunk_b_size to {v} (= {v:#x}) at offset {o:#x} of ' + s
 	     $(BUILDDIR)/cpnos_RESET.bin; \
 	 fi
 	python3 cpnos-build/patch_payload_checksum.py $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin
+	@# Phase 51A.2: chunk A starts at PROM0 0x0520 (was 0x0400) to mirror
+	@# clang's layout — extra 288 B of INIT_CODE budget absorbs the
+	@# cpnos_cold.c content moved out of cpnos_main.c (see Phase 51A.2
+	@# split).  PROM0 init region 0x0000..0x051F = 1312 B; chunk A
+	@# 0x0520..0x07FF = 736 B.
 	@RES_TOTAL=$$(wc -c < $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin | tr -d ' '); \
-	 RES_A=1024; \
-	 if [ $$RES_TOTAL -lt 1024 ]; then RES_A=$$RES_TOTAL; fi; \
+	 RES_A=736; \
+	 if [ $$RES_TOTAL -lt 736 ]; then RES_A=$$RES_TOTAL; fi; \
 	 RES_B=$$((RES_TOTAL - RES_A)); \
 	 dd if=$(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin of=$(BUILDDIR)/resident_a.bin \
 	    bs=1 count=$$RES_A status=none; \
@@ -1674,7 +1685,7 @@ print(f'  bumped header chunk_b_size to {v} (= {v:#x}) at offset {o:#x} of ' + s
 	 else : > $(BUILDDIR)/resident_b.bin; fi
 	python3 tasks/scripts/build_prom_image.py $(BUILDDIR)/prom0.bin 2048 \
 	    0x000:$(BUILDDIR)/cpnos_RESET.bin \
-	    0x400:$(BUILDDIR)/resident_a.bin
+	    0x520:$(BUILDDIR)/resident_a.bin
 	python3 tasks/scripts/build_prom_image.py $(BUILDDIR)/prom1.bin 2048 \
 	    0x000:$(BUILDDIR)/resident_b.bin
 	cat $(BUILDDIR)/prom0.bin $(BUILDDIR)/prom1.bin > $@

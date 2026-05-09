@@ -208,9 +208,12 @@ _pio_rx_buf:
 ; the first sub-section (bss_pio_rx, page-aligned at 0xEB00) and
 ; the tail of the last (bss_string).
 ;
-; chunk_a_size is fixed at 1024 to match build_prom_image.py's dd-split.
-; chunk_b_size is derived from where RESIDENT_DATA actually ends, so
-; growing the resident grows chunk_b automatically (no Makefile edit).
+; chunk_a_size is fixed at 736 to match build_prom_image.py's dd-split
+; at PROM0 0x0520 (was 1024 / 0x0400 pre-Phase-51A.2; Phase 51A.2 moved
+; chunk A start to 0x0520 to mirror clang's layout, giving INIT_CODE
+; the room to absorb cpnos_cold.c).  chunk_b_size is derived from
+; where RESIDENT_DATA actually ends, so growing the resident grows
+; chunk_b automatically (no Makefile edit).
 ;-----------------------------------------------------------------
 
     EXTERN __bss_pio_rx_head
@@ -229,5 +232,5 @@ _pio_rx_buf:
 
     PUBLIC __payload_chunk_a_size
     PUBLIC __payload_chunk_b_size
-    defc __payload_chunk_a_size = 1024
-    defc __payload_chunk_b_size = __RESIDENT_DATA_tail - 0xED00 - 1024
+    defc __payload_chunk_a_size = 736
+    defc __payload_chunk_b_size = __RESIDENT_DATA_tail - 0xED00 - 736
