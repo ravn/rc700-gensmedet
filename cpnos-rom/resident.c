@@ -280,19 +280,16 @@ static void delete_line(void) {
 RESIDENT
 static void insert_line(void) {
     /* Shift rows cury..23 down by one row, blank row cury.  Regions
-     * overlap (dst > src) so memmove must back-copy (LDDR).  Both
-     * compilers see plain __builtin_memmove: clang lowers to runtime.s
-     * _memmove (~40 B, sdcccall(1)); SDCC's <string.h> rewrites to
-     * memmove_callee, resolved by sdcc/runtime.asm (~33 B) instead of
-     * the 150 B z88dk libc version.
-     *
-     * Compute the row pointer ONCE and use pointer arithmetic for the
-     * memmove dst and the trailing memset — SDCC otherwise expands the
-     * `cury * SCRN_COLS` chain three times (count + 2 CELL() calls). */
+     * overlap (dst > src) — caller statically knows direction, so use
+     * mem_copy_backwards (compat.h) instead of __builtin_memmove.
+     * That bypasses the 13 B direction-check + add-bc/dec-hl preamble
+     * inside _memmove_callee on SDCC and avoids a function call
+     * entirely on clang.  Tracked as ravn/rc700-gensmedet#77. */
     uint8_t *row = CELL(0, cury);
     if (cury + 1 < SCRN_ROWS) {
-        size_t count = (size_t)(SCRN_ROWS - 1 - cury) * SCRN_COLS;
-        __builtin_memmove(row + SCRN_COLS, row, count);
+        size_t count   = (size_t)(SCRN_ROWS - 1 - cury) * SCRN_COLS;
+        uint8_t *src_e = row + count - 1;
+        mem_copy_backwards(src_e + SCRN_COLS, src_e, count);
     }
     __builtin_memset(row, ' ', SCRN_COLS);
 }

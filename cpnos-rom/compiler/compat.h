@@ -240,6 +240,46 @@
 #endif
 
 /* ================================================================
+ * mem_copy_backwards — direction-known overlap-safe block move.
+ *
+ * For callers that statically know dst > src (e.g. shifting display
+ * rows down).  Skips the runtime direction check + add-bc/dec-hl
+ * preamble inside the general memmove path.  Args are END-pointers
+ * (last byte of region) per LDDR semantics:
+ *
+ *     mem_copy_backwards(dst + n - 1, src + n - 1, n)
+ *
+ * Equivalent to memmove(dst, src, n) when caller knows dst > src.
+ *
+ * Clang lowers to inline LDDR (~6 B at the call site, no call).
+ * SDCC calls _mem_copy_backwards_callee in sdcc/runtime.asm (~12 B
+ * helper + push push push call site).  Both bypass the 33 B
+ * _memmove_callee dispatch.  Tracked as ravn/rc700-gensmedet#77.
+ * ================================================================ */
+#include <stddef.h>
+#if defined(__clang__) && defined(__z80__)
+static inline void mem_copy_backwards(void *dst_end, const void *src_end,
+                                      size_t n) {
+    __asm__ volatile("lddr"
+        : "+{de}"(dst_end), "+{hl}"(src_end), "+{bc}"(n)
+        :
+        : "memory");
+}
+#elif defined(__SDCC) || defined(__SCCZ80)
+extern void mem_copy_backwards_callee(void *dst_end, const void *src_end,
+                                      size_t n) __z88dk_callee;
+#define mem_copy_backwards(d, s, n)  mem_copy_backwards_callee((d), (s), (n))
+#else
+/* Host stub for IDE LSP — portable equivalent (slower but correct). */
+static inline void mem_copy_backwards(void *dst_end, const void *src_end,
+                                      size_t n) {
+    unsigned char       *d = (unsigned char *)dst_end;
+    const unsigned char *s = (const unsigned char *)src_end;
+    while (n--) *d-- = *s--;
+}
+#endif
+
+/* ================================================================
  * Z80 intrinsics — di / ei / halt / nop / im_2 / ld i,a
  *
  * Using one consistent vocabulary across the two compilers:

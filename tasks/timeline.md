@@ -392,6 +392,121 @@
                      #70 (inline _memset, deferred),
                      #71 (--opt-code-size, untested).
 
+## Phase 51B: cpnos-rom SDCC resident shrink — followups #76, #70, #72, #73 (May 9, 2026 cont.) — Medium
+
+- **Goal**: continue Phase 51A's structural+ifdef shrink toward clang
+  parity.  Six commits this session (40d30b8 -> 8b9f611), three of
+  them codegen-area shrinks, two structural+correctness, one new
+  inline asm helper.
+
+- **#76 narrow port API (commit 0ea01bd, -60 B SDCC resident)**:
+  `_port_in(uint16_t)` / `_port_out(uint16_t, uint16_t)` -> 8-bit
+  arguments.  Z80 I/O is hardware-8-bit; A8-A15 not decoded for I/O
+  on RC702.  sdcccall(1) packs the 8-bit port into A and val into L
+  (no stack), shrinking the per-call sequence.  Helper rewritten in
+  hal.asm uses `ld c,a; in a,(c)` / `ld c,a; ld a,l; out (c),a`.
+
+- **#70 inline _memset (commit 76c138c)**: replaces `__builtin_memset`
+  in resident.c::erase_to_eol/eos with hand-rolled byte loops.  z88dk
+  was emitting a libc `_memset` call (~30 B + dispatch); the inline
+  loop is 6 B per site.  Eliminates the last z88dk libcall in
+  resident code.  Sister fix: clang's `__builtin_memset` already
+  inlines via LDIR-from-self for short constant counts.
+
+- **#72 fix (commits 501efb4 + e8bd1f1, -174 B SDCC resident)**:
+  bisected the Phase 51A.3 warm-boot regression.  Root cause:
+  patch_payload_checksum.py overwrites the last 2 bytes of the
+  linked resident image to make the word-additive checksum equal
+  0xCAFE.  When resident shrank in Phase 51A, those 2 bytes
+  collided with `_zp_init_data[6..7]`.  ZP[7] became 0x2D instead
+  of 0xE7; CCP loaded with garbage in zero-page; warm-boot loop.
+  Fix: dedicated `RESIDENT_CHECKSUM` section at end of resident
+  chain holding a 2-byte placeholder.  Removed dead boot_probe /
+  p_hex / bios_log_byte function bodies post-fix (-174 B).
+
+- **#73 partial collapse, two of N sites (commits ca5663f, 8b9f611)**:
+  collapse `#if defined(__clang__)` ifdefs gating inline LDIR/LDDR.
+  - **cpnos_main.c LDIR site** (ca5663f): replaced with portable
+    `__builtin_memcpy((void *)0, zp_init_data, 8)`.  Discovery: z88dk
+    sdcc_peeph.3 inlines memcpy() to LDIR for both constant AND
+    runtime sizes — no libcall.  Byte-neutral on both compilers.
+  - **resident.c::insert_line LDDR site** (8b9f611): replaced with
+    `__builtin_memmove(row + SCRN_COLS, row, count)`.  Added
+    sdcc/runtime.asm with tight `_memmove_callee` (33 B) that
+    overrides z88dk libc's 150 B version.  Refactored to share
+    `row = CELL(0, cury)` once (hand-CSE for SDCC's local-only iCode
+    optimizer).  **Side effect, correctness fix**: the previous SDCC
+    `_insert_line` was a no-op stub (`(void)src; (void)dst;
+    (void)count;`).  CP/NOS slave never scrolled-down on Ctrl-A;
+    only the bottom row got blanked.  This commit makes insert_line
+    work under SDCC for the first time.  +100 B SDCC resident is
+    "0 -> working", not "small -> bigger".
+
+- **#77 (Phase 51B.7, commit TBD)**: `_memmove_bwd_callee` for
+  callers that statically know dst > src.  Saves direction check +
+  add-bc/dec-hl preamble (~13 B inside helper).  insert_line is the
+  obvious caller.  See implementation below.
+
+- **Cumulative result** (Phase 51A.4 -> Phase 51B):
+
+  | metric | start (51A.4) | after 51B | Δ |
+  |---|---:|---:|---:|
+  | SDCC resident | 2050 B | **1874 B** | **−176 B (−9%)** |
+  | Cumulative since Phase 49 | 2756 B | 1874 B | **−882 B (−32%)** |
+  | Gap vs clang | +408 B | **+158 B (+9%)** | gap closed by 61% |
+  | Clang resident | 1714 B | 1716 B | +2 B (~neutral) |
+  | Clang PROM0 | 1986 B | 1987 B | +1 B (~neutral) |
+  | ifdef sites collapsed | — | 2 | — |
+
+- **Lessons (session 51B)**:
+
+  (a) **Z88dk's sdcc_peeph.3 inlines `memcpy` to LDIR** for both
+      constant and runtime counts.  No need for `intrinsic_ldi(...)`
+      or hand-rolled inline asm; portable `__builtin_memcpy` is the
+      tightest option.  Discovered by probe-compile after the
+      `__builtin_memmove blows up payload size` comment turned out
+      to be stale.  Update the lessons doc when the toolchain has
+      moved on; comments rot fast.
+
+  (b) **`memmove` does NOT inline** — z88dk's `<string.h>` rewrites
+      `memmove(d,s,n)` to `_memmove_callee(d,s,n)` which is ~150 B in
+      libc.  Override in user object file (linker prefers user
+      symbols over libc) for ~33 B custom callee-cleanup version.
+      Three 16-bit args force fully-stack-passed callee-cleanup ABI
+      (sdcccall(1) only register-passes first two).
+
+  (c) **No-op stubs are silent correctness bugs**.  `_insert_line`
+      had `#else (void)src; (void)dst; (void)count;` — SDCC built it
+      as a literal no-op for sessions.  Audited every clang/SDCC
+      ifdef site for similar patterns; no other harmful stubs found.
+      Three "stubby"-looking sites are intentional alternate-mode
+      markers (TRANSPORT_PROXY) or empty-but-functional helpers.
+
+  (d) **SDCC has no global CSE** — local-only iCode CSE inside a
+      basic block, no GVN/PRE pass, no flag toggles a global pass.
+      Pointer-arithmetic shift-add chains expand at codegen time
+      after iCode CSE has finished.  `cury * SCRN_COLS` repeated 3
+      times = 3 separate shift-add chains in asm.  Hand-CSE in C
+      source (assign to a local) is the only fix.  Clang doesn't
+      care because LLVM has GVN + InstCombine + DAG combiner.
+
+  (e) **0x520 is derived bottom-up** from upstream-region size
+      caps in relocator.ld: reset (16 B) + relocator+header (672 B
+      via `ASSERT __reloc_code_end <= 0x2A0`) + init (640 B via
+      `ASSERT __init_end <= 0x520`) = 0x520.  PROM0 chunk-A budget =
+      0x800 - 0x520 = 736 B (full on both compilers).  Three places
+      must agree: relocator.ld, Makefile (`PROM0_TAIL_SIZE`),
+      sdcc/sections.asm (`__payload_chunk_a_size`).
+
+- **Issue activity**:
+  Closed: #76 (narrow port API), #70 (inline _memset), #72 (checksum
+          overlap with zp_init_data), partial #73 (2 of N ifdef sites).
+  Filed:  #77 (`_memmove_bwd_callee` for direction-known callers).
+  Open:   #73 (remaining ifdef sites — needs sdcc/runtime.asm
+          additions or upstream z88dk peephole rules), #75 (SNIOS
+          asm-to-C, multi-session, biggest remaining lever), #71
+          (--opt-code-size, deferred).
+
 ## Phase 50: cpnos-rom SDCC cold-init code -> PROM-only (May 9, 2026) — Easy
 
 - **Goal**: shrink SDCC resident size by mirroring clang's `.init`
