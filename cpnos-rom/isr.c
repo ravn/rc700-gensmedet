@@ -46,6 +46,7 @@
 
 #include <stdint.h>
 #include "compiler/compat.h"
+#include "hal.h"   /* FRAME_COUNTER_ADDR */
 
 /* BSS symbols touched by inline asm in this file but defined elsewhere.
  * SDCC's asm emitter only generates EXTERN directives for C-level
@@ -137,7 +138,7 @@ void isr_crt(void) __naked {
          * value alongside other counters so a transient zero is
          * unambiguous).  ~13 bytes; INC (HL) sets Z on zero, so
          * propagate carry by jr nz from each byte. */
-        "ld   hl, 0xFFFC\n\t"
+        "ld   hl, " CPNOS_STR(FRAME_COUNTER_ADDR) "\n\t"
         "inc  (hl)\n\t"
         "jr   nz, _isr_crt_count_done\n\t"
         "inc  hl\n\t"

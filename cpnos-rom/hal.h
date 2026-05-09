@@ -127,6 +127,13 @@ enum : uint8_t {
 #define DISPLAY_ADDR 0xF800
 #define DISPLAY_SIZE 2000        /* 80 x 25 */
 
+/* 32-bit frame counter at 0xFFFC..0xFFFF, incremented by isr_crt
+ * on every CRT VRTC tick (50 Hz).  Top of the Z80 address space,
+ * just above display memory.  Mirrors rcbios's RTC location
+ * (RC702_BIOS_SPECIFICATION.md §3.4).  Bench / test harnesses read
+ * this as a wall-clock counter immune to MAME's variable speed. */
+#define FRAME_COUNTER_ADDR 0xFFFC
+
 /* Boot-progress marker: write a char to display row 0, right-justified
  * starting at column BOOT_MARK_BASE (=60).  Indices 0..18 occupy cols
  * 60..78 — the upper-right corner.  Call only after init_hardware
