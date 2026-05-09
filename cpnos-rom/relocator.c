@@ -88,6 +88,14 @@ static const uint8_t payload_b[] = {
  * and is visible to mame_boot_test.lua's display-memory probe. */
 static const char BAD_CHECKSUM_MSG[] = "BAD CHECKSUM";
 
+/* "MAGIC FAIL" stamped to display memory if the payload header's
+ * magic field is corrupted (PROM bit rot, missing prom1.ic65,
+ * header section discarded by linker, etc.).  Without this, the
+ * outermost integrity gate halts with a silent blank screen — same
+ * symptom as a power-on fault, wrong CTC ch2 setup, or missing PROM
+ * (#63). */
+static const char MAGIC_FAIL_MSG[] = "MAGIC FAIL";
+
 /* Minimum 8237 DMA + 8275 CRT init to drive display memory at 0xF800
  * visibly.  Subset of init_hardware's port_init table -- only the
  * channels that drive the screen, no IRQ enables, no SIO setup, no
@@ -208,12 +216,11 @@ static inline void relocator_zero(void *dst, uint16_t len) {
 NORETURN void relocate(void) {
     const struct payload_header *h = &payload_header;
 
-    /* Magic check.  Halts loudly on stale/missing/corrupt header. */
-    if (h->magic != PAYLOAD_HEADER_MAGIC) for (;;) { }
-
-    /* Display init -- programs the 8237 DMA ch2 + 8275 CRT so the
-     * subsequent build_date_str stamp / PROM-MISMATCH / BAD-CHECKSUM
-     * messages are visible.  Runs DI; safe before any other setup.
+    /* Display init FIRST -- programs the 8237 DMA ch2 + 8275 CRT so
+     * EVERY subsequent failure path (MAGIC FAIL, PROM MISMATCH, BAD
+     * CHECKSUM) leaves a visible message on screen rather than a
+     * silent blank-screen halt.  Runs DI; safe before any other
+     * setup.
      *
      * Hand-coded asm because the relocator builds without
      * +static-stack: a C-level for-loop with `_port_out(port, val)`
@@ -239,6 +246,14 @@ NORETURN void relocate(void) {
         "out  (c), a\n\t"
         "djnz l_reloc_disp_loop\n\t"
     );
+
+    /* Magic check.  Halts loudly on stale/missing/corrupt header
+     * with "MAGIC FAIL" stamped to display row 0 (#63). */
+    if (h->magic != PAYLOAD_HEADER_MAGIC) {
+        __builtin_memcpy((void *)0xF800, MAGIC_FAIL_MSG,
+                         sizeof MAGIC_FAIL_MSG - 1);
+        for (;;) { }
+    }
 
     /* Stamp the build date into display memory at row 0, columns 0..15.
      * The 8275 CRT controller drives the screen from RAM at 0xF800 in
