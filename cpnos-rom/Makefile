@@ -1431,12 +1431,20 @@ SDCC_PRE_CFLAGS := $(filter-out -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RESI
 # clang relocator.ld putting it in the relocator-side ELF.
 SDCC_INIT_CFLAGS := $(filter-out -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RESIDENT_RODATA",$(CFLAGS)) \
                     -Cs"--codeseg INIT_CODE" -Cs"--constseg INIT_RODATA"
-$(BUILDDIR)/init.o:           CFLAGS := $(SDCC_PRE_CFLAGS)
-$(BUILDDIR)/netboot_mpm.o:    CFLAGS := $(SDCC_PRE_CFLAGS)
+# init.c, netboot_mpm.c, cfgtbl.c are PROM-only cold-init: their code
+# runs once before resident_handoff's `OUT (0x18),A` disables the PROMs,
+# and is never reached again.  Routing them to INIT_CODE/INIT_RODATA
+# (PROM0 anchor group) instead of RESIDENT_PRE_CODE (RAM) frees the
+# RAM bytes, mirroring clang's `.init` section.  Net resident saving
+# at HEAD: ~374 B (init.c ~110 B + netboot_mpm.c ~229 B + cfgtbl_init
+# ~35 B).  cfgtbl's BSS variable stays in bss_compiler regardless --
+# only the cold-init code/rodata moves to PROM-only.
+$(BUILDDIR)/init.o:           CFLAGS := $(SDCC_INIT_CFLAGS)
+$(BUILDDIR)/netboot_mpm.o:    CFLAGS := $(SDCC_INIT_CFLAGS)
+$(BUILDDIR)/cfgtbl.o:         CFLAGS := $(SDCC_INIT_CFLAGS)
 $(BUILDDIR)/transport_sio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
 $(BUILDDIR)/transport_pio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
 $(BUILDDIR)/isr.o:            CFLAGS := $(SDCC_PRE_CFLAGS)
-$(BUILDDIR)/cfgtbl.o:         CFLAGS := $(SDCC_PRE_CFLAGS)
 $(BUILDDIR)/relocator.o:      CFLAGS := $(SDCC_INIT_CFLAGS)
 
 # Standard SDCC C-object compile rule for relocator.c.  No .inc deps
