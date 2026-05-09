@@ -27,23 +27,26 @@
  * Backend selection: _port_in / _port_out.
  *
  * Same signature in every backend:
- *     uint8_t _port_in (uint16_t port);
- *     void    _port_out(uint16_t port, uint8_t value);
+ *     uint8_t _port_in (uint8_t port);
+ *     void    _port_out(uint8_t port, uint8_t value);
  *
- * The uint16_t port type is wider than the Z80's 8-bit I/O bus but
- * matches the existing call sites (PORT_DMA_* are typed uint16_t for
- * historical reasons).  Backends truncate to 8 bits at the IN/OUT
- * instruction.
+ * Z80 IN/OUT instructions are fundamentally 8-bit (port on A0-A7).
+ * On RC702, A8-A15 are not decoded for I/O, so the wider type that
+ * was previously used (uint16_t, "for historical reasons") has no
+ * functional effect.  Narrowing to uint8_t matches the actual hardware
+ * (#76).  Backends use 8-bit port directly: clang's address_space(2)
+ * lowers to `IN A,(n)`/`OUT (n),A` for constants and `IN A,(C)`/
+ * `OUT (C),A` for runtime ports; SDCC's hal.asm uses the (C) form.
  * ================================================================ */
 
 #if defined(__clang__) && defined(__z80__)
 /* clang Z80 backend: address_space(2) lowers to IN/OUT directly. */
 #define __io __attribute__((address_space(2)))
-static inline uint8_t _port_in(uint16_t p) {
-    return *(volatile __io uint8_t *)p;
+static inline uint8_t _port_in(uint8_t p) {
+    return *(volatile __io uint8_t *)(uint16_t)p;
 }
-static inline void _port_out(uint16_t p, uint8_t v) {
-    *(volatile __io uint8_t *)p = v;
+static inline void _port_out(uint8_t p, uint8_t v) {
+    *(volatile __io uint8_t *)(uint16_t)p = v;
 }
 
 #elif defined(__SDCC) || defined(__SCCZ80)
@@ -53,8 +56,8 @@ static inline void _port_out(uint16_t p, uint8_t v) {
  * costs ~17 T-states per call (CALL + asm body + RET) versus ~12 T
  * inline.  Fine on boot init paths.  Hot-path SDCC code can still
  * use __sfr __at directly if it must shave the call. */
-extern uint8_t _port_in (uint16_t p);
-extern void    _port_out(uint16_t p, uint8_t v);
+extern uint8_t _port_in (uint8_t p);
+extern void    _port_out(uint8_t p, uint8_t v);
 
 #elif defined(__HITECH__) || defined(HI_TECH_C)
 /* HiTech C (zc / Hi-Tech Z80 C, ravn/hitech via ghcr.io/ravn/hitech).
@@ -69,8 +72,8 @@ extern void    _port_out(uint16_t p, uint8_t v);
 #else
 /* Host clang on macOS (CLion LSP, no real Z80 target).  Stubs let
  * the IDE parse the sources cleanly — no diagnostics, no codegen. */
-static inline uint8_t _port_in(uint16_t p) { (void)p; return 0; }
-static inline void    _port_out(uint16_t p, uint8_t v) { (void)p; (void)v; }
+static inline uint8_t _port_in(uint8_t p) { (void)p; return 0; }
+static inline void    _port_out(uint8_t p, uint8_t v) { (void)p; (void)v; }
 #endif
 
 /* ================================================================
@@ -107,8 +110,10 @@ enum : uint8_t {
     SIO_RR0_CTS           = 0x20
 };
 
-/* 8237 DMA controller — channel 2 = CRT display, channel 3 = CRT attr. */
-enum : uint16_t {
+/* 8237 DMA controller — channel 2 = CRT display, channel 3 = CRT attr.
+ * Narrowed from uint16_t to uint8_t in #76: all values fit in 8 bits;
+ * Z80 I/O is 8-bit on the wire; RC702 doesn't decode A8-A15 for I/O. */
+enum : uint8_t {
     PORT_DMA_CH2_ADDR = 0xF4,
     PORT_DMA_CH2_WC   = 0xF5,
     PORT_DMA_CH3_ADDR = 0xF6,
