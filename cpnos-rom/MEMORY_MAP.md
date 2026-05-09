@@ -104,10 +104,13 @@ All prod-build trace bumps were removed in Phase 18 (commit
 c54229c).  Page 0xEC40..0xECFF is free for future diagnostic
 scratch; reservations from Phase 16-17 are no longer live code.
 
-A MAME Lua tap on CPU-fetch of 0x0005 (in `mame_smoke_dump.lua`)
-remains the primary external diagnostic — dumps every BDOS call
-(fn, DE, caller, DMA-buffer contents) to `/tmp/cpnos_bdos_trace.txt`.
-This lives outside the PROM.
+External Lua-tap diagnostics live in `mame_*_trace.lua` /
+`mame_*_test.lua` (`mame_polypascal_test.lua`, `mame_bios_jt_trace.lua`,
+`mame_minimal_trace.lua`).  These run outside the PROM and capture
+control-flow / register-state evidence without affecting the PROM
+image.  The earlier `mame_smoke_dump.lua` was retired in the Phase 48
+harness cleanup along with the Python netboot simulator it depended
+on.
 
 ## Key non-address facts
 

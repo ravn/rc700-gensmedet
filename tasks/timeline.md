@@ -307,6 +307,44 @@
   - **#21** runtime version check at boot (low priority).
   - **#13** hunt remaining JP-0 sources in SDCC build (gated on #29).
 
+## Phase 48b: cpnos-netboot harness retired (May 9, 2026) — Easy
+
+- **Goal**: remove the dead Python netboot harness that closed
+  issues #38 and #60 left behind.  All five targets that depended on
+  it had been broken since Path 6 (cpnos.com base shifts) and the
+  SDCC port (different cfgtbl/BIOS-JT placements); the supporting
+  test scripts hardcoded pre-Path-6 addresses.
+
+- **Removed**:
+  - Files: `netboot_server.py`, `sio_b_driver.py`, `mame_boot_test.lua`,
+    `mame_sub_test.lua`, `mame_acid_test.lua`, `mame_smoke_dump.lua`,
+    `mame_jt_probe.lua`, `testutil/acid.c`.
+  - Targets: `cpnos-mame`, `cpnos-netboot`, `cpnos-warmboot-test`,
+    `cpnos-sub-test`, `conout-acid`, `cpnos-trace`, `cpnos-interactive`
+    (last one had become non-functional with the Python harness retirement).
+  - Vars: `NETBOOT_PORT`, `SIOB_PORT`, `SIOB_TRIGGER`, `SIOB_INJECT`,
+    `Z88DK_ROOT`/`Z88DK_ZCC` (acid build).
+  - `testutil/acid.com` build rule.
+  - Stale `mame_smoke_dump.lua` reference in `MEMORY_MAP.md`.
+
+- **Kept** (still in active use):
+  - `mame_polypascal_test.lua` (canonical end-to-end test).
+  - `mame_bios_jt_trace.lua` (BIOS-JT/SNIOS-JT diagnostic).
+  - `mame_minimal_trace.lua` (Phase 48 BDOS+SNIOS-body diagnostic).
+  - `mame_extended_trace.lua` (this session's exploratory probe).
+  - `mame_porttap.lua` (used by smoke targets).
+  - `cpnet_pio_server.py` (used by `pio-proxy-smoke`).
+
+- **Side note**: SERVER=proxy mode (slave-side `netboot.c` legacy)
+  now has no working server.  Comment in Makefile updated to point
+  at issue #19 ("decide fate of legacy netboot.c / SERVER=proxy")
+  for the eventual decision.
+
+- **Verification**: `make cpnos COMPILER=clang` and `COMPILER=sdcc
+  TRANSPORT=pio-irq` both build clean; `make cpnos-polypascal-test
+  COMPILER=sdcc TRANSPORT=pio-irq` -> PASS (t=52.1 s, no
+  regression from Phase 48).
+
 ## Phase 48: cpnos-rom SDCC pio-irq PASS — z88dk-zsdcc constant-folding bug found and worked around (May 9, 2026) — Painful
 
 - **Goal**: close issue #60 (cpnos-rom SDCC: control-flow lost ~3.6s

@@ -180,9 +180,12 @@ else ifeq ($(PIO_LOOPBACK_TEST),1)
 CFLAGS += -DPIO_LOOPBACK_TEST
 endif
 
-# Server side: default is standard MP/M II (cpmsim mpm-net2).
-# Override with SERVER=proxy to use the legacy Python netboot_server.py
-# (FMT=0xB0 custom protocol).
+# Server side: default is standard MP/M II (cpmsim mpm-net2).  The
+# `proxy` mode (slave-side netboot.c) used to talk to a Python
+# netboot_server.py simulator; that harness was retired with the
+# Phase 48 cleanup, so SERVER=proxy now produces a slave that has
+# no working server to talk to -- kept compiling for issue #19's
+# decision on the fate of legacy netboot.c.
 SERVER ?= mpm
 
 ifeq ($(SERVER),mpm)
@@ -1001,9 +1004,9 @@ sio-smoke:
 	@echo "=== 2/5 restarting MP/M with fresh drive D: ==="
 	-screen -S mpm -X quit >/dev/null 2>&1 || true
 	@sleep 1
-	@# Guard: make sure nothing else is squatting on :4002 (stray
-	@# netboot_server.py, orphan cpmsim, ...) — any phantom listener
-	@# will intercept MAME's netboot and produce misleading results.
+	@# Guard: make sure nothing else is squatting on :4002 (orphan
+	@# cpmsim from a previous run, etc.) — any phantom listener will
+	@# intercept MAME's netboot and produce misleading results.
 	@if lsof -nP -iTCP:4002 -sTCP:LISTEN 2>/dev/null | grep -q .; then \
 	    echo "ERROR: port 4002 already bound — kill the squatter first:"; \
 	    lsof -nP -iTCP:4002 -sTCP:LISTEN; \
@@ -1029,14 +1032,6 @@ sio-smoke:
 	    -autoboot_script mame_porttap.lua
 	@kill $$(cat /tmp/cpnos_smoke_inject.pid) 2>/dev/null || true
 	@$(MAKE) _verify-bench WORKLOAD=$(WORKLOAD)
-
-cpnos-mame: cpnos-install
-	$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
-	    -nothrottle -window -skip_gameinfo \
-	    -seconds_to_run 8 \
-	    -rs232a null_modem \
-	    -bitb1 /tmp/cpnos_sioa.raw \
-	    -autoboot_script mame_boot_test.lua
 
 # ---- pio-irq-netboot: PIO-IRQ-direct topology against mpm-net2 -----
 #
@@ -1210,154 +1205,6 @@ _pio-proxy-smoke-impl: cpnos-install _check-tag-pio-prx _check-mame-irq
 	@kill $$(cat /tmp/cpnos_pio_server.pid)   2>/dev/null || true
 	@$(MAKE) _verify-bench WORKLOAD=$(WORKLOAD)
 
-# End-to-end netboot test: Python server on localhost, MAME bridged to
-# it over SIO-A null_modem.
-NETBOOT_PORT ?= 9000
-SIOB_PORT    ?= 9001
-SIOB_TRIGGER ?=
-SIOB_INJECT  ?=
-cpnos-netboot: cpnos-install
-	@rm -f /tmp/cpnos_netboot_server.log /tmp/cpnos_siob.raw /tmp/cpnos_siob_driver.log
-	@python3 -u netboot_server.py $(NETBOOT_PORT) > /tmp/cpnos_netboot_server.log 2>&1 & \
-	 echo $$! > /tmp/cpnos_netboot_server.pid
-	@python3 -u sio_b_driver.py $(SIOB_PORT) \
-	    $(if $(SIOB_TRIGGER),--trigger '$(SIOB_TRIGGER)') \
-	    $(if $(SIOB_INJECT),--inject '$(SIOB_INJECT)') \
-	    > /tmp/cpnos_siob_driver.log 2>&1 & \
-	 echo $$! > /tmp/cpnos_siob_driver.pid
-	@sleep 0.3
-	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
-	    -nothrottle -window -skip_gameinfo \
-	    -seconds_to_run 70 \
-	    -rs232a null_modem \
-	    -bitb1 "socket.127.0.0.1:$(NETBOOT_PORT)" \
-	    -rs232b null_modem \
-	    -bitb2 "socket.127.0.0.1:$(SIOB_PORT)" \
-	    -autoboot_script mame_boot_test.lua
-	@kill $$(cat /tmp/cpnos_netboot_server.pid) 2>/dev/null || true
-	@kill $$(cat /tmp/cpnos_siob_driver.pid) 2>/dev/null || true
-	@echo "--- server log ---"
-	@cat /tmp/cpnos_netboot_server.log
-	@echo "--- SIO-B driver log ---"
-	@cat /tmp/cpnos_siob_driver.log
-	@echo "--- SIO-B capture (printable) ---"
-	@tr -cd '\11\12\15\40-\176' < /tmp/cpnos_siob.raw 2>/dev/null || true
-	@echo
-	@echo "--- boot test ---"
-	@cat /tmp/cpnos_boot_result.txt
-	@grep -q '^PASS' /tmp/cpnos_boot_result.txt
-
-# Step 1 of the smoke plan: ^C warm boot via SIO-B injection.
-# Runs long enough for cold boot + ^C + full CCP.SPR reload, then
-# asserts the server observed two OPEN events for CCP.SPR.
-cpnos-warmboot-test: cpnos-install
-	@rm -f /tmp/cpnos_netboot_server.log /tmp/cpnos_siob.raw /tmp/cpnos_siob_driver.log
-	@python3 -u netboot_server.py $(NETBOOT_PORT) > /tmp/cpnos_netboot_server.log 2>&1 & \
-	 echo $$! > /tmp/cpnos_netboot_server.pid
-	@python3 -u sio_b_driver.py $(SIOB_PORT) \
-	    --trigger 'E>' --inject '\x03' --timeout 30 \
-	    > /tmp/cpnos_siob_driver.log 2>&1 & \
-	 echo $$! > /tmp/cpnos_siob_driver.pid
-	@sleep 0.3
-	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
-	    -nothrottle -window -skip_gameinfo \
-	    -seconds_to_run 25 \
-	    -rs232a null_modem \
-	    -bitb1 "socket.127.0.0.1:$(NETBOOT_PORT)" \
-	    -rs232b null_modem \
-	    -bitb2 "socket.127.0.0.1:$(SIOB_PORT)"
-	@kill $$(cat /tmp/cpnos_netboot_server.pid) 2>/dev/null || true
-	@kill $$(cat /tmp/cpnos_siob_driver.pid) 2>/dev/null || true
-	@echo "--- server log (OPEN events) ---"
-	@grep -E 'opened|FNC=0x0f' /tmp/cpnos_netboot_server.log || true
-	@echo "--- SIO-B driver log ---"
-	@cat /tmp/cpnos_siob_driver.log
-	@echo "--- SIO-B capture (printable) ---"
-	@tr -cd '\11\12\15\40-\176' < /tmp/cpnos_siob.raw 2>/dev/null || true
-	@echo
-	@echo "--- assertion ---"
-	@n=$$(grep -cE '    opened ' /tmp/cpnos_netboot_server.log); \
-	 echo "CCP.SPR OPEN count: $$n"; \
-	 [ "$$n" -ge 2 ] || { echo 'FAIL: expected >= 2 OPEN events'; exit 1; }; \
-	 echo 'PASS: warm boot re-fetched CCP.SPR'
-
-# Auto-run a canned CP/NOS session via $70.SUB (native CP/M batch
-# mechanism — the server seeds the SUB file, CCP reads+executes it
-# at the first prompt, then deletes it).  Pass commands pipe-separated:
-#   make cpnos-sub-test CPNOS_SUB='dir'
-#   make cpnos-sub-test CPNOS_SUB='dir|pip foo.txt=login.com|dir'
-# Asserts that the SUB file is opened (proving execution) and that
-# afterwards CCP is idle at the prompt (no SNIOS traffic for >2 s).
-CPNOS_SUB ?= dir
-cpnos-sub-test: cpnos-install
-	@rm -f /tmp/cpnos_netboot_server.log /tmp/cpnos_siob.raw /tmp/cpnos_siob_driver.log /tmp/cpnos_boot_result.txt
-	@CPNOS_SUB='$(CPNOS_SUB)|done' python3 -u netboot_server.py $(NETBOOT_PORT) > /tmp/cpnos_netboot_server.log 2>&1 & \
-	 echo $$! > /tmp/cpnos_netboot_server.pid
-	@python3 -u sio_b_driver.py $(SIOB_PORT) --timeout 30 \
-	    > /tmp/cpnos_siob_driver.log 2>&1 & \
-	 echo $$! > /tmp/cpnos_siob_driver.pid
-	@sleep 0.3
-	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
-	    -nothrottle -window -skip_gameinfo \
-	    -seconds_to_run 70 \
-	    -rs232a null_modem \
-	    -bitb1 "socket.127.0.0.1:$(NETBOOT_PORT)" \
-	    -rs232b null_modem \
-	    -bitb2 "socket.127.0.0.1:$(SIOB_PORT)" \
-	    -autoboot_script mame_sub_test.lua
-	@kill $$(cat /tmp/cpnos_netboot_server.pid) 2>/dev/null || true
-	@kill $$(cat /tmp/cpnos_siob_driver.pid) 2>/dev/null || true
-	@echo "--- SIO-B (printable) ---"
-	@tr -cd '\11\12\15\40-\176' < /tmp/cpnos_siob.raw | sed 's/$$/ /'
-	@echo
-	@echo "--- result ---"
-	@cat /tmp/cpnos_boot_result.txt 2>/dev/null || echo '(no result file)'
-	@grep -q '^PASS' /tmp/cpnos_boot_result.txt
-
-# ---- CONOUT acid test --------------------------------------------
-#
-# Builds testutil/acid.com with z88dk (+cpm), boots CP/NOS via
-# netboot_server.py with CPNOS_SUB='acid' so CCP runs it at first
-# prompt, then mame_acid_test.lua dumps the 8275 display RAM at
-# 0xF800 and asserts the known pixel pattern the 15 RC700 control
-# codes are supposed to produce.
-#
-# Finish marker: the .COM emits "DONE\r\n" through BIOS CONOUT,
-# which mirrors to SIO-B -- same gate as mame_sub_test.lua.
-Z88DK_ROOT = $(CURDIR)/../z88dk
-Z88DK_ZCC  = $(Z88DK_ROOT)/bin/zcc
-testutil/acid.com: testutil/acid.c
-	cd testutil && \
-	    PATH=$(Z88DK_ROOT)/bin:$$PATH \
-	    ZCCCFG=$(Z88DK_ROOT)/lib/config \
-	    zcc +cpm --opt-code-size \
-	    -create-app -o acid acid.c
-	@echo "built testutil/acid.com ($$(wc -c < testutil/acid.com | tr -d ' ') B)"
-
-conout-acid: cpnos-install testutil/acid.com
-	@rm -f /tmp/cpnos_netboot_server.log /tmp/cpnos_siob.raw /tmp/cpnos_siob_driver.log /tmp/cpnos_boot_result.txt /tmp/cpnos_display.txt
-	@CPNOS_SUB='acid|done' python3 -u netboot_server.py $(NETBOOT_PORT) > /tmp/cpnos_netboot_server.log 2>&1 & \
-	 echo $$! > /tmp/cpnos_netboot_server.pid
-	@python3 -u sio_b_driver.py $(SIOB_PORT) --timeout 90 \
-	    > /tmp/cpnos_siob_driver.log 2>&1 & \
-	 echo $$! > /tmp/cpnos_siob_driver.pid
-	@sleep 0.3
-	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
-	    -nothrottle -window -skip_gameinfo \
-	    -seconds_to_run 100 \
-	    -rs232a null_modem \
-	    -bitb1 "socket.127.0.0.1:$(NETBOOT_PORT)" \
-	    -rs232b null_modem \
-	    -bitb2 "socket.127.0.0.1:$(SIOB_PORT)" \
-	    -autoboot_script mame_acid_test.lua
-	@kill $$(cat /tmp/cpnos_netboot_server.pid) 2>/dev/null || true
-	@kill $$(cat /tmp/cpnos_siob_driver.pid) 2>/dev/null || true
-	@echo "--- display dump ---"
-	@cat /tmp/cpnos_display.txt 2>/dev/null || echo '(no display dump)'
-	@echo "--- result ---"
-	@cat /tmp/cpnos_boot_result.txt 2>/dev/null || echo '(no result file)'
-	@grep -q '^PASS' /tmp/cpnos_boot_result.txt
-
 # PolyPascal regression: drive cpnos through "PPAS PRIMES" / "R" / "Q"
 # (PPAS is the PolyPascal interpreter command), verify primes are
 # printed (looks for the last prime, 29989), and verify Q returns to
@@ -1494,41 +1341,6 @@ cpnos-bios-jt-trace:
 	@echo "--- last 10 events ---"
 	@tail -10 /tmp/cpnos_bios_jt_trace_$(COMPILER).log
 	@echo "--- trace saved to /tmp/cpnos_bios_jt_trace_$(COMPILER).log ---"
-
-# Interactive: boot CP/NOS, leave MAME running at the E> prompt so a
-# human can type on the native keyboard (PIO-A path).  SIO-B output
-# still streams to /tmp/cpnos_siob.raw so the other side can watch
-# what got typed + echoed.  Exit by closing the MAME window (Esc).
-cpnos-interactive: cpnos-install
-	@rm -f /tmp/cpnos_netboot_server.log /tmp/cpnos_siob.raw /tmp/cpnos_siob_driver.log
-	@python3 -u netboot_server.py $(NETBOOT_PORT) > /tmp/cpnos_netboot_server.log 2>&1 & \
-	 echo $$! > /tmp/cpnos_netboot_server.pid
-	@python3 -u sio_b_driver.py $(SIOB_PORT) --timeout 3600 \
-	    > /tmp/cpnos_siob_driver.log 2>&1 & \
-	 echo $$! > /tmp/cpnos_siob_driver.pid
-	@sleep 0.3
-	@echo "netboot server pid=$$(cat /tmp/cpnos_netboot_server.pid)"
-	@echo "sio-b driver  pid=$$(cat /tmp/cpnos_siob_driver.pid)"
-	@echo "Watch typed output:  tail -f /tmp/cpnos_siob.raw"
-	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
-	    -window -skip_gameinfo \
-	    -rs232a null_modem \
-	    -bitb1 "socket.127.0.0.1:$(NETBOOT_PORT)" \
-	    -rs232b null_modem \
-	    -bitb2 "socket.127.0.0.1:$(SIOB_PORT)"
-	@kill $$(cat /tmp/cpnos_netboot_server.pid) 2>/dev/null || true
-	@kill $$(cat /tmp/cpnos_siob_driver.pid) 2>/dev/null || true
-
-# CPU trace: captures every executed instruction to /tmp/cpnos_trace.log.
-# Use for debugging control-flow issues.  Pipe through tail or head to
-# avoid filling the disk (per project memory).
-cpnos-trace: cpnos-install
-	$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
-	    -nothrottle -window -skip_gameinfo \
-	    -seconds_to_run 2 \
-	    -autoboot_script mame_boot_test.lua \
-	    -debug -debugscript trace.dbg
-	@echo "trace written to /tmp/cpnos_trace.log"
 
 # Source-interleaved disassembly (requires -g, enabled in CFLAGS).
 # The -S flag interleaves the original C lines with emitted Z80 asm.
