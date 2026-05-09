@@ -307,6 +307,55 @@
   - **#21** runtime version check at boot (low priority).
   - **#13** hunt remaining JP-0 sources in SDCC build (gated on #29).
 
+## Phase 49: cpnos-rom SDCC SIO transport validated end-to-end (May 9, 2026) — Easy
+
+- **Goal**: close issue #66 — validate `make cpnos-polypascal-test
+  COMPILER=sdcc TRANSPORT=sio` PASS at HEAD.  Phase 48 left this gap
+  open (only `pio-irq` was tested).
+
+- **Diagnosis**: both compilers (clang + SDCC) failed identically
+  with TRANSPORT=sio — banner reached, then 1 byte out SIO-A and
+  hang.  Identical-failure-across-compilers ruled out a compiler
+  bug; root cause was harness wiring.  The polypascal-test MAME
+  invocation wired PIO-B to mpm-net2:4002 via `cpnet_bridge`, but
+  SIO transport sends CP/NET frames out **SIO-A**, which was wired
+  to a write-only file capture.  No CP/NET responder on the SIO
+  side → slave blocks on first read.
+
+- **Fix** (`cpnos-rom/Makefile`): make the polypascal-test MAME
+  invocation conditional on TRANSPORT.  For TRANSPORT=sio, wire
+  `-rs232a null_modem -bitb1 socket.127.0.0.1:4002` (SIO-A direct
+  to mpm-net2's TCP console socket; no `-piob` slot).  TRANSPORT=
+  pio-irq keeps existing wiring (PIO-B -> cpnet_bridge -> :4002,
+  SIO-A -> file capture).
+
+  mpm-net2's :4002 is a z80pack cpmsim console socket (per
+  `cpmsim/conf/net_server.conf`) — a raw TCP byte pipe, identical
+  semantics to the PIO `cpnet_bridge` byte pass-through.  No
+  framing or BRDY-handshake-equivalent needed.
+
+- **Result** (4-cell matrix, all PASS):
+
+  | compiler / transport | wall clock | status |
+  |---|---:|---|
+  | SDCC pio-irq | 52.93 s | PASS (regression) |
+  | SDCC sio     | 60.77 s | PASS (new)        |
+  | clang sio    | 59.63 s | PASS (new)        |
+  | clang pio-irq | (prior session, parity at ~50 s)| — |
+
+  SDCC and clang within ~1 s on TRANSPORT=sio — full parity.
+
+- **Closes**: ravn/rc700-gensmedet#66.  Phase 46's "FAIL — netboot
+  doesn't even get one sector" comment for SIO is retroactively
+  attributable to the same harness gap, not a compiler bug.
+
+- **Lesson**: when both compilers fail identically end-to-end at
+  byte-level (1 byte out, hang), suspect harness/topology before
+  compiler.  This is the inverse of Phase 48's "compilers diverge
+  at byte level → dump runtime data structures" rule: when they
+  *agree* at byte level on a failure, the divergence is somewhere
+  outside the binary.  Recorded in `feedback_compilers_agree_means_harness.md`.
+
 ## Phase 48b: cpnos-netboot harness retired (May 9, 2026) — Easy
 
 - **Goal**: remove the dead Python netboot harness that closed

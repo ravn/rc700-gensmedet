@@ -1266,6 +1266,18 @@ else
 endif
 	@cat $(BUILDDIR)/cpnos_polypascal_addrs.lua
 	@echo "=== launching MAME with PolyPascal test driver (max ~4 min) ==="
+ifeq ($(TRANSPORT),sio)
+	@# SIO route: SIO-A carries CP/NET frames to mpm-net2; SIO-B is the
+	@# user-console mirror; PIO-B is unused.  mpm-net2's :4002 is a
+	@# raw TCP console socket (z80pack cpmsim net_server.conf), which
+	@# accepts byte pass-through identically to the PIO cpnet_bridge.
+	-$(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run 240 \
+	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
+	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
+	    -autoboot_script mame_polypascal_test.lua
+else
 	-$(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 240 \
@@ -1274,6 +1286,7 @@ endif
 	    -piob cpnet_bridge \
 	    -bitb3 socket.127.0.0.1:4002 \
 	    -autoboot_script mame_polypascal_test.lua
+endif
 	@echo "--- polypascal-test log tail ---"
 	@tail -30 /tmp/cpnos_polypascal_log.txt 2>/dev/null
 	@echo "--- result ---"
