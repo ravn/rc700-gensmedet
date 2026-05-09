@@ -53,10 +53,13 @@ def parse_map(path: Path) -> list[tuple[str, str]]:
         if not m:
             continue
         sym, src = m.group(1), m.group(2).strip()
-        if '/sdcc/' not in src and not src.startswith('sdcc/'):
-            # Generated files in BUILDDIR (xport_aliases.asm, cpnos_layout.asm,
-            # payload_header_data.s) have bare filenames -- skip; they're
-            # auto-generated and their PUBLICs are deliberate.
+        # Match ONLY user-tracked sdcc/*.asm sources.  z88dk runs from
+        # BUILDDIR=sdcc/ and references user files via `../sdcc/foo.asm`;
+        # the library helpers live at `../l/sdcc/foo.asm` and must NOT be
+        # audited (they're shared runtime, no source tree control).  The
+        # bare-filename paths (e.g. `cpnos_layout.asm`) are generated
+        # files in BUILDDIR -- also skipped.
+        if not src.startswith('../sdcc/') and not src.startswith('sdcc/'):
             continue
         out.append((sym, src))
     return out
