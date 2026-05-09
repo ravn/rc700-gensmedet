@@ -1650,34 +1650,13 @@ $(BUILDDIR)/cpnos.bin: $(BUILDDIR)/cpnos.cim tasks/scripts/build_prom_image.py \
 	@# snios.asm's MSGADR-high + RETCNT scratch -- both code paths
 	@# (SNDMSG / RCVMSG) overwrite those before reading, so the
 	@# link-time initial values don't matter.
-	@# patch_payload_checksum.py needs an even-sized image (word
-	@# arithmetic).  If z88dk produced an odd resident, append one
-	@# 0xFF pad byte first -- the checksum patcher overwrites the
-	@# last two bytes anyway, so the pad is invisible at runtime.
-	@#
-	@# CRITICAL: when the pad fires, ALSO bump the header's
-	@# chunk_b_size by 1.  The header was generated at link time
-	@# (BEFORE this pad), so its chunk_b_size reflects the pre-pad
-	@# resident size.  The relocator at runtime uses
-	@# (chunk_a_size + chunk_b_size) as its sum-loop bound; if the
-	@# header is off by 1 from the actual file size, the relocator's
-	@# computed sum excludes the pad byte (and the correction word
-	@# stored at the file end), sees a mismatch, halts with
-	@# "BAD CHECKSUM".  Wasted hours on 2026-05-08 debugging this.
-	@RES_TOTAL=$$(wc -c < $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin | tr -d ' '); \
-	 if [ $$((RES_TOTAL % 2)) -ne 0 ]; then \
-	   printf '\xFF' >> $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin; \
-	   echo "appended 1 B pad to make resident even ($$RES_TOTAL -> $$((RES_TOTAL + 1)))"; \
-	   python3 -c "import sys; \
-b = open(sys.argv[1], 'r+b').read(); \
-i = b.find(b'\\x50\\x63'); \
-assert i >= 0, 'header magic 0x6350 not found in ' + sys.argv[1]; \
-o = i + 12; \
-v = int.from_bytes(b[o:o+2], 'little') + 1; \
-import os; f = os.open(sys.argv[1], os.O_RDWR); os.lseek(f, o, 0); os.write(f, v.to_bytes(2, 'little')); os.close(f); \
-print(f'  bumped header chunk_b_size to {v} (= {v:#x}) at offset {o:#x} of ' + sys.argv[1])" \
-	     $(BUILDDIR)/cpnos_RESET.bin; \
-	 fi
+	@# patch_payload_checksum.py requires an even-sized image (word-
+	@# additive arithmetic).  Even-alignment is enforced at link time
+	@# by `align 2` in sdcc/sections.asm's RESIDENT_CHECKSUM section
+	@# (#59); the linker emits 0 or 1 fill bytes between RESIDENT_DATA
+	@# and RESIDENT_CHECKSUM as needed, and __payload_chunk_b_size is
+	@# computed from the post-align section tail.  No post-link pad
+	@# fixup needed.
 	python3 cpnos-build/patch_payload_checksum.py $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin
 	@# Phase 51A.2: chunk A starts at PROM0 0x0520 (was 0x0400) to mirror
 	@# clang's layout — extra 288 B of INIT_CODE budget absorbs the

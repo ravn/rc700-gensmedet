@@ -136,6 +136,14 @@
     ; the linked resident -- which becomes zp_init_data[6..7] when the
     ; resident shrinks below a threshold (root cause of #72).
     SECTION RESIDENT_CHECKSUM
+    ; Force even alignment so the resident image's total size is even.
+    ; patch_payload_checksum.py requires even-length input (it does
+    ; word-additive arithmetic), and the relocator's runtime checksum
+    ; verification reads the same word boundaries.  Without this, an
+    ; odd-sized resident triggered a Makefile shell-pad workaround
+    ; (#59).  align inserts 0 or 1 fill bytes BEFORE the defw, never
+    ; touching the last 2 bytes the patcher overwrites.
+    align 2
     PUBLIC __payload_checksum
 __payload_checksum:
     defw 0xFFFF                    ; will be overwritten post-link
