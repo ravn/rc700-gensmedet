@@ -499,17 +499,6 @@ NTWKDN:
     ret
 
 ;----------------------------------------------------------------
-;  C-ABI trampoline: `void jump_to(uint16_t addr)` — tail-calls
-;  through HL (sdcccall(1) first 16-bit arg).  Replaces clang's
-;  __call_iy helper which lives in PROM0 at 0x0009 and dies after
-;  PROM disable.  Lives in .resident so it survives the OUT (0x18)
-;  unmap.
-;----------------------------------------------------------------
-    .global _jump_to
-_jump_to:
-    jp   (hl)
-
-;----------------------------------------------------------------
 ;  Local scratch — lives in .resident.data so it is 0-initialised
 ;  at LMA time and becomes RAM at VMA.
 ;----------------------------------------------------------------

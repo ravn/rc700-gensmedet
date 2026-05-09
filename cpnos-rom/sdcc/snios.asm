@@ -417,14 +417,6 @@ NTWKDN:
     ret
 
 ;----------------------------------------------------------------
-;  C-ABI trampoline: `void jump_to(uint16_t addr)` — tail-calls
-;  through HL (sdcccall(1) first 16-bit arg).
-;----------------------------------------------------------------
-    PUBLIC _jump_to
-_jump_to:
-    jp   (hl)
-
-;----------------------------------------------------------------
 ;  Local scratch — uninitialised, written before every read inside
 ;  every entry point in this file.  Moved out of RESIDENT_DATA into
 ;  bss_compiler 2026-05-08 so the 3 zero bytes don't burn PROM space

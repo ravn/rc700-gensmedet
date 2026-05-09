@@ -1,0 +1,43 @@
+# PUBLIC symbols in sdcc/*.asm that are genuinely referenced from
+# OUTSIDE our own linked image, so check_unreferenced_publics.py
+# cannot find a textual use in our build tree.  One symbol per line;
+# put a `# justification` comment after each entry.
+
+# --- Hardware boot vector ----------------------------------------
+_reset                  # Z80 reset vector at 0x0000; called by hardware on reset
+
+# --- BIOS jump table (called from cpnos.com BDOS at fixed VMAs) --
+# cpnos.com jumps to BIOS_BASE+N (where N is the entry offset) — none
+# of these are called by name from any source file in our link.
+_bios_jt                # BIOS jump-table base label at 0xED00
+# _bios_boot has real internal references (header + cpnos_main); not listed.
+_bios_wboot             # +3   WBOOT
+_bios_const             # +6   CONST
+_bios_conin             # +9   CONIN
+_bios_conout            # +12  CONOUT
+_bios_list              # +15  LIST
+_bios_punch             # +18  PUNCH
+_bios_reader            # +21  READER
+_bios_home              # +24  HOME
+_bios_seldsk            # +27  SELDSK
+_bios_settrk            # +30  SETTRK
+_bios_setsec            # +33  SETSEC
+_bios_setdma            # +36  SETDMA
+_bios_read              # +39  READ
+_bios_write             # +42  WRITE
+_bios_listst            # +45  LISTST
+_bios_sectran           # +48  SECTRAN
+
+# --- SNIOS jump table (called from cpnos.com NDOS at 0xED33) -----
+_snios_jt               # SNIOS jump-table base label at 0xED33
+# _snios_ntwkin has real internal callers (cpnos_main + netboot_mpm); not listed.
+_snios_ntwkst           # +03  NETWORK STATUS
+_snios_cnftbl           # +06  CONFIGURATION TABLE
+_snios_sndmsg           # +09  SEND MESSAGE
+_snios_rcvmsg           # +12  RECEIVE MESSAGE
+_snios_ntwker           # +15  NETWORK ERROR
+_snios_ntwkbt           # +18  NETWORK BOOT
+_snios_ntwkdn           # +21  NETWORK DOWN
+
+# --- Post-link patched -------------------------------------------
+__payload_checksum      # body patched by patch_payload_checksum.py after link

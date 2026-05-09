@@ -42,7 +42,6 @@ extern void cfgtbl_init(void);
 extern uint8_t bios_boot[];
 extern uint8_t snios_ntwkin(void);
 extern void enable_interrupts(void);
-extern NORETURN void jump_to(uint16_t addr);
 extern NORETURN void enter_coldst(void);
 
 #if defined(PIO_SPEED_TEST) || defined(PIO_LOOPBACK_TEST)

@@ -36,9 +36,6 @@ static void console_putc(uint8_t c) {
 }
 #endif
 
-/* Resident tail-call trampoline: `JP (HL)` from snios.s. */
-extern NORETURN void jump_to(uint16_t addr);
-
 /* -------------------------------------------------------------------
  * BIOS jump-table implementations.
  *

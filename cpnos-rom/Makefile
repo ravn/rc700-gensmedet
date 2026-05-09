@@ -1597,7 +1597,9 @@ $(BUILDDIR)/cpnos.cim: $(SDCC_C_OBJS) $(SDCC_ASM_SRCS) $(BUILDDIR)/xport_aliases
                        $(SDCC_AUDIT_S) \
                        tasks/scripts/check_sdcc_layout.py \
                        tasks/scripts/check_no_frame_ptr.py \
-                       tasks/check_no_frame_ptr_baseline.txt
+                       tasks/check_no_frame_ptr_baseline.txt \
+                       tasks/scripts/check_unreferenced_publics.py \
+                       tasks/check_unreferenced_publics_allowlist.txt
 	@mkdir -p $(BUILDDIR)
 	@# Audit BEFORE the link so a regression fails fast.
 	python3 tasks/scripts/check_no_frame_ptr.py \
@@ -1620,6 +1622,14 @@ $(BUILDDIR)/cpnos.cim: $(SDCC_C_OBJS) $(SDCC_ASM_SRCS) $(BUILDDIR)/xport_aliases
 	@# section overlaps).  It is a build-failure gate, not advisory.
 	python3 tasks/scripts/check_sdcc_layout.py $(BUILDDIR)/cpnos.map \
 	    $(BUILDDIR)/cpnos_RESET.bin
+	@# HARD GATE: any user-tracked PUBLIC in sdcc/*.asm with zero
+	@# textual references in .s/.asm sources is dead and gets linked
+	@# in for free under z88dk (no function-level DCE).  Caught a 33 B
+	@# silent regression during #77 — see #79.
+	python3 tasks/scripts/check_unreferenced_publics.py \
+	    tasks/check_unreferenced_publics_allowlist.txt \
+	    $(BUILDDIR)/cpnos.map \
+	    $(SDCC_AUDIT_S) $(BUILDDIR)/payload_header_data.s $(SDCC_ASM_SRCS)
 	@touch $@
 
 # Override $(BUILDDIR)/cpnos.bin for SDCC: assemble PROM0 + PROM1 from
