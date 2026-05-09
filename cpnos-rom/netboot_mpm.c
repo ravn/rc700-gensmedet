@@ -41,6 +41,11 @@ extern uint8_t snios_ntwkin(void);
 /* BIOS CONOUT — resident at 0xF20C after cpnos_main copies .resident. */
 extern void impl_conout(uint8_t c);
 
+/* Resident BIOS base (linker-emitted, == 0xED00 today).  Used as the
+ * upper bound for the netboot LDIR write region so the safety check
+ * tracks any future BIOS_BASE move. */
+extern uint8_t bios_boot[];
+
 /* DRI CP/NET frame header offsets. */
 #define FMT 0
 #define DID 1
@@ -153,14 +158,15 @@ uint16_t netboot_mpm(void) {
         __builtin_memcpy(dma, &msg[DAT + 37], 128);
         dma += 128;
         impl_conout('.');            /* one dot per 128-byte sector */
-        /* Safety: refuse to overflow into our resident BIOS at 0xED00.
-         * Option β (post init/resident split): scratch BSS moved to
-         * upper RAM (0xF410..) so cpnos.com's load region runs up to
-         * 0xED00.  Strict `>`: dma == 0xED00 means the last 128 B
-         * sector landed exactly at the limit (loaded into
-         * 0xEC80..0xECFF), which is fine -- the next READ-SEQ returns
-         * EOF and breaks. */
-        if (dma > (uint8_t *)0xEE00) return 0;
+        /* Safety: refuse to overflow into our resident BIOS.  cpnos.com's
+         * load region runs up to `bios_boot` (0xED00 today; was 0xEE00
+         * pre-Path-6 on 2026-05-08, hence the prior literal that drifted
+         * out of sync — #80).  Strict `>`: dma == bios_boot means the
+         * last 128 B sector landed exactly at the limit (loaded into
+         * bios_boot-128 .. bios_boot-1), which is fine — the next
+         * READ-SEQ returns EOF and breaks.  Routing through the linker
+         * symbol so any future BIOS_BASE move auto-tracks. */
+        if (dma > bios_boot) return 0;
     }
     BOOT_MARK(13, 'E');              /* EOF reached */
     impl_conout(0x0d); impl_conout(0x0a);
