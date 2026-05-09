@@ -329,16 +329,24 @@ void clear_screen(void) {
     home();
 }
 
+/* erase_to_eol / erase_to_eos: variable-length space-fill into display
+ * memory.  Hand-rolled byte loop instead of __builtin_memset because
+ * z88dk-zsdcc 4.5.0 doesn't inline-fold __builtin_memset with a
+ * runtime-computed count -- it lowers to a `_memset` libc call (28 B
+ * resident: 11 B trampoline + 17 B asm body).  A direct byte loop
+ * compiles tighter on both compilers AND avoids the libcall (#70). */
 RESIDENT
 static void erase_to_eol(void) {
-    __builtin_memset(CELL(curx, cury), ' ', SCRN_COLS - curx);
+    uint8_t *p   = CELL(curx, cury);
+    uint8_t *end = CELL(0, cury) + SCRN_COLS;
+    while (p != end) *p++ = ' ';
 }
 
 RESIDENT
 static void erase_to_eos(void) {
-    uint16_t pos = (uint16_t)cury * SCRN_COLS + curx;
-    __builtin_memset(CELL(curx, cury), ' ',
-                     (unsigned)SCRN_ROWS * SCRN_COLS - pos);
+    uint8_t *p   = CELL(curx, cury);
+    uint8_t *end = CELL(0, SCRN_ROWS - 1) + SCRN_COLS;
+    while (p != end) *p++ = ' ';
 }
 
 RESIDENT
