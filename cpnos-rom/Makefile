@@ -180,23 +180,14 @@ else ifeq ($(PIO_LOOPBACK_TEST),1)
 CFLAGS += -DPIO_LOOPBACK_TEST
 endif
 
-# Server side: default is standard MP/M II (cpmsim mpm-net2).  The
-# `proxy` mode (slave-side netboot.c) used to talk to a Python
-# netboot_server.py simulator; that harness was retired with the
-# Phase 48 cleanup, so SERVER=proxy now produces a slave that has
-# no working server to talk to -- kept compiling for issue #19's
-# decision on the fate of legacy netboot.c.
-SERVER ?= mpm
-
-ifeq ($(SERVER),mpm)
+# Slave talks CP/NET 1.2 (DRI MP/M protocol) to the master via
+# netboot_mpm.c -- LOGIN / OPEN / READ / CLOSE against z80pack
+# mpm-net2.  The legacy `SERVER=proxy` / netboot.c / NETBOOT_LEGACY
+# dispatch was retired in Phase 51A (closes #19): netboot_server.py
+# was already deleted in Phase 48b, so SERVER=proxy had no working
+# server to talk to.  Single netboot path = no dispatch.
 NETBOOT_OBJ = $(BUILDDIR)/netboot_mpm.o
 SERVER_CFLAGS =
-else ifeq ($(SERVER),proxy)
-NETBOOT_OBJ = $(BUILDDIR)/netboot.o
-SERVER_CFLAGS = -DNETBOOT_LEGACY
-else
-$(error SERVER must be 'mpm' or 'proxy')
-endif
 
 # Transport selection — picks which chip drives the byte-level CP/NET
 # wire.  SNIOS calls _xport_send_byte / _xport_recv_byte (snios.s);
@@ -449,10 +440,6 @@ $(BUILDDIR)/transport_sio.o: transport_sio.c transport.h hal.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILDDIR)/transport_pio.o: transport_pio.c transport.h hal.h
-	@mkdir -p $(BUILDDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(BUILDDIR)/netboot.o: netboot.c transport.h hal.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 

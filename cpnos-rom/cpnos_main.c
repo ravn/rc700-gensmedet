@@ -317,16 +317,12 @@ static void pio_loopback_test(void) {
 }
 #endif
 
-/* Netboot: two implementations, one selected by SERVER=mpm|proxy in
- * the Makefile.  Default is mpm — standard CP/NET 1.2 LOGIN / OPEN /
- * READ / CLOSE against z80pack MP/M II. */
-#ifdef NETBOOT_LEGACY
-extern uint16_t netboot(void);
-#define NETBOOT() netboot()
-#else
+/* Netboot via CP/NET 1.2 (DRI MP/M protocol): LOGIN / OPEN / READ /
+ * CLOSE against z80pack MP/M II.  Single implementation; the legacy
+ * SERVER=proxy / netboot.c / NETBOOT_LEGACY dispatch was retired in
+ * Phase 51A (#19). */
 extern uint16_t netboot_mpm(void);
 #define NETBOOT() netboot_mpm()
-#endif
 
 /* Boot orchestration after netboot: signon + BIOS-JT copy + ZP[0..7].
  * Replaces cpbios.asm's `boot:` routine.  Keeps everything in C so the
