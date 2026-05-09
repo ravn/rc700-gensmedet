@@ -11,6 +11,7 @@
  */
 
 #include <stdint.h>
+#include <stddef.h>
 #include "hal.h"
 #include "compiler/compat.h"
 
@@ -279,32 +280,21 @@ static void delete_line(void) {
 RESIDENT
 static void insert_line(void) {
     /* Shift rows cury..23 down by one row, blank row cury.  Regions
-     * overlap (dst > src) so we need a backwards copy (LDDR).
+     * overlap (dst > src) so memmove must back-copy (LDDR).  Both
+     * compilers see plain __builtin_memmove: clang lowers to runtime.s
+     * _memmove (~40 B, sdcccall(1)); SDCC's <string.h> rewrites to
+     * memmove_callee, resolved by sdcc/runtime.asm (~33 B) instead of
+     * the 150 B z88dk libc version.
      *
-     * TODO (cpnos-rom dual-compile, Phase 2): this `__asm__ volatile`
-     * with clang Z80 register-class constraints (`"+{de}"`, `"+{hl}"`,
-     * `"+{bc}"`) does not parse under SDCC.  Replacement plan: a
-     * shared `mem_copy_backwards(dst, src, count)` helper exported
-     * from runtime.s (per-compiler asm body, same C signature).
-     * `__builtin_memmove` blows up the payload size on clang Z80,
-     * so it isn't a usable fallback.  See tasks/sdcc-port.md. */
+     * Compute the row pointer ONCE and use pointer arithmetic for the
+     * memmove dst and the trailing memset — SDCC otherwise expands the
+     * `cury * SCRN_COLS` chain three times (count + 2 CELL() calls). */
+    uint8_t *row = CELL(0, cury);
     if (cury + 1 < SCRN_ROWS) {
-        uint16_t count = (uint16_t)(SCRN_ROWS - 1 - cury) * SCRN_COLS;
-        const void *src = CELL(SCRN_COLS - 1, SCRN_ROWS - 2);
-        void       *dst = CELL(SCRN_COLS - 1, SCRN_ROWS - 1);
-#if defined(__clang__) && defined(__z80__)
-        __asm__ volatile("lddr"
-            : "+{de}"(dst), "+{hl}"(src), "+{bc}"(count)
-            :
-            : "memory");
-#else
-        /* SDCC / host: stub — the resident scroll path is exercised
-         * only on the Z80 target.  Replaced by the runtime.s helper
-         * in Phase 2 of the SDCC port. */
-        (void)src; (void)dst; (void)count;
-#endif
+        size_t count = (size_t)(SCRN_ROWS - 1 - cury) * SCRN_COLS;
+        __builtin_memmove(row + SCRN_COLS, row, count);
     }
-    __builtin_memset(CELL(0, cury), ' ', SCRN_COLS);
+    __builtin_memset(row, ' ', SCRN_COLS);
 }
 
 /* --- XY addressing (ctrl-F, then two coord bytes) ----------------- */

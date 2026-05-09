@@ -1487,7 +1487,8 @@ SDCC_C_OBJS = $(BUILDDIR)/cpnos_main.o $(BUILDDIR)/cpnos_cold.o \
 # its metadata from the payload header instead of from hardcoded
 # literals in prom_loader.asm.
 SDCC_ASM_SRCS = sdcc/sections.asm sdcc/reset.asm \
-                sdcc/bios_jt.asm sdcc/snios.asm sdcc/hal.asm
+                sdcc/bios_jt.asm sdcc/snios.asm sdcc/hal.asm \
+                sdcc/runtime.asm
 
 # Linker invocation: -create-app makes z88dk-appmake emit one .bin
 # file per `org`-anchored section (cpnos_RESET.bin, cpnos_RESIDENT_PRE_CODE.bin,

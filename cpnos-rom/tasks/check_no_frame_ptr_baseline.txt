@@ -23,3 +23,10 @@ relocator.s:relocate:10
 # by simplifying the per-row scroll/clear path; revisit when touching
 # the resident display code.
 resident.s:delete_line:2
+
+# resident.c::insert_line -- two ix-relative spills.  The row pointer
+# (CELL(0, cury)) must survive across the __builtin_memmove call so
+# the trailing __builtin_memset can reuse it; SDCC spills it to the
+# IX frame.  Recomputing row after the call avoids the spill but
+# duplicates the cury*SCRN_COLS shift-add chain (~30 B regression).
+resident.s:insert_line:2
