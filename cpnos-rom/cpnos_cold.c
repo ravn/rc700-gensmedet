@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include "hal.h"
 #include "compiler/compat.h"
+#include "cpnos_addrs.h"     /* CPNOS_TPA_KB (banner) */
 #include "cpnos_buildinfo.h" /* BUILD_INFO_STR */
 
 extern void cfgtbl_init(void);
@@ -30,10 +31,6 @@ extern void enable_interrupts(void);
 extern void impl_conout(uint8_t c);
 extern uint16_t netboot_mpm(void);
 extern NORETURN void resident_handoff(uint16_t entry);
-
-#if MIRROR_SIOB && defined(__SDCC)
-extern void boot_probe(uint8_t tag);
-#endif
 
 /* Banner printed BEFORE netboot so the screen layout is:
  *   row 0 (cursor home): "RC702 CP/NOS NNK WWW-MMM cc yyyy-mm-dd HH:MM hash"

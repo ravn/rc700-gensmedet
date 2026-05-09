@@ -44,7 +44,6 @@ defc CFG_MSGBUF  = 45
     EXTERN _cfgtbl
     EXTERN _xport_send_byte
     EXTERN _xport_recv_byte
-    EXTERN _bios_log_byte
 
 ;----------------------------------------------------------------
 ;  SNIOS jump table  (first 24 bytes — public ABI for NDOS)
@@ -59,7 +58,7 @@ defc CFG_MSGBUF  = 45
 ; them.  The JT layout (3 bytes/entry, +0/+3/+6/+9/+0C/+0F/+12/+15)
 ; is fixed by the NDOS ABI -- can only put `jp X` here.
 _snios_jt:
-_snios_ntwkin:  jp NTWKIN_W        ; +00 NETWORK INITIALIZATION (instrumented)
+_snios_ntwkin:  jp NTWKIN          ; +00 NETWORK INITIALIZATION                
 _snios_ntwkst:  jp NTWKST          ; +03 NETWORK STATUS
 _snios_cnftbl:  jp CNFTBL          ; +06 RETURN CONFIG TABLE ADDRESS
 _snios_sndmsg:  jp SNDMSG_DISPATCH ; +09 SEND MESSAGE ON NETWORK
@@ -91,22 +90,10 @@ SNDMSG_DISPATCH:
 RCVMSG_DISPATCH:
     jp   RCVMSG
 
-; SNIOS NTWKIN instrumentation wrapper (issue #60 diagnosis).
-; Tag bytes: 0x80 = NTWKIN entry, 0x90 = NTWKIN exit.
-; CNFTBL not instrumented this round to fit resident budget; if NTWKIN
-; trace shows entry+exit, downstream walk-of-BIOS-JT and BDOS+versnf
-; are the next suspects.
-NTWKIN_W:
-    push af
-    ld   a, 0x80
-    call _bios_log_byte
-    pop  af
-    call NTWKIN
-    push af
-    ld   a, 0x90
-    call _bios_log_byte
-    pop  af
-    ret
+; (NTWKIN_W instrumentation wrapper removed in Phase 51A.3 -- issue
+;  #60 closed.  -18 B RESIDENT_SNIOS.  bios_log_byte / bios_log_buf
+;  in resident.c are kept for now; removing them triggers a yet-
+;  unidentified slave warm-boot loop -- see ravn/rc700-gensmedet#72.)
 
 ;================================================
 ;= CHARACTER I/O WRAPPERS                       =

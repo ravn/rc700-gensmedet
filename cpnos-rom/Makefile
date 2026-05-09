@@ -411,7 +411,7 @@ endif
 # No-op rule -- the file is created/updated by $(shell) at parse time.
 $(BUILDDIR)/cpnos_buildinfo.h: ;
 
-$(BUILDDIR)/cpnos_cold.o: cpnos_cold.c hal.h $(BUILDDIR)/cpnos_buildinfo.h
+$(BUILDDIR)/cpnos_cold.o: cpnos_cold.c hal.h $(BUILDDIR)/cpnos_addrs.h $(BUILDDIR)/cpnos_buildinfo.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
