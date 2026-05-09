@@ -307,6 +307,122 @@
   - **#21** runtime version check at boot (low priority).
   - **#13** hunt remaining JP-0 sources in SDCC build (gated on #29).
 
+## Phase 48: cpnos-rom SDCC pio-irq PASS — z88dk-zsdcc constant-folding bug found and worked around (May 9, 2026) — Painful
+
+- **Goal**: close issue #60 (cpnos-rom SDCC: control-flow lost ~3.6s
+  after NDOSE handoff).  Symptom: SDCC slave reaches CCP via NDOS
+  COLDST then warm-boots in a tight cycle; clang under same wiring
+  PASSes polypascal-test end-to-end.
+
+- **Hypotheses ruled out before finding the cause**:
+  - ISR misbehavior (audit confirmed all four ISRs save/restore
+    registers correctly, end with `RETI`, IVT verified intact at
+    runtime, slot 0..15 -> isr_noop, slot 2 -> isr_crt, slots 16/17
+    -> kbd / pio_par as expected).
+  - Memory-map overlap (cpnos.com fits exactly into 0xDD80..0xE9FF
+    with IVT adjacent at 0xEA00; `__stack_top = 0xD980` consistent
+    everywhere; no overlap with NDOSRL or display).
+  - Calling-convention mismatch between slave's hand-written asm
+    (snios.asm, hal.asm, bios_jt.asm, xport_aliases.asm) and the
+    SDCC sdcccall(1) C functions -- every push/pop verified balanced
+    at the callsites; `__port_out`'s callee-cleanup convention is
+    matched by the caller's `push af; inc sp` pattern at every site.
+  - Address handshakes (BIOS_JT_COPY @ 0xDC80, NIOS @ 0xED33, NDOSE
+    @ 0xDD83, ZP[1..2] = JP 0xDC83, ZP[6..7] = JP 0xD986) all
+    byte-correct under SDCC.
+
+- **Found**: extended BIOS-JT/SNIOS/BDOS trace with a minimal tap
+  set (`mame_minimal_trace.lua`) showed under SDCC: 202 BDOS calls,
+  201 NDOSA dispatches, 200 NDOSE entries, **zero SNDMSG/RCVMSG**
+  during the 8 s window.  Clang for comparison: 14 SNDMSG + 14
+  RCVMSG + the same NTWKIN/CNFTBL pattern, 28 BDOS calls.  NDOS
+  under SDCC was routing every BDOS call through local BDOS
+  (cpnos.com 0xE716) instead of dispatching to SNIOS for the
+  network drives.
+
+- **Smoking gun**: dumped slave's `_cfgtbl` at runtime (SDCC: 0xEC1D
+  in scratch_bss; clang: 0xF520 in resident_data).  SDCC bytes:
+
+    `EC1D: 10 01 80 FF 81 FF 82 FF 83 FF 88 FF 89 FF 00 00`
+
+  Each network drive's server-slave-id field (high byte of the 2-byte
+  drive map entry) is 0xFF, not 0x00.  NDOS interprets server 0xFF as
+  "no master" and falls through to local-disk routing.  Source code
+  (`cfgtbl.c::cfgtbl_init_template`) uses `NET_DRV(letter, 0x00)` which
+  per the macro definition produces `(uint16_t)0x0080`; `>> 8` of that
+  is `0x00`.  Source is correct; bytes in the binary are wrong.
+
+- **Diagnosed compiler bug**: z88dk-zsdcc 4.5.0 mis-evaluates
+  `((uint16_t)0x80 >> 8) & 0xFF` to **0xFF** in const initializers.
+  Likely cause: the constant folder treats the `0x80` literal as a
+  signed 8-bit value (-128), promotes via sign-extension to `0xFF80`,
+  arithmetic-right-shifts `>> 8` yielding `0xFF`.  Standard C says
+  `0x80` is `int = 128` (positive), so `>> 8` should be `0`.  Verified
+  by reading clang's `payload.elf` bytes at `_cfgtbl_init_template`:
+  clang correctly emits `01 80 00 81 00 82 00 83 00 88 00 89 00`.
+  Filed as **ravn/z88dk#4**.
+
+- **Fix applied to `cfgtbl.c`**: replaced the macro-based template
+  with explicit byte literals (semantics identical, sidesteps the
+  buggy `>> 8` constant-folding path).  No NET_DRV macro use in the
+  initializer list:
+
+    `0x80, 0x00, 0x81, 0x00, ...`
+
+- **Verification**:
+  - `make cpnos-polypascal-test COMPILER=sdcc TRANSPORT=pio-irq` ->
+    **PASS** at t=51.6 s (full PPAS PRIMES -> 29989 -> Q -> E\>).
+    First time SDCC pio-irq has reached PASS.
+  - `make cpnos-polypascal-test COMPILER=clang` -> **PASS** at
+    t=50.3 s (no regression).
+
+- **Causal chain (now closed)**:
+  1. SDCC miscompiled `cfgtbl_init_template` -> high bytes 0xFF.
+  2. cfgtbl_init LDIRed the broken template into `_cfgtbl[+1..+13]`.
+  3. NDOS COLDST called SNIOS CNFTBL -> got cfgtbl pointer.
+  4. NDOS read drive entries: every drive marked "network with
+     server 0xFF" (no master).
+  5. NDOS's drive-routing logic fell through to local BDOS.
+  6. BDOS handled OPEN/READ via BIOS_JT (which routes to slave's
+     `_bios_stub_ret = ret` because FDC is disabled); BDOS thinks
+     read succeeded with A=0.
+  7. NDOS's `load` returned A=0 -> `nwboot` jumped to `goccp` ->
+     `ret` to NDOSRL where CCP "should be" -> empty memory.
+  8. Wild PC eventually hit `RST 00` / `JP 0x0000` -> corrupted
+     ZP[0..7] -> warm-boot cycle (NTWKBT firing every 153 ms).
+
+- **Lessons** (added to memory + this entry):
+  - Runtime memory-byte dumps are the cheapest way to find a const
+    miscompile -- the bytes in the binary are the source of truth,
+    not the C source that "looks right".  Took ~10 hours of
+    investigating ISRs/stacks/calling conventions before checking
+    the data NDOS was actually reading.
+  - When two compilers diverge on the same C source, compare the
+    runtime data structures the foreign code (here: cpnos.com)
+    reads from each compiler's binary.  Difference there -> the
+    bug.  Difference only in code paths -> harder hunt.
+  - Issue trackers earn their keep: issue #60 had the right next
+    step ("MAME instruction-level trace inside cpnos.com NDOS code
+    in the 0xDE50..0xE01A window") in its 2026-05-08 comment.  The
+    reinterpretation in this session (NTWKBT firing means
+    `goccp` SUCCESS path, not warm-boot signal) flipped the search
+    space and led to dumping cfgtbl directly, which exposed the
+    miscompile in 5 minutes.
+
+- **Changes**:
+  - `cpnos-rom/cfgtbl.c` — explicit-byte template (workaround comment
+    cites ravn/z88dk#4).
+  - `cpnos-rom/mame_minimal_trace.lua` — new diagnostic script (taps
+    BDOS entry + NDOSA/NDOSE/COLDST + SNDMSG/RCVMSG body addresses;
+    filters by retaddr to focus on NDOS-side activity).
+  - GitHub: `ravn/z88dk#4` filed (compiler bug + minimal repro).
+  - GitHub: `ravn/rc700-gensmedet#60` to be closed by this commit.
+
+- **Status**: `main` branch.  cpnos-rom SDCC pio-irq is at parity with
+  clang for polypascal-test.  Still TODO: SDCC sio transport (current
+  test target uses pio-irq); cleanup of the older trace artifacts
+  (mame_extended_trace.lua) which were intermediate exploration tools.
+
 ## Phase 47c: clang IVT mirror + #29 plan correction (May 8, 2026 evening) — branch `session47-analysis-2026-05-08` in z80, `main` in rc700-gensmedet
 
 - **Goal**: extend Phase 47b's structural IVT cleanup to the clang

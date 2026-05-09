@@ -71,15 +71,23 @@ struct cfgtbl cfgtbl;
  * harddisk DPHs at drive numbers 8 and 9 -- see bnkxios-net-2.mac).
  * Disk images seeded by the cpmsim/mpm-net2 launcher from
  * disks/library/mpm-net2-drive[ij].dsk. */
+/* Workaround for z88dk-zsdcc 4.5.0 constant-folding bug
+ * (ravn/z88dk#4).  `(NET_DRV('A', 0x00) >> 8) & 0xFF` should evaluate
+ * to 0x00 but SDCC emits 0xFF — sign-extends the 0x80 low byte to
+ * 0xFF80 then arithmetic-shifts.  Result: every network drive's
+ * server-slave field becomes 0xFF instead of 0x00, NDOS sees no
+ * valid master, never sends SNDMSG/RCVMSG, slave warm-boots in a
+ * tight cycle.  Clang (LLVM Z80) compiles the macro correctly.
+ * Use explicit byte literals; semantics identical, no macro >>8. */
 SECTION_INIT_RODATA
 static const uint8_t cfgtbl_init_template[13] = {
-    RC702_SLAVEID,                                                /* +1  slaveid */
-    NET_DRV('A', 0x00) & 0xFF, (NET_DRV('A', 0x00) >> 8) & 0xFF,  /* +2  drive[0] */
-    NET_DRV('B', 0x00) & 0xFF, (NET_DRV('B', 0x00) >> 8) & 0xFF,  /* +4  drive[1] */
-    NET_DRV('C', 0x00) & 0xFF, (NET_DRV('C', 0x00) >> 8) & 0xFF,  /* +6  drive[2] */
-    NET_DRV('D', 0x00) & 0xFF, (NET_DRV('D', 0x00) >> 8) & 0xFF,  /* +8  drive[3] */
-    NET_DRV('I', 0x00) & 0xFF, (NET_DRV('I', 0x00) >> 8) & 0xFF,  /* +10 drive[4] */
-    NET_DRV('J', 0x00) & 0xFF, (NET_DRV('J', 0x00) >> 8) & 0xFF,  /* +12 drive[5] */
+    RC702_SLAVEID,         /* +1  slaveid */
+    0x80, 0x00,            /* +2  drive[0]  A: -> master drive A */
+    0x81, 0x00,            /* +4  drive[1]  B: -> master drive B */
+    0x82, 0x00,            /* +6  drive[2]  C: -> master drive C */
+    0x83, 0x00,            /* +8  drive[3]  D: -> master drive D */
+    0x88, 0x00,            /* +10 drive[4]  E: -> master drive I */
+    0x89, 0x00,            /* +12 drive[5]  F: -> master drive J */
 };
 
 /* Set the few non-zero fields.  Everything else stayed zero at BSS
