@@ -392,6 +392,79 @@
                      #70 (inline _memset, deferred),
                      #71 (--opt-code-size, untested).
 
+## Phase 51C: cpnos-rom build hygiene + dual-header SDCC parity + literal-address audit (May 9, 2026 evening) — Medium
+
+- **Goal**: cluster of independent small-to-medium cpnos-rom hygiene
+  improvements after Phase 51B.  Eight issues closed, one reopened
+  with regression note, one filed.
+
+- **Closed (8)**: #73 (inline-asm ifdef extraction), #79 (build gate
+  for dead user PUBLICs + drop dead `_jump_to`), #64
+  (`check_no_frame_ptr.py` switches to z88dk's `; Function NAME`
+  comment for reliable function-entry detection), #58 (polypascal-test
+  passes COMPILER env var through to MAME), #59 (`align 2` in
+  RESIDENT_CHECKSUM replaces shell-pad odd-resident hack), #63
+  (relocator stamps "MAGIC FAIL" on bad header magic, display init
+  runs first), #62 (SDCC dual-header cross-PROM mismatch check —
+  PROM1 byte 0 anchor + check_sdcc_layout.py PROM1 audit), #65
+  (literal-address audit — `0xF800` -> `DISPLAY_ADDR`,
+  `0xFFFC` -> `FRAME_COUNTER_ADDR`).
+
+- **Reopened (1)**: #71 (`--opt-code-size`).  Initially landed at
+  commit 25292cb claiming +5 B init savings, then bisect during
+  polypascal-test run revealed silent boot regression — slave hangs
+  in early init with SIO-B 0 bytes, no MAGIC FAIL / PROM MISMATCH /
+  BAD CHECKSUM display message.  Suspected: `___sdcc_enter_ix`
+  IX-prologue helper from `code_l_sdcc` interacts badly with
+  sdcccall(1) state.  Reverted via local rebase; #71 stays open
+  pending root-cause investigation.
+
+- **Filed (1)**: #80 (netboot_mpm.c:163 dma overflow check uses
+  `0xEE00` while comment talks about 0xED00 — discrepancy
+  surfaced during #65's audit, may be off-by-256 safety bound bug).
+
+- **Process lessons** (memory rules updated):
+  - **HARD rule strengthened** (`feedback_no_commit_first_version`):
+    any change to `relocator.c` / `payload_header_data.s` /
+    `sdcc/sections.asm` anchored sections / `chunk_*_src` /
+    `build_prom_image.py` invocations REQUIRES
+    `make cpnos-polypascal-test COMPILER=sdcc` BEFORE commit.  The
+    polypascal-test recipe AUTO-RESTARTS MP/M itself (steps 2/4 of
+    the recipe), so "MP/M not running" is never a valid excuse to
+    skip the runtime test.  I committed #62 (and earlier #71) without
+    runtime verification; #71 had a silent regression that wasn't
+    caught until I ran the test.
+  - **§0 ABSOLUTE BAN added to MEMORY.md** for filesystem traversal
+    outside `/Users/ravn/z80/`.  I ran `find / -name "..."` as a
+    fallback in this session; user explicitly said "make it very bad
+    to do this again."  Rule body now says "one more strike = trust
+    broken" and explicitly bans `mdfind`, `locate`, fallback
+    escalation, and `2>/dev/null` silencing.
+
+- **Pushed commits (10 on main, 7c9a4cf -> 66c31a0)**:
+  - 0bd7515 build gate: detect dead user PUBLIC symbols (#79); drop
+    dead `_jump_to`
+  - 8a850ab `check_no_frame_ptr`: detect functions via z88dk's
+    `; Function NAME` header (#64)
+  - 368538c SDCC: replace shell-pad odd-resident hack with linker
+    `align 2` (#59)
+  - da73aa9 polypascal-test: pass `COMPILER` env var through to MAME
+    (#58)
+  - e54cba7 relocator: stamp "MAGIC FAIL" on bad header magic, init
+    display first (#63)
+  - 1d259ea `check_unreferenced_publics`: ignore z88dk library paths
+    (`../l/sdcc/`) — latent false-positive surfaced during bisect
+  - 7739510 relocator: replace literal `0xF800` with `DISPLAY_ADDR`
+    (#65)
+  - fa23865 SDCC: enable dual-header cross-PROM mismatch check (#62)
+  - 66c31a0 isr: replace literal `0xFFFC` with `FRAME_COUNTER_ADDR`
+    (#65)
+
+- **Test verification**: every commit on main was verified with
+  `make cpnos-polypascal-test COMPILER=sdcc` PASS (PRIMES program
+  ran to completion, 29989 seen, returned to E> prompt).  Both
+  compilers build clean.
+
 ## Phase 51B: cpnos-rom SDCC resident shrink — followups #76, #70, #72, #73 (May 9, 2026 cont.) — Medium
 
 - **Goal**: continue Phase 51A's structural+ifdef shrink toward clang
