@@ -392,6 +392,92 @@
                      #70 (inline _memset, deferred),
                      #71 (--opt-code-size, untested).
 
+## Phase 51D: cpnos-rom clang vs SDCC compiler-output comparison — exposed clang silent miscompile (May 9, 2026 late evening) — Medium
+
+- **Goal**: per user request, compare clang Z80 vs z88dk-zsdcc cpnos-rom
+  output and identify any glaring per-function discrepancies
+  (≥ 1.5× ratio OR ≥ 50 B absolute Δ) — investigate those, ignore
+  the long tail (memory rule `feedback_outlier_first_not_sweep`).
+
+- **Comparison methodology**: pulled clang sizes from
+  `llvm-nm --print-size --size-sort` on `payload.elf`; SDCC sizes from
+  `cpnos.map` by partitioning addr-public-or-local symbols by section
+  and computing `next_addr - this_addr`.  Initial pass that filtered
+  out local symbols produced false positives (`_clear_screen` looked
+  like 505 B because the next *public* symbol was 16 functions later;
+  actual size was 16 B).  Including locals fixed it.
+
+- **Single glaring outlier found**: `_resident_handoff`
+    - clang: 18 B
+    - SDCC: 58 B
+    - Δ: +40 B, ratio 3.22×
+
+  Other "borderline" entries (`_pio_b_set_input` 1.54×, `_cursor_down`
+  1.53×) had absolute Δ ≤ 14 B — below the actionable threshold.
+
+- **Investigation revealed clang silent miscompile**: clang's
+  `_resident_handoff` ended at `jr $f331` infinite loop after
+  `snios_ntwkin()` — the entire `if (entry != 0) { ... }` block
+  containing the BIOS-JT memcpy + zero-page LDIR + `enter_coldst()`
+  call was elided.  `_enter_coldst` had ZERO callers in the linked
+  payload.  Polypascal-test under clang FAILED stage 1 (banner +
+  25 netboot dots, then silence — never reaches `E>` prompt).
+
+- **Root cause** (commit ca5663f, earlier this session): the #73
+  ifdef-collapse work replaced inline asm with portable
+  `__builtin_memcpy((void *)0, zp_init_data, sizeof(zp_init_data))`.
+  Writing through a literal NULL pointer is undefined behaviour per
+  ISO C; clang's optimizer detects the UB and treats every path that
+  reaches it as unreachable, eliding the entire enclosing if-block
+  AND the preceding BIOS-JT memcpy AND the `enter_coldst()` call.
+  SDCC's non-aggressive optimizer compiled the body fine, hiding the
+  bug behind the recent sessions' "tested SDCC PASS" pattern.
+
+- **Why `volatile` didn't help** (attempted before inline asm):
+  `volatile uint8_t *p = (volatile uint8_t *)0` qualifies the pointee
+  for *accesses through p*, not the pointer's value.  Clang's
+  constant-prop folds `p = 0` across the local; `__builtin_memcpy`'s
+  signature drops the volatile qualifier (its dst is plain `void *`);
+  UB detection re-fires.  Volatile would only help with a hand-rolled
+  loop, not a memcpy call.
+
+- **Fix** (commit `2db9aad`): inline asm via `ASM_VOLATILE` for the
+  zero-page LDIR.  Both compilers accept the syntax (no
+  register-pinning constraints).  `_resident_handoff` 18 → 54 B clang;
+  `_enter_coldst` becomes a real callee.
+
+- **Verification**:
+  | metric                    | before fix | after fix |
+  | ------------------------- | ---------: | --------: |
+  | `_resident_handoff` clang | 18 B (broken) | 54 B (correct) |
+  | clang polypascal-test     | FAIL stage 1 | **PASS** (50 s) |
+  | SDCC polypascal-test      | PASS (52 s) | **PASS** (52 s) |
+  | clang/payload.bin         | 1676 B     | 1712 B (+36 B for the if-block) |
+
+- **Filed `#81`** to revisit later — is there a portable C alternative
+  to inline asm for zero-page writes?  Candidates: per-TU
+  `-fno-delete-null-pointer-checks`, runtime-computed pointer via
+  linker symbol, llvm-z80 backend opt-out for nullptr-deref UB
+  optimization, attribute suppression.  Current inline asm is a
+  working solution; #81 is a followup not a blocker.
+
+- **Lessons** (memory rules updated):
+  - **`feedback_outlier_first_not_sweep` added (HARD RULE)**: when
+    comparing two systems, find ≥1.5× / ≥50 B divergences and dig in;
+    do NOT methodically chase every per-item difference.  Stated by
+    user after I drafted a methodical sweep plan.
+  - **Compilers-disagree-means-investigate** is the inverse of the
+    existing `feedback_compilers_agree_means_harness` rule.  When
+    two compilers DISagree at byte level on the same C source,
+    suspect a real codegen / source UB issue and investigate; don't
+    dismiss as "compilers differ."
+
+- **Net session add**: 12 commits on origin/main, 8 issues closed
+  (#73, #79, #64, #58, #59, #63, #62, #65), 1 reopened (#71), 2 new
+  filed (#80 netboot overflow check, #81 portable-C zero-page LDIR).
+  Clang slave booting again under polypascal-test for the first time
+  since ca5663f's regression earlier today.
+
 ## Phase 51C: cpnos-rom build hygiene + dual-header SDCC parity + literal-address audit (May 9, 2026 evening) — Medium
 
 - **Goal**: cluster of independent small-to-medium cpnos-rom hygiene
