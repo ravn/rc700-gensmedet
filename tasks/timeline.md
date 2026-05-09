@@ -307,6 +307,91 @@
   - **#21** runtime version check at boot (low priority).
   - **#13** hunt remaining JP-0 sources in SDCC build (gated on #29).
 
+## Phase 51A: cpnos-rom SDCC resident shrink toward clang parity (May 9, 2026) — Medium
+
+- **Goal** (user-stated): "I want to get the sdcc build to be as close
+  in resident memory size to clang as reasonably possible.  The code
+  should be as close to standard c as possible with as few ifdefs as
+  possible, keeping the differences in the linker configuration.
+  Consider if assembly code can be reverted back to C."
+
+- **Strategy**: structural / linker-only fixes first (no codegen risk),
+  then `#ifdef` collapses, then asm-to-C.  Phase 51A executed the
+  first two layers.
+
+- **Phase 51A.1 (commit f9ebadd, closes #19)**: retire NETBOOT_LEGACY
+  / SERVER=proxy / netboot.c.  netboot_server.py was deleted in Phase
+  48b leaving SERVER=proxy with no working server.  Removed:
+  cpnos-rom/netboot.c (-220 lines), Makefile SERVER dispatch (-12
+  lines), -DNETBOOT_LEGACY define, #ifdef NETBOOT_LEGACY block in
+  cpnos_main.c (-1 #ifdef).
+
+- **Phase 51A.2 (commit fad1efd, closes #68, -108 B resident)**:
+  split cpnos_main.c -> cpnos_cold.c.  cpnos_cold.c (NEW) holds
+  cpnos_cold_entry + print_banner in INIT_CODE / INIT_RODATA;
+  cpnos_main.c keeps resident_handoff + zp_init_data in RESIDENT.
+  Mirrors clang's `__attribute__((section))` per-function placement
+  using SDCC's per-file `--codeseg` flag.  Linker structural change:
+  PROM0 chunk A start 0x0400 -> 0x0520 to mirror clang's payload.ld
+  layout, freeing INIT_CODE budget by 288 B.  sdcc/sections.asm
+  __payload_chunk_a_size 1024 -> 736.  gen_payload_header.py
+  --chunk-a-src=0x0400 -> 0x0520.  No codegen change.
+
+- **Phase 51A.4 (commit 1ee8053, -22 B resident; intermediate 51A.3
+  attempts not committed -- see #72)**: drop two diagnostic-cleanup
+  pieces after #57/#60 closed.  cpnos_main.c::resident_handoff drops
+  the `boot_probe('H')` call site (-4 B, -1 #ifdef).  sdcc/snios.asm
+  drops the NTWKIN_W instrumentation wrapper (-18 B RESIDENT_SNIOS).
+  Plus a correctness fix: cpnos_cold.c now includes cpnos_addrs.h so
+  CPNOS_TPA_KB expands to "55" in the banner instead of literal
+  "CPNOS_TPA_KB".
+
+- **Result** (cumulative Phase 51A: f17e826 -> 1ee8053):
+
+  | metric | start (Phase 50) | after 51A | Δ |
+  |---|---:|---:|---:|
+  | Resident (RAM) | 2180 B | **2050 B** | **−130 B (−6%)** |
+  | Cumulative since Phase 49 | 2756 B | 2050 B | **−706 B (−26%)** |
+  | Gap vs clang | +538 B (+33%) | **+408 B (+25%)** | gap closed by 24% |
+  | SDCC pio-irq polypascal | 52.91 s PASS | 53.25 s PASS | ±20 ms |
+  | SDCC sio    polypascal | 60.79 s PASS | 60.83 s PASS | ±20 ms |
+
+- **Issue #72 (filed, blocking ~123 B more savings)**: removing the
+  `boot_probe` + `p_hex` + `bios_log_byte` function bodies in
+  resident.c (closes #57/#60 fully) triggers a slave warm-boot loop
+  with a truncated banner reprint.  Mechanism not identified; root
+  cause investigation deferred.  Functions kept alive in this phase.
+
+- **Lessons**:
+  (a) When Phase 51A.3 broke boot, bisected by reverting individual
+      Phase 51A.3 changes one at a time.  NTWKIN_W bypass alone =
+      PASS; removing boot_probe/p_hex alone (keeping bios_log_byte) =
+      FAIL.  The breakage is structurally unrelated to NTWKIN_W and
+      lives in the boot_probe/p_hex/probe_once removal.  Surfaces
+      that bisecting structural-change failures by file is faster
+      than bisecting by line.
+
+  (b) Truncated banner reprint pattern (banner bytes appearing AFTER
+      PROM disable, missing trailing chars) is a hallmark of stack
+      corruption causing a wrong PC to land in INIT_RODATA's banner
+      string.  But INIT_RODATA is only valid PRE-disable, so the
+      mechanism must involve something running before disable that
+      gets re-entered post-disable, OR PROM disable not actually
+      happening.  Filed as #72 for next-session follow-up.
+
+  (c) The `--chunk-a-src` and `__payload_chunk_a_size` constants
+      must move in lockstep when relocating chunk A.  Initial Phase
+      51A.2 attempt forgot to update __payload_chunk_a_size in
+      sdcc/sections.asm and the relocator read 256 B beyond PROM0
+      tail (junk into RAM).  Black screen until both touched.
+
+- **Issue activity**:
+  Closed: #19 (NETBOOT_LEGACY retired), #68 (cpnos_main split).
+  Filed:  #72 (boot_probe / bios_log_byte removal warm-boot regression).
+  Not yet addressed: #69 (boot_probe to INIT, blocked by #72),
+                     #70 (inline _memset, deferred),
+                     #71 (--opt-code-size, untested).
+
 ## Phase 50: cpnos-rom SDCC cold-init code -> PROM-only (May 9, 2026) — Easy
 
 - **Goal**: shrink SDCC resident size by mirroring clang's `.init`

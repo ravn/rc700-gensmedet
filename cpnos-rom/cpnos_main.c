@@ -30,9 +30,6 @@
 
 extern void init_hardware(void);
 extern void cfgtbl_init(void);
-#if MIRROR_SIOB && defined(__SDCC)
-extern void boot_probe(uint8_t tag);
-#endif
 #include "cfgtbl.h"
 
 /* BIOS jump table base = BIOS_BASE.  `_bios_boot` is the first entry
@@ -317,16 +314,6 @@ static void pio_loopback_test(void) {
 }
 #endif
 
-/* Netboot: two implementations, one selected by SERVER=mpm|proxy in
- * the Makefile.  Default is mpm — standard CP/NET 1.2 LOGIN / OPEN /
- * READ / CLOSE against z80pack MP/M II. */
-#ifdef NETBOOT_LEGACY
-extern uint16_t netboot(void);
-#define NETBOOT() netboot()
-#else
-extern uint16_t netboot_mpm(void);
-#define NETBOOT() netboot_mpm()
-#endif
 
 /* Boot orchestration after netboot: signon + BIOS-JT copy + ZP[0..7].
  * Replaces cpbios.asm's `boot:` routine.  Keeps everything in C so the
@@ -337,35 +324,6 @@ extern uint16_t netboot_mpm(void);
  * (= JP BDOS+6, where BDOS's address is a cpnos.com link-time symbol)
  * and falls through to NDOS+3 = COLDST.  Phase A (2026-04-30) lifted
  * NDOS from 0xD000 to 0xE080 (TPA grew 51 -> 55 KB strict). */
-extern void impl_conout(uint8_t c);
-
-/* Banner is printed BEFORE NETBOOT() so the screen layout is:
- *   row 0 (cursor home): "RC702 CP/NOS WWW-MMM yyyy-mm-dd HH:MM hash"
- *   row 1: 25 netboot progress dots followed by CR/LF on EOF
- * Operator sees the OS identity immediately on power-on, then watches
- * the dots fill in below it.  Previously the banner was printed by
- * nos_handoff() AFTER netboot, so the dots appeared on row 0 and the
- * banner on row 1 — backwards from what operators expect. */
-SECTION_INIT_TEXT
-static void print_banner(void) {
-    /* "RC702 CP/NOS NNK WWW-MMM cc yyyy-mm-dd HH:MM hash\r\n".
-     * NNK is the TPA size in KB (CPNOS_TPA_KB, build-time from
-     * cpnos.sym).  WWW-MMM is the TRANSPORT_NAME literal (define
-     * via Makefile -DTRANSPORT_NAME='"PIO-IRQ"' / "SIO" / "PIO-PRX").
-     * `cc` is CPNOS_COMPILER_NAME ("clang" / "sdcc" / "hitech") —
-     * picked at preprocess time so the banner unambiguously identifies
-     * which build produced the running image, regardless of how it was
-     * deployed.  All three pieces stringify at compile time. */
-#define _STR(x) #x
-#define STR(x) _STR(x)
-    static const SECTION_INIT_RODATA char banner[] =
-        "RC702 CP/NOS " STR(CPNOS_TPA_KB) "K "
-        TRANSPORT_NAME " " CPNOS_COMPILER_NAME " " BUILD_INFO_STR "\r\n";
-    for (const char *p = banner; *p; ++p) impl_conout((uint8_t)*p);
-#undef STR
-#undef _STR
-}
-
 /* BIOS-JT copy lands at NDOSRL + 0x300 inside cpnos.com's data area.
  * NDOSRL = NDOS - 0x400, so the copy address is NDOS - 0x100.  NDOS
  * COLDST walks the table via ZP[0001..0002], replacing slots 1..5 + 15
@@ -403,7 +361,7 @@ const uint8_t zp_init_data[8] = {
  * RAM.  Tail-called by cpnos_cold_entry() with `entry` = 0 on
  * netboot failure, otherwise NDOS's cold-start vector. */
 NORETURN
-static void resident_handoff(uint16_t entry) {
+void resident_handoff(uint16_t entry) {
     /* Disable the PROMs -- exposes RAM underneath for the TPA and
      * netboot-loaded image.  We're at 0xED00 (RAM); still running. */
     _port_out(PORT_RAMEN, 0x00);
@@ -474,47 +432,12 @@ static void resident_handoff(uint16_t entry) {
 #endif
 
         BOOT_MARK(18, 'J');             /* about to JP NDOS COLDST */
-#if MIRROR_SIOB && defined(__SDCC)
-        /* Probe pre-handoff buffer state (issue #57). */
-        boot_probe('H');
-#endif
         enter_coldst();
     }
     for (;;) { }
 }
 
-/* Init phase: runs in place from PROM 0 0x0100..0x0??? (.init).
- * Tail-called by the relocator after it copies resident bytes to
- * 0xED00.  Calls into resident-RAM helpers (impl_conout, snios_*,
- * runtime stubs) work because the relocator already populated
- * 0xED00+ before JPing here.  PROMs are still mapped through
- * netboot completion; resident_handoff (RAM) does the OUT. */
-SECTION_INIT_TEXT
-NORETURN void cpnos_cold_entry(void) {
-    cfgtbl_init();
-    init_hardware();
-
-    /* SNIOS drives PIO byte primitives via the linker's
-     * --defsym=_xport_send_byte=_transport_pio_send_byte alias
-     * (transport_pio.c).  Mark 'P' so the boot strip indicates the
-     * physical wire (PIO) regardless of SNIOS envelope above. */
-    BOOT_MARK(7, 'P');
-
-    /* IRQ-driven snios-on-PIO needs IFF on during netboot:
-     * isr_pio_par fires per chip strobe and pushes bytes into
-     * pio_rx_buf for transport_pio_recv_byte to pop. */
-    enable_interrupts();
-
-    /* Banner BEFORE netboot so it appears on row 0; netboot dots flow
-     * on row 1 (operator's "OS identity at top, progress below"
-     * expectation). */
-    print_banner();
-
-    uint16_t entry = NETBOOT();
-    BOOT_MARK(15, entry ? '+' : '-');
-
-    /* Tail call into resident RAM -- everything after this point
-     * (PROM disable, snios_ntwkin, nos_handoff, enter_coldst) MUST
-     * run from RAM because PROM disable un-maps the .init region. */
-    resident_handoff(entry);
-}
+/* cpnos_cold_entry() and print_banner() were split out to
+ * cpnos_cold.c in Phase 51A (#68) so SDCC can place the cold-init
+ * code in INIT_CODE while this file (resident_handoff +
+ * zp_init_data) stays in RESIDENT_CODE.  See cpnos_cold.c. */
