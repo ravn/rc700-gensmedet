@@ -250,7 +250,7 @@ NORETURN void relocate(void) {
     /* Magic check.  Halts loudly on stale/missing/corrupt header
      * with "MAGIC FAIL" stamped to display row 0 (#63). */
     if (h->magic != PAYLOAD_HEADER_MAGIC) {
-        __builtin_memcpy((void *)0xF800, MAGIC_FAIL_MSG,
+        __builtin_memcpy((void *)DISPLAY_ADDR, MAGIC_FAIL_MSG,
                          sizeof MAGIC_FAIL_MSG - 1);
         for (;;) { }
     }
@@ -268,7 +268,7 @@ NORETURN void relocate(void) {
      * column position only if we want both visible -- today, the
      * BAD CHECKSUM print clobbers it, which is fine: the failure
      * message takes priority for a halted boot. */
-    __builtin_memcpy((void *)0xF800, h->build_date_str,
+    __builtin_memcpy((void *)DISPLAY_ADDR, h->build_date_str,
                      sizeof h->build_date_str);
 
 #ifdef CPNOS_HAS_P1_HEADER
@@ -284,7 +284,7 @@ NORETURN void relocate(void) {
         const uint16_t *b = (const uint16_t *)&payload_header_p1;
         for (uint16_t i = sizeof(struct payload_header) >> 1; i; --i) {
             if (*a++ != *b++) {
-                __builtin_memcpy((void *)0xF800, PROM_MISMATCH_MSG,
+                __builtin_memcpy((void *)DISPLAY_ADDR, PROM_MISMATCH_MSG,
                                  sizeof PROM_MISMATCH_MSG - 1);
                 for (;;) { }
             }
@@ -316,7 +316,7 @@ NORETURN void relocate(void) {
     for (uint16_t i = total >> 1; i; --i, ++w) sum += *w;
 
     if (sum != h->checksum_magic) {
-        __builtin_memcpy((void *)0xF800, BAD_CHECKSUM_MSG,
+        __builtin_memcpy((void *)DISPLAY_ADDR, BAD_CHECKSUM_MSG,
                          sizeof BAD_CHECKSUM_MSG - 1);
         for (;;) { }
     }
