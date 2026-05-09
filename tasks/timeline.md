@@ -307,6 +307,85 @@
   - **#21** runtime version check at boot (low priority).
   - **#13** hunt remaining JP-0 sources in SDCC build (gated on #29).
 
+## Phase 50: cpnos-rom SDCC cold-init code -> PROM-only (May 9, 2026) — Easy
+
+- **Goal**: shrink SDCC resident size by mirroring clang's `.init`
+  treatment for cold-init code.  Three .c files (`init.c`,
+  `netboot_mpm.c`, `cfgtbl.c`) contain only code that runs once before
+  `resident_handoff` does `OUT (0x18),A` to disable PROMs; under SDCC
+  they were nevertheless landing in `RESIDENT_PRE_CODE` (RAM-resident),
+  costing ~577 B of RAM persistently.
+
+- **Triggering analysis**: a per-function size comparison done in this
+  session (using `z88dk-z80nm` to distinguish function entries from
+  local labels, and crediting clang's 62 B `LJTI20_0` jumptable to its
+  consumer `_specc`) showed the matched-function codegen gap is
+  +27 B / +2% across all matched functions — NOT the 30-50% per-function
+  bloat I had been claiming since session 45.  The 1114 B whole-payload
+  gap was decomposed:
+    * z88dk runtime library: 28 B (2.5%) — `_memset` only
+    * cold-init code in RAM (this fix): ~580 B (52%)
+    * SDCC-only debug helpers + asm body diffs: ~510 B
+  The user's hypothesis "library routines are the primary reason" was
+  empirically false.  My prior "codegen quality is the primary reason"
+  was also false.  The actual primary reason was **structural** (linker-
+  script choice on where cold-init code lives), recoverable by an
+  11-line Makefile change.
+
+- **Fix** (`cpnos-rom/Makefile`, commit `1efd194` on branch
+  `sdcc-resident-init-section`):
+    Move `init.o`, `netboot_mpm.o`, `cfgtbl.o` from the
+    `SDCC_PRE_CFLAGS` (`--codeseg RESIDENT_PRE_CODE`) variant to the
+    `SDCC_INIT_CFLAGS` variant (`--codeseg INIT_CODE`).  Existing
+    infrastructure: per-target Makefile CFLAGS already worked, the
+    `INIT_CODE` section already existed (used by `relocator.o`),
+    `check_sdcc_layout.py` already accepted INIT_CODE as a valid
+    PROM0 section.  Eleven-line diff.
+
+- **Result** (4-cell matrix all PASS, identical wall-clock):
+
+  | metric | before | after | Δ |
+  |---|---:|---:|---:|
+  | Resident (RAM 0xED00..0xF7FF) | 2756 B | **2180 B** | **−577 B (−21%)** |
+  | RESIDENT_PRE_CODE | 847 B | 413 B | −434 B |
+  | RESIDENT_PRE_RODATA | 143 B | 0 B | −143 B |
+  | INIT_CODE | 250 B | 684 B | +434 B (PROM-only, doesn't cost RAM) |
+  | INIT_RODATA | 43 B | 186 B | +143 B (PROM-only) |
+  | PROM0 reset+loader | 350 B | 927 B | +577 B (still ≤ 1024 B chunk-A start) |
+  | Gap to clang resident | +1114 B (+68%) | **+538 B (+33%)** | gap halved |
+  | SDCC pio-irq polypascal | 52.93 s PASS | 52.91 s PASS | ±20 ms |
+  | SDCC sio polypascal | 60.77 s PASS | 60.79 s PASS | ±20 ms |
+
+- **Why this works**: cold-init functions (cfgtbl_init, init_hardware,
+  setup_ivt, netboot_mpm, cpnet_xact, install_fcb, reuse_fcb) execute
+  ONCE during cold-boot, before resident_handoff disables the PROMs.
+  They live at PROM0 0x015E..0x0386 (in the gap between PAYLOAD_HEADER
+  end and chunk A start at 0x0400).  After OUT (0x18),A the PROM is
+  unmapped and these bytes are gone — but they were never going to be
+  called again, so we save 577 B of RAM forever.  cfgtbl's BSS variable
+  (the runtime CFGTBL state NDOS reads from) stays in `bss_compiler`
+  regardless: only the cold-init code/rodata moves to PROM-only.
+
+- **Remaining gap (538 B vs clang)**: bulk is in hand-written asm
+  (snios.asm body 453 B) which should be near byte-identical to clang's
+  snios.s.  The other ~85 B is residual codegen + SDCC-only debug
+  helpers (boot_probe 63 B, bios_log_byte 27 B, p_hex 33 B).  Filed
+  follow-on issues #68 (cpnos_cold_entry to INIT_CODE, ~108 B),
+  #69 (boot_probe to INIT_CODE, ~50-63 B), #70 (inline _memset, 28 B),
+  #71 (re-investigate --opt-code-size now that headroom is 636 B).
+
+- **Lesson** (added to memory rules): when comparing two compilers
+  for a single project, compare TOTAL section sizes (.text + .rodata
+  + .data, all loaded sections) — not per-function `.text` sizes.
+  `llvm-nm --print-size` reports `.text` only; a switch table that
+  clang offloads to `.rodata` is invisible at that granularity, but
+  IS visible in the whole-payload total.  The per-function bias led
+  me to claim "30-50% per-function gap" for many sessions; the truth
+  was 2%.
+
+- **Branch state**: `sdcc-resident-init-section` (rc700-gensmedet);
+  pending merge into main with `--no-ff` milestone-style commit.
+
 ## Phase 49: cpnos-rom SDCC SIO transport validated end-to-end (May 9, 2026) — Easy
 
 - **Goal**: close issue #66 — validate `make cpnos-polypascal-test
