@@ -43,11 +43,17 @@ from pathlib import Path
 # emits no space; some assemblers add one).
 IX_RE = re.compile(r'\((ix|iy)\s*[+-]\s*[0-9]')
 
-# Function label: a line that starts at column 0 with `_name:` (z88dk
-# z80asm syntax).  Anything indented or labelled `l_<name>_NNN` is a
-# basic-block label, not a function entry.
-FN_RE = re.compile(r'^_(\w+):\s*$')
-LOCAL_LABEL_RE = re.compile(r'^l_\w+:\s*$')
+# z88dk emits this comment header immediately before every C-defined
+# function in the .s output:
+#   ;     ---------------------------------
+#   ;     Function relocate
+#   ;     ---------------------------------
+#   _relocate:
+# Use the comment as the authoritative function-entry signal so that
+# inline-asm labels with a `_` prefix (lifted to global scope by
+# `__asm__("_label:\n\t...")`) and bare data labels (`_BAD_CHECKSUM_MSG:`)
+# don't get mis-attributed as new function entries (#64).
+FN_HEADER_RE = re.compile(r'^;\s*Function\s+(\w+)\s*$')
 
 
 def scan_file(path: Path) -> dict[str, int]:
@@ -55,8 +61,8 @@ def scan_file(path: Path) -> dict[str, int]:
     counts: dict[str, int] = {}
     current = None
     for line in path.read_text().splitlines():
-        m = FN_RE.match(line)
-        if m and not LOCAL_LABEL_RE.match(line):
+        m = FN_HEADER_RE.match(line)
+        if m:
             current = m.group(1)
             continue
         if IX_RE.search(line) and current is not None:
