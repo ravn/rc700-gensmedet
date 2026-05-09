@@ -403,33 +403,14 @@ void resident_handoff(uint16_t entry) {
          *    JPs to NDOS+3 (COLDST). */
         __builtin_memcpy((void *)BIOS_JT_COPY_ADDR, bios_boot, 51);
 
-        /* TODO (cpnos-rom dual-compile, Phase 2): clang Z80 register-
-         * class constraints don't parse under SDCC.  Same gap as the
-         * LDDR site in resident.c::insert_line.  Replacement plan: a
-         * shared `mem_copy_forward(dst, src, count)` helper exported
-         * from runtime.s (per-compiler asm body, same C signature).
-         * See tasks/sdcc-port.md. */
-#if defined(__clang__) && defined(__z80__)
-        const void *src = zp_init_data;
-        void       *dst = (void *)0;
-        unsigned    n   = sizeof(zp_init_data);
-        __asm__ volatile("ldir"
-            : "+{de}"(dst), "+{hl}"(src), "+{bc}"(n)
-            :
-            : "memory");
-#else
-        /* SDCC: clang's "+{de}"/"+{hl}"/"+{bc}" register-class
-         * constraints don't parse.  Inline LDIR with literal addresses
-         * keeps the size cost identical to clang's version.  Without
-         * this copy NDOS COLDST jumps via uninitialised ZP and the
-         * slave hangs after BOOT_MARK 'P'. */
-        ASM_VOLATILE(
-            "ld   hl, _zp_init_data\n\t"
-            "ld   de, 0\n\t"
-            "ld   bc, 8\n\t"          /* sizeof(zp_init_data) */
-            "ldir\n\t"
-        );
-#endif
+        /* Copy zp_init_data (8 B in resident RODATA) to RAM 0x0000.
+         * Without this copy NDOS COLDST jumps via uninitialised ZP
+         * and the slave hangs after BOOT_MARK 'P'.  Both compilers
+         * lower __builtin_memcpy with a constant-count to inline LDIR
+         * (~11 B per site, no libcall): clang directly via the Z80
+         * backend; z88dk-zsdcc via its memcpy peephole inliner.
+         * Portable C, no compiler-detection ifdef. */
+        __builtin_memcpy((void *)0, zp_init_data, sizeof(zp_init_data));
 
         BOOT_MARK(18, 'J');             /* about to JP NDOS COLDST */
         enter_coldst();
