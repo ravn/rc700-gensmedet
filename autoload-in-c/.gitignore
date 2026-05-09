@@ -15,6 +15,7 @@ code.asm
 code.c.asm
 roa375_sccz80
 roa375_debug.cmd
+clang/prom0_debug.cmd
 build_stamp.h
 boot_entry.c.i
 rom.c.i

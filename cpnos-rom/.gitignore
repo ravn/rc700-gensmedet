@@ -4,3 +4,30 @@ testutil/acid
 testutil/ACID.COM
 testutil/acid_CODE.bin
 sdcc/audit/
+
+# SDCC build outputs.  Mirror of clang/ — all build artifacts, no
+# tracked sources in this directory beyond the hand-written .asm
+# files in sdcc/ root (sections.asm, reset.asm, snios.asm, etc.).
+sdcc/cpnos
+sdcc/cpnos.bin
+sdcc/cpnos.cim
+sdcc/cpnos.com
+sdcc/cpnos.lis
+sdcc/cpnos.map
+sdcc/cpnos.rom
+sdcc/cpnos.sym
+sdcc/cpnos_*.bin
+sdcc/cpnos_*.com
+sdcc/cpnos_addrs.h
+sdcc/cpnos_buildinfo.h
+sdcc/cpnos_layout.asm
+sdcc/cpnos_polypascal_addrs.lua
+sdcc/cpnos_stamped.com
+sdcc/payload_header_data.s
+sdcc/prom0.bin
+sdcc/prom0_padded.ic66
+sdcc/prom1.bin
+sdcc/resident_a.bin
+sdcc/resident_b.bin
+sdcc/transport_stamp
+sdcc/*.o
