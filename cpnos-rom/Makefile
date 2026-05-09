@@ -254,7 +254,7 @@ PAYLOAD_OBJS = $(BUILDDIR)/runtime.o $(BUILDDIR)/bios_jt.o \
                $(BUILDDIR)/resident.o $(BUILDDIR)/cfgtbl.o $(BUILDDIR)/init.o \
                $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o \
                $(NETBOOT_OBJ) \
-               $(BUILDDIR)/snios.o $(BUILDDIR)/isr.o \
+               $(BUILDDIR)/snios.o $(BUILDDIR)/snios_c.o $(BUILDDIR)/isr.o \
                $(BUILDDIR)/payload_checksum.o
 PAYLOAD_LD = $(BUILDDIR)/payload.ld
 
@@ -428,6 +428,10 @@ $(BUILDDIR)/payload_checksum.o: payload_checksum.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILDDIR)/cfgtbl.o: cfgtbl.c
+	@mkdir -p $(BUILDDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILDDIR)/snios_c.o: snios_c.c cfgtbl.h compiler/compat.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -1481,6 +1485,7 @@ $(BUILDDIR)/payload_header_data.s: tasks/scripts/gen_payload_header.py \
 SDCC_C_OBJS = $(BUILDDIR)/cpnos_main.o $(BUILDDIR)/cpnos_cold.o \
               $(BUILDDIR)/resident.o \
               $(BUILDDIR)/cfgtbl.o $(BUILDDIR)/init.o \
+              $(BUILDDIR)/snios_c.o \
               $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o \
               $(NETBOOT_OBJ) $(BUILDDIR)/isr.o \
               $(BUILDDIR)/relocator.o

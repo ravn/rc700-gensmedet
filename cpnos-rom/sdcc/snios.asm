@@ -44,6 +44,12 @@ defc CFG_MSGBUF  = 45
     EXTERN _cfgtbl
     EXTERN _xport_send_byte
     EXTERN _xport_recv_byte
+    ; Phase 1 of #75: trivial JT bodies moved to snios_c.c.
+    EXTERN _snios_ntwkin_impl
+    EXTERN _snios_ntwkst_impl
+    EXTERN _snios_cnftbl_impl
+    EXTERN _snios_ntwker_impl
+    EXTERN _snios_ntwkbt_impl
 
 ;----------------------------------------------------------------
 ;  SNIOS jump table  (first 24 bytes — public ABI for NDOS)
@@ -58,14 +64,14 @@ defc CFG_MSGBUF  = 45
 ; them.  The JT layout (3 bytes/entry, +0/+3/+6/+9/+0C/+0F/+12/+15)
 ; is fixed by the NDOS ABI -- can only put `jp X` here.
 _snios_jt:
-_snios_ntwkin:  jp NTWKIN          ; +00 NETWORK INITIALIZATION                
-_snios_ntwkst:  jp NTWKST          ; +03 NETWORK STATUS
-_snios_cnftbl:  jp CNFTBL          ; +06 RETURN CONFIG TABLE ADDRESS
-_snios_sndmsg:  jp SNDMSG_DISPATCH ; +09 SEND MESSAGE ON NETWORK
-_snios_rcvmsg:  jp RCVMSG_DISPATCH ; +0C RECEIVE MESSAGE FROM NETWORK
-_snios_ntwker:  jp NTWKER          ; +0F NETWORK ERROR
-_snios_ntwkbt:  jp NTWKBT          ; +12 NETWORK WARM BOOT
-_snios_ntwkdn:  jp NTWKDN          ; +15 NETWORK SHUTDOWN
+_snios_ntwkin:  jp _snios_ntwkin_impl ; +00 NETWORK INITIALIZATION
+_snios_ntwkst:  jp _snios_ntwkst_impl ; +03 NETWORK STATUS
+_snios_cnftbl:  jp _snios_cnftbl_impl ; +06 RETURN CONFIG TABLE ADDRESS
+_snios_sndmsg:  jp SNDMSG_DISPATCH    ; +09 SEND MESSAGE ON NETWORK
+_snios_rcvmsg:  jp RCVMSG_DISPATCH    ; +0C RECEIVE MESSAGE FROM NETWORK
+_snios_ntwker:  jp _snios_ntwker_impl ; +0F NETWORK ERROR
+_snios_ntwkbt:  jp _snios_ntwkbt_impl ; +12 NETWORK WARM BOOT
+_snios_ntwkdn:  jp NTWKDN             ; +15 NETWORK SHUTDOWN
 
 ;----------------------------------------------------------------
 ;  SNIOS body
@@ -369,42 +375,12 @@ ERRRTN:
     ld   hl, _cfgtbl + CFG_NETST
     or   (hl)
     ld   (hl), a
-    call NTWKER
+    call _snios_ntwker_impl         ; device re-init hook (now in snios_c.c)
 SNDERR1:
     ld   a, 0xFF
     ret
 
-;================================================
-;= NTWKIN - NETWORK INITIALIZATION               =
-;================================================
-NTWKIN:
-    ld   a, ACTIVE
-    ld   (_cfgtbl + CFG_NETST), a
-    xor  a
-    ld   (_cfgtbl + CFG_SIZ), a
-    ret
-
-;================================================
-;= Remaining entry points                        =
-;================================================
-NTWKST:
-    ld   a, (_cfgtbl + CFG_NETST)
-    ld   b, a
-    and  0xFF - (RCVERR | SNDERR)
-    ld   (_cfgtbl + CFG_NETST), a
-    ld   a, b
-    ret
-
-CNFTBL:
-    ld   hl, _cfgtbl
-    ret
-
-NTWKER:
-    ret
-
-NTWKBT:
-    xor  a
-    ret
+; NTWKIN / NTWKST / CNFTBL / NTWKER / NTWKBT moved to snios_c.c (Phase 1 of #75).
 
 NTWKDN:
     ld   ix, _cfgtbl + CFG_MSGBUF

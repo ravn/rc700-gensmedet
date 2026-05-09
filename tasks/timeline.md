@@ -1,5 +1,71 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 52: cpnos-rom SNIOS asm→C migration, Phase 1 of #75 (May 10, 2026) — Easy
+
+- **Goal** (per #75): rewrite SNIOS body from hand-written asm to
+  portable C, eliminating the dual hand-port maintenance burden.  This
+  phase ports the trivial non-protocol functions; protocol state-machine
+  bodies (SENDBY/RECVBY/RECVBT, NETOUT/NETIN/MSGOUT/MSGIN, SNDMSG/RCVMSG
+  and helpers) and NTWKDN deferred to later phases.
+
+- **Functions ported (5)**: NTWKIN, NTWKST, CNFTBL, NTWKER, NTWKBT.
+  ~17 B asm body removed from each of `snios.s` + `sdcc/snios.asm`.
+  New file `cpnos-rom/snios_c.c` (~50 LOC) holds the C bodies; JT
+  slots updated to `jp _snios_<name>_impl`.  ERRRTN's `call NTWKER`
+  (asm-side caller) re-pointed to `call _snios_ntwker_impl`.
+
+- **Result** (4-cell polypascal-test all PASS):
+
+  | metric | before | after | Δ |
+  |---|---:|---:|---:|
+  | Clang payload | 1712 B | **1712 B** | 0 (byte-neutral) |
+  | SDCC resident | 1858 B | **1860 B** | **+2 B** (≈1%) |
+  | clang/pio-irq polypascal | 50.73 s | 50.73 s | ~0 |
+  | clang/sio polypascal     | 59.19 s | 59.19 s | ~0 |
+  | sdcc/pio-irq polypascal  | 50.91 s | 50.91 s | ~0 |
+  | sdcc/sio polypascal      | 59.95 s | 59.95 s | ~0 |
+
+- **Two compiler-specific gotchas captured in code comments**:
+
+  (a) **CNFTBL pointer return**: NDOS's contract is HL=cfgtbl, but
+  both compilers' sdcccall(1) ABI returns 16-bit pointers in **DE**,
+  not HL.  Clang emitted `ld de,_cfgtbl; ret` and SDCC the same.
+  The C declaration `struct cfgtbl *snios_cnftbl_impl(void)` cannot
+  satisfy NDOS's ABI on either compiler.  Resolved with `__naked` +
+  `ASM_VOLATILE("ld hl,_cfgtbl\n\tret")` -- single inline asm site.
+
+  (b) **NTWKER tail-call alias**: SDCC's optimizer detected that
+  `void f(void) {}` is a `ret` and aliased `_snios_ntwker_impl` to
+  z88dk's runtime `l_ret` symbol (`code_l_sccz80` library section).
+  Aliasing is harmless because (i) `check_sdcc_layout.py` verified the
+  alias resolves inside the resident range, (ii) NDOS's `ret`-only
+  contract for NTWKER is satisfied either way, and (iii) clang doesn't
+  perform the alias.  Documented in the source comment so future
+  readers don't re-investigate.
+
+- **Bring-up bug found and fixed**: first build of `snios_cnftbl_impl`
+  as plain C (without `__naked`) compiled but boot-hung the slave at
+  the truncated-banner-reprint pattern (Phase 51A.3-style stack
+  corruption).  Bisect via `llvm-nm` + audit dump took ~10 minutes
+  to localise to gotcha (a).  Polypascal-test caught the regression
+  before commit per `feedback_no_commit_first_version`.
+
+- **Lessons captured for #75 future phases**:
+  - Functions whose asm body relies on a register-return convention
+    different from sdcccall(1) (HL vs DE for pointers, CY flag for
+    timeout, D for running checksum) need `__naked` + inline asm at
+    the call boundary -- they are NOT pure C.  Audit the existing asm
+    for these conventions BEFORE assuming portable C will work.
+  - SDCC's tail-call aliasing to `l_ret` / `code_l_sccz80` symbols
+    is safe when the audit catches them, but generates non-obvious
+    map-file output.  Document the alias in the C source so future
+    readers understand the linker symbol pointing to a library
+    section is intentional.
+
+- **Issue activity**: Phase 1 of #75 done; #75 stays open.  Next
+  phases: SENDBY/RECVBY/RECVBT (Phase 2), NETOUT/NETIN/MSGOUT/MSGIN
+  (Phase 3), SNDMSG/RCVMSG state-machine (Phase 4 -- HIGHEST risk).
+
 ## Phase 1: SYSGEN Reconstruction (Apr-May 2023)
 - **2023-04-28**: Initial commit. SYSGEN.ASM from CP/M 2.2 source, RCSYSGEN.COM from RC702 system
 - **2023-04-28**: MAC assembler chosen (Digital Research native CP/M assembler)
