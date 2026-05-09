@@ -130,105 +130,22 @@ uint8_t kbd_tail;   /* written by CONIN */
 USED uint8_t pio_par_byte;
 USED uint8_t pio_par_count;
 
-#if MIRROR_SIOB && defined(__SDCC)
-/* BIOS-JT call trace buffer + idx; defined in sdcc/sections.asm
- * inside bss_ivt's 220 B of unused padding.  Declared here at file
- * scope so SDCC emits the right EXTERNs in the asm output (inline-
- * asm references alone are invisible to SDCC's extern emitter). */
-extern uint8_t bios_log_buf[219];
-extern uint8_t bios_log_idx;
-
-/* Naked helper: append A (tag byte) to the log buffer if not full,
- * preserving all caller registers (incl. A and F).  Each shim
- * call-site shrinks to `push af; ld a, TAG; call _bios_log_byte;
- * pop af` (6 bytes) instead of inlining the full ~38-byte sequence
- * 6 times.  Saves ~190 bytes of resident across the 6 log sites. */
-RESIDENT
-USED void bios_log_byte(void) __naked {
-    ASM_VOLATILE(
-        "push hl\n\t"
-        "push de\n\t"
-        "push bc\n\t"
-        "ld   c, a\n\t"
-        "ld   a, (_bios_log_idx)\n\t"
-        "cp   219\n\t"
-        "jr   nc, _bioslog_byte_full\n\t"
-        "ld   e, a\n\t"
-        "ld   d, 0\n\t"
-        "ld   hl, _bios_log_buf\n\t"
-        "add  hl, de\n\t"
-        "ld   (hl), c\n\t"
-        "inc  a\n\t"
-        "ld   (_bios_log_idx), a\n\t"
-    "_bioslog_byte_full:\n\t"
-        "pop  bc\n\t"
-        "pop  de\n\t"
-        "pop  hl\n\t"
-        "ret\n\t"
-    );
-}
-#endif
-
-#if MIRROR_SIOB && defined(__SDCC)
-/* Boot-time probe (issue #57): emits one labelled hex line over SIO-B
- * showing the state of every buffer impl_conin / impl_const can read.
- * Called at end of init_hardware ('I'), pre-NDOS-handoff ('H'), and
- * once on the first impl_const "data available" return ('S' = SIO-B
- * fired, 'K' = kbd_ring fired).  Removable once the 0x10 originator
- * is identified.
- *
- * Line shape: "[T]khktrrphpt" + 4*kbd_ring bytes + CR LF
- * (3 + 5*2 + 4*2 + 2 = 23 bytes per probe). */
-#ifndef TRANSPORT_PROXY
-extern volatile uint8_t pio_rx_head;
-extern volatile uint8_t pio_rx_tail;
-#endif
-
-RESIDENT
-static void p_hex(uint8_t b) {
-    static const char hexd[] = "0123456789ABCDEF";
-    console_putc((uint8_t)hexd[(b >> 4) & 0x0F]);
-    console_putc((uint8_t)hexd[b & 0x0F]);
-}
-
-RESIDENT
-void boot_probe(uint8_t tag) {
-    console_putc('[');
-    console_putc(tag);
-    console_putc(']');
-    p_hex(kbd_head);
-    p_hex(kbd_tail);
-#ifndef TRANSPORT_PROXY
-    p_hex(pio_rx_head);
-    p_hex(pio_rx_tail);
-#else
-    p_hex(0xFF);
-    p_hex(0xFF);
-#endif
-    p_hex(kbd_ring[0]);
-    p_hex(kbd_ring[1]);
-    console_putc('\r');
-    console_putc('\n');
-}
-#endif
-
-#if MIRROR_SIOB && defined(__SDCC)
-/* One-shot flags packed: bit 0 = SIO-B path probed, bit 1 = kbd_ring
- * path probed.  Probe fires the first time impl_const sees data
- * available on each path, then disarms.  See boot_probe (above). */
-static uint8_t probe_once;
-#endif
+/* boot_probe / p_hex / probe_once / bios_log_byte / bios_log_buf
+ * removed in #72 -- issues #57 + #60 closed.  -146 B RESIDENT_CODE
+ * + 220 B unused IVT-page padding freed.  See #72 closing comment for
+ * the linker layout fix that this removal also required (RESIDENT_
+ * CHECKSUM section in sdcc/sections.asm). */
 
 RESIDENT
 uint8_t impl_const(void) {
     if (_port_in(PORT_SIO_B_CTRL) & SIO_RR0_RX_CHAR_AVAIL) {
-#if MIRROR_SIOB && defined(__SDCC)
+#if 0  /* #72 bisect: was MIRROR_SIOB && defined(__SDCC) — boot_probe('S') call */
         if (!(probe_once & 0x01)) { probe_once |= 0x01; boot_probe('S'); }
 #endif
         return 0xFF;
     }
     if (kbd_head != kbd_tail) {
-#if MIRROR_SIOB && defined(__SDCC)
+#if 0  /* #72 bisect: was MIRROR_SIOB && defined(__SDCC) — boot_probe('K') call */
         if (!(probe_once & 0x02)) { probe_once |= 0x02; boot_probe('K'); }
 #endif
         return 0xFF;

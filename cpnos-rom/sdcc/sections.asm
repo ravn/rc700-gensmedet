@@ -120,6 +120,26 @@
 
     SECTION RESIDENT_DATA
 
+    ; Payload checksum placeholder — last 2 bytes of the resident.
+    ; cpnos-build/patch_payload_checksum.py overwrites these bytes
+    ; post-link so the 16-bit word-additive sum of the entire resident
+    ; equals 0xCAFE.  Mirrors clang's payload_checksum.c (a 2-byte
+    ; uint16_t placeholder in .payload_checksum, pinned at the end of
+    ; .payload by payload.ld).
+    ;
+    ; This section MUST be the last non-zero-size section in the
+    ; resident chain.  Declared in sections.asm rather than a separate
+    ; .c file because the SDCC build doesn't have a per-symbol section
+    ; attribute -- declaring here pins it via the section-ordering in
+    ; this file.  Without this dedicated 2-byte slot, the checksum
+    ; patcher overwrites whatever happens to be the last 2 bytes of
+    ; the linked resident -- which becomes zp_init_data[6..7] when the
+    ; resident shrinks below a threshold (root cause of #72).
+    SECTION RESIDENT_CHECKSUM
+    PUBLIC __payload_checksum
+__payload_checksum:
+    defw 0xFFFF                    ; will be overwritten post-link
+
 ;-----------------------------------------------------------------
 ; SCRATCH BSS — VMA 0x0800 (NOLOAD; not in either PROM image).
 ;
@@ -160,23 +180,9 @@ __ivt_start:
     defs 36
 __ivt_end:
 
-    ; BIOS-JT call trace buffer (issue #60 diagnosis).  Lives in the
-    ; 220 B of unused IVT padding (bss_ivt is 256 B page-aligned but
-    ; only 36 B of vectors are populated).  Each shim writes 1 byte
-    ; per entry and per exit (slot|0x10 entry, slot|0x20 exit), then
-    ; advances _bios_log_idx.  When idx reaches the buffer end the
-    ; shim stops logging (no wrap-around -- earlier calls preserved).
-    ; MAME Lua dumps _bios_log_buf at end of test for diff against
-    ; clang reference.  Linker places this at __ivt_end via the IVT
-    ; padding; address derived, no literal.  Names are single-
-    ; underscore so the C-side `extern uint8_t bios_log_buf[]`
-    ; resolves cleanly under z88dk SDCC's underscore-prefix convention.
-    PUBLIC _bios_log_buf
-    PUBLIC _bios_log_idx
-_bios_log_buf:
-    defs 219
-_bios_log_idx:
-    defs 1
+    ; (bios_log_buf / bios_log_idx removed in #72 -- issue #60 closed,
+    ; bios_log_byte helper in resident.c also removed.  220 B of IVT-
+    ; page padding now unused.)
 
     ; PIO-B receive ring — page-aligned 256-byte buffer at 0xEB00.
     ; Defined here (not in transport_pio.c) so the linker places it at
@@ -212,13 +218,16 @@ _pio_rx_buf:
 ; at PROM0 0x0520 (was 1024 / 0x0400 pre-Phase-51A.2; Phase 51A.2 moved
 ; chunk A start to 0x0520 to mirror clang's layout, giving INIT_CODE
 ; the room to absorb cpnos_cold.c).  chunk_b_size is derived from
-; where RESIDENT_DATA actually ends, so growing the resident grows
-; chunk_b automatically (no Makefile edit).
+; where RESIDENT_CHECKSUM actually ends (RESIDENT_CHECKSUM is the LAST
+; section in the resident chain, holding the 2-byte slot the post-link
+; checksum patcher writes to), so growing the resident grows chunk_b
+; automatically (no Makefile edit).  Using RESIDENT_CHECKSUM_tail
+; (not RESIDENT_DATA_tail) so the chunk includes the checksum bytes.
 ;-----------------------------------------------------------------
 
     EXTERN __bss_pio_rx_head
     EXTERN __bss_string_tail
-    EXTERN __RESIDENT_DATA_tail
+    EXTERN __RESIDENT_CHECKSUM_tail
 
     PUBLIC __scratch_bss_start
     PUBLIC __scratch_bss_end
@@ -233,4 +242,4 @@ _pio_rx_buf:
     PUBLIC __payload_chunk_a_size
     PUBLIC __payload_chunk_b_size
     defc __payload_chunk_a_size = 736
-    defc __payload_chunk_b_size = __RESIDENT_DATA_tail - 0xED00 - 736
+    defc __payload_chunk_b_size = __RESIDENT_CHECKSUM_tail - 0xED00 - 736
