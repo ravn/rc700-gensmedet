@@ -1262,14 +1262,14 @@ ifeq ($(TRANSPORT),sio)
 	@# user-console mirror; PIO-B is unused.  mpm-net2's :4002 is a
 	@# raw TCP console socket (z80pack cpmsim net_server.conf), which
 	@# accepts byte pass-through identically to the PIO cpnet_bridge.
-	-$(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
+	-COMPILER=$(COMPILER) $(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 240 \
 	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
 	    -autoboot_script mame_polypascal_test.lua
 else
-	-$(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
+	-COMPILER=$(COMPILER) $(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 240 \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
