@@ -28,7 +28,11 @@ relocator.s:relocate:10
 # outweighs the eliminated second-function ABI overhead).
 resident.s:scroll_lines:7
 
-# snios_c.c::try_send_frame, try_recv_frame -- ELIMINATED in Phase 64.
-# The whole SNDMSG/RCVMSG state machines were reverted to inline asm
-# (__naked C functions with ASM_VOLATILE bodies); the C try_*_frame
-# helpers no longer exist.
+# snios_c.c::try_send_frame, try_recv_frame -- CP/NET 1.2 wire-protocol
+# state machines in plain C (#75 Phases 5+6).  Phase 64's inline-asm
+# rewrite was REVERTED in Phase 68 per user preference for the C
+# version's maintainability.  SDCC spills 2 + 10 to IX-frame for the
+# same reasons as before Phase 64 -- the Phase 65 cross-class peephole
+# is clang-only and doesn't affect SDCC's iCode allocator.
+snios_c.s:try_send_frame:2
+snios_c.s:try_recv_frame:10

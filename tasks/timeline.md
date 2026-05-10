@@ -1,5 +1,55 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 68: revert SNIOS to plain C (May 10, 2026) — Easy
+
+User: "i'd rather continue with the new c code instead of the
+assembly".
+
+Phase 64 had rewritten the SNDMSG/RCVMSG state machines as inline-
+asm bodies in `__naked` C functions, saving 312 B clang / 272 B
+SDCC at the cost of maintainability.  User now prefers the pure-C
+version (Phase 63 baseline with all Phase 62 source-level
+optimizations).
+
+**Reverted** `cpnos-rom/snios_c.c` to the pre-Phase-64 content (git
+`70db0df:cpnos-rom/snios_c.c`).  Restored:
+  - `try_send_frame`, `try_recv_frame` as plain-C state machines
+  - `snios_sndmsg_force` / `snios_sndmsg_c` as plain-C functions
+  - `snios_rcvmsg_c` as a plain-C function
+  - All Phase 62 source-level optimizations preserved (timeout-fold,
+    direct slaveid check)
+
+**All other session phases stay in place** — they're orthogonal to
+the SNIOS body choice:
+  - Phase 65 (cross-class BSS-spill peephole in llvm-z80) — helps
+    pure-C builds too (just less dramatically)
+  - Phase 66 (scroll_lines unify, crlf factor, install_fcb fold)
+  - Phase 67 (setup_ivt volatile drop)
+  - Phase 62-63 Makefile flags (`-disable-machine-licm`,
+    `-disable-machine-cse`)
+
+**IX-frame baseline** restored: `try_send_frame:2` and
+`try_recv_frame:10` re-added (same counts as Phase 62-63; Phase 65's
+peephole is clang-only and doesn't affect SDCC's iCode allocator).
+
+Sizes:
+
+  | metric              | post-Phase-67 (asm) | post-Phase-68 (C) | Δ    |
+  |---------------------|--------------------:|------------------:|-----:|
+  | clang payload       |               1652 |              1964 | +312 |
+  | SDCC resident       |               1796 |              2068 | +272 |
+  | clang INIT_CODE     |                627 |               627 |    0 |
+
+Cumulative session vs pre-session HEAD:
+
+  | | clang payload | SDCC resident |
+  |---|---:|---:|
+  | Pre-session         | 2138 B | 2152 B |
+  | Post-Phase-68 (C)   | **1964 B (-174 / -8.1 %)** | **2068 B (-84 / -3.9 %)** |
+
+Both compilers PASS cpnos-polypascal-test 4-cell at parity (clang
+49.75 s, SDCC 49.79 s).
+
 ## Phase 67: drop volatile from setup_ivt (-3 B), filed llvm-z80#130 (May 10, 2026) — Easy
 
 User asked me to plan llvm-z80#130 (Recognize and lower memset_pattern
