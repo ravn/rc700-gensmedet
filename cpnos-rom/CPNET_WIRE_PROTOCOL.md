@@ -85,20 +85,7 @@ The header sub-block `[FMT, DID, SID, FNC, SIZ]` is **always 5 bytes**.
 
 ## Send protocol (slave → master)
 
-Send sequence on the wire:
-
-```
-slave:   ENQ
-slave:   SOH  FMT  DID  SID  FNC  SIZ  HCS         (8 wire bytes; HCS = -(SOH+FMT+DID+SID+FNC+SIZ) & 0xFF)
-master:  ACK
-slave:   STX  DAT[0]  ...  DAT[SIZ]  ETX  CKS  EOT  (4+(SIZ+1) wire bytes; CKS = -(STX+DAT[0..SIZ]+ETX) & 0xFF)
-master:  ACK
-```
-
-Wait, that's wrong. Let me re-read the master `sndmsg` and slave `SNDMSG`
-side-by-side and re-state.
-
-The actual sequence (verified against `netwrkif-0.asm:907-960` and
+Send sequence on the wire (verified against `netwrkif-0.asm:907-960` and
 `cpnos-rom/snios.s`):
 
 ```
