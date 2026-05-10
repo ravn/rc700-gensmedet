@@ -264,32 +264,34 @@ static void erase_to_eos(void) {
     while (p != end) *p++ = ' ';
 }
 
+/* Shared scroll: shift the lines below cury one row up (`up=1`,
+ * delete_line) or down (`up=0`, insert_line), then blank the
+ * vacated row.  Both control codes share enough structure
+ * (count = (24-cury)*80; conditional copy; memset of one row)
+ * that one body + branch saves bytes vs two 75-byte functions. */
 RESIDENT
-static void delete_line(void) {
-    /* Shift rows cury+1..24 up to cury..23, blank row 24. */
+NOINLINE static void scroll_lines(uint8_t up) {
+    uint8_t *row = CELL(0, cury);
     if (cury + 1 < SCRN_ROWS) {
-        __builtin_memcpy(CELL(0, cury), CELL(0, cury + 1),
-                         (unsigned)(SCRN_ROWS - 1 - cury) * SCRN_COLS);
+        size_t count = (size_t)(SCRN_ROWS - 1 - cury) * SCRN_COLS;
+        if (up) {
+            __builtin_memcpy(row, row + SCRN_COLS, count);
+        } else {
+            /* Backward copy: regions overlap with dst > src.  Use
+             * mem_copy_backwards (compat.h) instead of memmove —
+             * bypasses the SDCC libc 13 B direction-check preamble. */
+            uint8_t *src_e = row + count - 1;
+            mem_copy_backwards(src_e + SCRN_COLS, src_e, count);
+        }
     }
-    __builtin_memset(CELL(0, SCRN_ROWS - 1), ' ', SCRN_COLS);
+    __builtin_memset(up ? CELL(0, SCRN_ROWS - 1) : row, ' ', SCRN_COLS);
 }
 
 RESIDENT
-static void insert_line(void) {
-    /* Shift rows cury..23 down by one row, blank row cury.  Regions
-     * overlap (dst > src) — caller statically knows direction, so use
-     * mem_copy_backwards (compat.h) instead of __builtin_memmove.
-     * That bypasses the 13 B direction-check + add-bc/dec-hl preamble
-     * inside _memmove_callee on SDCC and avoids a function call
-     * entirely on clang.  Tracked as ravn/rc700-gensmedet#77. */
-    uint8_t *row = CELL(0, cury);
-    if (cury + 1 < SCRN_ROWS) {
-        size_t count   = (size_t)(SCRN_ROWS - 1 - cury) * SCRN_COLS;
-        uint8_t *src_e = row + count - 1;
-        mem_copy_backwards(src_e + SCRN_COLS, src_e, count);
-    }
-    __builtin_memset(row, ' ', SCRN_COLS);
-}
+static void delete_line(void) { scroll_lines(1); }
+
+RESIDENT
+static void insert_line(void) { scroll_lines(0); }
 
 /* --- XY addressing (ctrl-F, then two coord bytes) ----------------- */
 

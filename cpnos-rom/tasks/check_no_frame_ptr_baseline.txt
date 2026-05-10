@@ -19,30 +19,20 @@
 # See plan #19 + dual-header-plan-2026-05-08.md.  Tracked as task #27.
 relocator.s:relocate:10
 
-# resident.c::delete_line -- two ix-relative spills.  Likely fixable
-# by simplifying the per-row scroll/clear path; revisit when touching
-# the resident display code.
-resident.s:delete_line:2
-
-# resident.c::insert_line -- two ix-relative spills.  The row pointer
-# (CELL(0, cury)) must survive across the __builtin_memmove call so
-# the trailing __builtin_memset can reuse it; SDCC spills it to the
-# IX frame.  Recomputing row after the call avoids the spill but
-# duplicates the cury*SCRN_COLS shift-add chain (~30 B regression).
-resident.s:insert_line:2
+# resident.c::scroll_lines -- unified delete_line/insert_line body
+# with `up` direction flag (Phase 66 refactor).  Saves ~25 B clang
+# vs the prior two separate functions; SDCC's iCode allocator can't
+# keep the count + row + up across the memcpy/memmove/memset calls
+# (4-5 simultaneously-live locals), spilling 7 to the IX frame.
+# Net SDCC: TBD vs baseline (depends on whether the IX-frame cost
+# outweighs the eliminated second-function ABI overhead).
+resident.s:scroll_lines:7
 
 # snios_c.c::try_send_frame, try_recv_frame -- CP/NET 1.2 wire-protocol
-# state machines (#75 Phase 5+6, plain-C rewrite against
-# CPNET_WIRE_PROTOCOL.md).  Multiple simultaneously-live locals
-# (running checksum, byte counter, response byte, retry counter) that
-# SDCC's local-only iCode allocator can't all keep in registers.
-#
-# Phase 62 (2026-05-10): try_recv_frame raised from 2 -> 10 after the
-# timeout-folding source-level optimization.  Folding the explicit
-# `if (r >= 0x100) return RC_RETRY` early-bail into the (r & 0x7F)
-# != X check eliminates one branch per recv site -- clang loved it
-# (-44 B), but it also collapsed the per-site live-range boundaries
-# that SDCC was using to recycle registers, pushing 8 more spills
-# onto the IX-frame.  User-authorized loosening (2026-05-10).
+# state machines in plain C (#75 Phases 5+6).  Phase 64's inline-asm
+# rewrite was REVERTED in Phase 68 per user preference for the C
+# version's maintainability.  SDCC spills 2 + 10 to IX-frame for the
+# same reasons as before Phase 64 -- the Phase 65 cross-class peephole
+# is clang-only and doesn't affect SDCC's iCode allocator.
 snios_c.s:try_send_frame:2
 snios_c.s:try_recv_frame:10

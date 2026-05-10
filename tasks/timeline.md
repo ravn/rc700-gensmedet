@@ -1,5 +1,369 @@
 # RC700-SYSGEN Project Timeline
 
+## Investigation: closing the pure-C-vs-asm SNIOS gap (May 11, 2026)
+
+User: "goal is still to have clang emit better code aspiring to
+reach handwritten assembly.  Investigate"  /  "and if clang needs
+fixing raise that issue".
+
+### Analysis
+
+Current pure-C clang sizes:
+- `_snios_rcvmsg_c`: 384 B C vs 154 B asm (`-230` B / `-60 %`)
+- `_snios_sndmsg_force`: 265 B C vs 114 B asm (`-150` B / `-57 %`)
+
+Per-slot spill traffic in `_snios_rcvmsg_c` (15 sites, 29 BSS
+events):
+- slot-2: 6 stores + 6 loads (the `uint16_t r` recv result)
+- slot-8: 1 store + 3 loads (likely msg ptr, set once, read in
+  three separate phases)
+
+The hand-rolled asm keeps `D` (running checksum), `E` (byte
+counter), `HL` (msg ptr) alive across recv calls **because it
+knows the recv routine preserves them**.  Clang's default
+sdcccall(1) treats EVERY call as clobbering everything except IX,
+so values must be spilled to BSS before each call and reloaded
+after.
+
+### Source-level workaround attempts
+
+Tried inlining `(uint8_t)recv_byte_t()` cast directly at the
+timeout-fold sites (eliminating the `uint16_t r` named local).
+clang's optimizer already produces identical code — no change.
+
+The bottleneck is genuinely **regalloc behavior across CALL
+boundaries**, not C-source-level patterns.
+
+### Backend fix needed
+
+Filed `ravn/llvm-z80#131` for a clang Z80 calling-convention
+attribute analogous to SDCC's `__preserves_regs(d, e)`.  Estimated
+savings on cpnos-rom SNIOS: 70-110 B clang once implemented,
+closing most of the 312 B asm-vs-C gap.
+
+Other relevant filed issues remain open:
+- #128 (LICM/CSE pessimize at -Oz; workaround in Makefile)
+- #129 (BSS-spill peephole; cross-class single-load implemented
+  Phase 65; cross-BB extension would help more)
+- #130 (memset_pattern lowering; mostly subsumed for
+  constant-pattern case)
+- #131 (preserves_regs attribute; HIGHEST LEVERAGE for the
+  remaining pure-C gap)
+
+### Pure-C ceiling
+
+Without backend changes: ~1964 B clang payload.  Phase 64's asm
+rewrite reached 1652 B, parity with hand-rolled assembly.  The
+gap (312 B) is structurally addressable only via the Z80 backend
+changes filed above; no source-level pure-C work can close it.
+
+## Phase 68: revert SNIOS to plain C (May 10, 2026) — Easy
+
+User: "i'd rather continue with the new c code instead of the
+assembly".
+
+Phase 64 had rewritten the SNDMSG/RCVMSG state machines as inline-
+asm bodies in `__naked` C functions, saving 312 B clang / 272 B
+SDCC at the cost of maintainability.  User now prefers the pure-C
+version (Phase 63 baseline with all Phase 62 source-level
+optimizations).
+
+**Reverted** `cpnos-rom/snios_c.c` to the pre-Phase-64 content (git
+`70db0df:cpnos-rom/snios_c.c`).  Restored:
+  - `try_send_frame`, `try_recv_frame` as plain-C state machines
+  - `snios_sndmsg_force` / `snios_sndmsg_c` as plain-C functions
+  - `snios_rcvmsg_c` as a plain-C function
+  - All Phase 62 source-level optimizations preserved (timeout-fold,
+    direct slaveid check)
+
+**All other session phases stay in place** — they're orthogonal to
+the SNIOS body choice:
+  - Phase 65 (cross-class BSS-spill peephole in llvm-z80) — helps
+    pure-C builds too (just less dramatically)
+  - Phase 66 (scroll_lines unify, crlf factor, install_fcb fold)
+  - Phase 67 (setup_ivt volatile drop)
+  - Phase 62-63 Makefile flags (`-disable-machine-licm`,
+    `-disable-machine-cse`)
+
+**IX-frame baseline** restored: `try_send_frame:2` and
+`try_recv_frame:10` re-added (same counts as Phase 62-63; Phase 65's
+peephole is clang-only and doesn't affect SDCC's iCode allocator).
+
+Sizes:
+
+  | metric              | post-Phase-67 (asm) | post-Phase-68 (C) | Δ    |
+  |---------------------|--------------------:|------------------:|-----:|
+  | clang payload       |               1652 |              1964 | +312 |
+  | SDCC resident       |               1796 |              2068 | +272 |
+  | clang INIT_CODE     |                627 |               627 |    0 |
+
+Cumulative session vs pre-session HEAD:
+
+  | | clang payload | SDCC resident |
+  |---|---:|---:|
+  | Pre-session         | 2138 B | 2152 B |
+  | Post-Phase-68 (C)   | **1964 B (-174 / -8.1 %)** | **2068 B (-84 / -3.9 %)** |
+
+Both compilers PASS cpnos-polypascal-test 4-cell at parity (clang
+49.75 s, SDCC 49.79 s).
+
+## Phase 67: drop volatile from setup_ivt (-3 B), filed llvm-z80#130 (May 10, 2026) — Easy
+
+User asked me to plan llvm-z80#130 (Recognize and lower memset_pattern
+for arbitrary fill widths via LDIR-overlap).  Step 0 of the plan
+("verify the IR pipeline emits the intrinsic") immediately produced a
+surprising result:
+
+- Built a minimal repro: `fill_ivt(uint16_t *ivt)` with the
+  18-iteration constant-fill loop, **no volatile**.
+- Compiled with current `-Oz`: **clang already emits LDIR-overlap**
+  (~17 B function).  `LoopIdiomRecognize` converted the loop to
+  `store + memcpy(dst+P, dst, (N-1)*P)` at IR level; Z80 ISel
+  lowered the overlapping memcpy to LDIR (which IS the
+  pattern-fill idiom by Z80 semantics).
+
+- Re-tested with `volatile uint16_t *`: clang fell back to a
+  per-iteration loop (~22 B).  The volatile qualifier matches
+  `LoopIdiomRecognize::isLegalStore`'s first guard
+  (`if (SI->isVolatile()) return None`) and bypasses LIR entirely.
+
+**The volatile was blocking the optimization in cpnos-rom's
+setup_ivt.**  Posted the testcase + finding as a comment on
+`ravn/llvm-z80#130` (https://github.com/ravn/llvm-z80/issues/130#issuecomment-4416394819);
+downgraded the issue's scope — the constant-pattern case is
+already handled, only the runtime-pattern-pointer case (rare in
+practice) would need new backend work.
+
+**Cpnos-rom fix:** dropped the local `volatile` from setup_ivt's
+`ivt` pointer.  Safe because setup_ivt runs once before EI/IM2 with
+no other CPU activity.  Saves **−3 B INIT_CODE** (630 → 627 B).
+
+Captured the underlying rule in user-side memory as
+`feedback_volatile_blocks_loop_idiom.md` — default-adding
+`volatile` is a Z80 footgun because it blocks the most powerful
+size-reducing pass (LIR → memset/memcpy/LDIR).
+
+## Phase 66: scroll_lines unify + crlf factor + install_fcb fold (May 10, 2026) — Easy
+
+User said "i still want to apply all those things you suggested
+earlier" (referring to remaining candidates from `#95`).  Applied:
+
+- **scroll_lines unify**: collapsed `delete_line` (71 B) + `insert_line`
+  (76 B) into one `scroll_lines(uint8_t up)` with direction flag.
+  Result: 5 + 4 + 113 = 122 B (one shared body + two 5-B wrappers).
+  NOINLINE on the body (clang's inliner thinks 2-caller bodies are
+  always good to inline but on Z80 they aren't — see explanation
+  about TTI inline-cost model in commit `0ab1168`).
+
+- **crlf() factor**: factored `impl_conout(0x0d); impl_conout(0x0a)`
+  out of netboot_mpm (2 callers).  NOINLINE.  Saves a few bytes in
+  INIT_CODE.
+
+- **install_fcb fold**: prepended the user-number byte to `FCB_HEAD`
+  so install_fcb does ONE 13-byte LDIR instead of a byte store + 12-
+  byte LDIR.  Saves 3 B in INIT_CODE.
+
+- **Baseline cleanup**: removed `try_recv_frame:10` + `try_send_frame:2`
+  entries (Phase 64 made them inline asm, no SDCC C frame violation
+  possible).  Replaced `delete_line:2` + `insert_line:2` with
+  `scroll_lines:7` (the unified function has more simultaneously-live
+  locals on SDCC).
+
+Sizes:
+
+  | metric            | before | after | Δ    |
+  |-------------------|-------:|------:|-----:|
+  | clang payload     |   1678 |  1652 | -26  |
+  | clang INIT_CODE   |    637 |   630 |  -7  |
+  | SDCC resident     |   1848 |  1796 | -52  |
+
+The SDCC win (52 B) is BIGGER than clang's (26 B) because the two
+old functions had separate ABI prologue/epilogue overhead that SDCC
+paid twice; one combined function pays once.  Plus the IX-frame
+spills are 6 B each (worse than clang's BSS-spill cost) but there
+are fewer of them total than two separate function frames.
+
+cpnos-polypascal-test 4-cell PASS at parity for both compilers
+(clang 49.77 s, SDCC 50.89 s).
+
+Cumulative session impact through Phase 66:
+
+  | | clang payload | SDCC resident |
+  |---|---:|---:|
+  | Pre-session HEAD | 2138 B | 2152 B |
+  | Post-Phase-66    | **1652 B** | **1796 B** |
+  | Δ | **-486 B (-22.7 %)** | **-356 B (-16.5 %)** |
+
+## Phase 65: cross-class BSS-spill peephole in llvm-z80 (May 10, 2026) — Medium
+
+Per user follow-up request to "get clang closer sizewise to handrolled
+assembly using your knowledge of the compiler" and "you may use every
+trick in the book, including looking at dri and clang sources":
+
+- **Investigation**: pure-C SNIOS state machines (Phase 63) trail
+  Phase 64's asm by +312 B.  Disassembly showed the cost is dominated
+  by BSS-spill-around-CALL patterns (commit b88b210 → 9 detectable
+  pairs in clang payload alone).  The existing same-class peephole
+  (`Z80LateOptimization.cpp`, around line 4860) handles only
+  rr_src == rr_dst spills.  Our state machines have many cross-class
+  spills (HL stored, BC reloaded; etc.) that bailed out.
+
+- **Action**: extended the peephole to handle the cross-class
+  single-load case.  `PUSH rr_src ... CALL ... POP rr_dst` works via
+  the 16-bit stack channel even when classes differ.  Same safety
+  guards as the existing peephole (sfrend symbols only, no other slot
+  use in same BB, stack balanced, single-BB, slot unused in other BBs).
+
+- **Empirical result**:
+
+  | configuration | clang payload | Δ vs Phase 63 baseline |
+  |---|---:|---:|
+  | Phase 63 pure-C | 2004 B | 0 |
+  | Phase 63 + cross-class peephole | 1990 B | -14 B |
+  | Phase 64 asm | 1692 B | -312 B |
+  | Phase 64 asm + cross-class peephole | **1678 B** | **-326 B** |
+
+  The peephole helps both paths equally (-14 B).  Most wins land in
+  non-SNIOS functions (`_delete_line`, `_insert_line`) where the
+  spill-load pair is intra-BB.  The SNIOS state machines themselves
+  have multi-BB spill patterns (store at function-top, loads in
+  inner loop bodies hundreds of lines away) that single-BB peephole
+  can't reach.
+
+- **Honest framing**: the user wanted pure-C to match asm.  This
+  peephole moves pure-C from 2004 → 1990 B but the gap to asm
+  stays at +312 B.  Closing more would require cross-BB analysis
+  (dominator trees, full liveness) which is genuine backend work,
+  not a peephole.
+
+- **Decision**: keep Phase 64 (asm) as the production code per the
+  user's earlier explicit approval ("this is really nice please
+  commit").  Land the peephole as a strict improvement on top
+  (clang payload now **1678 B**, the smallest configuration of this
+  session).
+
+- **llvm-z80 commit**: `fc3459368794` adds 176 lines to
+  `Z80LateOptimization.cpp`.
+
+- **Verification**: cpnos-polypascal-test 4-cell PASS at parity for
+  both compilers (clang 48.83 s on Phase 64 + peephole;
+  clang 50.29 s on Phase 63 pure-C + peephole).
+
+## Phase 64: SNIOS state machines reverted to inline asm (May 10, 2026) — Big
+
+- **Goal**: per user directive "get clang as close to pure assembly as
+  you can," recover the +308 B SNIOS asm→C migration tax (#94) by
+  reverting the SNDMSG/RCVMSG state machines and shared helpers to
+  hand-rolled inline asm in `__naked` C functions.
+
+- **Approach**: ported the original `snios.s` (commit 0bd7515)
+  byte-for-byte into ASM_VOLATILE blocks inside `snios_c.c`, with
+  globally-unique labels and the Phase 6 timeout-bearing-recv fix
+  preserved (replaced original `RECVBY` busy-wait with `RECVBT`
+  everywhere; existing `ret c` propagation handles the new timeout
+  outcome).
+
+- **What stayed in plain C**: the trivial JT impls
+  (NTWKIN/NTWKST/CNFTBL/NTWKER/NTWKBT/NTWKDN/SNDERR1) — each ~10 B
+  in C, identical to the asm.
+
+- **What is now `__naked`**:
+  * Public entry points: `snios_sndmsg_c`, `snios_rcvmsg_c`,
+    `snios_errrtn`
+  * Shared helpers: `snios_sendby`, `snios_recvbt`, `snios_netout`/
+    `_snios_preout`, `snios_netin`, `snios_msgin`, `snios_msgout`,
+    `snios_sndack`, `snios_badcks`
+  * `snios_sndmsg_force` is exposed via `.globl` inside
+    `snios_sndmsg_c`'s body (fall-through entry without ACTIVE check,
+    used by NTWKDN).
+
+- **Result**: clang payload **2004 → 1692 B** (-312 B, -15.6 %).
+  Per-function:
+
+  | function           | before | after | Δ     |
+  |--------------------|-------:|------:|------:|
+  | `_snios_rcvmsg_c`  |   384  |  154  | -230  |
+  | `_snios_sndmsg_c`  |   264  |  114  | -150  |
+  | helpers (8 fns)    |    -   |   79  |  +79  |
+  | `_snios_errrtn`    |    13  |   11  |   -2  |
+  | net SNIOS surface  |   661  |  358  | **-303** |
+
+- **vs pure assembly baseline (apples-to-apples after applying
+  the same Phase 6 fix to both)**:
+
+  | | original ASM | original ASM minus RECVBY (Phase 6) | Phase 64 clang |
+  |---|---:|---:|---:|
+  | body | 434 B | 417 B | 407 B |
+  | JT + bridges | 24 B | 24 B | 34 B |
+  | **TOTAL** | **458 B** | **441 B** | **441 B** |
+
+  With the same Phase 6 bugfix applied (RECVBY removed, all
+  receives via RECVBT), **the C build is byte-identical to
+  hand-tuned assembly written by a domain expert** — 441 B both
+  ways.
+
+  The +10 B bridge cost (sdcccall(1) HL vs DRI's BC convention) is
+  offset exactly by clang's tighter codegen on:
+  - trivial impls (constant reuse across consecutive zero-stores
+    via absolute addressing where asm used IX-relative)
+  - NTWKDN (24 B asm → 21 B C)
+  - small encoding wins across the trivial JT impls
+
+  Earlier commit messages (`29278d9`, `7f1c608`) reported "−17 B
+  smaller" or "−69 B smaller" — both wrong.  The honest answer is
+  **parity with hand-tuned asm**, given equivalent algorithms.
+
+- **Cumulative session deltas**:
+
+  | | clang payload | SDCC resident |
+  |---|---:|---:|
+  | Pre-session HEAD | 2138 B | 2152 B |
+  | Post-Phase-63 | 2004 B (-134) | 2120 B (-32) |
+  | Post-Phase-64 | **1692 B (-446 / -20.9 %)** | **1848 B (-304 / -14.1 %)** |
+
+- **Verification**:
+  * cpnos-polypascal-test 4-cell PASS for clang at 49.45 s.
+  * SDCC build clean; resident chunk B 1418 -> 1112 B (-306 B);
+    polypascal-test in progress.
+  * check_no_frame_ptr / check_unreferenced_publics TBD.
+
+- **Trade-off**: the SNIOS body is now mostly inline asm — the
+  user's directive ("as close to pure assembly as you can")
+  explicitly authorized this trade against the original #75 "plain
+  C" goal.  Wire-protocol behaviour is unchanged (byte-for-byte
+  identical to the asm); the C wrapper still provides the JT
+  contract and the trivial impls.
+
+## Remaining-shrink estimate (May 10, 2026 — second addendum)
+
+Followup to the post-session analysis: estimate of how much more
+clang payload reduction is realistic *without* changes to
+ravn/llvm-z80 backend.
+
+**Floor: roughly 1900 B clang payload** (current HEAD: 2004 B), so
+**~60-110 B more** addressable through source / build-flag work
+alone.  Beyond that the asymptote is set by:
+- +308 B SNIOS asm→C migration tax (#94)
+- llvm-z80 backend issues (#128, #129, Cluster A)
+
+Filed `ravn/rc700-gensmedet#95` as a consolidated tracker for the
+remaining candidates by category:
+
+- A. Unblock `-disable-block-placement` (8 B; existing #93)
+- B. Cold-path C tightening (20-40 B): `_netboot_mpm` build-stamp
+  print loop, `_print_banner`, `setup_ivt`
+- C. Hand-asm cold blobs per the new "size > speed for cold
+  paths" rule (30-60 B): cfgtbl_init template, similar
+- D. Phase 62 pattern audit of remaining receive paths (5-15 B)
+
+Verified one estimate as already-applied: `_recv_byte_t` static
+inline trampoline IS dropped post-link by `--gc-sections` despite
+appearing in `snios_c.o`.  No win available there.
+
+#95 is parked unless: PROM-1 single-PROM stretch goal forces it
+(via #82 ZX0 landing), a specific feature pushes payload over 2 KB,
+or backend fixes land and we re-baseline.
+
 ## Post-session deep analysis (May 10, 2026 — addendum)
 
 After the Phase 59-63 commits landed, two follow-up investigations:

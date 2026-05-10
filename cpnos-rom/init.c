@@ -246,15 +246,20 @@ static const uint8_t port_init[] = {
 SECTION_INIT_TEXT
 static void setup_ivt(void) {
     /* 18 x 16-bit slots at IVT_ADDR (page-aligned).  All slots default
-     * to isr_noop; CTC ch2 (slot 2) gets the CRT refresh ISR. */
-    /* Pointer-walk + countdown: clang otherwise uses a 16-bit BC
-     * counter for the 18-iteration loop because uint16_t* indexing
-     * widens i to 16-bit pointer arithmetic. */
-    volatile uint16_t *ivt = (volatile uint16_t *)IVT_ADDR;
+     * to isr_noop; CTC ch2 (slot 2) gets the CRT refresh ISR.
+     *
+     * NON-volatile pointer is intentional: this runs once before EI /
+     * IM 2, with no other CPU activity, so the compiler is free to
+     * reorder/optimize the per-slot stores.  In particular, clang
+     * recognizes the constant-pattern-fill loop and lowers it to the
+     * Z80 LDIR-overlap idiom (~17 B vs 22 B for a volatile loop;
+     * see ravn/llvm-z80#130 comment thread).  Adding `volatile` here
+     * blocks LoopIdiomRecognize (volatile stores fail isLegalStore). */
+    uint16_t *ivt = (uint16_t *)IVT_ADDR;
     for (uint8_t n = IVT_ENTRIES; n; --n) {
         *ivt++ = (uint16_t)(uintptr_t)&isr_noop;
     }
-    ivt = (volatile uint16_t *)IVT_ADDR;
+    ivt = (uint16_t *)IVT_ADDR;
     ivt[2] = (uint16_t)(uintptr_t)&isr_crt;
     ivt[IVT_PIO_A] = (uint16_t)(uintptr_t)&isr_pio_kbd;
     ivt[IVT_PIO_B] = (uint16_t)(uintptr_t)&isr_pio_par;
@@ -352,15 +357,17 @@ static void init_hardware(void) {
 SECTION_INIT_RODATA
 static const uint8_t login_pwd[8] = RC702_LOGIN_PWD;
 
-/* FCB header for A:CPNOS.IMG (drive + 8.3 name).  Bytes +12..+35
- * are left zero — msg[] lives in BSS so the zero tail is already
- * there, and install_fcb only runs once before any FCB response
- * has overwritten those slots. */
+/* FCB header for A:CPNOS.IMG, prepended with the user-number byte
+ * so install_fcb can do one LDIR instead of a separate byte store
+ * + LDIR.  Bytes +13..+36 of the FCB are left zero — msg[] lives
+ * in BSS so the zero tail is already there, and install_fcb only
+ * runs once before any FCB response has overwritten those slots. */
 SECTION_INIT_RODATA
-static const uint8_t FCB_HEAD[12] = {
-    0x01,                                /* +0  drive A (1-based) */
-    'C','P','N','O','S',' ',' ',' ',     /* +1..+8  name */
-    'I','M','G',                          /* +9..+11 ext */
+static const uint8_t FCB_HEAD[13] = {
+    0x00,                                /* +0  user number = 0 */
+    0x01,                                /* +1  drive A (1-based) */
+    'C','P','N','O','S',' ',' ',' ',     /* +2..+9  name */
+    'I','M','G',                          /* +10..+12 ext */
 };
 
 /* Build and send a CP/NET request, then wait for the response.
@@ -379,12 +386,11 @@ static uint8_t cpnet_xact(uint8_t fnc, uint8_t siz_minus_1) {
     return msg[DAT];
 }
 
-/* Copy the 12-byte FCB header into msg.  The 24-byte zero tail is
- * already zero in BSS. */
+/* Copy the 13-byte FCB header (user-number byte + 12-byte FCB)
+ * into msg.  The 24-byte zero tail is already zero in BSS. */
 SECTION_INIT_TEXT
 static void install_fcb(void) {
-    msg[DAT] = 0;                    /* user number */
-    __builtin_memcpy(&msg[DAT + 1], FCB_HEAD, 12);
+    __builtin_memcpy(&msg[DAT], FCB_HEAD, 13);
 }
 
 /* Rewrite only DAT[0]=user.  FCB is already in msg[DAT+1..DAT+36] from
@@ -392,6 +398,15 @@ static void install_fcb(void) {
 SECTION_INIT_TEXT
 static void reuse_fcb(void) {
     msg[DAT] = 0;                    /* user number */
+}
+
+/* Tiny helper, called twice from netboot_mpm.  Forced noinline; without
+ * it clang re-inlines the body at each site (the inliner doesn't know
+ * we prefer 3-byte call over 10-byte body duplication on Z80). */
+SECTION_INIT_TEXT
+NOINLINE static void crlf(void) {
+    impl_conout(0x0d);
+    impl_conout(0x0a);
 }
 
 SECTION_INIT_TEXT
@@ -436,7 +451,7 @@ static uint16_t netboot_mpm(void) {
         if (dma > bios_boot) return 0;
     }
     BOOT_MARK(13, 'E');              /* EOF reached */
-    impl_conout(0x0d); impl_conout(0x0a);
+    crlf();
 
     /* --- print build stamp from last 24 B of payload --------------
      * stamp_cpnos.py wrote 23 ASCII bytes + 0x00 sentinel into the
@@ -445,7 +460,7 @@ static uint16_t netboot_mpm(void) {
     {
         const uint8_t *s = dma - 24;
         for (uint8_t i = 0; i < 23 && s[i] != 0; ++i) impl_conout(s[i]);
-        impl_conout(0x0d); impl_conout(0x0a);
+        crlf();
     }
 
     /* --- CLOSE ---------------------------------------------------- */
