@@ -39,16 +39,31 @@
   | `_snios_errrtn`    |    13  |   11  |   -2  |
   | net SNIOS surface  |   661  |  358  | **-303** |
 
-- **vs pure assembly baseline (commit 0bd7515, 461 B)**:
+- **vs pure assembly baseline (commit 0bd7515, 458 B)**:
 
   | | clang post-Phase-64 | pre-migration ASM |
   |---|---:|---:|
-  | total SNIOS clang | ~358 B body + 34 B JT/bridges = **392 B** | 461 B |
+  | SNIOS body (all bodies including trivial impls) | 407 B | 434 B |
+  | snios.s shim (JT + bridges) | 34 B | 24 B |
+  | **total clang SNIOS** | **441 B** | **458 B** |
 
-  After Phase 64 the clang SNIOS surface is actually **smaller than
-  the pre-migration assembly** (-69 B), thanks to elimination of
-  RECVBY (Phase 6 fix replaced it with RECVBT) plus tighter helper
-  organization.
+  The Phase 64 clang surface is **17 B smaller** than the original
+  assembly — not 69 B as initially claimed (commit `29278d9`'s
+  message and my subsequent reports compared scopes
+  inconsistently; corrected here).  The −17 B comes from:
+
+  - Phase 6 RECVBY/RECVBT collapse: the original asm had both
+    helpers (RECVBY busy-wait ~10 B + RECVBT timeout ~17 B);
+    Phase 64 keeps only RECVBT (Phase 6 fix inherited via the
+    existing `ret c` propagation lines).  Saves ~10 B.
+  - Tighter NTWKDN: 24 B asm → 21 B C (clang reuses A=0 across
+    consecutive zero-writes via absolute addressing where the
+    asm used IX-relative).  Saves ~3 B.
+  - Marginal tightening in trivial impls.  Saves ~4 B in total.
+
+  The 10 B BC→HL bridge cost is paid by the C build because
+  sdcccall(1) takes 16-bit args in HL but NDOS hands them in BC;
+  the original asm used BC directly so didn't need bridges.
 
 - **Cumulative session deltas**:
 
