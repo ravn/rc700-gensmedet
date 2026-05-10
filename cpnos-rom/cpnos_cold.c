@@ -40,7 +40,7 @@ extern NORETURN void resident_handoff(uint16_t entry);
 SECTION_INIT_TEXT
 static void print_banner(void) {
     /* NNK = TPA size (CPNOS_TPA_KB, build-time from cpnos.sym).
-     * WWW-MMM = TRANSPORT_NAME literal (Makefile -DTRANSPORT_NAME='"PIO-IRQ"'/"SIO"/"PIO-PRX").
+     * WWW-MMM = TRANSPORT_NAME literal (Makefile -DTRANSPORT_NAME='"PIO"'/"SIO").
      * cc = CPNOS_COMPILER_NAME ("clang"/"sdcc"/"hitech"), picked at preprocess time
      * so the banner unambiguously identifies which build is running. */
 #define _STR(x) #x

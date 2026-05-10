@@ -292,15 +292,6 @@ void isr_pio_kbd(void) __naked {
  * Userspace BC/DE/shadow registers all stay intact across the IRQ. */
 SECTION_RESIDENT_ISR
 void isr_pio_par(void) __naked {
-#ifdef TRANSPORT_PROXY
-    /* In TRANSPORT=pio-proxy the PIO-B IRQ never fires (init.c keeps
-     * the chip's IE bit clear for that mode), but we still publish a
-     * vector so the IVT slot resolves.  This stub is just iret. */
-    ASM_VOLATILE(
-        "ei\n\t"
-        "reti\n\t"
-    );
-#else
     ASM_VOLATILE(
         "push af\n\t"
         "push hl\n\t"
@@ -341,5 +332,4 @@ void isr_pio_par(void) __naked {
         "ei\n\t"
         "reti\n\t"
     );
-#endif
 }

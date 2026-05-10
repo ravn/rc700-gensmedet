@@ -332,7 +332,7 @@ clear message.  Listed in approximate order of severity.
 9. **`__payload_end <= 0xF800`** — resident must not overflow into
    display memory.
 10. **`__payload_end <= 0xF700`** — resident must not overlap PIO_RX
-    ring at 0xF700 (TRANSPORT_PROXY mode relaxes this to 0xF800).
+    ring at 0xF700.
 11. **`(__pio_rx_bss_start & 0xFF) == 0`** — PIO_RX must be
     page-aligned (so ISR can use `ld h, page; ld l, head`).
 12. **`_zp_init_data >= 0xED00 && < 0xF800`** — zp_init_data must be

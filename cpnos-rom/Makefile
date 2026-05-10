@@ -35,10 +35,9 @@ BOOT_MARK_ENABLED ?= 1
 
 # Bring-up scaffolding: enables the PIO-B 10-byte CP/NET frame loopback
 # test in cpnos_main (Z80 sends -> harness mirrors -> Z80 validates).
-# Off by default since session 33 — the real driver (transport_pio.c
-# pio_send_msg / pio_recv_msg, with the boot-time probe) supersedes
-# the bring-up scaffolding.  Set to 1 only to re-run the historical
-# harness mode `loopback`.
+# Off by default since session 33 — the byte-level transport_pio.c
+# driver supersedes the bring-up scaffolding.  Set to 1 only to re-run
+# the historical harness mode `loopback`.
 PIO_LOOPBACK_TEST ?= 0
 # Speed test (overrides PIO_LOOPBACK_TEST when nonzero):
 #   1 = C-loop TX     (transport_pio_send_byte per byte; function-call cost)
@@ -215,20 +214,8 @@ else ifeq ($(TRANSPORT),sio)
 TRANSPORT_DEFSYMS = --defsym=_xport_send_byte=_transport_send_byte \
                     --defsym=_xport_recv_byte=_transport_recv_byte
 TRANSPORT_NAME = SIO
-else ifeq ($(TRANSPORT),pio-proxy)
-# pio-proxy uses raw OTIR/INIR frames (transport_pio_vt) — no SNIOS
-# envelope, so the byte-level _xport_* aliases aren't on the hot path.
-# Still need to alias them or the linker complains; point at the PIO
-# byte primitives (the bridge tolerates whatever bytes appear on the
-# wire — only the frame-level matters for correctness).
-TRANSPORT_DEFSYMS = --defsym=_xport_send_byte=_transport_pio_send_byte \
-                    --defsym=_xport_recv_byte=_transport_pio_recv_byte
-# Banner name shortened to 3 chars to keep both pio variants under the
-# resident size limit (see pio-irq comment above).
-TRANSPORT_NAME = PRX
-SERVER_CFLAGS += -DTRANSPORT_PROXY
 else
-$(error TRANSPORT must be 'pio-irq', 'sio', or 'pio-proxy')
+$(error TRANSPORT must be 'pio-irq' or 'sio')
 endif
 
 # Banner tag baked into transport_sio_vt.name (cpnos prints it as the
@@ -258,10 +245,9 @@ PAYLOAD_OBJS = $(BUILDDIR)/runtime.o $(BUILDDIR)/bios_jt.o \
                $(BUILDDIR)/payload_checksum.o
 PAYLOAD_LD = $(BUILDDIR)/payload.ld
 
-# Preprocess payload.ld so the linker sees TRANSPORT_PROXY-conditional
-# ASSERTs (e.g., the upper bound for __payload_end depends on whether
-# the IRQ ring buffer at 0xF700 is in the layout).  ld.lld doesn't run
-# cpp on linker scripts itself.
+# Preprocess payload.ld through cpp so source-level comments and any
+# future build-time conditionals are flattened into a clean linker
+# script.  ld.lld doesn't run cpp on linker scripts itself.
 $(BUILDDIR)/payload.ld: payload.ld $(BUILDDIR)/transport_stamp
 	@mkdir -p $(BUILDDIR)
 	$(CC) --target=z80 -E -P -x c $(SERVER_CFLAGS) -o $@ $<
@@ -892,13 +878,6 @@ _check-tag-not-pio-irq:
 	    exit 1; \
 	fi
 
-# Slave was built with active_transport->name = "PIO-PRX" (pio-proxy mode).
-_check-tag-pio-prx:
-	@if ! strings $(BUILDDIR)/cpnos.bin 2>/dev/null | grep -q '^PIO-PRX '; then \
-	    echo "FAIL: cpnos.bin does not contain wire-mode tag 'PIO-PRX'."; \
-	    echo "      This target requires a TRANSPORT=pio-proxy build."; \
-	    exit 1; \
-	fi
 
 # MAME_IRQ tree contains the cpnet_bridge gate fix (commit 60e2b9a032f
 # on pio-mpm-irq-fix branch).  We check by source-grep, not by binary
@@ -1128,76 +1107,6 @@ pio-irq-smoke: cpnos-install _check-tag-pio-irq _check-mame-irq
 	    -bitb3 socket.127.0.0.1:4002 \
 	    -autoboot_script mame_porttap.lua
 	@kill $$(cat /tmp/cpnos_smoke_inject.pid) 2>/dev/null || true
-	@$(MAKE) _verify-bench WORKLOAD=$(WORKLOAD)
-
-# ---- pio-proxy-smoke: PIO-B raw OTIR/INIR via cpnet_pio_server proxy
-#
-# Slave is built with TRANSPORT=pio-proxy (cpnet_dispatch.c sets
-# active_transport = &transport_pio_vt; transport_pio.c's pio_send_msg
-# / pio_recv_msg use raw OTIR/INIR — no SNIOS envelope).  Host runs
-# cpnet_pio_server.py --upstream 127.0.0.1:4002 on :4003 to translate
-# raw frames into SIO envelope and forward to mpm-net2.
-#
-# Topology:
-#   slave PIO-B --bitb3-> cpnet_pio_server :4003 -> mpm-net2 :4002
-#   slave SIO-B --bitb2-> smoke_inject :SMOKE_PORT
-#
-# Same pass criterion / bench timing as pio-irq-smoke.
-.PHONY: pio-proxy-smoke
-pio-proxy-smoke:
-	$(MAKE) _pio-proxy-smoke-impl TRANSPORT=pio-proxy WORKLOAD=$(WORKLOAD)
-
-PIO_BRIDGE_PORT ?= 4003
-_pio-proxy-smoke-impl: cpnos-install _check-tag-pio-prx _check-mame-irq
-	@echo "=== 1/6 regenerating sumtest.asm + smoke disk ==="
-	python3 testutil/mksmokeasm.py
-	testutil/mksmokedisk.sh
-	@echo "=== 2/6 restarting MP/M with fresh disks ==="
-	-screen -S mpm -X quit >/dev/null 2>&1 || true
-	@sleep 1
-	@if lsof -nP -iTCP:4002 -sTCP:LISTEN 2>/dev/null | grep -q .; then \
-	    echo "ERROR: port 4002 already bound"; \
-	    lsof -nP -iTCP:4002 -sTCP:LISTEN; exit 1; \
-	fi
-	@if lsof -nP -iTCP:$(PIO_BRIDGE_PORT) -sTCP:LISTEN 2>/dev/null | grep -q .; then \
-	    echo "ERROR: port $(PIO_BRIDGE_PORT) already bound"; \
-	    lsof -nP -iTCP:$(PIO_BRIDGE_PORT) -sTCP:LISTEN; exit 1; \
-	fi
-	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
-	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
-	@sleep 2
-	@echo "=== 3/6 spawning cpnet_pio_server --upstream localhost:4002 ==="
-	@rm -f /tmp/cpnos_pio_server.log
-	@python3 -u cpnet_pio_server.py $(PIO_BRIDGE_PORT) \
-	    --upstream 127.0.0.1:4002 \
-	    > /tmp/cpnos_pio_server.log 2>&1 & \
-	 echo $$! > /tmp/cpnos_pio_server.pid
-	@# Don't `nc -z` to verify — that connect-and-close trips the
-	@# server's single-shot accept loop, leaving MAME's bitb3 connect
-	@# refused.  Just give the listener time to bind.
-	@sleep 1.0
-	@echo "=== 4/6 syncing ROMs to IRQ-fix MAME tree ==="
-	cp $(MAME)/roms/rc702/roa375.ic66 $(MAME_IRQ)/roms/rc702/roa375.ic66
-	cp $(MAME)/roms/rc702/prom1.ic65  $(MAME_IRQ)/roms/rc702/prom1.ic65
-	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_wboot.txt /tmp/cpnos_boot_result.txt \
-	    /tmp/cpnos_smoke_inject.log /tmp/cpnos_boot_marks.txt
-	@echo "=== 5/6 launching smoke_inject + MAME (workload: $(WORKLOAD)) ==="
-	@python3 -u testutil/smoke_inject.py $(SMOKE_PORT) \
-	    --workload $(WORKLOAD) \
-	    --log /tmp/cpnos_siob.raw --timeout 240 \
-	    > /tmp/cpnos_smoke_inject.log 2>&1 & \
-	 echo $$! > /tmp/cpnos_smoke_inject.pid
-	@sleep 0.4
-	-$(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
-	    -nothrottle -window -skip_gameinfo \
-	    -seconds_to_run 1200 \
-	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
-	    -rs232b null_modem -bitb2 socket.127.0.0.1:$(SMOKE_PORT) \
-	    -piob cpnet_bridge \
-	    -bitb3 socket.127.0.0.1:$(PIO_BRIDGE_PORT) \
-	    -autoboot_script mame_porttap.lua
-	@kill $$(cat /tmp/cpnos_smoke_inject.pid) 2>/dev/null || true
-	@kill $$(cat /tmp/cpnos_pio_server.pid)   2>/dev/null || true
 	@$(MAKE) _verify-bench WORKLOAD=$(WORKLOAD)
 
 # PolyPascal regression: drive cpnos through "PPAS PRIMES" / "R" / "Q"
@@ -1513,9 +1422,6 @@ SDCC_XPORT_RECV = _transport_pio_recv_byte
 else ifeq ($(TRANSPORT),sio)
 SDCC_XPORT_SEND = _transport_send_byte
 SDCC_XPORT_RECV = _transport_recv_byte
-else ifeq ($(TRANSPORT),pio-proxy)
-SDCC_XPORT_SEND = _transport_pio_send_byte
-SDCC_XPORT_RECV = _transport_pio_recv_byte
 endif
 
 $(BUILDDIR)/xport_aliases.asm: $(BUILDDIR)/transport_stamp

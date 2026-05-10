@@ -1,41 +1,19 @@
-/* cpnos-rom transport backend: PIO-B parallel (Option P).
+/* cpnos-rom byte-level transport backend: PIO-B parallel.
  *
- * Frame-level CP/NET 1.2 transport over the RC702's Z80-PIO Port B
- * (J3 in real hardware).  Half-duplex with mode-switch:
- *   pio_send_msg -> Mode 0 (output) + OTIR
- *   pio_recv_msg -> Mode 1 (input)  + INIR
- *
- * Speed bench results (session 30, 4 MHz Z80, MAME real-time):
- *   OTIR-driven TX: 156 KiB/s   (21 T/byte instruction-only)
- *   INIR-driven RX: 148 KiB/s   (21 T/byte, chip self-clocked)
- *
- * Wire layout: blast the SCB raw — Mode 0/1 hardware handshake gives
- * per-byte delivery guarantees that subsume the SIO ENQ/ACK/SOH
- * envelope.  No framing bytes; receiver knows to read 5 hdr +
- * (SIZ+1) payload + 1 CKS = SIZ + 7 wire bytes (DRI SIZ-minus-1
- * convention).
- *
- * Frame size cap: total wire bytes must fit in one OTIR/INIR (B
- * register, 8-bit, 0 means 256 iterations).  CP/NET in our codebase
- * is well under this — biggest is READ-SEQ at 171 B (netboot_mpm).
- * The DRI spec ceiling of 262 B is unreachable through any function
- * the slave actually issues; we cap at 256 for code size.
- *
- * Interrupt policy: chip's PIO IE flip-flop is OFF during INIR/OTIR,
- * but the Z80 IFF stays ON.  Block instructions sample INT between
- * iterations so CRT VRTC interrupts (DMA refresh) keep firing
- * mid-burst.  No `di`/`ei` around the bursts — we never blind the
- * system.
+ * Byte-level CP/NET 1.2 transport over the RC702's Z80-PIO Port B
+ * (J3 in real hardware).  Implements transport_pio_send_byte and
+ * transport_pio_recv_byte; SNIOS drives the per-byte SOH/ENQ/ACK
+ * envelope on top.
  *
  * Direction state: starts in INPUT (init.c leaves PIO-B in Mode 1 +
- * IRQ).  send_msg flips to OUTPUT, blasts, leaves in OUTPUT.  recv_msg
- * flips back to INPUT.  Mode 1 -> Mode 0 transition emits one
- * stale-latch byte (m_output after reset = 0; documented chip
- * artifact, ravn/mame#7) which the peer strips by recognising the
- * SCB header signature.
+ * IRQ).  send_byte flips to OUTPUT (with the stale-prefix workaround
+ * for ravn/mame#7).  recv_byte flips to INPUT and pops bytes from
+ * the IRQ-driven 256-byte ring buffer at 0xF700.
  *
- * See docs/cpnet_fast_link.md (Option P design) and
- * docs/cpnet_pio_speed_results.md (the bench).
+ * Receive path: isr_pio_par (in isr.c) pushes each chip-strobed byte
+ * into the page-aligned ring at 0xF700.  transport_pio_recv_byte
+ * polls head != tail and returns the next byte, or
+ * TRANSPORT_TIMEOUT after the caller-specified tick budget.
  */
 #include <stdbool.h>
 #include <stdint.h>
@@ -84,11 +62,7 @@ static uint8_t pio_b_dir;            /* zeroed BSS = INPUT initially */
  * "no byte yet" (#56). */
 #define PIO_RX_BUF_SIZE 256
 #define PIO_RX_BUF_MASK 0xFF
-#ifndef TRANSPORT_PROXY
-/* IRQ ring buffer for envelope-on-PIO modes (sio / pio-irq).  Skipped
- * in TRANSPORT=pio-proxy because that mode uses raw OTIR/INIR frames
- * (transport_pio_vt) — no byte-level recv path, so the ring is dead
- * weight and the 256 B at 0xF700 freed for the larger payload. */
+/* IRQ ring buffer for byte-level PIO transport. */
 volatile uint8_t pio_rx_head;   /* ISR writes only */
 volatile uint8_t pio_rx_tail;   /* mainline writes only */
 /* Page-aligned 256-byte ring.  ISR builds `&buf[head]` as `ld h,
@@ -104,7 +78,6 @@ volatile uint8_t pio_rx_tail;   /* mainline writes only */
 SECTION_PIO_RX_BSS volatile uint8_t pio_rx_buf[PIO_RX_BUF_SIZE];
 #else
 extern volatile uint8_t pio_rx_buf[PIO_RX_BUF_SIZE];
-#endif
 #endif
 
 RESIDENT
@@ -130,118 +103,6 @@ static void pio_b_set_input(void) {
     pio_b_dir = PIO_DIR_INPUT;
 }
 
-/* Frame-level PIO transport (raw SCBs, paired with cpnet_pio_server.py
- * --upstream on the host).  Compiled only in TRANSPORT=pio-proxy
- * builds where cpnet_dispatch.c sets active_transport =
- * &transport_pio_vt.  In TRANSPORT=pio-irq / sio builds these are
- * unreferenced and we'd waste payload space carrying them — payload
- * already runs to within ~30 B of 0xF700 (pio_rx_bss), so adding
- * ~130 B of unreachable frame code overflows.  Guard at compile time. */
-#ifdef TRANSPORT_PROXY
-RESIDENT
-uint8_t pio_send_msg(uint8_t *msg) {
-    pio_b_set_output();
-    /* body_len = 5 hdr + (SIZ+1) payload.  uint8_t suffices: SIZ <=
-     * 255 means body <= 261 — but we cap frames at 256-wire-byte
-     * (one OTIR), so body_len <= 255 here.  Stick to uint8_t for the
-     * loop counter so clang DJNZs it. */
-    uint8_t body_len = (uint8_t)(6U + msg[SIZ]);
-    uint8_t cks = 0;
-    for (uint8_t i = 0; i < body_len; ++i) cks += msg[i];
-    msg[body_len] = (uint8_t)(0U - cks);
-    uint8_t b = (uint8_t)(body_len + 1U);
-    __asm__ volatile(
-        "ld   c, 0x11\n\t"
-        "otir\n\t"
-        : "+{hl}"(msg), "+{b}"(b)
-        :
-        : "a", "c", "memory"
-    );
-    return 0;
-}
-
-/* First-byte sentinel-wait budget.  Per-iteration cost ~36 T-states
- * (IN A,(n) + cp + jr + dec + jr).  16384 polls = ~590,000 T =
- * ~150 ms at 4 MHz emulated.  Generous enough for localhost RTT
- * including Python interpreter wake-up (~10 ms wall + MAME speed-up),
- * still fast-fails the SIO-fallback path in well under a second. */
-#define PIO_FIRST_BYTE_BUDGET 0x4000U
-
-/* "Buffer empty" sentinel for pio_recv_msg's first-byte polling.  The
- * MAME cpnet_bridge::read() handler returns 0xFF when the input queue
- * is drained (no host bytes yet), so we spin reading the data port
- * until we see something else — that's the first byte (FMT) of the
- * response SCB, which is structurally either 0x00 (request) or 0x01
- * (response) and never 0xFF.  Once FMT lands, INIR reads the rest of
- * the frame whatever the byte values are.
- *
- * This polling-for-FMT is safe in pio-proxy mode because FMT∉{0xFF}.
- * It would NOT be safe to extend to subsequent bytes (cpnos.com has
- * 0xFF data bytes).  See session 33/34 RCA for the original burn. */
-#define PIO_RX_EMPTY_VAL 0xFFU
-
-/* Receive a complete CP/NET frame.  Reads 5 header bytes (the first
- * via PORT_PIO_B_DATA polling for non-FF, the next 4 via INIR), then
- * INIR's the (SIZ+2) payload+CKS bytes.  Returns 0 success, 0xFF on
- * timeout. */
-RESIDENT
-uint8_t pio_recv_msg(uint8_t *msg) {
-    pio_b_set_input();
-    /* First-byte sentinel-wait — empty PIO-B FIFO returns 0xFF in
-     * MAME's bridge; spin until a non-FF byte appears (= FMT of the
-     * response).  Bounded budget; see PIO_FIRST_BYTE_BUDGET. */
-    uint16_t budget = PIO_FIRST_BYTE_BUDGET;
-    uint8_t  first;
-    while (budget--) {
-        first = _port_in(PORT_PIO_B_DATA);
-        if (first != PIO_RX_EMPTY_VAL) goto got_first;
-    }
-    return 0xFF;
-got_first:
-    msg[0] = first;
-    /* INIR header bytes 1..4 (B=4). */
-    {
-        uint8_t b4 = 4;
-        uint8_t *p = &msg[1];
-        __asm__ volatile(
-            "ld   c, 0x11\n\t"
-            "inir\n\t"
-            : "+{hl}"(p), "+{b}"(b4)
-            :
-            : "a", "c", "memory"
-        );
-    }
-    /* INIR (SIZ+1) payload bytes + 1 CKS. */
-    {
-        uint8_t bn = (uint8_t)((uint16_t)msg[SIZ] + 2U);
-        uint8_t *p = &msg[5];
-        __asm__ volatile(
-            "ld   c, 0x11\n\t"
-            "inir\n\t"
-            : "+{hl}"(p), "+{b}"(bn)
-            :
-            : "a", "c", "memory"
-        );
-    }
-    /* No CKS validation here.  PIO Mode 0/1 hardware handshake gives
-     * per-byte delivery; sum-to-zero would only catch a host-side
-     * protocol bug, not a wire error.  Probe (pio_probe) does a
-     * full validate for confidence; runtime CP/NET trusts the wire. */
-    return 0;
-}
-
-/* Probe: send PING SCB, recv PONG SCB.  Validates round-trip:
- *   PING:  FMT=0x00 DID=0x00 SID=us FNC=PING_FNC SIZ=0 [P] CKS
- *   PONG:  FMT=0x01 DID=us  SID=0x00 FNC=PING_FNC SIZ=0 [O] CKS
- * Returns true on valid PONG.
- *
- * PING bytes built inline (no .rodata) so they don't depend on
- * link placement — at this point in boot the relocator has just
- * copied the payload and clear_screen hasn't run yet, but
- * literal-byte construction is robust either way.
- *
- * CKS is sum-to-zero (two's complement of the body sum). */
-#endif
 
 /* ---- Byte-level PIO transport ---------------------------------
  * snios.s (PIO-only experiment) calls these for every envelope byte.
@@ -273,14 +134,6 @@ void transport_pio_send_byte(uint8_t c) {
 
 RESIDENT
 uint16_t transport_pio_recv_byte(uint16_t timeout_ticks) {
-#ifdef TRANSPORT_PROXY
-    /* Stub — pio-proxy uses transport_pio_vt frame-level I/O, not
-     * byte-level.  This symbol still has to exist because snios.s's
-     * SENDBY/RECVBY (envelope code) reference _xport_recv_byte at link
-     * time even when the runtime path skips the envelope. */
-    (void)timeout_ticks;
-    return TRANSPORT_TIMEOUT;
-#else
     pio_b_set_input();
     while (timeout_ticks--) {
         uint8_t t = pio_rx_tail;
@@ -291,7 +144,6 @@ uint16_t transport_pio_recv_byte(uint16_t timeout_ticks) {
         }
     }
     return TRANSPORT_TIMEOUT;
-#endif
 }
 
 /* Speed-test BSS variables (referenced by isr.c).  Kept for the

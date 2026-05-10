@@ -300,16 +300,8 @@ SECTIONS {
   ASSERT((__pio_rx_bss_start & 0xFF) == 0,
          "pio_rx_buf must be page-aligned for ISR's `ld h, page; ld l, head` trick")
 
-#ifdef TRANSPORT_PROXY
-  /* TRANSPORT_PROXY mode skips the IRQ ring buffer (transport_pio.c
-   * #ifndef TRANSPORT_PROXY around pio_rx_buf etc), so .pio_rx_bss
-   * is empty and payload may extend up to display memory at 0xF800. */
-  ASSERT(__payload_end <= 0xF800,
-         "payload overflows display memory at 0xF800 — shrink it")
-#else
   ASSERT(__payload_end <= 0xF700,
          "payload grew into pio_rx_bss region — shrink payload or move buffer")
-#endif
 
   /* Issue #35: IVT must not overlap payload or BSS (memcpy / BSS
    * clear would stomp the vector table).  Post-2026-05-08 the IVT

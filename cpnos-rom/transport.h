@@ -31,30 +31,17 @@
 void transport_send_byte(uint8_t c);
 uint16_t transport_recv_byte(uint16_t timeout_ticks);
 
-/* The transport is fixed at build time:
- *   default          : SNIOS envelope on top of byte transport (sio /
- *                      pio-irq via linker --defsym aliases on
- *                      _xport_send_byte / _xport_recv_byte).
- *   TRANSPORT_PROXY  : raw OTIR/INIR frames; pairs with
- *                      cpnet_pio_server.py --upstream on the host.
+/* The transport is fixed at build time: SNIOS envelope on top of
+ * byte transport (sio / pio-irq via linker --defsym aliases on
+ * _xport_send_byte / _xport_recv_byte).
  *
  * cpnet_send_msg / cpnet_recv_msg are #define aliases of the actual
  * implementation functions, so callers just emit a direct call (3 B
  * tail-call) instead of the vtable indirection that used to live in
- * cpnet_dispatch.c (deleted 2026-04-30).  Saved ~38 B in the payload
- * (16 B vtable structs + 2 B active_transport pointer + ~20 B of
- * dispatch wrappers + the BC<->HL conversions that snios.s no longer
- * needs to bounce through). */
-#ifdef TRANSPORT_PROXY
-extern uint8_t pio_send_msg(uint8_t *msg);
-extern uint8_t pio_recv_msg(uint8_t *msg);
-#define cpnet_send_msg pio_send_msg
-#define cpnet_recv_msg pio_recv_msg
-#else
+ * cpnet_dispatch.c (deleted 2026-04-30).  Saved ~38 B in the payload. */
 extern uint8_t snios_sndmsg_c(uint8_t *msg);
 extern uint8_t snios_rcvmsg_c(uint8_t *msg);
 #define cpnet_send_msg snios_sndmsg_c
 #define cpnet_recv_msg snios_rcvmsg_c
-#endif
 
 #endif
