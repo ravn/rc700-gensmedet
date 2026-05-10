@@ -76,7 +76,11 @@ MEMORY {
    * static-stack frames all live here.  The two `.scratch_bss*` input
    * sections are kept distinct (legacy section attrs in source) but
    * mapped to one SCRATCH region. */
-  SCRATCH (rwx) : ORIGIN = 0xF500, LENGTH = 0x200  /* below stack/PIO_RX */
+  /* SCRATCH temporarily relocated to the 0xEB00 gap (above IVT, below
+   * resident) for #75 Phase 5+6 test config -- frees 0xF500..0xF6FF for
+   * payload-region growth so the plain-C SNDMSG/RCVMSG state machines
+   * fit.  Branch `phase-5-6-test-config` only; main-line uses 0xF500. */
+  SCRATCH (rwx) : ORIGIN = 0xEB00, LENGTH = 0x200  /* in cpnos.com gap */
 
   /* PIO-B receive ring buffer (.pio_rx_buf section).  Page-aligned
    * 256-byte buffer at 0xF700 — the head/tail are 8-bit so wrap is
@@ -240,8 +244,10 @@ SECTIONS {
     __scratch_bss_end = .;
   } > SCRATCH
 
-  ASSERT(__scratch_bss_end <= 0xF700,
-         "scratch_bss overflowed into PIO_RX region!")
+  /* SCRATCH at 0xEB00 must not overflow into resident at 0xED00.
+   * Capacity = 0x200 (512 B); current scratch_bss usage ~0x113 (275 B). */
+  ASSERT(__scratch_bss_end <= 0xED00,
+         "scratch_bss at 0xEB00 overflowed into resident at 0xED00!")
 
   /* Stack-vs-cpnos.com / stack-vs-resident / stack-vs-scratch ASSERTs.
    * `__cpnos_load_end` comes via --defsym from the Makefile (=
@@ -256,10 +262,17 @@ SECTIONS {
          "IVT extends into resident BIOS at 0xED00")
   ASSERT(__stack_top > __cpnos_load_end,
          "stack top <= cpnos.com load end -- pushes will corrupt loaded image")
-  ASSERT(__payload_end <= __scratch_bss_start,
-         "resident payload extends into scratch_bss region")
-  ASSERT(__scratch_bss_end <= __stack_low,
-         "scratch_bss extends into stack growth area")
+  /* SCRATCH moved below payload for test config; this assert (which
+   * presumed scratch ABOVE payload) is now backwards.  The new
+   * geometric check: scratch_bss must end at or below payload start. */
+  ASSERT(__scratch_bss_end <= __payload_start,
+         "scratch_bss at 0xEB00 overflows into resident at 0xED00")
+  /* Stack at 0xF621..0xF700 is no longer adjacent to scratch_bss
+   * (which moved to 0xEB00 for the test config); the historical
+   * scratch_bss-vs-stack-low check is moot but kept disabled here as
+   * documentation of the prior invariant. */
+  /* ASSERT(__scratch_bss_end <= __stack_low,
+           "scratch_bss extends into stack growth area") */
 
   /* zp_init_data is the 8-byte CP/M zero-page seed copied to
    * 0x0000..0x0007 by resident_handoff AFTER PROM disable.  Reading
