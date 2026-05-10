@@ -246,15 +246,20 @@ static const uint8_t port_init[] = {
 SECTION_INIT_TEXT
 static void setup_ivt(void) {
     /* 18 x 16-bit slots at IVT_ADDR (page-aligned).  All slots default
-     * to isr_noop; CTC ch2 (slot 2) gets the CRT refresh ISR. */
-    /* Pointer-walk + countdown: clang otherwise uses a 16-bit BC
-     * counter for the 18-iteration loop because uint16_t* indexing
-     * widens i to 16-bit pointer arithmetic. */
-    volatile uint16_t *ivt = (volatile uint16_t *)IVT_ADDR;
+     * to isr_noop; CTC ch2 (slot 2) gets the CRT refresh ISR.
+     *
+     * NON-volatile pointer is intentional: this runs once before EI /
+     * IM 2, with no other CPU activity, so the compiler is free to
+     * reorder/optimize the per-slot stores.  In particular, clang
+     * recognizes the constant-pattern-fill loop and lowers it to the
+     * Z80 LDIR-overlap idiom (~17 B vs 22 B for a volatile loop;
+     * see ravn/llvm-z80#130 comment thread).  Adding `volatile` here
+     * blocks LoopIdiomRecognize (volatile stores fail isLegalStore). */
+    uint16_t *ivt = (uint16_t *)IVT_ADDR;
     for (uint8_t n = IVT_ENTRIES; n; --n) {
         *ivt++ = (uint16_t)(uintptr_t)&isr_noop;
     }
-    ivt = (volatile uint16_t *)IVT_ADDR;
+    ivt = (uint16_t *)IVT_ADDR;
     ivt[2] = (uint16_t)(uintptr_t)&isr_crt;
     ivt[IVT_PIO_A] = (uint16_t)(uintptr_t)&isr_pio_kbd;
     ivt[IVT_PIO_B] = (uint16_t)(uintptr_t)&isr_pio_par;
