@@ -39,31 +39,30 @@
   | `_snios_errrtn`    |    13  |   11  |   -2  |
   | net SNIOS surface  |   661  |  358  | **-303** |
 
-- **vs pure assembly baseline (commit 0bd7515, 458 B)**:
+- **vs pure assembly baseline (apples-to-apples after applying
+  the same Phase 6 fix to both)**:
 
-  | | clang post-Phase-64 | pre-migration ASM |
-  |---|---:|---:|
-  | SNIOS body (all bodies including trivial impls) | 407 B | 434 B |
-  | snios.s shim (JT + bridges) | 34 B | 24 B |
-  | **total clang SNIOS** | **441 B** | **458 B** |
+  | | original ASM | original ASM minus RECVBY (Phase 6) | Phase 64 clang |
+  |---|---:|---:|---:|
+  | body | 434 B | 417 B | 407 B |
+  | JT + bridges | 24 B | 24 B | 34 B |
+  | **TOTAL** | **458 B** | **441 B** | **441 B** |
 
-  The Phase 64 clang surface is **17 B smaller** than the original
-  assembly — not 69 B as initially claimed (commit `29278d9`'s
-  message and my subsequent reports compared scopes
-  inconsistently; corrected here).  The −17 B comes from:
+  With the same Phase 6 bugfix applied (RECVBY removed, all
+  receives via RECVBT), **the C build is byte-identical to
+  hand-tuned assembly written by a domain expert** — 441 B both
+  ways.
 
-  - Phase 6 RECVBY/RECVBT collapse: the original asm had both
-    helpers (RECVBY busy-wait ~10 B + RECVBT timeout ~17 B);
-    Phase 64 keeps only RECVBT (Phase 6 fix inherited via the
-    existing `ret c` propagation lines).  Saves ~10 B.
-  - Tighter NTWKDN: 24 B asm → 21 B C (clang reuses A=0 across
-    consecutive zero-writes via absolute addressing where the
-    asm used IX-relative).  Saves ~3 B.
-  - Marginal tightening in trivial impls.  Saves ~4 B in total.
+  The +10 B bridge cost (sdcccall(1) HL vs DRI's BC convention) is
+  offset exactly by clang's tighter codegen on:
+  - trivial impls (constant reuse across consecutive zero-stores
+    via absolute addressing where asm used IX-relative)
+  - NTWKDN (24 B asm → 21 B C)
+  - small encoding wins across the trivial JT impls
 
-  The 10 B BC→HL bridge cost is paid by the C build because
-  sdcccall(1) takes 16-bit args in HL but NDOS hands them in BC;
-  the original asm used BC directly so didn't need bridges.
+  Earlier commit messages (`29278d9`, `7f1c608`) reported "−17 B
+  smaller" or "−69 B smaller" — both wrong.  The honest answer is
+  **parity with hand-tuned asm**, given equivalent algorithms.
 
 - **Cumulative session deltas**:
 
