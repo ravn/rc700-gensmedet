@@ -28,8 +28,9 @@
 #include "cpnos_buildinfo.h" /* BUILD_INFO_STR — regenerated every build;
                               * found via -I$(BUILDDIR) on the compile line */
 
-extern void init_hardware(void);
-extern void cfgtbl_init(void);
+/* init_hardware, cfgtbl_init, netboot_mpm and cpnos_cold_entry now
+ * live as file-statics inside init.c (Phase 59 merge); only the
+ * relocator-facing entry point _cpnos_cold_entry is exposed there. */
 #include "cfgtbl.h"
 
 /* BIOS jump table base = BIOS_BASE.  `_bios_boot` is the first entry

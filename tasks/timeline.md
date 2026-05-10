@@ -1,5 +1,41 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 59: cpnos-rom cold-init 4-into-1 file merge (May 10, 2026) — Easy
+
+- **Goal**: merge the four cold-init translation units (`cfgtbl.c` +
+  `init.c` + `netboot_mpm.c` + `cpnos_cold.c`) into a single `init.c`
+  so the compiler sees the full call graph in one TU and the three
+  helper functions can become file-static.
+
+- **Source order in merged init.c** (mirrors call order from
+  `cpnos_cold_entry`):
+
+  1. CFGTBL ABI declarations + `cfgtbl_init` template
+  2. Hardware bring-up (`port_init` table, `setup_ivt`, `init_hardware`)
+  3. CP/NET netboot of `A:CPNOS.IMG` (`netboot_mpm` + helpers)
+  4. Cold-boot orchestrator + banner (`cpnos_cold_entry`, `print_banner`)
+
+- **Linkage cleanup**: `cfgtbl_init`, `init_hardware`, `netboot_mpm`
+  all become `static`; only `cpnos_cold_entry` (named in `payload.ld`
+  ENTRY and in `reset.s`) stays externally visible.  Dead extern
+  declarations in `cpnos_main.c` removed.
+
+- **Makefile**: `PAYLOAD_OBJS` and `SDCC_C_OBJS` lose three entries
+  each; per-file recipes for `cpnos_cold.o`, `cfgtbl.o`,
+  `netboot_mpm.o` deleted; SDCC `--codeseg INIT_CODE` per-target
+  override now lists only `init.o`.  `NETBOOT_OBJ` variable removed.
+
+- **Result**: clang payload byte-stable at **2138 B**; SDCC resident
+  byte-stable at **2152 B**.  Both polypascal-test 4-cell PASS at
+  parity (clang 50 s, SDCC 50 s).
+
+- **Net diff**: −1 source file (4 → 1), -3 object recipes, no size
+  change.  The merge unlocks future intra-TU optimization (current
+  `static` keyword pinning yields 0 B because the four functions are
+  each called exactly once and the compiler already inlined or
+  preserved them across the TU boundary; future shared rodata or
+  helper extraction can now happen freely).
+
 ## Phase 58: cpnos-rom SNIOS C size optimization investigation (May 10, 2026) — Easy
 
 - **Goal**: investigate size-optimization angles for the plain-C

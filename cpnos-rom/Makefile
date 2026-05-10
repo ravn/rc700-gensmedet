@@ -179,13 +179,14 @@ else ifeq ($(PIO_LOOPBACK_TEST),1)
 CFLAGS += -DPIO_LOOPBACK_TEST
 endif
 
-# Slave talks CP/NET 1.2 (DRI MP/M protocol) to the master via
-# netboot_mpm.c -- LOGIN / OPEN / READ / CLOSE against z80pack
+# Slave talks CP/NET 1.2 (DRI MP/M protocol) to the master via the
+# netboot_mpm() helper -- LOGIN / OPEN / READ / CLOSE against z80pack
 # mpm-net2.  The legacy `SERVER=proxy` / netboot.c / NETBOOT_LEGACY
 # dispatch was retired in Phase 51A (closes #19): netboot_server.py
 # was already deleted in Phase 48b, so SERVER=proxy had no working
 # server to talk to.  Single netboot path = no dispatch.
-NETBOOT_OBJ = $(BUILDDIR)/netboot_mpm.o
+# 2026-05-10 (Phase 59): netboot_mpm.c merged into init.c, so the
+# code lives in $(BUILDDIR)/init.o and there is no separate object.
 SERVER_CFLAGS =
 
 # Transport selection — picks which chip drives the byte-level CP/NET
@@ -238,10 +239,9 @@ endif
 # at runtime.  The payload linker doesn't know about the two EPROMs;
 # a separate relocator stitches it back together at cold boot.
 PAYLOAD_OBJS = $(BUILDDIR)/runtime.o $(BUILDDIR)/bios_jt.o \
-               $(BUILDDIR)/cpnos_main.o $(BUILDDIR)/cpnos_cold.o \
-               $(BUILDDIR)/resident.o $(BUILDDIR)/cfgtbl.o $(BUILDDIR)/init.o \
+               $(BUILDDIR)/cpnos_main.o \
+               $(BUILDDIR)/resident.o $(BUILDDIR)/init.o \
                $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o \
-               $(NETBOOT_OBJ) \
                $(BUILDDIR)/snios.o $(BUILDDIR)/snios_c.o $(BUILDDIR)/isr.o \
                $(BUILDDIR)/payload_checksum.o
 PAYLOAD_LD = $(BUILDDIR)/payload.ld
@@ -398,10 +398,6 @@ endif
 # No-op rule -- the file is created/updated by $(shell) at parse time.
 $(BUILDDIR)/cpnos_buildinfo.h: ;
 
-$(BUILDDIR)/cpnos_cold.o: cpnos_cold.c hal.h $(BUILDDIR)/cpnos_addrs.h $(BUILDDIR)/cpnos_buildinfo.h
-	@mkdir -p $(BUILDDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
 $(BUILDDIR)/cpnos_main.o: cpnos_main.c hal.h $(BUILDDIR)/cpnos_addrs.h $(BUILDDIR)/cpnos_buildinfo.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -414,15 +410,13 @@ $(BUILDDIR)/payload_checksum.o: payload_checksum.c
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/cfgtbl.o: cfgtbl.c
-	@mkdir -p $(BUILDDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
 $(BUILDDIR)/snios_c.o: snios_c.c cfgtbl.h compiler/compat.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/init.o: init.c hal.h
+# init.c is the merged cold-boot TU: cfgtbl + hardware bring-up +
+# netboot_mpm + cold orchestrator.  See file header for source order.
+$(BUILDDIR)/init.o: init.c hal.h cfgtbl.h transport.h $(BUILDDIR)/cpnos_addrs.h $(BUILDDIR)/cpnos_buildinfo.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -435,10 +429,6 @@ $(BUILDDIR)/transport_sio.o: transport_sio.c transport.h hal.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILDDIR)/transport_pio.o: transport_pio.c transport.h hal.h
-	@mkdir -p $(BUILDDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(BUILDDIR)/netboot_mpm.o: netboot_mpm.c hal.h $(BUILDDIR)/cpnos_addrs.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -1323,13 +1313,13 @@ ifeq ($(COMPILER),sdcc)
 
 # Most .c files land in RESIDENT_CODE (org 0xF200, lives in PROM1).
 # bios_jt.asm and snios.asm have their own SECTION declarations that
-# override per-file --codeseg.  Cold-init files (init.c, netboot_mpm.c)
-# get redirected to RESIDENT_PRE_CODE (org 0xEE00, lives in PROM0 tail)
-# below — pushes ~1 KB of code into PROM0 to keep PROM1 usage under
-# the 1.5 KB display-RAM-clearance limit.
+# override per-file --codeseg.  init.c (the merged cold-init TU) gets
+# redirected to INIT_CODE (PROM0 anchor group) below — pushes the
+# cold-boot code into PROM0 to keep PROM1 usage under the 1.5 KB
+# display-RAM-clearance limit.
 CFLAGS += -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RESIDENT_RODATA"
 
-# Per-target CFLAGS override — init.c and netboot_mpm.c go to PROM0 tail.
+# Per-target CFLAGS override — init.c goes to PROM0 INIT_CODE.
 # Snapshot CFLAGS now (immediate `:=`) so the per-target assignment
 # below doesn't recurse on itself.
 SDCC_RESIDENT_CFLAGS := $(CFLAGS)
@@ -1340,18 +1330,15 @@ SDCC_PRE_CFLAGS := $(filter-out -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RESI
 # clang relocator.ld putting it in the relocator-side ELF.
 SDCC_INIT_CFLAGS := $(filter-out -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RESIDENT_RODATA",$(CFLAGS)) \
                     -Cs"--codeseg INIT_CODE" -Cs"--constseg INIT_RODATA"
-# init.c, netboot_mpm.c, cfgtbl.c are PROM-only cold-init: their code
-# runs once before resident_handoff's `OUT (0x18),A` disables the PROMs,
-# and is never reached again.  Routing them to INIT_CODE/INIT_RODATA
-# (PROM0 anchor group) instead of RESIDENT_PRE_CODE (RAM) frees the
-# RAM bytes, mirroring clang's `.init` section.  Net resident saving
-# at HEAD: ~374 B (init.c ~110 B + netboot_mpm.c ~229 B + cfgtbl_init
-# ~35 B).  cfgtbl's BSS variable stays in bss_compiler regardless --
-# only the cold-init code/rodata moves to PROM-only.
+# init.c is the merged cold-init TU (cfgtbl + hardware bring-up +
+# netboot_mpm + cold orchestrator).  Its code runs once before
+# resident_handoff's `OUT (0x18),A` disables the PROMs and is never
+# reached again.  Routing the file to INIT_CODE/INIT_RODATA (PROM0
+# anchor group) instead of RESIDENT_PRE_CODE (RAM) frees the RAM
+# bytes, mirroring clang's `.init` section.  cfgtbl's BSS variable
+# stays in bss_compiler regardless -- only the cold-init code/rodata
+# moves to PROM-only.
 $(BUILDDIR)/init.o:           CFLAGS := $(SDCC_INIT_CFLAGS)
-$(BUILDDIR)/netboot_mpm.o:    CFLAGS := $(SDCC_INIT_CFLAGS)
-$(BUILDDIR)/cfgtbl.o:         CFLAGS := $(SDCC_INIT_CFLAGS)
-$(BUILDDIR)/cpnos_cold.o:     CFLAGS := $(SDCC_INIT_CFLAGS)
 $(BUILDDIR)/transport_sio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
 $(BUILDDIR)/transport_pio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
 $(BUILDDIR)/isr.o:            CFLAGS := $(SDCC_PRE_CFLAGS)
@@ -1396,12 +1383,11 @@ $(BUILDDIR)/payload_header_data.s: tasks/scripts/gen_payload_header.py \
 # resident sources all link in one z88dk pass).  No runtime.s / no
 # payload.elf / no payload_checksum.c -- those are clang-only artifacts
 # from the two-stage clang pipeline.
-SDCC_C_OBJS = $(BUILDDIR)/cpnos_main.o $(BUILDDIR)/cpnos_cold.o \
-              $(BUILDDIR)/resident.o \
-              $(BUILDDIR)/cfgtbl.o $(BUILDDIR)/init.o \
+SDCC_C_OBJS = $(BUILDDIR)/cpnos_main.o \
+              $(BUILDDIR)/resident.o $(BUILDDIR)/init.o \
               $(BUILDDIR)/snios_c.o \
               $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o \
-              $(NETBOOT_OBJ) $(BUILDDIR)/isr.o \
+              $(BUILDDIR)/isr.o \
               $(BUILDDIR)/relocator.o
 
 # Hand-written z88dk asm files (live in sdcc/ as tracked source).
