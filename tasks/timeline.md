@@ -1,5 +1,76 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 64: SNIOS state machines reverted to inline asm (May 10, 2026) — Big
+
+- **Goal**: per user directive "get clang as close to pure assembly as
+  you can," recover the +308 B SNIOS asm→C migration tax (#94) by
+  reverting the SNDMSG/RCVMSG state machines and shared helpers to
+  hand-rolled inline asm in `__naked` C functions.
+
+- **Approach**: ported the original `snios.s` (commit 0bd7515)
+  byte-for-byte into ASM_VOLATILE blocks inside `snios_c.c`, with
+  globally-unique labels and the Phase 6 timeout-bearing-recv fix
+  preserved (replaced original `RECVBY` busy-wait with `RECVBT`
+  everywhere; existing `ret c` propagation handles the new timeout
+  outcome).
+
+- **What stayed in plain C**: the trivial JT impls
+  (NTWKIN/NTWKST/CNFTBL/NTWKER/NTWKBT/NTWKDN/SNDERR1) — each ~10 B
+  in C, identical to the asm.
+
+- **What is now `__naked`**:
+  * Public entry points: `snios_sndmsg_c`, `snios_rcvmsg_c`,
+    `snios_errrtn`
+  * Shared helpers: `snios_sendby`, `snios_recvbt`, `snios_netout`/
+    `_snios_preout`, `snios_netin`, `snios_msgin`, `snios_msgout`,
+    `snios_sndack`, `snios_badcks`
+  * `snios_sndmsg_force` is exposed via `.globl` inside
+    `snios_sndmsg_c`'s body (fall-through entry without ACTIVE check,
+    used by NTWKDN).
+
+- **Result**: clang payload **2004 → 1692 B** (-312 B, -15.6 %).
+  Per-function:
+
+  | function           | before | after | Δ     |
+  |--------------------|-------:|------:|------:|
+  | `_snios_rcvmsg_c`  |   384  |  154  | -230  |
+  | `_snios_sndmsg_c`  |   264  |  114  | -150  |
+  | helpers (8 fns)    |    -   |   79  |  +79  |
+  | `_snios_errrtn`    |    13  |   11  |   -2  |
+  | net SNIOS surface  |   661  |  358  | **-303** |
+
+- **vs pure assembly baseline (commit 0bd7515, 461 B)**:
+
+  | | clang post-Phase-64 | pre-migration ASM |
+  |---|---:|---:|
+  | total SNIOS clang | ~358 B body + 34 B JT/bridges = **392 B** | 461 B |
+
+  After Phase 64 the clang SNIOS surface is actually **smaller than
+  the pre-migration assembly** (-69 B), thanks to elimination of
+  RECVBY (Phase 6 fix replaced it with RECVBT) plus tighter helper
+  organization.
+
+- **Cumulative session deltas**:
+
+  | | clang payload | SDCC resident |
+  |---|---:|---:|
+  | Pre-session HEAD | 2138 B | 2152 B |
+  | Post-Phase-63 | 2004 B (-134) | 2120 B (-32) |
+  | Post-Phase-64 | **1692 B (-446 / -20.9 %)** | **1848 B (-304 / -14.1 %)** |
+
+- **Verification**:
+  * cpnos-polypascal-test 4-cell PASS for clang at 49.45 s.
+  * SDCC build clean; resident chunk B 1418 -> 1112 B (-306 B);
+    polypascal-test in progress.
+  * check_no_frame_ptr / check_unreferenced_publics TBD.
+
+- **Trade-off**: the SNIOS body is now mostly inline asm — the
+  user's directive ("as close to pure assembly as you can")
+  explicitly authorized this trade against the original #75 "plain
+  C" goal.  Wire-protocol behaviour is unchanged (byte-for-byte
+  identical to the asm); the C wrapper still provides the JT
+  contract and the trivial impls.
+
 ## Remaining-shrink estimate (May 10, 2026 — second addendum)
 
 Followup to the post-session analysis: estimate of how much more

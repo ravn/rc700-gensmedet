@@ -1,75 +1,50 @@
-/* cpnos-rom SNIOS — plain C implementation of the CP/NET 1.2 binary
- * serial wire protocol (Phases 1-6 of #75 complete).
+/* cpnos-rom SNIOS — hybrid asm+C implementation of CP/NET 1.2.
  *
- * The wire-byte sequences in `try_send_frame` and `try_recv_frame`
- * below are an implementation of the spec in `CPNET_WIRE_PROTOCOL.md`
- * (this directory) -- NOT a translation of the historical asm
- * `snios.s`.  Bytes on the wire are byte-identical to what the master
- * (z80pack mpm-net2's `netwrkif-0.asm`) expects; control flow uses
- * structured C (for-loops, early returns) instead of the asm's
- * pop-discard-caller-return tricks.
+ * Phase 64 (2026-05-10): the SNDMSG/RCVMSG state machines and their
+ * shared helpers (SENDBY/RECVBT/NETIN/NETOUT/MSGIN/MSGOUT/SNDACK/
+ * BADCKS) are written as `__naked` inline-asm functions, ported
+ * byte-for-byte from the original `snios.s` (commit 0bd7515) with
+ * the Phase 6 timeout-bearing-recv fix preserved.  The trivial JT
+ * impls (NTWKIN/NTWKST/CNFTBL/NTWKER/NTWKBT/NTWKDN) stay in plain C
+ * — they're each ~10 B and the C version is identical to the asm.
  *
- * One slave-side deviation from the prior asm is fixed in this
- * rewrite: mid-frame byte receive now uses the timeout-bearing
- * `xport_recv_byte(RECV_TIMEOUT_TICKS)`, matching DRI's reference
- * (`cpnet-z80/src/ser-dri/snios.asm`).  The prior asm used busy-wait
- * `RECVBY` mid-frame, which would hang forever if the master paused
- * mid-frame.  The C version bails cleanly via the outer retry loop.
+ * Why the partial revert: the C state machines were paying ~370 B
+ * over the original asm because the compiler couldn't share
+ * register meanings across helper-call boundaries — every call
+ * forced a BSS spill of any live local.  With `__naked` asm the
+ * register convention is hand-rolled (D = running checksum, E =
+ * byte counter, HL = msg ptr, BC = scratch) and shared across
+ * callers, eliminating the spill storm.
  *
- * What stays in asm (`snios.s` + `sdcc/snios.asm`) after this rewrite:
- *   (a) the JT (8 x 3-byte `jp` slots, ABI-fixed to NDOS at 0xED33)
- *   (b) two BC->HL calling-convention bridges for the SNDMSG/RCVMSG
- *       JT slots (NDOS passes msg ptr in BC; sdcccall(1) takes HL)
- * Everything else has moved here.
- *
- * Style note: functions whose contract cannot be expressed in
- * sdcccall(1) C -- pointer return in HL not DE (CNFTBL); register
- * conventions for the JT entries -- are written as `__naked` with
- * `ASM_VOLATILE` bodies that match the original asm byte-for-byte.
- *
- * NTWKER must preserve A on entry: NDOS uses A's pre-call value as
- * the error code propagated up from a failed SNDMSG/RCVMSG.
+ * Phase 6 fix preserved: mid-frame byte receives use `_snios_recvbt`
+ * (timeout-bearing per DRI semantics).  The original asm had a
+ * separate `RECVBY` helper that busy-waited; that variant is
+ * eliminated and all mid-frame recvs go through the timeout path.
+ * Existing `ret c` propagation in the receiver state machine
+ * handles timeout the same way as the C version's RC_RETRY.
  */
 
 #include <stdint.h>
 #include "cfgtbl.h"
 #include "compiler/compat.h"
-#include "transport.h"      /* TRANSPORT_TIMEOUT == 0xFFFF */
 
 /* CFGTBL netst flags (mirror of CPNET_WIRE_PROTOCOL.md § Network status byte). */
 #define CFG_NETST_ACTIVE  0x10
 #define CFG_NETST_RCVERR  0x02
 #define CFG_NETST_SNDERR  0x01
 
-/* CP/NET 1.2 control bytes (CPNET_WIRE_PROTOCOL.md § Control-byte equates). */
-#define SOH 0x01
-#define STX 0x02
-#define ETX 0x03
-#define EOT 0x04
-#define ENQ 0x05
-#define ACK 0x06
-#define NAK 0x15
-
-/* Retry / timeout parameters (CPNET_WIRE_PROTOCOL.md § Retry semantics). */
-#define MAXRETRY            10      /* whole-frame retries on either side */
-#define TMRETRY             100     /* slave's polls of RECVBT during initial ENQ wait */
-#define RECV_TIMEOUT_TICKS  0x8000  /* per-RECVBT inner-timeout passed to xport_recv_byte */
-
-/* Forward declarations of the chip-specific byte transport.  Resolved at
- * link time by clang `--defsym` or SDCC `xport_aliases.asm`.
- *
- * `__preserves_regs(d, e)` on xport_send_byte: verified by inspection
- * of the SDCC asm output (sdcc/audit/transport_pio.s) that
- * transport_pio_send_byte never writes D or E in either path (PIO
- * already-output or PIO state-change).  Lets SDCC skip push/pop DE
- * around xport_send_byte calls in the state-machine loops.  Clang
- * ignores the attribute (compat.h `#define __preserves_regs(...)`). */
-extern void xport_send_byte(uint8_t b) __preserves_regs(d, e);
+/* Forward declarations of the chip-specific byte transport.  Resolved
+ * at link time by clang `--defsym` or SDCC `xport_aliases.asm`. */
+extern void     xport_send_byte(uint8_t b) __preserves_regs(d, e);
 extern uint16_t xport_recv_byte(uint16_t timeout_ticks);
 
+/* Local scratch shared by the SNDMSG/RCVMSG state machines.  Lives
+ * in BSS (zero-init); cfgtbl section absorbs the 3 bytes. */
+SECTION_BSS_CFGTBL static uint16_t snios_msgadr;
+SECTION_BSS_CFGTBL static uint8_t  snios_retcnt;
+
 /* ============================================================
- * SNIOS JT entry points.  Reached from NDOS via the JT slots in
- * snios.s / sdcc/snios.asm (3-byte `jp _snios_<name>_impl`).
+ *  Trivial JT impls (plain C — already as small as the asm).
  * ============================================================ */
 
 uint8_t snios_ntwkin_impl(void) {
@@ -79,313 +54,401 @@ uint8_t snios_ntwkin_impl(void) {
 }
 
 uint8_t snios_ntwkst_impl(void) {
-    uint8_t st = cfgtbl.netst;
-    cfgtbl.netst = st & (uint8_t)~(CFG_NETST_RCVERR | CFG_NETST_SNDERR);
-    return st;
+    uint8_t status = cfgtbl.netst;
+    cfgtbl.netst = (uint8_t)(status & ~(CFG_NETST_RCVERR | CFG_NETST_SNDERR));
+    return status;
 }
 
-/* CNFTBL: NDOS expects HL=cfgtbl on return.  Both compilers' sdcccall(1)
- * returns 16-bit pointers in DE -- not HL -- so we hand-write the load. */
 void snios_cnftbl_impl(void) __naked {
+    /* Returns &cfgtbl in HL (NDOS contract; sdcccall(1) returns 16-bit
+     * in DE so we need __naked to enforce HL convention). */
     ASM_VOLATILE("ld hl,_cfgtbl\n\tret");
 }
 
-/* NTWKER: must preserve A.  Empty C body would let SDCC alias the symbol
- * to z88dk's `l_ret`; force a local `ret` via inline asm. */
 void snios_ntwker_impl(void) __naked {
+    /* NDOS hook for "device re-init on error" — null-impl on us, but
+     * NDOS calls it with A=error-code and expects A preserved.  ret. */
     ASM_VOLATILE("ret");
 }
 
-uint8_t snios_ntwkbt_impl(void) {
-    return 0;
-}
+uint8_t snios_ntwkbt_impl(void) { return 0; }
 
-uint8_t snios_snderr1_impl(void) {
-    return 0xFF;
-}
+uint8_t snios_snderr1_impl(void) { return 0xFF; }
 
-uint8_t snios_errrtn_impl(uint8_t err_bit) {
-    cfgtbl.netst |= err_bit;
-    snios_ntwker_impl();
-    return 0xFF;
-}
-
-/* ============================================================
- * Wire-protocol state machines.  Implements
- * CPNET_WIRE_PROTOCOL.md § Send protocol and § Receive protocol.
- * ============================================================ */
-
-/* recv_byte_t: receive one byte with timeout.  Returns 0..255 on
- * success, 0x100 on timeout.  Single uint16_t return so caller can do
- * one branch on the high byte (compiles to `ld a,d; or a; jr nz,...`
- * on sdcccall(1)). */
-static inline uint16_t recv_byte_t(void) {
-    return xport_recv_byte(RECV_TIMEOUT_TICKS);
-}
-
-/* try_send_frame: one full attempt at sending a frame.
- * Returns 0 on success, 1 on retryable failure (caller retries
- * MAXRETRY times).  Wire spec: CPNET_WIRE_PROTOCOL.md § Send protocol. */
-static uint8_t try_send_frame(uint8_t *msg) {
-    uint16_t r;
-
-    /* (1) ENQ; (2) wait ACK with TMRETRY-bounded inner retry */
-    xport_send_byte(ENQ);
-    {
-        uint8_t t = TMRETRY;
-        do {
-            r = recv_byte_t();
-            if (r != TRANSPORT_TIMEOUT) goto got_first_ack;
-        } while (--t);
-        return 1;
-    got_first_ack:
-        if (((uint8_t)r & 0x7F) != ACK) return 1;
-    }
-
-    /* (3) send SOH + 5 header bytes + HCS, accumulating into hcs.
-     * Pointer-walking is tighter than indexed access on Z80. */
-    {
-        uint8_t hcs = SOH;
-        uint8_t *p = msg;
-        uint8_t i = 5;
-        xport_send_byte(SOH);
-        do {
-            uint8_t b = *p++;
-            hcs += b;
-            xport_send_byte(b);
-        } while (--i);
-        xport_send_byte((uint8_t)-hcs);
-    }
-
-    /* (4) wait header-ACK (single RECVBT, no inner retry).
-     * Timeout (r=0xFFFF) folds into the (r & 0x7F)!=ACK test:
-     * 0xFFFF & 0x7F = 0x7F ≠ ACK=0x06.  Saves ~4 B per recv check. */
-    r = recv_byte_t();
-    if (((uint8_t)r & 0x7F) != ACK) return 1;
-
-    /* (5) send STX + (SIZ+1) data bytes + ETX + CKS + EOT.
-     * Loop runs (SIZ+1) iterations, possibly 256 -- use do-while
-     * with k as countdown so a single uint8_t handles the full range. */
-    {
-        uint8_t cks = STX;
-        uint8_t *p = msg + 5;
-        uint8_t k = msg[4];     /* SIZ */
-        xport_send_byte(STX);
-        do {
-            uint8_t b = *p++;
-            cks += b;
-            xport_send_byte(b);
-        } while (k--);          /* runs SIZ+1 times (k counts down 0..0xFF) */
-        cks += ETX;
-        xport_send_byte(ETX);
-        xport_send_byte((uint8_t)-cks);
-        xport_send_byte(EOT);
-    }
-
-    /* (6) wait final ACK.  Same timeout-folding trick as step (4). */
-    r = recv_byte_t();
-    if (((uint8_t)r & 0x7F) != ACK) return 1;
-
-    return 0;
-}
-
-/* snios_sndmsg_force: bypass the cfgtbl.netst.ACTIVE check.  Used by
- * NTWKDN to send the FNC=0xFE shutdown frame even when the slave is
- * not currently logged in.
- *
- * Per CPNET_WIRE_PROTOCOL.md § SID rewriting, overwrite msg[2] with
- * cfgtbl.slaveid before the first ENQ. */
-uint8_t snios_sndmsg_force(uint8_t *msg) {
-    uint8_t retry = MAXRETRY;
-    msg[2] = cfgtbl.slaveid;
-
-    do {
-        if (try_send_frame(msg) == 0) return 0;
-    } while (--retry);
-
-    cfgtbl.netst |= CFG_NETST_SNDERR;
-    snios_ntwker_impl();
-    return 0xFF;
-}
-
-/* snios_sndmsg_c: public C entry, with ACTIVE-flag gate.
- * Reached from NDOS via the JT bridge `_snios_sndmsg_jt`. */
-uint8_t snios_sndmsg_c(uint8_t *msg) {
-    if (!(cfgtbl.netst & CFG_NETST_ACTIVE)) return 0xFF;
-    return snios_sndmsg_force(msg);
-}
-
-/* try_recv_frame: one full attempt at receiving a frame.
- *
- * Return values (encoded as int because three states):
- *    0    = success, DID matched our SLAVEID (or slaveid==0xFF init mode)
- *   -1    = success, frame received OK but DID mismatch -- still ACKed,
- *          slave returns 0xFF to NDOS so it rejects
- *    1    = intra-frame error (timeout, bad checksum, missing marker);
- *          caller retries up to MAXRETRY times
- *    2    = initial-ENQ wait exhausted; caller bails immediately to
- *          RCVERR (CPNET_WIRE_PROTOCOL.md § Receive protocol).
- *
- * This is where the prior cpnos-rom slave's deviation is fixed:
- * mid-frame byte receives use timeout-bearing xport_recv_byte (same
- * as DRI's reference), not the busy-wait `RECVBY` the asm version
- * had.  If the master pauses mid-frame, the slave bails cleanly via
- * the outer retry instead of hanging forever.
- */
-/* try_recv_frame return values are encoded as uint8_t (smaller than int):
- *   RC_OK_MATCH    = 0    success, DID matched
- *   RC_RETRY       = 1    intra-frame failure, caller retries
- *   RC_BAIL        = 2    initial-ENQ timeout, caller bails immediately
- *   RC_OK_MISMATCH = 3    success but DID mismatch -- ACKed, NDOS rejects
- */
-#define RC_OK_MATCH    0
-#define RC_RETRY       1
-#define RC_BAIL        2
-#define RC_OK_MISMATCH 3
-
-static uint8_t try_recv_frame(uint8_t *msg) {
-    uint16_t r;
-
-    /* (1) wait for ENQ.  Non-ENQ bytes reset the wait window
-     * (matches asm RCVFST -> RECV).  Exhaustion = unconditional bail. */
-    {
-        uint8_t t = TMRETRY;
-        while (1) {
-            r = recv_byte_t();
-            if (r < 0x100) {
-                if (((uint8_t)r & 0x7F) == ENQ) break;
-                t = TMRETRY;
-                continue;
-            }
-            if (--t == 0) return RC_BAIL;
-        }
-    }
-    xport_send_byte(ACK);
-
-    /* (2) receive SOH (timeout-bearing per DRI spec).
-     * Timeout (0xFFFF) folds into the (r & 0x7F)!=SOH check:
-     * 0xFFFF & 0x7F = 0x7F ≠ SOH=0x01.  One branch covers both. */
-    r = recv_byte_t();
-    if (((uint8_t)r & 0x7F) != SOH) return RC_RETRY;
-
-    /* (3) receive 5 header bytes, accumulate HCS init=SOH.
-     * Pattern: store, then read-back via *p++ — keeps SDCC's iCode
-     * allocator in registers (a named `b` local would push it to the
-     * IX-frame on SDCC; check_no_frame_ptr enforces this).  Clang
-     * doesn't care which form. */
-    {
-        uint8_t hcs = SOH;
-        uint8_t *p = msg;
-        uint8_t i = 5;
-        do {
-            r = recv_byte_t();
-            if (r >= 0x100) return RC_RETRY;
-            *p = (uint8_t)r;
-            hcs += *p++;
-        } while (--i);
-
-        /* (4) receive HCS byte; verify */
-        r = recv_byte_t();
-        if (r >= 0x100) return RC_RETRY;
-        hcs += (uint8_t)r;
-        if (hcs != 0) {
-            xport_send_byte(NAK);
-            return RC_RETRY;
-        }
-    }
-    xport_send_byte(ACK);
-
-    /* (5) receive STX.  Timeout-folding trick: 0xFFFF & 0x7F = 0x7F ≠ STX. */
-    r = recv_byte_t();
-    if (((uint8_t)r & 0x7F) != STX) return RC_RETRY;
-
-    /* (6) receive (SIZ+1) data bytes, accumulate CKS init=STX.
-     * Same store-then-read-back pattern as step (3) -- a named `b`
-     * local would push SDCC's `b` into the IX-frame. */
-    {
-        uint8_t cks = STX;
-        uint8_t *p = msg + 5;
-        uint8_t k = msg[4];     /* SIZ */
-        do {
-            r = recv_byte_t();
-            if (r >= 0x100) return RC_RETRY;
-            *p = (uint8_t)r;
-            cks += *p++;
-        } while (k--);
-
-        /* (7) receive ETX, fold into CKS.  Timeout-folding trick:
-         * 0xFFFF & 0x7F = 0x7F ≠ ETX=0x03; either branch returns
-         * RC_RETRY.  cks += 0xFF on a timed-out path is fine because
-         * we return before checking cks. */
-        r = recv_byte_t();
-        {
-            uint8_t b = (uint8_t)r;
-            if ((b & 0x7F) != ETX) return RC_RETRY;
-            cks += b;
-        }
-
-        /* (8) receive CKS byte; verify */
-        r = recv_byte_t();
-        if (r >= 0x100) return RC_RETRY;
-        cks += (uint8_t)r;
-        if (cks != 0) {
-            xport_send_byte(NAK);
-            return RC_RETRY;
-        }
-    }
-
-    /* (9) receive EOT.  Timeout-folding trick: 0xFFFF & 0x7F = 0x7F ≠ EOT. */
-    r = recv_byte_t();
-    if (((uint8_t)r & 0x7F) != EOT) return RC_RETRY;
-
-    /* (10) DID check; ACK regardless.  slaveid==0xFF is the init-mode
-     * sentinel ("accept any DID") -- spelt directly here instead of via
-     * the prior `(uint8_t)(slaveid+1) != 0` indirection. */
-    xport_send_byte(ACK);
-    if (cfgtbl.slaveid != 0xFF && msg[1] != cfgtbl.slaveid)
-        return RC_OK_MISMATCH;
-    return RC_OK_MATCH;
-}
-
-/* snios_rcvmsg_c: public C entry, with ACTIVE-flag gate.
- * Reached from NDOS via the JT bridge `_snios_rcvmsg_jt`.
- *
- * Outer retry loop: try_recv_frame is called up to MAXRETRY times.
- * Initial-ENQ-wait exhaustion (return value 2) bails immediately
- * without consuming further retries -- the slave fails fast when no
- * master is responding at all. */
-uint8_t snios_rcvmsg_c(uint8_t *msg) {
-    uint8_t retry = MAXRETRY;
-    if (!(cfgtbl.netst & CFG_NETST_ACTIVE)) return 0xFF;
-
-    do {
-        uint8_t rc = try_recv_frame(msg);
-        if (rc == RC_OK_MATCH)    return 0;
-        if (rc == RC_OK_MISMATCH) return 0xFF;
-        if (rc == RC_BAIL)        break;
-        /* RC_RETRY: intra-frame error, retry */
-    } while (--retry);
-
-    cfgtbl.netst |= CFG_NETST_RCVERR;
-    snios_ntwker_impl();
-    return 0xFF;
+/* ERRRTN (private to the state machines): set error flag in
+ * CFG_NETST (A holds the bit), call NTWKER, return 0xFF.  Reachable
+ * via JP from the asm bodies. */
+void snios_errrtn(void) __naked {
+    ASM_VOLATILE(
+        "ld   hl, _cfgtbl\n\t"
+        "or   (hl)\n\t"
+        "ld   (hl), a\n\t"
+        "call _snios_ntwker_impl\n\t"
+        "ld   a, 0xff\n\t"
+        "ret\n\t"
+    );
 }
 
 /* ============================================================
- * NTWKDN -- network shutdown.  Builds the FNC=0xFE frame in
- * cfgtbl.msgbuf and force-sends it (bypassing the ACTIVE check).
+ *  Shared transport-byte helpers (asm).
+ *  All take/return in the asm-convention (HL/D/E/A); not directly
+ *  callable from regular C code without going through the state
+ *  machines.
  *
- * Note: per CPNET_WIRE_PROTOCOL.md § Special FNC values, our
- * actual master (z80pack mpm-net2) rejects FNC=0xFE as out-of-range
- * (server.asm validates FNC < netend == 76).  The frame goes out;
- * the master ACKs the wire dance but takes no shutdown action.
- * NTWKDN returns 0 regardless, matching the asm version's
- * `xor a; ret` after the SNDMS0 call.
+ *  Register conventions inside this block:
+ *    HL = message buffer pointer (preserved across all helpers)
+ *    D  = running checksum / TMRETRY counter (set up by callers)
+ *    E  = byte-loop counter (set up by callers)
+ *    BC = scratch
+ *    A  = byte being sent/received
+ *    CY = error flag on receive helpers (1 = timeout)
  * ============================================================ */
+
+/* SENDBY: send byte in A.  Preserves HL, DE. */
+USED static void snios_sendby(uint8_t a) __naked {
+    ASM_VOLATILE(
+        "push hl\n\t"
+        "push de\n\t"
+        "call _xport_send_byte\n\t"
+        "pop  de\n\t"
+        "pop  hl\n\t"
+        "ret\n\t"
+    );
+}
+
+/* RECVBT: receive byte with timeout.  Returns A = byte, CY = 0 on
+ * success; CY = 1 on timeout.  Preserves HL, DE.  Used everywhere
+ * (the original asm RECVBY busy-wait variant is replaced — Phase 6
+ * fix: mid-frame timeout now propagates via CY). */
+USED static uint8_t snios_recvbt(void) __naked {
+    ASM_VOLATILE(
+        "push de\n\t"
+        "push hl\n\t"
+        "ld   hl, 0x8000\n\t"               /* RECV_TIMEOUT_TICKS */
+        "call _xport_recv_byte\n\t"
+        "ld   a, d\n\t"                     /* D=0 success, D=0xff timeout */
+        "inc  a\n\t"                        /* Z if timeout */
+        "ld   a, e\n\t"                     /* A = byte (Z preserved by ld) */
+        "pop  hl\n\t"                       /* pop doesn't touch flags */
+        "pop  de\n\t"
+        "scf\n\t"                           /* assume timeout: CY=1 */
+        "ret  z\n\t"                        /* timeout: return CY=1 */
+        "or   a\n\t"                        /* success: clear CY */
+        "ret\n\t"
+    );
+}
+
+/* NETOUT/PREOUT: send byte C, accumulate into D (running checksum). */
+USED static void snios_netout(void) __naked {
+    ASM_VOLATILE(
+        "_snios_preout:\n\t"                /* alias entry */
+        "ld   a, d\n\t"
+        "add  a, c\n\t"
+        "ld   d, a\n\t"                     /* update D */
+        "ld   a, c\n\t"
+        "jp   _snios_sendby\n\t"            /* tail-call */
+    );
+}
+
+/* NETIN: receive byte, accumulate into D.  Returns A = byte, D
+ * updated, Z = (D == 0).  CY = 1 on timeout. */
+USED static uint8_t snios_netin(void) __naked {
+    ASM_VOLATILE(
+        "call _snios_recvbt\n\t"
+        "ret  c\n\t"                        /* propagate timeout */
+        "ld   b, a\n\t"                     /* save byte */
+        "add  a, d\n\t"
+        "ld   d, a\n\t"
+        "or   a\n\t"                        /* Z from D */
+        "ld   a, b\n\t"
+        "ret\n\t"
+    );
+}
+
+/* MSGIN: receive E bytes into (HL), accumulate D, advance HL.
+ * Returns CY = 1 on timeout. */
+USED static void snios_msgin(void) __naked {
+    ASM_VOLATILE(
+        "_snios_msgin_loop:\n\t"
+        "call _snios_netin\n\t"
+        "ret  c\n\t"
+        "ld   (hl), a\n\t"
+        "inc  hl\n\t"
+        "dec  e\n\t"
+        "jr   nz, _snios_msgin_loop\n\t"
+        "ret\n\t"
+    );
+}
+
+/* MSGOUT: send preamble C then E bytes from (HL); init D=0, accumulate. */
+USED static void snios_msgout(void) __naked {
+    ASM_VOLATILE(
+        "ld   d, 0\n\t"
+        "call _snios_preout\n\t"            /* send preamble C, D += C */
+        "_snios_msoLP:\n\t"
+        "ld   c, (hl)\n\t"
+        "inc  hl\n\t"
+        "call _snios_netout\n\t"
+        "dec  e\n\t"
+        "jr   nz, _snios_msoLP\n\t"
+        "ret\n\t"
+    );
+}
+
+/* SNDACK: send ACK (preserves A across the call). */
+USED static void snios_sndack(void) __naked {
+    ASM_VOLATILE(
+        "push af\n\t"
+        "ld   a, 0x06\n\t"                  /* ACK */
+        "call _snios_sendby\n\t"
+        "pop  af\n\t"
+        "ret\n\t"
+    );
+}
+
+/* BADCKS: send NAK and return (caller treats as retry). */
+USED static void snios_badcks(void) __naked {
+    ASM_VOLATILE(
+        "ld   a, 0x15\n\t"                  /* NAK */
+        "jp   _snios_sendby\n\t"            /* tail-call */
+    );
+}
+
+/* ============================================================
+ *  SNDMSG state machine — direct asm port from snios.s.
+ *
+ *  Two entry points sharing a body via fall-through:
+ *    snios_sndmsg_c       : checks ACTIVE flag, then falls through
+ *    snios_sndmsg_force   : skips ACTIVE check (NTWKDN's path)
+ *
+ *  Entry: HL = msg ptr (sdcccall(1) 16-bit arg).
+ *  Returns: A = 0 success, A = 0xFF on transport / retry-exhausted error.
+ * ============================================================ */
+
+uint8_t snios_sndmsg_c(uint8_t *msg) __naked {
+    ASM_VOLATILE(
+        /* ACTIVE check (asm SNDMSG entry) */
+        "ld   a, (_cfgtbl)\n\t"             /* CFG_NETST */
+        "and  0x10\n\t"                     /* ACTIVE */
+        "jp   z, _snios_sndmsg_active_off\n\t"
+        /* Fall through to the force entry (asm SNDMS0 label). */
+        ".globl _snios_sndmsg_force\n\t"
+        "_snios_sndmsg_force:\n\t"
+        "ld   (_snios_msgadr), hl\n\t"
+        /* Set SID = our slaveid in msg[2]. */
+        "inc  hl\n\t"
+        "inc  hl\n\t"
+        "ld   a, (_cfgtbl + 1)\n\t"         /* CFG_SLAVEID */
+        "ld   (hl), a\n\t"
+        /* Outer retry loop: MAXRETRY frames. */
+    "_snios_sndmsg_resend:\n\t"
+        "ld   a, 10\n\t"                    /* MAXRETRY */
+        "ld   (_snios_retcnt), a\n\t"
+    "_snios_sndmsg_send:\n\t"
+        "ld   hl, (_snios_msgadr)\n\t"
+        /* Send ENQ. */
+        "ld   a, 0x05\n\t"                  /* ENQ */
+        "call _snios_sendby\n\t"
+        /* Wait for ACK with TMRETRY-bound retries. */
+        "ld   d, 100\n\t"                   /* TMRETRY */
+    "_snios_sndmsg_enqrsp:\n\t"
+        "call _snios_recvbt\n\t"
+        "jr   nc, _snios_sndmsg_gotenq\n\t" /* got byte */
+        "dec  d\n\t"
+        "jr   nz, _snios_sndmsg_enqrsp\n\t"
+        "jr   _snios_sndmsg_sndtmo\n\t"
+    "_snios_sndmsg_gotenq:\n\t"
+        "call _snios_chkack\n\t"            /* falls through on success */
+        /* Send SOH + 5 header bytes + HCS. */
+        "ld   c, 0x01\n\t"                  /* SOH */
+        "ld   e, 5\n\t"
+        "call _snios_msgout\n\t"            /* SOH FMT DID SID FNC SIZ, sums into D */
+        "xor  a\n\t"
+        "sub  d\n\t"
+        "ld   c, a\n\t"
+        "call _snios_netout\n\t"            /* HCS = -running_sum */
+        /* Wait for header ACK. */
+        "call _snios_getack\n\t"
+        /* Send STX + (SIZ+1) data + ETX + CKS + EOT. */
+        "dec  hl\n\t"                       /* back to SIZ field */
+        "ld   e, (hl)\n\t"
+        "inc  hl\n\t"
+        "inc  e\n\t"                        /* 0 -> 1 byte */
+        "ld   c, 0x02\n\t"                  /* STX */
+        "call _snios_msgout\n\t"
+        "ld   c, 0x03\n\t"                  /* ETX */
+        "call _snios_preout\n\t"            /* fold into checksum */
+        "xor  a\n\t"
+        "sub  d\n\t"
+        "ld   c, a\n\t"
+        "call _snios_netout\n\t"            /* CKS */
+        "ld   a, 0x04\n\t"                  /* EOT */
+        "call _snios_sendby\n\t"
+        /* Wait for final ACK; tail-call handles success+retry. */
+        "jp   _snios_getack\n\t"
+        /* GETACK: recv with retry; returns A=0 success, retries on
+         * timeout/NAK by popping caller and looping at SEND. */
+    "_snios_getack:\n\t"
+        "call _snios_recvbt\n\t"
+        "jr   c, _snios_sndmsg_sndret\n\t"  /* timeout → retry */
+        /* Fall through to CHKACK. */
+    "_snios_chkack:\n\t"
+        "and  0x7F\n\t"
+        "sub  0x06\n\t"                     /* ACK */
+        "ret  z\n\t"                        /* success: A=0 */
+        /* Fall through to SNDRET. */
+    "_snios_sndmsg_sndret:\n\t"
+        "pop  hl\n\t"                       /* discard caller return addr */
+        "ld   hl, _snios_retcnt\n\t"
+        "dec  (hl)\n\t"
+        "jr   nz, _snios_sndmsg_send\n\t"
+    "_snios_sndmsg_sndtmo:\n\t"
+        "ld   a, 0x01\n\t"                  /* SNDERR */
+        "jp   _snios_errrtn\n\t"
+    "_snios_sndmsg_active_off:\n\t"
+        "ld   a, 0xff\n\t"
+        "ret\n\t"
+    );
+}
+
+/* ============================================================
+ *  RCVMSG state machine — direct asm port from snios.s.
+ *
+ *  Entry: HL = msg ptr.
+ *  Returns: A = 0 success+match; A = 0xFF on error or DID-mismatch
+ *           (NDOS rejects in either case).
+ *
+ *  Phase 6 fix: mid-frame `RECVBY` busy-wait replaced by `RECVBT`
+ *  (timeout-bearing).  Existing `ret c` lines after each recv call
+ *  propagate the timeout to the outer RECALL retry loop, which
+ *  matches the original asm's intent.
+ * ============================================================ */
+
+uint8_t snios_rcvmsg_c(uint8_t *msg) __naked {
+    ASM_VOLATILE(
+        /* ACTIVE check. */
+        "ld   a, (_cfgtbl)\n\t"
+        "and  0x10\n\t"
+        "jp   z, _snios_rcvmsg_active_off\n\t"
+        /* Save msg ptr. */
+        "ld   (_snios_msgadr), hl\n\t"
+        /* Outer retry loop: MAXRETRY frames. */
+    "_snios_rcvmsg_rercv:\n\t"
+        "ld   a, 10\n\t"                    /* MAXRETRY */
+        "ld   (_snios_retcnt), a\n\t"
+    "_snios_rcvmsg_recall:\n\t"
+        "call _snios_rcvmsg_recv\n\t"       /* may return CY on intra-frame timeout */
+        "ld   hl, _snios_retcnt\n\t"
+        "dec  (hl)\n\t"
+        "jr   nz, _snios_rcvmsg_recall\n\t"
+    "_snios_rcvmsg_rcvtmo:\n\t"
+        "ld   a, 0x02\n\t"                  /* RCVERR */
+        "jp   _snios_errrtn\n\t"
+
+    "_snios_rcvmsg_recv:\n\t"
+        "ld   hl, (_snios_msgadr)\n\t"
+        /* Wait for ENQ with TMRETRY-bounded retries. */
+        "ld   d, 100\n\t"                   /* TMRETRY */
+    "_snios_rcvmsg_rcvfst:\n\t"
+        "call _snios_recvbt\n\t"
+        "jr   nc, _snios_rcvmsg_gotfst\n\t" /* got byte */
+        "dec  d\n\t"
+        "jr   nz, _snios_rcvmsg_rcvfst\n\t"
+        "pop  hl\n\t"                       /* discard recall return */
+        "jr   _snios_rcvmsg_rcvtmo\n\t"
+    "_snios_rcvmsg_gotfst:\n\t"
+        "and  0x7F\n\t"
+        "cp   0x05\n\t"                     /* ENQ */
+        "jr   nz, _snios_rcvmsg_recv\n\t"   /* not ENQ — keep looking */
+        /* Got ENQ — send ACK. */
+        "ld   a, 0x06\n\t"                  /* ACK */
+        "call _snios_sendby\n\t"
+        /* Receive SOH (timeout-bearing per Phase 6 fix). */
+        "call _snios_recvbt\n\t"
+        "ret  c\n\t"
+        "and  0x7F\n\t"
+        "cp   0x01\n\t"                     /* SOH */
+        "ret  nz\n\t"                       /* not SOH — retry */
+        "ld   d, a\n\t"                     /* init HCS = SOH */
+        /* Receive 5 header bytes. */
+        "ld   e, 5\n\t"
+        "call _snios_msgin\n\t"
+        "ret  c\n\t"
+        /* Receive HCS, verify. */
+        "call _snios_netin\n\t"
+        "ret  c\n\t"
+        "jr   nz, _snios_badcks_call\n\t"   /* checksum bad */
+        /* Header OK — send ACK. */
+        "call _snios_sndack\n\t"
+        /* Receive STX. */
+        "call _snios_recvbt\n\t"
+        "ret  c\n\t"
+        "and  0x7F\n\t"
+        "cp   0x02\n\t"                     /* STX */
+        "ret  nz\n\t"
+        "ld   d, a\n\t"                     /* init CKS = STX */
+        /* Get SIZ from msg[4] (HL points to msg+5 after header recv). */
+        "dec  hl\n\t"
+        "ld   e, (hl)\n\t"
+        "inc  hl\n\t"
+        "inc  e\n\t"                        /* 0 -> 1 byte */
+        /* Receive (SIZ+1) data bytes. */
+        "call _snios_msgin\n\t"
+        "ret  c\n\t"
+        /* Receive ETX, fold into CKS. */
+        "call _snios_recvbt\n\t"
+        "ret  c\n\t"
+        "and  0x7F\n\t"
+        "cp   0x03\n\t"                     /* ETX */
+        "ret  nz\n\t"
+        "add  a, d\n\t"
+        "ld   d, a\n\t"
+        /* Receive and verify CKS. */
+        "call _snios_netin\n\t"
+        "ret  c\n\t"
+        /* Receive EOT. */
+        "call _snios_recvbt\n\t"
+        "ret  c\n\t"
+        "and  0x7F\n\t"
+        "cp   0x04\n\t"                     /* EOT */
+        "ret  nz\n\t"
+        "ld   a, d\n\t"
+        "or   a\n\t"
+        "jr   nz, _snios_badcks_call\n\t"
+        /* Frame received OK — discard recall return, check DID. */
+        "pop  hl\n\t"                       /* discard recall return */
+        "ld   hl, (_snios_msgadr)\n\t"
+        "inc  hl\n\t"                       /* -> DID */
+        "ld   a, (_cfgtbl + 1)\n\t"         /* CFG_SLAVEID */
+        "inc  a\n\t"                        /* 0xFF -> 0 = init mode */
+        "jr   z, _snios_rcvmsg_match\n\t"
+        "dec  a\n\t"
+        "sub  (hl)\n\t"
+        "jr   z, _snios_rcvmsg_match\n\t"
+        "ld   a, 0xff\n\t"                  /* bad DID */
+    "_snios_rcvmsg_match:\n\t"
+        /* SNDACK preserves A; A=0 success, A=0xFF mismatch. */
+        "jp   _snios_sndack\n\t"
+    "_snios_badcks_call:\n\t"
+        "jp   _snios_badcks\n\t"
+    "_snios_rcvmsg_active_off:\n\t"
+        "ld   a, 0xff\n\t"
+        "ret\n\t"
+    );
+}
+
+/* ============================================================
+ *  NTWKDN — sends FNC=0xFE shutdown frame, bypassing ACTIVE check.
+ *  Calls into snios_sndmsg_force (the post-ACTIVE entry).
+ * ============================================================ */
+
 uint8_t snios_ntwkdn_impl(void) {
     cfgtbl.msgbuf[0] = 0;       /* FMT */
     cfgtbl.msgbuf[3] = 0xFE;    /* FNC = 254 (shutdown) */
     cfgtbl.msgbuf[4] = 0;       /* SIZ */
-    snios_sndmsg_force(cfgtbl.msgbuf);  /* result discarded */
+    {
+        extern uint8_t snios_sndmsg_force(uint8_t *msg);
+        (void)snios_sndmsg_force(cfgtbl.msgbuf);
+    }
     return 0;
 }
