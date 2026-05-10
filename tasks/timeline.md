@@ -1,5 +1,106 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 56: CP/NET wire-protocol spec — authored, cross-checked, and corrected (May 10, 2026) — Medium
+
+- **Trigger** (user prompt 2026-05-10): "where did you find the
+  wire-protocol spec? ... please record your findings in the project."
+  Honest answer was that I had been planning the SNIOS Phase 5+6
+  rewrite from one side of the wire (cpnos-rom asm) without
+  consulting the master code we actually talk to.
+
+- **Investigation**: cross-checked four sources to nail down the
+  actual wire-byte contract:
+
+  | Source | Role | Outcome |
+  |---|---|---|
+  | `cpnet-z80/src/ser-dri/snios.asm` | DRI 1980-1982 reference slave | Same protocol as cpnos-rom (binary ENQ/ACK/SOH/STX/ETX/EOT). |
+  | `cpnet-z80/src/serial/snios.asm` | durgadas311 ASCII variant | DIFFERENT protocol (`++..--` hex), not what we use. |
+  | `z80pack/cpmsim/srcmpm/netwrkif-0.asm` | Authoritative master (z80pack mpm-net2) | Same protocol as DRI reference; modified Sep 2014 by Udo Munk for Z80SIM. |
+  | `cpnet-z80/dist/mpm/server.asm` | DRI master BDOS dispatcher | Validates `FNC < netend (76)`; rejects FNC >= 76 as invalid. |
+
+- **Authored**: `cpnos-rom/CPNET_WIRE_PROTOCOL.md` (367 lines, commit
+  `60661c0`) — authoritative byte-level spec covering encoding modes
+  (binary 8-bit only; ASCII not implemented), control bytes, frame
+  layout (FMT/DID/SID/FNC/SIZ/DAT), checksum construction (8-bit
+  two's complement of running sum, raw 8-bit accumulation, 7-bit
+  masked compares), retry semantics (master/slave timing asymmetry),
+  SID rewriting on send, DID-mismatch handling on receive, special
+  FNC values (0xFF init, 0xFE shutdown), and unsupported features.
+
+- **Three things found and corrected during write-up**:
+
+  (a) **cpnos-rom slave deviates from DRI in mid-frame recv**: DRI's
+  reference has one `recvby` (timeout-bearing); cpnos-rom split it
+  into `RECVBT` (timeout) + `RECVBY` (busy-wait, retries forever).
+  Mid-frame uses busy-wait, so the slave hangs forever if the master
+  pauses mid-frame.  The `ret c` checks after `call RECVBY` in
+  `snios.s` are dead code.  Latent bug; not seen under
+  polypascal-test because z80pack mpm-net2 is reliable.  Flagged for
+  the upcoming SNIOS Phase 5+6 rewrite to fix by restoring DRI's
+  semantics.
+
+  (b) **FNC=0xFF (init / get-node-ID) is NOT supported by our master**:
+  The CP/NET 1.2 protocol defines FNC=0xFF for slave-ID negotiation
+  (slave sends `00 00 00 FF 00 00`, proxy returns `01 NN 00 FF 00 00`
+  with the assigned ID), but this is implemented only by
+  `CpnetSerialServer.jar` (a Java host-side proxy in the cpnet-z80
+  family) — NOT by z80pack mpm-net2.  Our wire path (cpnos-rom →
+  MAME cpnet_bridge → TCP 4002 → cpmsim → MP/M II → DRI server.asm)
+  reaches DRI's `server.asm:val2` which rejects any `FNC >= netend
+  (76)` as invalid.  cpnos-rom hardcodes `RC702_SLAVEID = 0x01` at
+  build time via the Makefile; no dynamic ID negotiation runs.
+
+  (c) **FNC=0xFE (shutdown) is similarly proxy-only**: Same dispatch
+  pattern; z80pack mpm-net2 rejects it.  cpnos-rom's `NTWKDN` (now
+  `snios_ntwkdn_impl` in C since #75 Phase 2) builds the frame and
+  sends it via `_snios_sndmsg_force` regardless; the master rejects
+  it but the slave doesn't care (`xor a; ret` discards the result
+  per DRI behaviour).  Effectively a no-op end-of-session marker for
+  our setup.
+
+- **Spec hygiene fix** (commit `78505d8`): removed a stream-of-
+  consciousness self-correction ("Wait, that's wrong. Let me re-read
+  ...") that leaked from drafting into the published reference doc.
+  Captured as new memory rule
+  `feedback_no_self_correction_in_published_docs` so it won't recur.
+
+- **Spec FNC clarification** (commit `3fed75d`): rewrote the special-
+  FNC section to distinguish three layers cleanly:
+    - "Protocol-defined behaviour" — what CpnetSerialServer.jar would do.
+    - "What z80pack mpm-net2 actually does" — rejects as invalid FNC.
+    - "What cpnos-rom actually does" — hardcoded SLAVEID, no
+      negotiation, FNC=0xFE sent as best-effort marker.
+
+- **README pointer added**: `cpnos-rom/README.md` now has a
+  "Reference docs" section linking the new spec, alongside
+  `MEMORY_MAP.md` and `PORT_OUTPUTS.md`, so the spec is discoverable
+  from the entry-level doc.
+
+- **Lessons captured for the upcoming Phase 5+6 SNIOS C rewrite**:
+
+  - The C rewrite should target the SPEC (DRI / mpm-net2 wire
+    contract), NOT the existing cpnos-rom asm — that asm has the
+    busy-wait deviation.  Restoring DRI's timeout-bearing mid-frame
+    recv is more robust on real hardware and against host hiccups.
+  - SID rewriting on send (slave overwrites msg[2] with
+    cfgtbl.slaveid before the first ENQ) is a slave-side hardening
+    measure NOT mandated by the master.  Should be preserved in the
+    rewrite.
+  - DID-mismatch handling: on the slave, frame received with wrong
+    DID still gets ACKed (so master doesn't retransmit) but slave
+    returns 0xFF to NDOS so it rejects the message.  Subtle but
+    matches DRI; preserve.
+  - All control-byte compares mask bit 7 (`b & 0x7F == ACK`); all
+    checksum accumulations use the raw 8-bit byte.  Asymmetric, easy
+    to get wrong.
+  - The `pop hl`-discard-caller-return pattern in the asm collapses
+    cleanly into a structured-C retry loop.  No `setjmp`/`longjmp`
+    needed.
+
+- **Issue activity**: no new issues filed; #75 still open (will be
+  resumed for Phase 5+6 against the now-authoritative spec).
+  Spec doc resides in cpnos-rom/ alongside MEMORY_MAP.md / PORT_OUTPUTS.md.
+
 ## Phase 55: cpnos-rom SNIOS asm→C migration, Phase 4 of #75 (May 10, 2026) — Easy
 
 - **Goal**: continue #75 by porting the checksum helpers (NETOUT,

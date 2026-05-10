@@ -79,6 +79,21 @@ Both produce a 4096-byte image split into `prom0.bin` (0x0000–0x07FF) and
 - Transport abstracted behind a vtable — parallel port (J3/J4) is parked
   but drops in without restructuring.
 
+## Reference docs
+
+- [`CPNET_WIRE_PROTOCOL.md`](CPNET_WIRE_PROTOCOL.md) — authoritative
+  byte-level spec for the CP/NET 1.2 binary serial protocol that the
+  cpnos-rom slave speaks to z80pack mpm-net2.  Cross-checked against
+  master (`z80pack/cpmsim/srcmpm/netwrkif-0.asm`), DRI reference
+  (`cpnet-z80/src/ser-dri/snios.asm`), and current cpnos-rom slave.
+  Documents one slave-side deviation (busy-wait mid-frame receive)
+  and flags that FNC=0xFF (init/get-node-ID) is protocol-defined but
+  rejected by our master — slave ID is hardcoded via
+  `RC702_SLAVEID=0x01` in the Makefile.
+- [`MEMORY_MAP.md`](MEMORY_MAP.md) — RAM/PROM layout, IVT placement,
+  resident-region bounds, BSS/cold-init split.
+- [`PORT_OUTPUTS.md`](PORT_OUTPUTS.md) — RC702 I/O port map.
+
 ## Files (as Phase 0 adds them)
 
 - `Makefile` — build targets, size check, PROM image split
