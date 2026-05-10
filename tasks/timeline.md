@@ -1,5 +1,24 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 63: -disable-machine-cse (-16 B clang) (May 10, 2026) — Easy
+
+- Continued the LLVM-flag bisection past Phase 62.  Found
+  `-mllvm -disable-machine-cse` saves 11 B on snios_c.o and 16 B
+  on full payload.  Common-subexpression elimination introduces
+  spills on Z80's limited register file; disabling pushes the
+  recomputes back inline (which Z80 prefers because its memory
+  loads are 3 B / instruction).
+
+- Tested but rejected: `-disable-block-placement` would have given
+  another -8 B on snios_c.o but pushed init.c 1 B over the 640 B
+  INIT_CODE budget.  Multi-file budget grow not worth 8 B.
+
+- Result: clang payload **2020 → 2004 B** (-16 B).  Cumulative
+  reduction since pre-Phase 62: 2138 → 2004 B (-134 B / -6.3 %).
+  SDCC unchanged (LLVM-only flag).
+
+- cpnos-polypascal-test PASS at 51.93 s (clang).
+
 ## Phase 62: -disable-machine-licm + SNIOS source tighten (May 10, 2026) — Medium
 
 - **Goal**: investigate whether `+static-stack` (and similar build
