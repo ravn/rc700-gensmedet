@@ -212,41 +212,82 @@ each transmitted byte.  Slave RX must tolerate up to ~2ms gaps between
 adjacent header bytes within one frame.  This is well within
 `RECV_TIMEOUT_TICKS` so it doesn't normally show up as a failure.
 
-## Special frames
+## Special FNC values — protocol vs. our master
 
-Two FNC values are dispatched specially by the cpmsim-side serial-port
-proxy and never reach the actual MP/M CP/NET server (per
-`cpnet-z80/md/SER-DRI.md`):
+Two FNC values are reserved by the CP/NET 1.2 protocol for proxy-layer
+control and are NOT delivered to the MP/M BDOS/NDOS layer.  They are
+defined per `cpnet-z80/md/SER-DRI.md` and the
+`CpnetSerialServer.jar`-based setups, but **our actual master (z80pack
+mpm-net2 + DRI `server.asm`) does NOT implement them**.  This section
+documents both the protocol-defined behaviour and our deviation.
 
-### Initialize / get node ID (FNC = 0xFF)
+### Initialize / get node ID (FNC = 0xFF) — NOT supported by z80pack mpm-net2
+
+**Protocol-defined behaviour** (CpnetSerialServer.jar proxy only):
 
 Slave sends:
 ```
 FMT=0  DID=0  SID=0  FNC=0xFF  SIZ=0  DAT=[0]
 ```
 
-Master responds:
+Proxy responds:
 ```
 FMT=1  DID=NN  SID=0  FNC=0xFF  SIZ=0  DAT=[0]    where NN = slave's assigned node ID
 ```
 
-After this exchange the slave knows its assigned ID and writes it to
-`cfgtbl.slaveid`.  Subsequent SID rewriting on send uses this value.
+After this exchange the slave would know its assigned ID and write it
+to `cfgtbl.slaveid`; subsequent SID rewriting on send uses that value.
 
-cpnos-rom's `cfgtbl_init` hard-codes `RC702_SLAVEID = 0x01` (set at build
-time by the Makefile) rather than running this exchange dynamically.
+**Why z80pack mpm-net2 doesn't support it**: cpmsim's TCP-port proxy
+(`net_server.conf`) is a raw byte pipe with no protocol awareness.  The
+frame reaches MP/M II's BDOS via the network driver, which calls
+DRI `server.asm:val2`:
 
-### Network shutdown (FNC = 0xFE)
+```asm
+val2:   mov     a,m
+        cpi     netend          ; netend equ 76
+        jnc     val3            ; jump if FNC >= 76 (invalid)
+        ...
+val3:   mvi     a,0ffh
+        ret                     ; A=0xFF, NDOS treats as error
+```
+
+FNC=0xFF (255) is far above `netend = 76` and gets rejected as out-of-range.
+The slave would receive an error response, not its node ID.
+
+**What cpnos-rom actually does**: hard-codes `RC702_SLAVEID = 0x01` at
+build time via `cpnos-rom/Makefile`.  `cfgtbl_init` writes this constant
+into `cfgtbl.slaveid` during cold init.  No FNC=0xFF exchange ever runs.
+
+If we ever need dynamic node-ID assignment we would need to either:
+- Switch the master to `CpnetSerialServer.jar` (which IS protocol-aware),
+- Patch z80pack's master `netwrkif-0.asm` or DRI's `server.asm` to
+  intercept FNC=0xFF before validation,
+- Or pick the slave ID through some out-of-band mechanism (DIP switch,
+  ROM strap, etc.) — currently we use the build-time constant.
+
+### Network shutdown (FNC = 0xFE) — NOT supported by z80pack mpm-net2
+
+**Protocol-defined behaviour** (CpnetSerialServer.jar proxy only):
 
 Slave sends:
 ```
 FMT=0  DID=0  SID=slaveid  FNC=0xFE  SIZ=0  DAT=[0]
 ```
 
-Master does NOT respond — the master's serial-port handler closes the socket
-and releases resources.  The slave-side `NTWKDN` calls
-`_snios_sndmsg_force` (bypassing the ACTIVE check) to send this frame even
-when not currently logged in.
+Proxy closes the socket and releases resources; no response is sent.
+
+**What cpnos-rom actually does**: `NTWKDN` (now `snios_ntwkdn_impl` in
+C, Phase 2 of #75) builds the FNC=0xFE frame and calls
+`_snios_sndmsg_force` to send it bypassing the ACTIVE check.  Against
+z80pack mpm-net2 the master will reject it as `FNC >= netend` and the
+master-side ACK / wire dance still completes (or times out), but no
+shutdown action is taken.  The slave returns A=0 to NDOS regardless,
+matching the asm version's `xor a; ret` after the call.
+
+In practice this is a no-op end-of-session marker for our setup; the
+slave continues to function, and the master continues to serve other
+slaves, until the slave is power-cycled or restarts via PROM.
 
 ## Slave-side deviations
 
