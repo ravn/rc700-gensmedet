@@ -1,5 +1,71 @@
 # RC700-SYSGEN Project Timeline
 
+## Post-session deep analysis (May 10, 2026 — addendum)
+
+After the Phase 59-63 commits landed, two follow-up investigations:
+
+### SDCC flag bisection (the symmetric question to clang's)
+
+User asked whether SDCC has equivalents for clang's
+`-disable-machine-licm` / `-disable-machine-cse` flags, and
+whether enabling them helps.  Bisected on `snios_c.c`:
+
+| SDCC flag | clang analog | snios_c.o Δ |
+|---|---|---:|
+| `--noinvariant` | `-disable-machine-licm` | 0 (no-op) |
+| `--noloopreverse` | (none) | 0 (no-op) |
+| `--nogcse` | `-disable-machine-cse` | **+88 B (worse)** |
+| `--nolabelopt` | (none) | **+116 B (worse)** |
+| `--noinduction` | `-disable-lsr` | **+140 B (worse)** |
+| all 3 (inv+cse+ind) | combined | **+164 B (worse)** |
+
+**The asymmetry is the diagnostic finding.**  Same Z80 ISA, same
+C source, same register pressure — clang benefits from disabling
+LICM/CSE, SDCC suffers.  Architectural reason: clang's MachineLICM
+/ CSE run *before* regalloc and rely on TargetTransformInfo cost
+estimates (Z80 TTI under-predicts spill cost — open Cluster A in
+ravn/llvm-z80).  SDCC's loop opts run on iCode where the iCode
+allocator runs concurrently — invariants only get hoisted when a
+register is available.
+
+Documented in `cpnos-rom/README.md` "Compiler tuning notes" section
+and added as a comment to ravn/llvm-z80#128.
+
+### SNIOS asm→C residual gap accounting
+
+After all Phase 62-63 wins, current vs pre-migration assembly:
+
+| | pre-migration ASM | post-Phase-63 C |
+|---|---:|---:|
+| body + JT + bridges | 461 B | 769 B |
+| Δ | — | **+308 B (+67 %)** |
+
+Recovered from the original +419 B (+91 %) via this session's
+Phase 62-63 work: −111 B / 26 % of the migration tax.
+
+Per-cluster breakdown:
+- SNDMSG state machine: 113 B asm → 265 B C (+152)
+- RCVMSG state machine: 168 B asm → 384 B C (+216)
+- trivial JT impls: 27 B asm → 49 B C (+22, NTWKDN
+  correctness fix)
+
+Where the +308 B comes from (in priority order):
+1. sdcccall(1) ABI overhead at every C call boundary (asm
+   shared register meanings by convention across the state graph)
+2. No "fall-through into next function" optimization in C
+   (asm's `GOTFST: ... ; falls through into SNDACK` saves a JP
+   per chained label)
+3. `__builtin_memcpy` materializing as runtime call on small
+   constant sizes (already filed as #50)
+4. NTWKDN went 0 B → 21 B as a correctness fix (DRI-conformant
+   shutdown)
+
+Filed as ravn/rc700-gensmedet#94 (tracking-only, parked) with
+reduction paths.  Updated #83 to lower priority — the
+try_recv_frame IX-frame loosening was deliberate this session;
+the original premise of "refactor to remove spills" is now
+mostly academic.
+
 ## Session-end summary (Phases 59–63, May 10, 2026)
 
 Single session covering file consolidation + LLVM-flag bisection +
