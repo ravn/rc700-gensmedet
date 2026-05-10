@@ -1,5 +1,72 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 62: -disable-machine-licm + SNIOS source tighten (May 10, 2026) — Medium
+
+- **Goal**: investigate whether `+static-stack` (and similar build
+  flags) can be undone or replaced for a smaller resident, and whether
+  the C source itself has slack the compiler isn't recovering.
+
+- **Method**: per-flag bisection on snios_c.c text-section size,
+  one knob at a time:
+
+  | configuration | snios_c.o |
+  |---|---:|
+  | -O3 | 1484 |
+  | -O2 | 1480 |
+  | -Os | 1255 |
+  | -Oz | 1225 |
+  | -Oz +static-stack | 875 |
+  | -Oz +static-stack -disable-lsr (current HEAD pre-62) | **868** |
+  | -Oz +static-stack -disable-lsr -disable-machine-licm | **795** |
+  | -Oz -disable-machine-licm | 1320 |
+  | -Os +static-stack -disable-lsr -disable-machine-licm | 899 |
+
+  `+static-stack` is essential (saves ~450 B alone — locals to BSS
+  vs IX-frame).  `-disable-lsr` saves another 7 B.  New finding:
+  `-disable-machine-licm` saves another **73 B** — MachineLICM
+  hoists invariants out of loops, but on Z80 with limited register
+  pressure the spill/reload cost often outweighs hoisting wins.
+
+- **Source-level changes**:
+
+  1. Timeout-folding trick: `0xFFFF & 0x7F = 0x7F` differs from every
+     CP/NET 1.2 control byte (SOH=1 .. ACK=6), so the explicit
+     `if (r >= 0x100) return RC_RETRY;` can fold into the existing
+     `(r & 0x7F) != X` check.  Applied 6 sites; -44 B clang on
+     snios_c.o.
+
+  2. Direct slaveid==0xFF check: replaced the
+     `(uint8_t)(slaveid+1) != 0` indirection with `slaveid != 0xFF`;
+     -5 B clang.
+
+  3. Read-once `b = (uint8_t)r` pattern in the byte-receive loops
+     was tested and reverted: 0 B clang win, +8 SDCC IX-frame
+     entries.  Not worth doing.
+
+- **Result**:
+
+  | | clang payload | SDCC resident |
+  |---|---:|---:|
+  | Pre-62 (HEAD) | 2138 B | 2154 B |
+  | Post-62 | **2020 B** (-118 B, -5.5%) | **2120 B** (-34 B, -1.6%) |
+
+  Per-function deltas (clang -Oz):
+  - `_snios_rcvmsg_c`: 471 -> 396 B (-75 B)
+  - `_snios_sndmsg_force`: 311 -> 264 B (-47 B)
+  - snios_c.o total: 868 -> 746 B (-122 B)
+
+- **Verification**:
+  - cpnos-polypascal-test 4-cell PASS at parity (clang 51.23 s,
+    SDCC 47.95 s).
+  - check_no_frame_ptr SDCC try_recv_frame raised 2 -> 10
+    (timeout-folding eliminated live-range boundaries SDCC was
+    using to recycle registers).  User-authorized loosening
+    (2026-05-10); baseline updated with rationale.
+
+- **Rule captured**: user said "for code only running a few times
+  code size is more important than speed" — folded into
+  `feedback_size_over_speed_for_cold_paths.md` (user-side memory).
+
 ## Phase 61: close #88 cross-TU barrier (structural mitigations exhausted) (May 10, 2026) — Easy
 
 - **Goal**: re-measure the cross-TU compilation barrier (#88) after
