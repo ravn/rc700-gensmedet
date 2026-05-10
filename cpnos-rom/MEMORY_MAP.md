@@ -136,12 +136,15 @@ PROM0 (2 KB at 0x0000):
        │ Cold-init code (INIT_CODE)             │  640 B max
        │ 0x02A0..0x051F                         │  (ASSERT __init_end <= 0x520)
        │                                        │
-       │ Runs in place from PROM:               │
-       │  - print_banner (cpnos_cold.c)         │
-       │  - init_hardware (init.c) — port init, │
+       │ Runs in place from PROM (all in init.c │
+       │ after Phase 59 4-into-1 merge):        │
+       │  - cfgtbl_init  — populate non-zero    │
+       │    CFGTBL fields                       │
+       │  - init_hardware — port_init table,    │
        │    IVT setup, IM 2 mode, EI            │
-       │  - cfgtbl_init (cfgtbl.c)              │
-       │  - netboot_mpm (netboot_mpm.c)         │
+       │  - netboot_mpm  — CP/NET LOGIN/OPEN/   │
+       │    READ/CLOSE of A:CPNOS.IMG           │
+       │  - print_banner + cpnos_cold_entry     │
        │                                        │
        │ Tail-jumps to RAM-resident             │
        │ resident_handoff at 0xEDxx, which      │
@@ -212,7 +215,7 @@ appears in:
 | **`.reset` / `RESET`** | PROM0 0x0000..0x000F | `reset.s` body — di, set SP, jp _relocate |
 | **`.text` (relocator)** | PROM0 0x0010..0x029F | `relocator.c`'s code; clang's relocator.ld assigns it explicitly |
 | **`.payload_header`** | inside relocator region | The `__payload_header` struct emitted by the C source — read by `_relocate` to find chunks + BSS pairs + entry point |
-| **`INIT_CODE`** | PROM0 0x02A0..0x051F (≤ 640 B) | Cold-init function bodies; SDCC: `--codeseg INIT_CODE` per-file (`init.c`, `cfgtbl.c`, `netboot_mpm.c`, `cpnos_cold.c`); clang: `__attribute__((section(".init.text")))` |
+| **`INIT_CODE`** | PROM0 0x02A0..0x051F (≤ 640 B) | Cold-init function bodies; SDCC: `--codeseg INIT_CODE` on `init.c` (the merged cold-init TU — Phase 59); clang: `__attribute__((section(".init.text")))` per function |
 | **`INIT_RODATA`** | inside INIT_CODE region | Cold-init read-only data (banner string literals, etc.); SDCC: `--constseg INIT_RODATA`; clang: `__attribute__((section(".init.rodata")))` |
 | **`.prom0_tail`** (chunk-A) | PROM0 0x0520..0x07FF (736 B) | First 736 B of payload.bin extracted by `dd` and embedded by the relocator's `#embed` |
 | **`PAYLOAD_HEADER_P1`** | PROM1 0x2000..0x2031 (50 B) | Mirror of payload header at top of PROM1 — for cross-PROM consistency check |
@@ -286,10 +289,7 @@ in `RESIDENT_CODE`, you must split them across `.c` files.
 
 Per-file assignment in `cpnos-rom/Makefile`:
 ```make
-$(BUILDDIR)/init.o:           CFLAGS := $(SDCC_INIT_CFLAGS)  # INIT_CODE
-$(BUILDDIR)/netboot_mpm.o:    CFLAGS := $(SDCC_INIT_CFLAGS)  # INIT_CODE
-$(BUILDDIR)/cfgtbl.o:         CFLAGS := $(SDCC_INIT_CFLAGS)  # INIT_CODE
-$(BUILDDIR)/cpnos_cold.o:     CFLAGS := $(SDCC_INIT_CFLAGS)  # INIT_CODE
+$(BUILDDIR)/init.o:           CFLAGS := $(SDCC_INIT_CFLAGS)  # INIT_CODE (merged cold-init TU)
 $(BUILDDIR)/transport_sio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)   # RESIDENT_PRE_CODE
 $(BUILDDIR)/transport_pio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)   # RESIDENT_PRE_CODE
 $(BUILDDIR)/isr.o:            CFLAGS := $(SDCC_PRE_CFLAGS)   # RESIDENT_PRE_CODE
@@ -299,9 +299,12 @@ $(BUILDDIR)/relocator.o:      CFLAGS := $(SDCC_INIT_CFLAGS)  # INIT_CODE
 
 **Practical consequence**: a function that needs to live in
 `INIT_CODE` on SDCC must be in a TU dedicated to INIT_CODE.  This
-is why `cpnos_main.c` was split into `cpnos_main.c` + `cpnos_cold.c`
-in Phase 51A.2 (#68): the cold-entry function had to move out of
-the resident TU into an INIT_CODE TU.  Saved 108 B SDCC resident.
+drove the original Phase 51A.2 split of `cpnos_main.c` →
+`cpnos_main.c` + `cpnos_cold.c` (#68; saved 108 B SDCC resident).
+Phase 59 (2026-05-10) then re-merged the four cold-init TUs
+(`cfgtbl.c` + `init.c` + `netboot_mpm.c` + `cpnos_cold.c`) into a
+single `init.c` — they all already shared INIT_CODE, so the merge
+was free for SDCC and unlocks intra-TU visibility for clang.
 
 The resulting cross-TU optimization barrier is documented as
 ravn/rc700-gensmedet#88 (~50-150 B cost from no-LTO + per-file
