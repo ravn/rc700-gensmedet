@@ -161,6 +161,74 @@ void snios_recvbt(void) __naked {
     );
 }
 
+/* NETOUT / PREOUT -- send byte (in C) and accumulate checksum into D.
+ * The two labels were aliases in the original asm; we collapse them
+ * into a single C function that both compilers emit at one address.
+ * Callers (still in asm) reach this via `call _snios_netout` -- the
+ * old `call PREOUT` sites are byte-equivalent because PREOUT was just
+ * a second label on the same instructions.  Tail-jumps into
+ * `_snios_sendby` so the byte goes out via the chip transport. */
+void snios_netout(void) __naked {
+    ASM_VOLATILE(
+        "ld a, d\n\t"
+        "add a, c\n\t"
+        "ld d, a\n\t"                 /* D += C (running checksum) */
+        "ld a, c\n\t"                 /* A = byte to send */
+        "jp _snios_sendby"
+    );
+}
+
+/* NETIN -- receive byte and accumulate checksum into D.  Returns
+ * A = byte, D updated, Z flag = (running checksum is zero); the asm
+ * comment claims CY set on timeout, but RECVBY doesn't actually set
+ * CY on its retry-forever path -- preserved here as-is for future
+ * asm callers that may rely on the historical interface. */
+void snios_netin(void) __naked {
+    ASM_VOLATILE(
+        "call _snios_recvby\n\t"
+        "ld b, a\n\t"                 /* save byte */
+        "add a, d\n\t"
+        "ld d, a\n\t"                 /* D += byte */
+        "or a\n\t"                    /* Z flag from running checksum */
+        "ld a, b\n\t"                 /* restore byte (ld preserves Z) */
+        "ret"
+    );
+}
+
+/* MSGIN -- receive E bytes into (HL), accumulating each into D's
+ * running checksum.  Returns CY set on timeout (propagated from
+ * NETIN -> RECVBY).  HL advances by E; E reaches 0 on success. */
+void snios_msgin(void) __naked {
+    ASM_VOLATILE(
+        "_snios_msgin_loop:\n\t"
+        "call _snios_netin\n\t"
+        "ret c\n\t"
+        "ld (hl), a\n\t"
+        "inc hl\n\t"
+        "dec e\n\t"
+        "jr nz, _snios_msgin_loop\n\t"
+        "ret"
+    );
+}
+
+/* MSGOUT -- initialise checksum to 0, send preamble byte (in C),
+ * then send E bytes from (HL).  Each byte updates D.  Caller can
+ * read D after return for the running checksum (used by SNDMSG when
+ * sending the trailing CKS byte = (-D) & 0xFF). */
+void snios_msgout(void) __naked {
+    ASM_VOLATILE(
+        "ld d, 0\n\t"
+        "call _snios_netout\n\t"      /* PREOUT == NETOUT in our build */
+        "_snios_msgout_loop:\n\t"
+        "ld c, (hl)\n\t"
+        "inc hl\n\t"
+        "call _snios_netout\n\t"
+        "dec e\n\t"
+        "jr nz, _snios_msgout_loop\n\t"
+        "ret"
+    );
+}
+
 /* `_snios_sndmsg_force` is an asm-side bridge in snios.s / sdcc/snios.asm:
  * takes msg pointer in HL (sdcccall(1)), copies HL->BC, and tail-jumps
  * to SNDMS0 (the body of SNDMSG that bypasses the cfgtbl.netst.ACTIVE

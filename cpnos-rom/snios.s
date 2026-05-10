@@ -78,6 +78,13 @@
     .extern _snios_sendby
     .extern _snios_recvby
     .extern _snios_recvbt
+    ; Phase 4 of #75: checksum helpers moved to snios_c.c.
+    ; NETOUT and PREOUT collapse into a single C function (they were
+    ; alias labels at the same address in the original asm).
+    .extern _snios_netout
+    .extern _snios_netin
+    .extern _snios_msgin
+    .extern _snios_msgout
 
 ;----------------------------------------------------------------
 ;  SNIOS jump table  (first 24 bytes — public ABI for NDOS)
@@ -139,53 +146,10 @@ RCVMSG_DISPATCH:
 ; SENDBY / RECVBY / RECVBT moved to snios_c.c (Phase 3 of #75).
 ; Asm callers below now `call _snios_sendby` etc.
 
-;================================================
-;= CHECKSUM UTILITIES                           =
-;= D = running checksum accumulator             =
-;================================================
-
-; NETOUT / PREOUT - Send byte C, accumulate checksum in D
-NETOUT:
-PREOUT:
-    ld   a, d
-    add  a, c
-    ld   d, a                       ; update checksum
-    ld   a, c
-    jp   _snios_sendby
-
-; NETIN - Receive byte, accumulate checksum in D
-; Returns: A = byte, D updated, Z from checksum; CY set on timeout.
-NETIN:
-    call _snios_recvby
-    ld   b, a
-    add  a, d
-    ld   d, a
-    or   a                          ; Z flag from checksum
-    ld   a, b
-    ret
-
-; MSGIN - Receive E bytes into (HL), accumulate checksum in D.
-; Returns CY set on timeout.
-MSGIN:
-    call NETIN
-    ret  c
-    ld   (hl), a
-    inc  hl
-    dec  e
-    jr   nz, MSGIN
-    ret
-
-; MSGOUT - Send preamble C, then E bytes from (HL); init checksum in D.
-MSGOUT:
-    ld   d, 0
-    call PREOUT
-MSOLP:
-    ld   c, (hl)
-    inc  hl
-    call NETOUT
-    dec  e
-    jr   nz, MSOLP
-    ret
+; NETOUT / PREOUT / NETIN / MSGIN / MSGOUT moved to snios_c.c (Phase 4 of #75).
+; Asm callers below now `call _snios_netout` (NETOUT/PREOUT collapsed into one
+; C function -- they were alias labels at the same asm address), `call
+; _snios_netin`, `call _snios_msgin`, `call _snios_msgout`.
 
 ;================================================
 ;= SNDMSG - SEND MESSAGE ON NETWORK             =
@@ -227,12 +191,12 @@ GOTENQ:
     ; Send SOH + 5 header bytes + HCS
     ld   c, SOH
     ld   e, 5
-    call MSGOUT                     ; SOH FMT DID SID FNC SIZ
+    call _snios_msgout                     ; SOH FMT DID SID FNC SIZ
     ; Send header checksum (two's complement of running sum)
     xor  a
     sub  d
     ld   c, a
-    call NETOUT
+    call _snios_netout
     ; Wait for ACK
     call GETACK
     ; Send STX + data bytes + ETX + CKS + EOT
@@ -241,13 +205,13 @@ GOTENQ:
     inc  hl
     inc  e                          ; 0 means 1 byte
     ld   c, STX
-    call MSGOUT
+    call _snios_msgout
     ld   c, ETX
-    call PREOUT                     ; ETX is part of checksum
+    call _snios_netout                     ; ETX is part of checksum
     xor  a
     sub  d
     ld   c, a
-    call NETOUT                     ; CKS
+    call _snios_netout                     ; CKS
     ld   a, EOT
     call _snios_sendby
     jp   GETACK                     ; tail-call, A=0 success (from CHKACK)
@@ -326,11 +290,11 @@ GOTFST:
 
     ; Receive 5 header bytes
     ld   e, 5
-    call MSGIN
+    call _snios_msgin
     ret  c
 
     ; Receive and check HCS
-    call NETIN
+    call _snios_netin
     ret  c
     jr   nz, BADCKS
 
@@ -352,7 +316,7 @@ GOTFST:
     inc  e                          ; 0 means 1 byte
 
     ; Receive data bytes
-    call MSGIN
+    call _snios_msgin
     ret  c
 
     ; Receive ETX
@@ -365,7 +329,7 @@ GOTFST:
     ld   d, a                       ; fold ETX into CKS
 
     ; Receive and check data checksum
-    call NETIN
+    call _snios_netin
     ret  c
     ; Receive EOT
     call _snios_recvby

@@ -58,6 +58,12 @@ defc CFG_MSGBUF  = 45
     EXTERN _snios_sendby
     EXTERN _snios_recvby
     EXTERN _snios_recvbt
+    ; Phase 4 of #75: checksum helpers moved to snios_c.c.
+    ; NETOUT/PREOUT collapsed into a single C function.
+    EXTERN _snios_netout
+    EXTERN _snios_netin
+    EXTERN _snios_msgin
+    EXTERN _snios_msgout
 
 ;----------------------------------------------------------------
 ;  SNIOS jump table  (first 24 bytes — public ABI for NDOS)
@@ -112,45 +118,9 @@ RCVMSG_DISPATCH:
 ; SENDBY / RECVBY / RECVBT moved to snios_c.c (Phase 3 of #75).
 ; Asm callers below now `call _snios_sendby` etc.
 
-;================================================
-;= CHECKSUM UTILITIES                           =
-;================================================
-NETOUT:
-PREOUT:
-    ld   a, d
-    add  a, c
-    ld   d, a
-    ld   a, c
-    jp   _snios_sendby
-
-NETIN:
-    call _snios_recvby
-    ld   b, a
-    add  a, d
-    ld   d, a
-    or   a
-    ld   a, b
-    ret
-
-MSGIN:
-    call NETIN
-    ret  c
-    ld   (hl), a
-    inc  hl
-    dec  e
-    jr   nz, MSGIN
-    ret
-
-MSGOUT:
-    ld   d, 0
-    call PREOUT
-MSOLP:
-    ld   c, (hl)
-    inc  hl
-    call NETOUT
-    dec  e
-    jr   nz, MSOLP
-    ret
+; NETOUT / PREOUT / NETIN / MSGIN / MSGOUT moved to snios_c.c (Phase 4 of #75).
+; Asm callers below now `call _snios_netout` (NETOUT/PREOUT collapsed),
+; `call _snios_netin`, `call _snios_msgin`, `call _snios_msgout`.
 
 ;================================================
 ;= SNDMSG - SEND MESSAGE ON NETWORK             =
@@ -186,24 +156,24 @@ GOTENQ:
     call CHKACK
     ld   c, SOH
     ld   e, 5
-    call MSGOUT
+    call _snios_msgout
     xor  a
     sub  d
     ld   c, a
-    call NETOUT
+    call _snios_netout
     call GETACK
     dec  hl
     ld   e, (hl)
     inc  hl
     inc  e
     ld   c, STX
-    call MSGOUT
+    call _snios_msgout
     ld   c, ETX
-    call PREOUT
+    call _snios_netout
     xor  a
     sub  d
     ld   c, a
-    call NETOUT
+    call _snios_netout
     ld   a, EOT
     call _snios_sendby
     jp   GETACK
@@ -274,10 +244,10 @@ GOTFST:
     ld   d, a
 
     ld   e, 5
-    call MSGIN
+    call _snios_msgin
     ret  c
 
-    call NETIN
+    call _snios_netin
     ret  c
     jr   nz, BADCKS
 
@@ -295,7 +265,7 @@ GOTFST:
     inc  hl
     inc  e
 
-    call MSGIN
+    call _snios_msgin
     ret  c
 
     call _snios_recvby
@@ -306,7 +276,7 @@ GOTFST:
     add  a, d
     ld   d, a
 
-    call NETIN
+    call _snios_netin
     ret  c
     call _snios_recvby
     ret  c

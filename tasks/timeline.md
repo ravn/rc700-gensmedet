@@ -1,5 +1,73 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 55: cpnos-rom SNIOS asm→C migration, Phase 4 of #75 (May 10, 2026) — Easy
+
+- **Goal**: continue #75 by porting the checksum helpers (NETOUT,
+  PREOUT, NETIN, MSGOUT, MSGIN) from asm to portable C, written as
+  `__naked` C functions with `ASM_VOLATILE` bodies that match the
+  original asm byte-for-byte.
+
+- **Functions ported (4)**: NETOUT (collapsed with PREOUT, since they
+  were alias labels at the same asm address), NETIN, MSGIN, MSGOUT.
+  ~31 B of asm body removed from each of `snios.s` + `sdcc/snios.asm`.
+
+- **Call site updates** (12 sites in each compiler's asm file):
+  - `call NETOUT` -> `call _snios_netout` (5 sites)
+  - `call PREOUT` -> `call _snios_netout` (3 sites; PREOUT collapsed)
+  - `call NETIN`  -> `call _snios_netin`  (4 sites)
+  - `call MSGIN`  -> `call _snios_msgin`  (2 sites)
+  - `call MSGOUT` -> `call _snios_msgout` (3 sites)
+
+- **Result** (4-cell polypascal-test all PASS, BYTE-NEUTRAL):
+
+  | metric | before (Phase 3) | after | Δ |
+  |---|---:|---:|---:|
+  | Clang payload | 1720 B | **1720 B** | **0 B** |
+  | SDCC resident | 1868 B | **1868 B** | **0 B** |
+  | clang/pio-irq polypascal | 50.75 s | 50.67 s | ~0 |
+  | clang/sio polypascal     | 59.57 s | 59.43 s | ~0 |
+  | sdcc/pio-irq polypascal  | 51.19 s | 51.61 s | ~0 |
+  | sdcc/sio polypascal      | 60.19 s | 60.69 s | ~0 |
+
+- **Bring-up gotcha (re-confirmed `feedback_check_banner_timestamp`
+  HARD rule)**: first cell-1 retest after Phase 4 changes FAILED stage
+  2 with a STALE SDCC banner displayed (`PIO sdcc 2026-05-10 09:14`)
+  even though `make cpnos-polypascal-test COMPILER=clang` had run.
+  Root cause: leftover ROM bytes in `/Users/ravn/git/mame/roms/rc702/`
+  from the previous Phase 3 SDCC test cycle; the `make cpnos
+  COMPILER=clang` rebuild produced clang/prom0_padded.ic66 + .ic65
+  but the install-to-MAME-roms step had been short-circuited by
+  Make's "no .o changes" check.  Resolution: explicitly rm
+  `clang/cpnos.bin` etc. to force the install step.  Polypascal-test's
+  banner-check would have caught this earlier if it inspected
+  `cpnos_siob.raw` instead of just stage timeouts -- filed as a
+  followup observation but not blocking Phase 4.
+
+- **Cumulative across Phases 1+2+3+4 (#75)**:
+  - 15 SNIOS functions in portable C (Phase 1: NTWKIN/NTWKST/CNFTBL/
+    NTWKER/NTWKBT; Phase 2: NTWKDN/ERRRTN/SNDERR1; Phase 3: SENDBY/
+    RECVBY/RECVBT; Phase 4: NETOUT/NETIN/MSGIN/MSGOUT).
+  - Asm side now owns: JT (24 B, ABI), 3 calling-convention bridges
+    (_snios_sndmsg_c, _snios_rcvmsg_c, _snios_sndmsg_force, ~14 B),
+    2 trampolines (SNDMSG_DISPATCH, RCVMSG_DISPATCH, 6 B), and the
+    SNDMSG/RCVMSG state machines (~190 B).  Roughly 235 B of asm
+    remaining out of an original ~470 B SNIOS body -- a 50% asm
+    reduction without any byte cost.
+  - Both compilers stable at +8/+10 B over Phase 0 baseline (the
+    Phase 2 split-cost), unchanged across Phases 3 and 4.
+
+- **Issue activity**: Phase 4 of #75 done.  Phases 5 (SNDMSG state
+  machine, ~80-90 B) and 6 (RCVMSG state machine, ~110 B) remain.
+  These are the highest-risk pieces because:
+  (a) `pop hl` discard-caller-return pattern (SNDRET) is structured
+      C-hostile -- needs a setjmp/longjmp equivalent OR explicit
+      `__naked` + inline asm preserving the stack manipulation;
+  (b) wire-protocol semantics need byte-for-byte preservation against
+      the CP/NET 1.2 spec to avoid silent interop breakage with the
+      mpm-net2 host.
+  The conservative path (matching Phases 1-4): port both as `__naked`
+  + ASM_VOLATILE bodies, byte-neutral, just relocate the source.
+
 ## Phase 54: cpnos-rom SNIOS asm→C migration, Phase 3 of #75 (May 10, 2026) — Easy
 
 - **Goal**: continue #75 by porting the byte-I/O wrappers (SENDBY,
