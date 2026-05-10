@@ -352,15 +352,17 @@ static void init_hardware(void) {
 SECTION_INIT_RODATA
 static const uint8_t login_pwd[8] = RC702_LOGIN_PWD;
 
-/* FCB header for A:CPNOS.IMG (drive + 8.3 name).  Bytes +12..+35
- * are left zero — msg[] lives in BSS so the zero tail is already
- * there, and install_fcb only runs once before any FCB response
- * has overwritten those slots. */
+/* FCB header for A:CPNOS.IMG, prepended with the user-number byte
+ * so install_fcb can do one LDIR instead of a separate byte store
+ * + LDIR.  Bytes +13..+36 of the FCB are left zero — msg[] lives
+ * in BSS so the zero tail is already there, and install_fcb only
+ * runs once before any FCB response has overwritten those slots. */
 SECTION_INIT_RODATA
-static const uint8_t FCB_HEAD[12] = {
-    0x01,                                /* +0  drive A (1-based) */
-    'C','P','N','O','S',' ',' ',' ',     /* +1..+8  name */
-    'I','M','G',                          /* +9..+11 ext */
+static const uint8_t FCB_HEAD[13] = {
+    0x00,                                /* +0  user number = 0 */
+    0x01,                                /* +1  drive A (1-based) */
+    'C','P','N','O','S',' ',' ',' ',     /* +2..+9  name */
+    'I','M','G',                          /* +10..+12 ext */
 };
 
 /* Build and send a CP/NET request, then wait for the response.
@@ -379,12 +381,11 @@ static uint8_t cpnet_xact(uint8_t fnc, uint8_t siz_minus_1) {
     return msg[DAT];
 }
 
-/* Copy the 12-byte FCB header into msg.  The 24-byte zero tail is
- * already zero in BSS. */
+/* Copy the 13-byte FCB header (user-number byte + 12-byte FCB)
+ * into msg.  The 24-byte zero tail is already zero in BSS. */
 SECTION_INIT_TEXT
 static void install_fcb(void) {
-    msg[DAT] = 0;                    /* user number */
-    __builtin_memcpy(&msg[DAT + 1], FCB_HEAD, 12);
+    __builtin_memcpy(&msg[DAT], FCB_HEAD, 13);
 }
 
 /* Rewrite only DAT[0]=user.  FCB is already in msg[DAT+1..DAT+36] from

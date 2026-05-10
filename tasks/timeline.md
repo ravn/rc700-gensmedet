@@ -1,5 +1,56 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 66: scroll_lines unify + crlf factor + install_fcb fold (May 10, 2026) — Easy
+
+User said "i still want to apply all those things you suggested
+earlier" (referring to remaining candidates from `#95`).  Applied:
+
+- **scroll_lines unify**: collapsed `delete_line` (71 B) + `insert_line`
+  (76 B) into one `scroll_lines(uint8_t up)` with direction flag.
+  Result: 5 + 4 + 113 = 122 B (one shared body + two 5-B wrappers).
+  NOINLINE on the body (clang's inliner thinks 2-caller bodies are
+  always good to inline but on Z80 they aren't — see explanation
+  about TTI inline-cost model in commit `0ab1168`).
+
+- **crlf() factor**: factored `impl_conout(0x0d); impl_conout(0x0a)`
+  out of netboot_mpm (2 callers).  NOINLINE.  Saves a few bytes in
+  INIT_CODE.
+
+- **install_fcb fold**: prepended the user-number byte to `FCB_HEAD`
+  so install_fcb does ONE 13-byte LDIR instead of a byte store + 12-
+  byte LDIR.  Saves 3 B in INIT_CODE.
+
+- **Baseline cleanup**: removed `try_recv_frame:10` + `try_send_frame:2`
+  entries (Phase 64 made them inline asm, no SDCC C frame violation
+  possible).  Replaced `delete_line:2` + `insert_line:2` with
+  `scroll_lines:7` (the unified function has more simultaneously-live
+  locals on SDCC).
+
+Sizes:
+
+  | metric            | before | after | Δ    |
+  |-------------------|-------:|------:|-----:|
+  | clang payload     |   1678 |  1652 | -26  |
+  | clang INIT_CODE   |    637 |   630 |  -7  |
+  | SDCC resident     |   1848 |  1796 | -52  |
+
+The SDCC win (52 B) is BIGGER than clang's (26 B) because the two
+old functions had separate ABI prologue/epilogue overhead that SDCC
+paid twice; one combined function pays once.  Plus the IX-frame
+spills are 6 B each (worse than clang's BSS-spill cost) but there
+are fewer of them total than two separate function frames.
+
+cpnos-polypascal-test 4-cell PASS at parity for both compilers
+(clang 49.77 s, SDCC 50.89 s).
+
+Cumulative session impact through Phase 66:
+
+  | | clang payload | SDCC resident |
+  |---|---:|---:|
+  | Pre-session HEAD | 2138 B | 2152 B |
+  | Post-Phase-66    | **1652 B** | **1796 B** |
+  | Δ | **-486 B (-22.7 %)** | **-356 B (-16.5 %)** |
+
 ## Phase 65: cross-class BSS-spill peephole in llvm-z80 (May 10, 2026) — Medium
 
 Per user follow-up request to "get clang closer sizewise to handrolled
