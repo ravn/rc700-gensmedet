@@ -394,6 +394,15 @@ static void reuse_fcb(void) {
     msg[DAT] = 0;                    /* user number */
 }
 
+/* Tiny helper, called twice from netboot_mpm.  Forced noinline; without
+ * it clang re-inlines the body at each site (the inliner doesn't know
+ * we prefer 3-byte call over 10-byte body duplication on Z80). */
+SECTION_INIT_TEXT
+NOINLINE static void crlf(void) {
+    impl_conout(0x0d);
+    impl_conout(0x0a);
+}
+
 SECTION_INIT_TEXT
 static uint16_t netboot_mpm(void) {
     BOOT_MARK(8, 'N');               /* entered netboot_mpm */
@@ -436,7 +445,7 @@ static uint16_t netboot_mpm(void) {
         if (dma > bios_boot) return 0;
     }
     BOOT_MARK(13, 'E');              /* EOF reached */
-    impl_conout(0x0d); impl_conout(0x0a);
+    crlf();
 
     /* --- print build stamp from last 24 B of payload --------------
      * stamp_cpnos.py wrote 23 ASCII bytes + 0x00 sentinel into the
@@ -445,7 +454,7 @@ static uint16_t netboot_mpm(void) {
     {
         const uint8_t *s = dma - 24;
         for (uint8_t i = 0; i < 23 && s[i] != 0; ++i) impl_conout(s[i]);
-        impl_conout(0x0d); impl_conout(0x0a);
+        crlf();
     }
 
     /* --- CLOSE ---------------------------------------------------- */
