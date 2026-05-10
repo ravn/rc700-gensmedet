@@ -242,8 +242,7 @@ PAYLOAD_OBJS = $(BUILDDIR)/runtime.o $(BUILDDIR)/bios_jt.o \
                $(BUILDDIR)/cpnos_main.o \
                $(BUILDDIR)/resident.o $(BUILDDIR)/init.o \
                $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o \
-               $(BUILDDIR)/snios.o $(BUILDDIR)/snios_c.o $(BUILDDIR)/isr.o \
-               $(BUILDDIR)/payload_checksum.o
+               $(BUILDDIR)/snios.o $(BUILDDIR)/snios_c.o
 PAYLOAD_LD = $(BUILDDIR)/payload.ld
 
 # Preprocess payload.ld through cpp so source-level comments and any
@@ -406,10 +405,6 @@ $(BUILDDIR)/resident.o: resident.c hal.h $(BUILDDIR)/cpnos_addrs.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/payload_checksum.o: payload_checksum.c
-	@mkdir -p $(BUILDDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
 $(BUILDDIR)/snios_c.o: snios_c.c cfgtbl.h compiler/compat.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -420,15 +415,11 @@ $(BUILDDIR)/init.o: init.c hal.h cfgtbl.h transport.h $(BUILDDIR)/cpnos_addrs.h 
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/isr.o: isr.c hal.h
-	@mkdir -p $(BUILDDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
 $(BUILDDIR)/transport_sio.o: transport_sio.c transport.h hal.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/transport_pio.o: transport_pio.c transport.h hal.h
+$(BUILDDIR)/transport_pio.o: transport_pio.c transport.h hal.h compiler/compat.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -1340,8 +1331,9 @@ SDCC_INIT_CFLAGS := $(filter-out -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RES
 # moves to PROM-only.
 $(BUILDDIR)/init.o:           CFLAGS := $(SDCC_INIT_CFLAGS)
 $(BUILDDIR)/transport_sio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
+# transport_pio.c absorbed isr.c in Phase 60 — both halves shared
+# RESIDENT_PRE_CODE so the merge was free.
 $(BUILDDIR)/transport_pio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
-$(BUILDDIR)/isr.o:            CFLAGS := $(SDCC_PRE_CFLAGS)
 $(BUILDDIR)/relocator.o:      CFLAGS := $(SDCC_INIT_CFLAGS) -DCPNOS_HAS_P1_HEADER
 
 # Standard SDCC C-object compile rule for relocator.c.  No .inc deps
@@ -1387,7 +1379,6 @@ SDCC_C_OBJS = $(BUILDDIR)/cpnos_main.o \
               $(BUILDDIR)/resident.o $(BUILDDIR)/init.o \
               $(BUILDDIR)/snios_c.o \
               $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o \
-              $(BUILDDIR)/isr.o \
               $(BUILDDIR)/relocator.o
 
 # Hand-written z88dk asm files (live in sdcc/ as tracked source).

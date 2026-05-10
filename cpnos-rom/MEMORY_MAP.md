@@ -228,10 +228,10 @@ appears in:
 | **`.resident.jumptable` / `RESIDENT_JUMPTABLE`** | 0xED00..0xED32 | BIOS jt (`_bios_jt` and 17 entries: BOOT/WBOOT/CONST/CONIN/CONOUT/LIST/PUNCH/READER/HOME/SELDSK/SETTRK/SETSEC/SETDMA/READ/WRITE/LISTST/SECTRAN); plus `_zp_init_data` and `_bios_stub_ret` |
 | **`.resident.snios_jt` / `RESIDENT_SNIOS_JT`** | 0xED33..0xED4A (24 B) | SNIOS jt (8 entries: NTWKIN/NTWKST/CNFTBL/SNDMSG/RCVMSG/NTWKER/NTWKBT/NTWKDN) — `_snios_jt` symbol; ABI-fixed at 0xED33 (asserted in payload.ld) |
 | **`.resident.snios` / `RESIDENT_SNIOS`** | 0xED4B..0xED54 (10 B) | The two BC→HL bridges `_snios_sndmsg_jt` and `_snios_rcvmsg_jt`; everything else previously in this section moved to `snios_c.c` (now in `RESIDENT_CODE`) |
-| **`.resident.isr` / `RESIDENT_ISR`** | follows snios | All ISR bodies; SDCC: per-file `--codeseg RESIDENT_ISR` (currently only `isr.c`); clang: `SECTION_RESIDENT_ISR` macro |
+| **`.resident.isr` / `RESIDENT_ISR`** | follows snios | All ISR bodies; lives inside `transport_pio.c` after Phase 60 merge of `isr.c`; SDCC: per-function via SECTION_RESIDENT_ISR (no per-file codeseg needed since transport_pio.o uses RESIDENT_PRE_CODE codeseg and the ISRs override per-function); clang: `SECTION_RESIDENT_ISR` macro per function |
 | **`.resident_pre` / `RESIDENT_PRE_CODE`** | follows ISRs | Transport layer (`transport_pio.c`, `transport_sio.c`); SDCC: `--codeseg RESIDENT_PRE_CODE`; clang: `SECTION_RESIDENT_PRE` |
 | **`.resident_pre.rodata` / `RESIDENT_PRE_RODATA`** | follows pre-code | Transport-layer const data |
-| **`.resident` / `RESIDENT_CODE`** | follows pre-code | Default for non-init resident C code: `cpnos_main.c`, `resident.c`, `rc700_console.c`, `snios_c.c`; SDCC: default `--codeseg RESIDENT_CODE`; clang: `SECTION_RESIDENT` |
+| **`.resident` / `RESIDENT_CODE`** | follows pre-code | Default for non-init resident C code: `cpnos_main.c`, `resident.c`, `snios_c.c`; SDCC: default `--codeseg RESIDENT_CODE`; clang: `SECTION_RESIDENT` |
 | **`.rodata*` / `RESIDENT_RODATA`** | folded into resident | Const data: lookup tables, string literals; SDCC: `--constseg RESIDENT_RODATA`; clang: default rodata sections all glob into `.payload` |
 | **`.data*` / `RESIDENT_DATA`** | folded into resident | Initialised writable data (rare in cpnos-rom) |
 | **`.payload_checksum` / `RESIDENT_CHECKSUM`** | last 2 B of resident | 2-byte placeholder; post-link `cpnos-build/patch_payload_checksum.py` overwrites it so word-additive sum over the full resident equals 0xCAFE |

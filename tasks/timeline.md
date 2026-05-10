@@ -1,5 +1,43 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 60: cpnos-rom dead-code drop + isr/payload-checksum merges (May 10, 2026) — Easy
+
+- **Goal**: continue file consolidation past Phase 59.  Three actions:
+
+  1. **Delete `rc700_console.{c,h}`**: dead code.  Header declared
+     `rc700_console_init` / `rc700_console_putc`; no caller anywhere
+     in the project; not in any Makefile object list.  A
+     parallel-implementation that was never wired up.  −250 LOC.
+
+  2. **Merge `isr.c` → `transport_pio.c`**: both halves share the
+     SDCC `RESIDENT_PRE_CODE` codeseg and the PIO-B receive ring
+     buffer (`pio_rx_buf` + head/tail).  Co-locating lets `isr_pio_par`
+     push directly into the file-static buffer instead of crossing
+     TUs.  isr.c body (set_i_reg, enable_im2, enable_interrupts,
+     disable_interrupts, isr_noop, isr_crt, isr_pio_kbd, isr_pio_par)
+     appended after the transport recv path.
+
+  3. **Fold `payload_checksum.c` → `resident.c`**: 24-line file with
+     4 lines of actual code (a `SECTION_PAYLOAD_CKSUM` 0xFFFF
+     placeholder).  Lives in its own clang section regardless of
+     hosting TU; SDCC default codeseg works either way.
+
+- **Linkage**: no externally-visible symbols changed; isr's
+  `pio_rx_head`/`pio_rx_tail` externs are now redundant (both are
+  defined earlier in the same TU).  pio_rx_buf_page stays a
+  linker-defined constant.
+
+- **Result**: clang payload byte-stable at **2138 B**; SDCC resident
+  **2154 B** (+2 B vs Phase 59's 2152 B — noise from layout shift,
+  not a regression).  Both polypascal-test 4-cell PASS at parity
+  (clang 50.85 s; SDCC TBD).
+
+- **Net diff**: −3 source files (`isr.c`, `payload_checksum.c`,
+  `rc700_console.c`); −2 Makefile recipes; −1 SDCC per-target
+  CFLAGS override.  C-source file count after Phase 60: **7 files**
+  (cpnos_main, init, resident, snios_c, transport_pio, transport_sio,
+  relocator).
+
 ## Phase 59: cpnos-rom cold-init 4-into-1 file merge (May 10, 2026) — Easy
 
 - **Goal**: merge the four cold-init translation units (`cfgtbl.c` +

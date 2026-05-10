@@ -471,3 +471,13 @@ USED void bios_conout_shim(void) __naked {
     );
 }
 
+/* Payload integrity checksum placeholder (folded in from
+ * payload_checksum.c, Phase 60).  Reserves the last 2 bytes of
+ * .payload (see payload.ld).  Link-time value 0xFFFF;
+ * cpnos-build/patch_payload_checksum.py overwrites it post-link with
+ * the 16-bit additive sum of the preceding payload bytes.  At runtime
+ * the relocator (relocator.c) recomputes the sum after copying and
+ * compares — mismatch -> LDIR "BAD CHECKSUM" to display memory and
+ * halt.  Catches missing prom1.ic65, bit-rot, mismatched PROM versions. */
+SECTION_PAYLOAD_CKSUM
+static const uint16_t payload_checksum_placeholder = 0xFFFF;
