@@ -1,5 +1,37 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 61: close #88 cross-TU barrier (structural mitigations exhausted) (May 10, 2026) — Easy
+
+- **Goal**: re-measure the cross-TU compilation barrier (#88) after
+  Phase 59 + 60 file consolidation, decide whether to keep it open.
+
+- **Findings** (full comment on the issue):
+
+  - Phase 59 merged 4 INIT_CODE TUs (cfgtbl + init + netboot_mpm +
+    cpnos_cold) into one `init.c` — all candidates from Option A.
+  - Phase 60 merged isr + transport_pio (shared RESIDENT_PRE_CODE),
+    folded payload_checksum into resident, deleted dead
+    rc700_console.
+  - Empirical byte recovery from the merge phases: **0 B**.  The
+    only cross-TU win came from Phase 58's `__preserves_regs(d, e)`
+    declaration (-12 B SDCC), which works *because* of the cross-TU
+    boundary, not despite it.
+  - Cold-init functions are called exactly once each — inlining a
+    once-called function nets zero bytes (saves 4 B call/ret, adds
+    body inline).
+  - Remaining cross-TU edges are all non-inlinable:
+    cold-init-once-calls, fixed-ABI JT, `--defsym` alias
+    indirection, inline-asm BSS data loads.
+
+- **Decision**: closed #88 as "structural mitigations exhausted,
+  residual cost empirically negligible".  Re-open under the
+  original trigger conditions (resident size budget tight, ZX0
+  lands, hot-path inlining wins identified).
+
+- **Net diff**: 0 source changes; one issue closed, one timeline
+  entry.  Engagement-mode-gate book-keeping: parked-issue count
+  -1.
+
 ## Phase 60: cpnos-rom dead-code drop + isr/payload-checksum merges (May 10, 2026) — Easy
 
 - **Goal**: continue file consolidation past Phase 59.  Three actions:
