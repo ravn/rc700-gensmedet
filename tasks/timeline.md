@@ -1,5 +1,60 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 65: cross-class BSS-spill peephole in llvm-z80 (May 10, 2026) — Medium
+
+Per user follow-up request to "get clang closer sizewise to handrolled
+assembly using your knowledge of the compiler" and "you may use every
+trick in the book, including looking at dri and clang sources":
+
+- **Investigation**: pure-C SNIOS state machines (Phase 63) trail
+  Phase 64's asm by +312 B.  Disassembly showed the cost is dominated
+  by BSS-spill-around-CALL patterns (commit b88b210 → 9 detectable
+  pairs in clang payload alone).  The existing same-class peephole
+  (`Z80LateOptimization.cpp`, around line 4860) handles only
+  rr_src == rr_dst spills.  Our state machines have many cross-class
+  spills (HL stored, BC reloaded; etc.) that bailed out.
+
+- **Action**: extended the peephole to handle the cross-class
+  single-load case.  `PUSH rr_src ... CALL ... POP rr_dst` works via
+  the 16-bit stack channel even when classes differ.  Same safety
+  guards as the existing peephole (sfrend symbols only, no other slot
+  use in same BB, stack balanced, single-BB, slot unused in other BBs).
+
+- **Empirical result**:
+
+  | configuration | clang payload | Δ vs Phase 63 baseline |
+  |---|---:|---:|
+  | Phase 63 pure-C | 2004 B | 0 |
+  | Phase 63 + cross-class peephole | 1990 B | -14 B |
+  | Phase 64 asm | 1692 B | -312 B |
+  | Phase 64 asm + cross-class peephole | **1678 B** | **-326 B** |
+
+  The peephole helps both paths equally (-14 B).  Most wins land in
+  non-SNIOS functions (`_delete_line`, `_insert_line`) where the
+  spill-load pair is intra-BB.  The SNIOS state machines themselves
+  have multi-BB spill patterns (store at function-top, loads in
+  inner loop bodies hundreds of lines away) that single-BB peephole
+  can't reach.
+
+- **Honest framing**: the user wanted pure-C to match asm.  This
+  peephole moves pure-C from 2004 → 1990 B but the gap to asm
+  stays at +312 B.  Closing more would require cross-BB analysis
+  (dominator trees, full liveness) which is genuine backend work,
+  not a peephole.
+
+- **Decision**: keep Phase 64 (asm) as the production code per the
+  user's earlier explicit approval ("this is really nice please
+  commit").  Land the peephole as a strict improvement on top
+  (clang payload now **1678 B**, the smallest configuration of this
+  session).
+
+- **llvm-z80 commit**: `fc3459368794` adds 176 lines to
+  `Z80LateOptimization.cpp`.
+
+- **Verification**: cpnos-polypascal-test 4-cell PASS at parity for
+  both compilers (clang 48.83 s on Phase 64 + peephole;
+  clang 50.29 s on Phase 63 pure-C + peephole).
+
 ## Phase 64: SNIOS state machines reverted to inline asm (May 10, 2026) — Big
 
 - **Goal**: per user directive "get clang as close to pure assembly as
