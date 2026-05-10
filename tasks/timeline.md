@@ -1,5 +1,41 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 67: drop volatile from setup_ivt (-3 B), filed llvm-z80#130 (May 10, 2026) — Easy
+
+User asked me to plan llvm-z80#130 (Recognize and lower memset_pattern
+for arbitrary fill widths via LDIR-overlap).  Step 0 of the plan
+("verify the IR pipeline emits the intrinsic") immediately produced a
+surprising result:
+
+- Built a minimal repro: `fill_ivt(uint16_t *ivt)` with the
+  18-iteration constant-fill loop, **no volatile**.
+- Compiled with current `-Oz`: **clang already emits LDIR-overlap**
+  (~17 B function).  `LoopIdiomRecognize` converted the loop to
+  `store + memcpy(dst+P, dst, (N-1)*P)` at IR level; Z80 ISel
+  lowered the overlapping memcpy to LDIR (which IS the
+  pattern-fill idiom by Z80 semantics).
+
+- Re-tested with `volatile uint16_t *`: clang fell back to a
+  per-iteration loop (~22 B).  The volatile qualifier matches
+  `LoopIdiomRecognize::isLegalStore`'s first guard
+  (`if (SI->isVolatile()) return None`) and bypasses LIR entirely.
+
+**The volatile was blocking the optimization in cpnos-rom's
+setup_ivt.**  Posted the testcase + finding as a comment on
+`ravn/llvm-z80#130` (https://github.com/ravn/llvm-z80/issues/130#issuecomment-4416394819);
+downgraded the issue's scope — the constant-pattern case is
+already handled, only the runtime-pattern-pointer case (rare in
+practice) would need new backend work.
+
+**Cpnos-rom fix:** dropped the local `volatile` from setup_ivt's
+`ivt` pointer.  Safe because setup_ivt runs once before EI/IM2 with
+no other CPU activity.  Saves **−3 B INIT_CODE** (630 → 627 B).
+
+Captured the underlying rule in user-side memory as
+`feedback_volatile_blocks_loop_idiom.md` — default-adding
+`volatile` is a Z80 footgun because it blocks the most powerful
+size-reducing pass (LIR → memset/memcpy/LDIR).
+
 ## Phase 66: scroll_lines unify + crlf factor + install_fcb fold (May 10, 2026) — Easy
 
 User said "i still want to apply all those things you suggested
