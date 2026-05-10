@@ -1,5 +1,35 @@
 # RC700-SYSGEN Project Timeline
 
+## Remaining-shrink estimate (May 10, 2026 — second addendum)
+
+Followup to the post-session analysis: estimate of how much more
+clang payload reduction is realistic *without* changes to
+ravn/llvm-z80 backend.
+
+**Floor: roughly 1900 B clang payload** (current HEAD: 2004 B), so
+**~60-110 B more** addressable through source / build-flag work
+alone.  Beyond that the asymptote is set by:
+- +308 B SNIOS asm→C migration tax (#94)
+- llvm-z80 backend issues (#128, #129, Cluster A)
+
+Filed `ravn/rc700-gensmedet#95` as a consolidated tracker for the
+remaining candidates by category:
+
+- A. Unblock `-disable-block-placement` (8 B; existing #93)
+- B. Cold-path C tightening (20-40 B): `_netboot_mpm` build-stamp
+  print loop, `_print_banner`, `setup_ivt`
+- C. Hand-asm cold blobs per the new "size > speed for cold
+  paths" rule (30-60 B): cfgtbl_init template, similar
+- D. Phase 62 pattern audit of remaining receive paths (5-15 B)
+
+Verified one estimate as already-applied: `_recv_byte_t` static
+inline trampoline IS dropped post-link by `--gc-sections` despite
+appearing in `snios_c.o`.  No win available there.
+
+#95 is parked unless: PROM-1 single-PROM stretch goal forces it
+(via #82 ZX0 landing), a specific feature pushes payload over 2 KB,
+or backend fixes land and we re-baseline.
+
 ## Post-session deep analysis (May 10, 2026 — addendum)
 
 After the Phase 59-63 commits landed, two follow-up investigations:
