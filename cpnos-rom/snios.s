@@ -70,6 +70,10 @@
     .extern _snios_cnftbl_impl
     .extern _snios_ntwker_impl
     .extern _snios_ntwkbt_impl
+    ; Phase 2 of #75: NTWKDN / ERRRTN / SNDERR1 moved to snios_c.c.
+    .extern _snios_ntwkdn_impl
+    .extern _snios_errrtn_impl
+    .extern _snios_snderr1_impl
 
 ;----------------------------------------------------------------
 ;  SNIOS jump table  (first 24 bytes — public ABI for NDOS)
@@ -88,7 +92,7 @@ _snios_sndmsg:  jp SNDMSG_DISPATCH    ; +09 SEND MESSAGE ON NETWORK
 _snios_rcvmsg:  jp RCVMSG_DISPATCH    ; +0C RECEIVE MESSAGE FROM NETWORK
 _snios_ntwker:  jp _snios_ntwker_impl ; +0F NETWORK ERROR
 _snios_ntwkbt:  jp _snios_ntwkbt_impl ; +12 NETWORK WARM BOOT
-_snios_ntwkdn:  jp NTWKDN             ; +15 NETWORK SHUTDOWN
+_snios_ntwkdn:  jp _snios_ntwkdn_impl ; +15 NETWORK SHUTDOWN
 
 ;----------------------------------------------------------------
 ;  SNIOS body
@@ -233,7 +237,7 @@ MSOLP:
 SNDMSG:
     ld   a, (_cfgtbl + CFG_NETST)
     and  ACTIVE
-    jp   z, SNDERR1                 ; not active
+    jp   z, _snios_snderr1_impl     ; not active
 SNDMS0:
     ld   h, b
     ld   l, c
@@ -306,7 +310,7 @@ SNDRET:
     jr   nz, SEND
 SNDTMO:
     ld   a, SNDERR
-    jp   ERRRTN
+    jp   _snios_errrtn_impl
 
 ;================================================
 ;= RCVMSG - RECEIVE MESSAGE FROM NETWORK        =
@@ -316,7 +320,7 @@ SNDTMO:
 RCVMSG:
     ld   a, (_cfgtbl + CFG_NETST)
     and  ACTIVE
-    jp   z, SNDERR1
+    jp   z, _snios_snderr1_impl
 RCVMS0:
     ld   h, b
     ld   l, c
@@ -332,7 +336,7 @@ RECALL:
     jr   nz, RECALL
 RCVTMO:
     ld   a, RCVERR
-    jp   ERRRTN
+    jp   _snios_errrtn_impl
 
 RECV:
     ld   hl, (MSGADR)
@@ -438,30 +442,20 @@ BADCKS:
     ld   a, NAK
     jp   SENDBY                     ; send NAK and return to retry
 
-;================================================
-;= ERROR HANDLING                                =
-;================================================
-ERRRTN:
-    ld   hl, _cfgtbl + CFG_NETST
-    or   (hl)
-    ld   (hl), a                    ; set error bit in status
-    call _snios_ntwker_impl         ; device re-init hook (now in snios_c.c)
-SNDERR1:
-    ld   a, 0xFF
-    ret
-
+; ERRRTN / SNDERR1 / NTWKDN moved to snios_c.c (Phase 2 of #75).
 ; NTWKIN / NTWKST / CNFTBL / NTWKER / NTWKBT moved to snios_c.c (Phase 1 of #75).
 
-; NTWKDN - Network shutdown.  Sends FNC=0xFE to the server.
-NTWKDN:
-    ld   ix, _cfgtbl + CFG_MSGBUF
-    ld   (ix+0), 0                  ; FMT = 0
-    ld   (ix+3), 0xFE               ; FNC = 254 (shutdown)
-    ld   (ix+4), 0                  ; SIZ = 0
-    ld   bc, _cfgtbl + CFG_MSGBUF
-    call SNDMS0                     ; bypass ACTIVE check
-    xor  a
-    ret
+;================================================
+;= _snios_sndmsg_force - C-callable bridge to    =
+;= SNDMS0 (SNDMSG entry that bypasses the        =
+;= cfgtbl.netst.ACTIVE check).  HL = msg ptr     =
+;= per sdcccall(1); copies into BC for SNDMS0.   =
+;================================================
+    .global _snios_sndmsg_force
+_snios_sndmsg_force:
+    ld   b, h
+    ld   c, l
+    jp   SNDMS0
 
 ;----------------------------------------------------------------
 ;  Local scratch — lives in .resident.data so it is 0-initialised

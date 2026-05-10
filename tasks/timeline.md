@@ -1,5 +1,85 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 53: cpnos-rom SNIOS asm→C migration, Phase 2 of #75 (May 10, 2026) — Easy
+
+- **Goal**: continue #75 by porting the housekeeping entry points
+  (NTWKDN, ERRRTN, SNDERR1) from asm to C, and expose SNDMS0 (the
+  asm-internal "send-frame-bypassing-ACTIVE-check" entry) as a
+  public C-callable symbol `_snios_sndmsg_force` for NTWKDN's use.
+  This sets up Phase 3+ to call into protocol entry points by
+  well-named public symbols rather than internal local labels.
+
+- **Functions ported (3)**: NTWKDN, ERRRTN, SNDERR1.  ~28 B of asm
+  body removed from each of `snios.s` + `sdcc/snios.asm`.  Three new
+  C functions added to `snios_c.c`.  ERRRTN's asm-side fall-through
+  to SNDERR1 (which produced the trailing `ld a, 0xFF; ret`) was
+  replaced by an explicit `return 0xFF` at the end of
+  `snios_errrtn_impl`; SNDERR1 stands alone as `snios_snderr1_impl`.
+
+- **New public asm bridge** (4 B per compiler, declared in both
+  snios.s and sdcc/snios.asm):
+
+  ```
+  _snios_sndmsg_force:
+      ld   b, h        ; HL (sdcccall arg) -> BC (SNDMS0 arg)
+      ld   c, l
+      jp   SNDMS0      ; tail-call into the bypass entry
+  ```
+
+  Used by `snios_ntwkdn_impl` to send the FNC=0xFE shutdown frame
+  even when the slave's cfgtbl.netst.ACTIVE flag is clear.
+
+- **Asm callers re-pointed**: `jp ERRRTN` -> `jp _snios_errrtn_impl`
+  (2 sites in each compiler: SNDTMO + RCVTMO); `jp z, SNDERR1` ->
+  `jp z, _snios_snderr1_impl` (2 sites: SNDMSG-not-active +
+  RCVMSG-not-active).
+
+- **Result** (4-cell polypascal-test all PASS):
+
+  | metric | before (Phase 1) | after | Δ |
+  |---|---:|---:|---:|
+  | Clang payload | 1712 B | **1720 B** | **+8 B** |
+  | SDCC resident | 1860 B | **1868 B** | **+8 B** |
+  | clang/pio-irq polypascal | 50.73 s | 50.57 s | ~0 |
+  | clang/sio polypascal     | 59.19 s | 59.19 s | 0 |
+  | sdcc/pio-irq polypascal  | 50.91 s | 49.95 s | ~0 |
+  | sdcc/sio polypascal      | 59.95 s | 60.75 s | ~0 |
+
+- **Cumulative across Phases 1+2 (#75)**:
+  - 8 SNIOS functions (NTWKIN, NTWKST, CNFTBL, NTWKER, NTWKBT,
+    NTWKDN, ERRRTN, SNDERR1) now in portable C.  All 6 trivial JT
+    entries (everything except SNDMSG / RCVMSG) are C-side.
+  - Clang +8 B over baseline (1712 -> 1720).
+  - SDCC +10 B over Phase-1-baseline (1858 -> 1868).
+  - 0 protocol-state-machine code touched.  4-cell PASS at parity.
+
+- **Lessons**:
+  - **Bridge wrappers are cheap and clarify boundaries**: the 4 B
+    `_snios_sndmsg_force` wrapper costs almost nothing and makes the
+    asm-internal SNDMS0 entry callable from C with the standard
+    sdcccall(1) HL convention.  Worth doing whenever a C-side caller
+    needs an internal asm label.
+  - **Explicit `return 0xFF` reads cleaner than asm fall-through**:
+    The asm version's ERRRTN -> SNDERR1 fall-through saved 0 bytes
+    (the `ld a, 0xFF; ret` was shared) but obscured the contract.
+    The C split with both functions ending in `return 0xFF` costs
+    2 B but makes the success/error semantics explicit in the source.
+  - **NTWKDN's `xor a; ret` discarded SNDMSG's return value**: the
+    asm version called SNDMS0 (which returns 0 on success / 0xFF on
+    error) but always returned 0 to NDOS regardless.  Faithfully
+    preserved in the C version (`snios_sndmsg_force(...)` result
+    is discarded).  Documented in source so future readers don't
+    "fix" what looks like a bug.
+
+- **Issue activity**: #75 progresses; Phase 3+ candidates remain
+  (SENDBY/RECVBY/RECVBT character I/O wrappers; NETOUT/NETIN/MSGOUT/
+  MSGIN checksum helpers; SNDMSG/RCVMSG state machines).  Phase 3
+  blocked by HL/DE-preservation contract -- character-I/O wrappers
+  are inherently asm-shaped under sdcccall(1) without a structural
+  rewrite of their callers (which is Phase 5+).  Honest assessment:
+  Phase 2 captured most of the easy wins; further C migration
+  requires structural changes to the protocol state machines.
+
 ## Phase 52: cpnos-rom SNIOS asm→C migration, Phase 1 of #75 (May 10, 2026) — Easy
 
 - **Goal** (per #75): rewrite SNIOS body from hand-written asm to
