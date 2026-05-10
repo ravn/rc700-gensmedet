@@ -80,6 +80,7 @@ ifeq ($(COMPILER),clang)
            -Xclang -target-feature -Xclang +static-stack \
            -mllvm -disable-lsr \
            -mllvm -disable-machine-licm \
+           -mllvm -disable-machine-cse \
            -DENABLE_FDC=$(ENABLE_FDC) \
            -DMIRROR_SIOB=$(MIRROR_SIOB) \
            -DBOOT_MARK_ENABLED=$(BOOT_MARK_ENABLED) \
