@@ -74,6 +74,10 @@
     .extern _snios_ntwkdn_impl
     .extern _snios_errrtn_impl
     .extern _snios_snderr1_impl
+    ; Phase 3 of #75: byte-I/O wrappers moved to snios_c.c.
+    .extern _snios_sendby
+    .extern _snios_recvby
+    .extern _snios_recvbt
 
 ;----------------------------------------------------------------
 ;  SNIOS jump table  (first 24 bytes — public ABI for NDOS)
@@ -132,54 +136,8 @@ SNDMSG_DISPATCH:
 RCVMSG_DISPATCH:
     jp   RCVMSG
 
-;================================================
-;= CHARACTER I/O WRAPPERS                       =
-;= Direct calls into _transport_* (SIO-A)        =
-;================================================
-
-; SENDBY - Send byte in A via PIO byte transport (experiment).
-; Preserves: HL, DE (protocol loop counters and checksum must survive).
-SENDBY:
-    push hl
-    push de
-    call _xport_send_byte   ; arg already in A
-    pop  de
-    pop  hl
-    ret
-
-; RECVBY - Receive one byte, busy wait (no timeout).
-; Returns: A = byte, CY clear.  Preserves HL, DE.
-RECVBY:
-    push hl
-    push de
-RECVBY1:
-    ld   hl, 0xFFFF                 ; max timeout per call
-    call _xport_recv_byte
-    ld   a, d
-    inc  a                          ; D=0xFF -> A=0 (timeout); D=0 -> A=1
-    jr   z, RECVBY1                 ; timeout: retry forever
-    ld   a, e                       ; got byte
-    pop  de
-    pop  hl
-    or   a                          ; clear carry
-    ret
-
-; RECVBT - Receive one byte with timeout.
-; Returns: A = byte, CY clear on success; CY set on timeout.
-RECVBT:
-    push de
-    push hl
-    ld   hl, RECV_TIMEOUT_TICKS
-    call _xport_recv_byte
-    ld   a, d                       ; grab result (D=0xFF => timeout)
-    inc  a                          ; Z=1 on timeout
-    ld   a, e                       ; A = byte (Z preserved by ld)
-    pop  hl                         ; (pop doesn't touch flags)
-    pop  de
-    scf                             ; assume timeout: CY=1
-    ret  z                          ; timeout: return with CY set
-    or   a                          ; success: clear CY
-    ret
+; SENDBY / RECVBY / RECVBT moved to snios_c.c (Phase 3 of #75).
+; Asm callers below now `call _snios_sendby` etc.
 
 ;================================================
 ;= CHECKSUM UTILITIES                           =
@@ -193,12 +151,12 @@ PREOUT:
     add  a, c
     ld   d, a                       ; update checksum
     ld   a, c
-    jp   SENDBY
+    jp   _snios_sendby
 
 ; NETIN - Receive byte, accumulate checksum in D
 ; Returns: A = byte, D updated, Z from checksum; CY set on timeout.
 NETIN:
-    call RECVBY
+    call _snios_recvby
     ld   b, a
     add  a, d
     ld   d, a
@@ -255,11 +213,11 @@ SEND:
     ld   hl, (MSGADR)
     ; Send ENQ
     ld   a, ENQ
-    call SENDBY
+    call _snios_sendby
     ; Wait for ACK (with timeout retries)
     ld   d, TMRETRY
 ENQRSP:
-    call RECVBT
+    call _snios_recvbt
     jr   nc, GOTENQ
     dec  d
     jr   nz, ENQRSP
@@ -291,12 +249,12 @@ GOTENQ:
     ld   c, a
     call NETOUT                     ; CKS
     ld   a, EOT
-    call SENDBY
+    call _snios_sendby
     jp   GETACK                     ; tail-call, A=0 success (from CHKACK)
 
 ; GETACK - Wait for ACK, retry on timeout or NAK.
 GETACK:
-    call RECVBT
+    call _snios_recvbt
     jr   c, SNDRET                  ; timeout -> retry
 CHKACK:
     and  0x7F
@@ -343,7 +301,7 @@ RECV:
     ; Wait for ENQ (with timeout retries)
     ld   d, TMRETRY
 RCVFST:
-    call RECVBT
+    call _snios_recvbt
     jr   nc, GOTFST
     dec  d
     jr   nz, RCVFST
@@ -356,10 +314,10 @@ GOTFST:
 
     ; Got ENQ, send ACK
     ld   a, ACK
-    call SENDBY
+    call _snios_sendby
 
     ; Receive SOH
-    call RECVBY
+    call _snios_recvby
     ret  c
     and  0x7F
     cp   SOH
@@ -380,7 +338,7 @@ GOTFST:
     call SNDACK
 
     ; Receive STX
-    call RECVBY
+    call _snios_recvby
     ret  c
     and  0x7F
     cp   STX
@@ -398,7 +356,7 @@ GOTFST:
     ret  c
 
     ; Receive ETX
-    call RECVBY
+    call _snios_recvby
     ret  c
     and  0x7F
     cp   ETX
@@ -410,7 +368,7 @@ GOTFST:
     call NETIN
     ret  c
     ; Receive EOT
-    call RECVBY
+    call _snios_recvby
     ret  c
     and  0x7F
     cp   EOT
@@ -434,13 +392,13 @@ GOTFST:
 SNDACK:
     push af
     ld   a, ACK
-    call SENDBY
+    call _snios_sendby
     pop  af
     ret
 
 BADCKS:
     ld   a, NAK
-    jp   SENDBY                     ; send NAK and return to retry
+    jp   _snios_sendby              ; send NAK and return to retry
 
 ; ERRRTN / SNDERR1 / NTWKDN moved to snios_c.c (Phase 2 of #75).
 ; NTWKIN / NTWKST / CNFTBL / NTWKER / NTWKBT moved to snios_c.c (Phase 1 of #75).

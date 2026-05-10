@@ -1,5 +1,88 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 54: cpnos-rom SNIOS asm→C migration, Phase 3 of #75 (May 10, 2026) — Easy
+
+- **Goal**: continue #75 by porting the byte-I/O wrappers (SENDBY,
+  RECVBY, RECVBT) from asm to portable C, written as `__naked`
+  functions with `ASM_VOLATILE` bodies that match the original asm
+  byte-for-byte.  These wrappers preserve HL+DE for asm callers
+  (SNDMSG/RCVMSG state machines hold the message pointer in HL across
+  many calls) -- a contract that sdcccall(1) C does not natively
+  express, hence the inline-asm bodies.
+
+- **Functions ported (3)**: SENDBY (~7 B), RECVBY (~17 B), RECVBT
+  (~16 B).  ~40 B of asm body removed from each of `snios.s` +
+  `sdcc/snios.asm`.  14 call sites in each file re-pointed:
+  `call SENDBY` -> `call _snios_sendby` (and likewise for RECVBY/RECVBT,
+  including the two `jp SENDBY` tail-calls in NETOUT/PREOUT and BADCKS).
+
+- **Result** (4-cell polypascal-test all PASS, BYTE-NEUTRAL):
+
+  | metric | before (Phase 2) | after | Δ |
+  |---|---:|---:|---:|
+  | Clang payload | 1720 B | **1720 B** | **0 B** |
+  | SDCC resident | 1868 B | **1868 B** | **0 B** |
+  | clang/pio-irq polypascal | 50.57 s | 50.75 s | ~0 |
+  | clang/sio polypascal     | 59.19 s | 59.57 s | ~0 |
+  | sdcc/pio-irq polypascal  | 49.95 s | 51.19 s | ~0 |
+  | sdcc/sio polypascal      | 60.75 s | 60.19 s | ~0 |
+
+  Both compilers emit identical bytes to the asm version because the
+  bodies ARE the asm version, hosted in `__naked` C functions.  The
+  only thing that moved was the source language; the resulting
+  machine code is unchanged.
+
+- **Two compiler-specific gotchas captured during bring-up**:
+
+  (a) **Clang `__naked` forbids non-ASM C statements**: even
+  `(void)b;` (a cast-to-void to silence unused-parameter warning)
+  triggers `error: non-ASM statement in naked function is not
+  supported`.  Resolution: drop the C-level parameter declaration
+  from `void snios_sendby(uint8_t b)` to `void snios_sendby(void)`
+  -- the byte-in-A arrival is invisible to C anyway and asm callers
+  don't care about C parameter declarations.  Future C callers can
+  add a parallel prototype if they need to declare the arg.
+
+  (b) **z88dk's z80asm rejects GAS-style numeric local labels**:
+  `1:` / `jr z, 1b` is clang-inline-asm idiom but z80asm requires
+  alphanumeric labels.  Resolution: use globally-unique alphanumeric
+  names (`_snios_recvby_loop`).  This is the same gotcha session 45
+  flagged for cross-compiler inline asm; capturing it here as a
+  recurring pattern in future SNIOS phases.
+
+- **Cumulative across Phases 1+2+3 (#75)**:
+  - 11 SNIOS functions in portable C (NTWKIN, NTWKST, CNFTBL, NTWKER,
+    NTWKBT, NTWKDN, ERRRTN, SNDERR1, SENDBY, RECVBY, RECVBT).
+  - All 6 trivial JT entries, all 2 error-path stubs, and all 3
+    byte-I/O wrappers now in C.  Asm side still owns: JT (24 B,
+    ABI-fixed); calling-convention bridges (_snios_sndmsg_c,
+    _snios_rcvmsg_c, _snios_sndmsg_force, ~12 B); JT trampolines
+    (SNDMSG_DISPATCH, RCVMSG_DISPATCH, ~6 B); checksum helpers
+    (NETOUT/PREOUT, NETIN, MSGOUT, MSGIN, ~25 B); and the protocol
+    state machines (SNDMSG/RCVMSG and their internal labels, ~190 B).
+  - Clang +8 B over Phase 0 baseline (1712 -> 1720, all from
+    Phase 2's NTWKDN/ERRRTN/SNDERR1 split).
+  - SDCC +10 B over Phase 0 baseline (1858 -> 1868, same provenance).
+  - 4-cell polypascal-test PASS at every phase boundary.
+
+- **Lesson** (style): for functions whose contract is expressed in
+  Z80 register conventions that sdcccall(1) doesn't reach, "C
+  function with __naked + ASM_VOLATILE body matching the asm
+  byte-for-byte" is the cleanest answer per the user's stated rule.
+  Cost is exactly 0 bytes (the asm IS the function body) and benefit
+  is that all SNIOS source lives in `snios_c.c` for future
+  edit/grep/review.  The .c file becomes the single source of truth.
+
+- **Issue activity**: Phase 3 of #75 done; #75 remains open for
+  Phases 4 (NETOUT/NETIN/MSGOUT/MSGIN), 5 (SNDMSG state machine),
+  6 (RCVMSG state machine).  Phases 4-6 will ALSO need inline asm
+  bodies for the parts that pass D-as-running-checksum and CY-as-
+  timeout-flag, OR a structural rewrite of the calling contract.
+  The structural rewrite likely yields cleaner C but unknown byte
+  cost; the inline-asm-body approach is byte-neutral and preserves
+  the existing asm-side contract.  Decision deferred to Phase 4
+  start.
+
 ## Phase 53: cpnos-rom SNIOS asm→C migration, Phase 2 of #75 (May 10, 2026) — Easy
 
 - **Goal**: continue #75 by porting the housekeeping entry points

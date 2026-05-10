@@ -54,6 +54,10 @@ defc CFG_MSGBUF  = 45
     EXTERN _snios_ntwkdn_impl
     EXTERN _snios_errrtn_impl
     EXTERN _snios_snderr1_impl
+    ; Phase 3 of #75: byte-I/O wrappers moved to snios_c.c.
+    EXTERN _snios_sendby
+    EXTERN _snios_recvby
+    EXTERN _snios_recvbt
 
 ;----------------------------------------------------------------
 ;  SNIOS jump table  (first 24 bytes — public ABI for NDOS)
@@ -105,46 +109,8 @@ RCVMSG_DISPATCH:
 ;  in resident.c are kept for now; removing them triggers a yet-
 ;  unidentified slave warm-boot loop -- see ravn/rc700-gensmedet#72.)
 
-;================================================
-;= CHARACTER I/O WRAPPERS                       =
-;================================================
-SENDBY:
-    push hl
-    push de
-    call _xport_send_byte
-    pop  de
-    pop  hl
-    ret
-
-RECVBY:
-    push hl
-    push de
-RECVBY1:
-    ld   hl, 0xFFFF
-    call _xport_recv_byte
-    ld   a, d
-    inc  a
-    jr   z, RECVBY1
-    ld   a, e
-    pop  de
-    pop  hl
-    or   a
-    ret
-
-RECVBT:
-    push de
-    push hl
-    ld   hl, RECV_TIMEOUT_TICKS
-    call _xport_recv_byte
-    ld   a, d
-    inc  a
-    ld   a, e
-    pop  hl
-    pop  de
-    scf
-    ret  z
-    or   a
-    ret
+; SENDBY / RECVBY / RECVBT moved to snios_c.c (Phase 3 of #75).
+; Asm callers below now `call _snios_sendby` etc.
 
 ;================================================
 ;= CHECKSUM UTILITIES                           =
@@ -155,10 +121,10 @@ PREOUT:
     add  a, c
     ld   d, a
     ld   a, c
-    jp   SENDBY
+    jp   _snios_sendby
 
 NETIN:
-    call RECVBY
+    call _snios_recvby
     ld   b, a
     add  a, d
     ld   d, a
@@ -208,10 +174,10 @@ RESEND:
 SEND:
     ld   hl, (MSGADR)
     ld   a, ENQ
-    call SENDBY
+    call _snios_sendby
     ld   d, TMRETRY
 ENQRSP:
-    call RECVBT
+    call _snios_recvbt
     jr   nc, GOTENQ
     dec  d
     jr   nz, ENQRSP
@@ -239,11 +205,11 @@ GOTENQ:
     ld   c, a
     call NETOUT
     ld   a, EOT
-    call SENDBY
+    call _snios_sendby
     jp   GETACK
 
 GETACK:
-    call RECVBT
+    call _snios_recvbt
     jr   c, SNDRET
 CHKACK:
     and  0x7F
@@ -286,7 +252,7 @@ RECV:
     ld   hl, (MSGADR)
     ld   d, TMRETRY
 RCVFST:
-    call RECVBT
+    call _snios_recvbt
     jr   nc, GOTFST
     dec  d
     jr   nz, RCVFST
@@ -298,9 +264,9 @@ GOTFST:
     jr   nz, RECV
 
     ld   a, ACK
-    call SENDBY
+    call _snios_sendby
 
-    call RECVBY
+    call _snios_recvby
     ret  c
     and  0x7F
     cp   SOH
@@ -317,7 +283,7 @@ GOTFST:
 
     call SNDACK
 
-    call RECVBY
+    call _snios_recvby
     ret  c
     and  0x7F
     cp   STX
@@ -332,7 +298,7 @@ GOTFST:
     call MSGIN
     ret  c
 
-    call RECVBY
+    call _snios_recvby
     ret  c
     and  0x7F
     cp   ETX
@@ -342,7 +308,7 @@ GOTFST:
 
     call NETIN
     ret  c
-    call RECVBY
+    call _snios_recvby
     ret  c
     and  0x7F
     cp   EOT
@@ -364,13 +330,13 @@ GOTFST:
 SNDACK:
     push af
     ld   a, ACK
-    call SENDBY
+    call _snios_sendby
     pop  af
     ret
 
 BADCKS:
     ld   a, NAK
-    jp   SENDBY
+    jp   _snios_sendby
 
 ; ERRRTN / SNDERR1 / NTWKDN moved to snios_c.c (Phase 2 of #75).
 ; NTWKIN / NTWKST / CNFTBL / NTWKER / NTWKBT moved to snios_c.c (Phase 1 of #75).
