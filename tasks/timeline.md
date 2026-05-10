@@ -1,5 +1,122 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 57: cpnos-rom SNIOS — plain-C SNDMSG/RCVMSG state machines (May 10, 2026, #75 CLOSED) — Hard
+
+- **Goal**: complete the SNIOS asm→C migration (#75 Phases 5+6)
+  with **plain C** state machines implementing the CP/NET 1.2 wire
+  protocol against `cpnos-rom/CPNET_WIRE_PROTOCOL.md` (the spec
+  authored in Phase 56).  Per the user's stated principle: "i want
+  a plain c implementation of the wire-protocol spec" -- not a
+  byte-for-byte port of the historical asm, but an implementation
+  of what the master expects on the wire.
+
+- **What landed (commit `fe609fc`, branch `phase-5-6-test-config`
+  merged --no-ff into main)**:
+  - `snios_c.c` rewritten with plain-C `try_send_frame` and
+    `try_recv_frame` (~190 lines C, structured retry loops, no
+    `pop hl` discard-caller-return tricks).
+  - `snios.s` + `sdcc/snios.asm` reduced to JT (24 B ABI-fixed) +
+    two 5 B BC->HL bridges for the SNDMSG/RCVMSG JT entries.  Down
+    from ~470 B of hand-written asm.
+  - One DRI-spec deviation FIXED: the prior `RECVBY` busy-wait used
+    mid-frame would hang the slave forever if the master paused
+    mid-frame.  C version uses timeout-bearing `xport_recv_byte`
+    everywhere, matching DRI's reference and propagating mid-frame
+    timeouts to the outer retry loop.
+  - SCRATCH region relocated from 0xF500 to 0xEB00 in payload.ld
+    (using the previously-unused 512 B gap above IVT in the
+    cpnos.com layout).  This single linker-script change accommodated
+    the larger C state machines without needing PROM expansion or
+    MAME-side changes.
+
+- **Sizes** (clang / SDCC):
+
+  | Stage | Clang | SDCC |
+  |---|---:|---:|
+  | Pre-#75 baseline (Phase 0) | 1712 B | 1858 B |
+  | Phase 1+2 (housekeeping)    | 1720 B | 1868 B |
+  | Phase 3+4 (byte-I/O + checksum helpers) | 1720 B | 1868 B |
+  | Phase 5+6 (protocol state machines)     | **2138 B** | **2164 B** |
+  | Cumulative Δ over baseline  | **+426 B** | **+306 B** |
+
+- **Verification** (4-cell polypascal-test, byte-level
+  end-to-end through SNDMSG/RCVMSG against z80pack mpm-net2):
+
+  | cell | wall-clock | status |
+  |---|---:|---|
+  | clang / pio-irq | 51.09 s | PASS |
+  | clang / sio     | 59.83 s | PASS |
+  | sdcc  / pio-irq | 47.83 s | PASS |
+  | sdcc  / sio     | 60.53 s | PASS |
+
+  All four cells PASS at parity wall-clock with the prior asm
+  version.  PPAS PRIMES runs end-to-end (compute primes 0..29989
+  via cross-network drive access), Q returns to E> prompt.  This
+  exercises every path: ENQ-ACK at all three sync points, header
+  send + HCS verify, data send + CKS verify, ETX+CKS+EOT framing,
+  DID validation on receive, retries on noisy CKS (rare).
+
+- **The plain-C state machines speak the protocol correctly**.  This
+  is the strongest possible correctness signal short of a multi-day
+  soak test on physical RC702 hardware.
+
+- **Two follow-ups filed**:
+
+  - **#83** (`snios_c.c try_send_frame / try_recv_frame: refactor
+    to remove SDCC IX-frame spills`): each function has 2 IX+/IY+
+    spills due to multiple simultaneously-live locals; SDCC's
+    local-only iCode allocator can't keep them all in registers.
+    Estimated savings if refactored: ~100 B per compiler.  Parked
+    until size pressure justifies the refactor.
+
+  - **#82** (`investigate ZX0 payload compression`): authored
+    earlier; ZX0 measurements show ~450 B potential savings on the
+    payload.  Parked because current sizes fit fine; revisit if
+    cpnos-rom adds a feature that pushes resident past current
+    headroom.
+
+- **The "4 KB PROMs / 7 KB payload" plan was over-budget** for
+  current Phase 5+6 sizes.  The actual minimum-change path was a
+  single-line `payload.ld` SCRATCH-region relocation.  Documented
+  for future reference: when reconfiguring layouts, audit address-
+  space usage for unused gaps before assuming hardware (PROM size)
+  changes are needed.
+
+- **Lessons captured during the rewrite**:
+
+  - **clang Z80 backend is ~4× the asm baseline on state-machine
+    code**.  The DAG combiner + GISel give clean code on
+    straight-line C, but multi-block state-machine functions with
+    many live locals get worse codegen than hand-tuned asm.  Phase
+    5+6 went from `~190 B asm` to `~782 B clang C` for the
+    equivalent state machines; ~80 B of bloat came from uint16_t
+    arithmetic on the `xport_recv_byte` return-value compare path.
+
+  - **SDCC's local-only iCode allocator forces IX frames sooner**
+    than expected on functions with >3-4 simultaneously-live
+    locals.  Splitting into helpers (Option A in #83) is cheaper
+    than fighting the allocator.
+
+  - **Layout-driven shifts beat compression-driven shifts** when
+    available.  ZX0 compression (#82) would have given ~450 B of
+    PROM headroom; the SCRATCH relocation gave functionally
+    unlimited resident headroom (up to display memory at 0xF800)
+    with one line of linker-script change.  Audit space before
+    compression.
+
+  - **Wire protocol cross-checking matters**.  Phase 56's authoring
+    of `CPNET_WIRE_PROTOCOL.md` (cross-checked against master
+    `netwrkif-0.asm`, DRI reference, and our slave) caught the
+    mid-frame busy-wait deviation BEFORE the C rewrite — so the
+    rewrite restored DRI semantics rather than faithfully
+    reproducing our slave's bug.
+
+- **Issue activity**:
+  - Closed: ravn/rc700-gensmedet#75 ("rewrite SNIOS body in C") --
+    DONE in 6 phases over sessions 51-57.
+  - Filed: ravn/rc700-gensmedet#83 (IX-frame refactor follow-up).
+  - Open: ravn/rc700-gensmedet#82 (ZX0 compression, parked).
+
 ## Phase 56: CP/NET wire-protocol spec — authored, cross-checked, and corrected (May 10, 2026) — Medium
 
 - **Trigger** (user prompt 2026-05-10): "where did you find the
