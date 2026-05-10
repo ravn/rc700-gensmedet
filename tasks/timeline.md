@@ -1,5 +1,77 @@
 # RC700-SYSGEN Project Timeline
 
+## Phase 58: cpnos-rom SNIOS C size optimization investigation (May 10, 2026) — Easy
+
+- **Goal**: investigate size-optimization angles for the plain-C
+  SNDMSG/RCVMSG state machines that landed in Phase 57.
+
+- **Approaches tested**:
+
+  | Approach | Clang Δ | SDCC Δ | Decision |
+  |---|---:|---:|---|
+  | Un-reserve IX (`-fno-omit-frame-pointer`) | +7 B per fn ✗ | n/a | DROP |
+  | File-scope `static` state-machine locals | −18 B | **+98 B** ✗ | DROP |
+  | `__preserves_regs(d, e)` on `xport_send_byte` | 0 (no-op) | **−12 B** ✓ | **LANDED** |
+
+  Net: clang unchanged at 2138 B, SDCC 2164 → **2152 B** (−12 B).
+
+- **Lessons**:
+
+  - **`+static-stack` on clang already does the "no-recursion → no-stack"
+    optimization** for named locals.  Adding `-fno-omit-frame-pointer`
+    on top is pure overhead because there's no SP-relative stack frame
+    to point at -- each function gets +7 B prologue/epilogue with no
+    payback.  Cross-referenced as a data point on ravn/llvm-z80#40.
+
+  - **Forcing locals to `static` BSS pessimizes SDCC**.  SDCC's
+    local-only iCode allocator KEEPS auto-locals in registers within
+    a basic block; explicit `static` makes every access an `ld a,
+    (var)` (3 B) where SDCC was using `ld a, c` (1 B).  Don't fight
+    the allocator's chosen register tier.  Lesson captured in memory
+    rule below.
+
+  - **`__preserves_regs(...)` is SDCC-only** (clang ignores via the
+    `compiler/compat.h` shim `#define __preserves_regs(...)`).  When
+    declaring it, audit the actual SDCC asm output of the target
+    function to verify the claim is honest -- a lie produces silent
+    register clobbering and crashes that are hard to debug.
+
+  - **Diagnostic discipline**: I had originally proposed "un-reserve
+    IX would save ~100 B" based on a quick clang -Oz test compile
+    that did NOT include the cpnos-rom flags.  Real cpnos-rom builds
+    with `+static-stack` emit 3-byte BSS stores, not 6-byte
+    SP-relative arithmetic.  Always inspect WITH the target build's
+    actual flags before quoting hypothesis-savings numbers.
+
+- **Bigger wins NOT pursued this round** (parked behind #83 trigger
+  conditions):
+
+  1. **Inline-asm hot inner loops** (header-walk and data-walk
+     loops) -- estimated −50 to −80 B per compiler.  Defeats "as
+     much C as possible" but is the largest mechanical lever.
+  2. **Split `try_send/recv_frame` into 3 helpers each** --
+     estimated −30 to −60 B SDCC; potentially neutral on clang.
+  3. **Per-byte send-wrapper** preserving more registers via a
+     `__naked` thin wrapper -- estimated −20 to −40 B SDCC.
+
+  Trigger to pursue: cpnos-rom resident growing past current
+  headroom (~400 B clang / ~330 B SDCC out of 2.5 KB resident
+  region), or ZX0 compression integration via #82.
+
+- **Issue activity**:
+  - Commented on ravn/llvm-z80#40 (data point: IX frame pointer is
+    net loss on `+static-stack` cpnos-rom code).
+  - Commented on ravn/rc700-gensmedet#83 (full investigation
+    findings; #83 stays parked).
+
+- **Memory rule worth capturing for future SDCC work**:
+  "Don't preempt the iCode allocator with `static`.  SDCC's
+  local-only iCode allocator keeps auto-locals in registers within
+  basic blocks; forcing them to `static` BSS converts cheap
+  register accesses to expensive memory accesses.  Trust the
+  allocator; only force `static` when you've measured a specific
+  IX-frame elimination win that exceeds the access-cost regression."
+
 ## Phase 57: cpnos-rom SNIOS — plain-C SNDMSG/RCVMSG state machines (May 10, 2026, #75 CLOSED) — Hard
 
 - **Goal**: complete the SNIOS asm→C migration (#75 Phases 5+6)
