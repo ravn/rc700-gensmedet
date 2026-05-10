@@ -1,5 +1,61 @@
 # RC700-SYSGEN Project Timeline
 
+## Session-end summary (Phases 59–63, May 10, 2026)
+
+Single session covering file consolidation + LLVM-flag bisection +
+SNIOS source tightening.  Headline numbers:
+
+| | clang payload | SDCC resident | C-file count |
+|---|---:|---:|---:|
+| Pre-session HEAD | 2138 B | 2152 B | 12 |
+| Post-Phase-63 (HEAD) | **2004 B** | **2120 B** | **7** |
+| Δ | **−134 B (−6.3 %)** | **−32 B (−1.5 %)** | **−5** |
+
+Phase breakdown:
+
+- **59** — Cold-init 4-into-1 file merge (cfgtbl + init + netboot_mpm
+  + cpnos_cold → init.c).  Byte-stable, unlocked file-static of
+  cfgtbl_init / init_hardware / netboot_mpm.
+- **60** — Dead-code drop (rc700_console.{c,h} never built);
+  isr.c → transport_pio.c (shared RESIDENT_PRE_CODE);
+  payload_checksum.c → resident.c.  Byte-stable.
+- **61** — Closed ravn/rc700-gensmedet#88 (cross-TU barrier) with
+  empirical re-measurement: structural mitigations exhausted,
+  remaining cross-TU edges all non-inlinable.
+- **62** — `-mllvm -disable-machine-licm` (clang only, −74 B
+  payload) + SNIOS source tightening: timeout-folding trick at 6
+  sites + direct `slaveid != 0xFF` check (−44 B clang on snios_c.o).
+  Total: −118 B clang / −34 B SDCC.  Loosened SDCC IX-frame
+  baseline (try_recv_frame 2 → 10) per user authorization.
+- **63** — `-mllvm -disable-machine-cse` (clang only, −16 B
+  payload).  Tested but rejected `-disable-block-placement` (1 B
+  over INIT region budget — see #93 to unlock).
+
+New issues filed this session:
+
+- ravn/llvm-z80#128 — MachineLICM and MachineCSE pessimize at -Oz on
+  Z80 (workaround flags now in cpnos-rom Makefile; backend should
+  default-disable at -Oz)
+- ravn/llvm-z80#129 — Peephole: convert BSS-spill-around-CALL to
+  PUSH/POP-around-CALL (9 detectable pairs in HEAD payload, ~36 B
+  potential savings)
+- ravn/rc700-gensmedet#93 — Unlock `-disable-block-placement` by
+  moving chunk-A LMA 0x0520 → 0x0540 (8 B clang + 32 B headroom)
+
+Issues closed:
+
+- ravn/rc700-gensmedet#88 — cross-TU barrier (structural
+  mitigations exhausted)
+
+New memory rule captured (user-side):
+
+- `feedback_size_over_speed_for_cold_paths.md` — for code that
+  runs only a few times, code size is more important than speed
+  (user guidance 2026-05-10).
+
+All polypascal-test 4-cell PASS at parity through every phase
+(both compilers).
+
 ## Phase 63: -disable-machine-cse (-16 B clang) (May 10, 2026) — Easy
 
 - Continued the LLVM-flag bisection past Phase 62.  Found
