@@ -218,9 +218,10 @@ else
 $(error TRANSPORT must be 'pio-irq' or 'sio')
 endif
 
-# Banner tag baked into transport_sio_vt.name (cpnos prints it as the
-# wire-mode at boot — "RC702 CP/NOS WWW-MMM ...").  Padded to 7 chars
-# (DRI's wire-mode field) — the build aborts if shorter.
+# Banner tag inserted via TRANSPORT_NAME macro -- cpnos's
+# print_banner builds the boot banner as
+# "RC702 CP/NOS NNK <NAME> <compiler> <date> <hash>" where <NAME> is
+# this string.  Visible at boot on the display + SIO-B mirror.
 #
 # Quoting differs per compiler: clang accepts -DX='"value"', SDCC's zcc
 # strips the inner quotes — use backslash-escaped form for SDCC.
@@ -848,33 +849,37 @@ endif
 
 # ---- preflight checks: setup must match target ---------------------
 #
-# The "wire-mode tag" baked into the cpnos banner (and visible at
-# runtime as e.g. "RC702 CP/NOS PIO-IRQ ...") is set from
-# active_transport->name in transport_sio.c.  The string lives at a
-# fixed offset in cpnos.bin, so a literal grep on the binary tells us
-# what the slave will report.  Targets assert the right tag is present
-# (or absent) to avoid the topology-mismatch class of bug from
-# 2026-04-28 (Phase 27c — see tasks/timeline.md).
+# The "wire-mode tag" baked into the cpnos banner (visible at runtime
+# as e.g. "RC702 CP/NOS 55K PIO clang ...") comes from the
+# TRANSPORT_NAME macro the Makefile passes via -DTRANSPORT_NAME=...
+# print_banner emits it as part of the banner string in cpnos.bin.
+# Targets assert the right wire-mode is present (or absent) to avoid
+# the topology-mismatch class of bug from 2026-04-28 (Phase 27c — see
+# tasks/timeline.md).
+#
+# Pattern note: the banner has format "RC702 CP/NOS NNK <NAME> ..."
+# where <NAME> is " PIO " or " SIO " (space-bounded).  Grep for the
+# space-bounded NAME to disambiguate from any future field that might
+# contain similar substrings.
 #
 # Likewise we check that MAME_IRQ exists with the cpnet_bridge gate
 # fix before pio-irq-* targets launch — otherwise the slave's IRQ
 # path silently drops bytes when poll_tick over-strobes.
 
-# Slave was built with active_transport->name = "PIO-IRQ"
+# Slave was built with TRANSPORT=pio-irq (banner contains " PIO ")
 _check-tag-pio-irq:
-	@if ! strings $(BUILDDIR)/cpnos.bin 2>/dev/null | grep -q '^PIO-IRQ '; then \
-	    echo "FAIL: cpnos.bin does not contain wire-mode tag 'PIO-IRQ'."; \
-	    echo "      This target requires a PIO-IRQ build; check"; \
-	    echo "      transport_sio.c's transport_sio_vt.name."; \
+	@if ! strings $(BUILDDIR)/cpnos.bin 2>/dev/null | grep -q ' PIO '; then \
+	    echo "FAIL: cpnos.bin does not contain wire-mode tag ' PIO '."; \
+	    echo "      This target requires a TRANSPORT=pio-irq build."; \
 	    exit 1; \
 	fi
 
-# Slave was NOT built for PIO-IRQ (cpnet-smoke wires SIO-A, not PIO-B)
+# Slave was NOT built for pio-irq (cpnet-smoke wires SIO-A, not PIO-B)
 _check-tag-not-pio-irq:
-	@if strings $(BUILDDIR)/cpnos.bin 2>/dev/null | grep -q '^PIO-IRQ '; then \
-	    echo "FAIL: cpnos.bin reports wire-mode 'PIO-IRQ' but this target"; \
-	    echo "      wires SIO-A only.  Either rebuild cpnos for SIO mode"; \
-	    echo "      or use 'make pio-irq-smoke' instead."; \
+	@if strings $(BUILDDIR)/cpnos.bin 2>/dev/null | grep -q ' PIO '; then \
+	    echo "FAIL: cpnos.bin reports wire-mode ' PIO ' but this target"; \
+	    echo "      wires SIO-A only.  Either rebuild cpnos with"; \
+	    echo "      TRANSPORT=sio or use 'make pio-irq-smoke' instead."; \
 	    exit 1; \
 	fi
 
