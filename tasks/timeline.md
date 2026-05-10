@@ -1,5 +1,319 @@
 # RC700-SYSGEN Project Timeline
 
+## Post-session deep analysis (May 10, 2026 — addendum)
+
+After the Phase 59-63 commits landed, two follow-up investigations:
+
+### SDCC flag bisection (the symmetric question to clang's)
+
+User asked whether SDCC has equivalents for clang's
+`-disable-machine-licm` / `-disable-machine-cse` flags, and
+whether enabling them helps.  Bisected on `snios_c.c`:
+
+| SDCC flag | clang analog | snios_c.o Δ |
+|---|---|---:|
+| `--noinvariant` | `-disable-machine-licm` | 0 (no-op) |
+| `--noloopreverse` | (none) | 0 (no-op) |
+| `--nogcse` | `-disable-machine-cse` | **+88 B (worse)** |
+| `--nolabelopt` | (none) | **+116 B (worse)** |
+| `--noinduction` | `-disable-lsr` | **+140 B (worse)** |
+| all 3 (inv+cse+ind) | combined | **+164 B (worse)** |
+
+**The asymmetry is the diagnostic finding.**  Same Z80 ISA, same
+C source, same register pressure — clang benefits from disabling
+LICM/CSE, SDCC suffers.  Architectural reason: clang's MachineLICM
+/ CSE run *before* regalloc and rely on TargetTransformInfo cost
+estimates (Z80 TTI under-predicts spill cost — open Cluster A in
+ravn/llvm-z80).  SDCC's loop opts run on iCode where the iCode
+allocator runs concurrently — invariants only get hoisted when a
+register is available.
+
+Documented in `cpnos-rom/README.md` "Compiler tuning notes" section
+and added as a comment to ravn/llvm-z80#128.
+
+### SNIOS asm→C residual gap accounting
+
+After all Phase 62-63 wins, current vs pre-migration assembly:
+
+| | pre-migration ASM | post-Phase-63 C |
+|---|---:|---:|
+| body + JT + bridges | 461 B | 769 B |
+| Δ | — | **+308 B (+67 %)** |
+
+Recovered from the original +419 B (+91 %) via this session's
+Phase 62-63 work: −111 B / 26 % of the migration tax.
+
+Per-cluster breakdown:
+- SNDMSG state machine: 113 B asm → 265 B C (+152)
+- RCVMSG state machine: 168 B asm → 384 B C (+216)
+- trivial JT impls: 27 B asm → 49 B C (+22, NTWKDN
+  correctness fix)
+
+Where the +308 B comes from (in priority order):
+1. sdcccall(1) ABI overhead at every C call boundary (asm
+   shared register meanings by convention across the state graph)
+2. No "fall-through into next function" optimization in C
+   (asm's `GOTFST: ... ; falls through into SNDACK` saves a JP
+   per chained label)
+3. `__builtin_memcpy` materializing as runtime call on small
+   constant sizes (already filed as #50)
+4. NTWKDN went 0 B → 21 B as a correctness fix (DRI-conformant
+   shutdown)
+
+Filed as ravn/rc700-gensmedet#94 (tracking-only, parked) with
+reduction paths.  Updated #83 to lower priority — the
+try_recv_frame IX-frame loosening was deliberate this session;
+the original premise of "refactor to remove spills" is now
+mostly academic.
+
+## Session-end summary (Phases 59–63, May 10, 2026)
+
+Single session covering file consolidation + LLVM-flag bisection +
+SNIOS source tightening.  Headline numbers:
+
+| | clang payload | SDCC resident | C-file count |
+|---|---:|---:|---:|
+| Pre-session HEAD | 2138 B | 2152 B | 12 |
+| Post-Phase-63 (HEAD) | **2004 B** | **2120 B** | **7** |
+| Δ | **−134 B (−6.3 %)** | **−32 B (−1.5 %)** | **−5** |
+
+Phase breakdown:
+
+- **59** — Cold-init 4-into-1 file merge (cfgtbl + init + netboot_mpm
+  + cpnos_cold → init.c).  Byte-stable, unlocked file-static of
+  cfgtbl_init / init_hardware / netboot_mpm.
+- **60** — Dead-code drop (rc700_console.{c,h} never built);
+  isr.c → transport_pio.c (shared RESIDENT_PRE_CODE);
+  payload_checksum.c → resident.c.  Byte-stable.
+- **61** — Closed ravn/rc700-gensmedet#88 (cross-TU barrier) with
+  empirical re-measurement: structural mitigations exhausted,
+  remaining cross-TU edges all non-inlinable.
+- **62** — `-mllvm -disable-machine-licm` (clang only, −74 B
+  payload) + SNIOS source tightening: timeout-folding trick at 6
+  sites + direct `slaveid != 0xFF` check (−44 B clang on snios_c.o).
+  Total: −118 B clang / −34 B SDCC.  Loosened SDCC IX-frame
+  baseline (try_recv_frame 2 → 10) per user authorization.
+- **63** — `-mllvm -disable-machine-cse` (clang only, −16 B
+  payload).  Tested but rejected `-disable-block-placement` (1 B
+  over INIT region budget — see #93 to unlock).
+
+New issues filed this session:
+
+- ravn/llvm-z80#128 — MachineLICM and MachineCSE pessimize at -Oz on
+  Z80 (workaround flags now in cpnos-rom Makefile; backend should
+  default-disable at -Oz)
+- ravn/llvm-z80#129 — Peephole: convert BSS-spill-around-CALL to
+  PUSH/POP-around-CALL (9 detectable pairs in HEAD payload, ~36 B
+  potential savings)
+- ravn/rc700-gensmedet#93 — Unlock `-disable-block-placement` by
+  moving chunk-A LMA 0x0520 → 0x0540 (8 B clang + 32 B headroom)
+
+Issues closed:
+
+- ravn/rc700-gensmedet#88 — cross-TU barrier (structural
+  mitigations exhausted)
+
+New memory rule captured (user-side):
+
+- `feedback_size_over_speed_for_cold_paths.md` — for code that
+  runs only a few times, code size is more important than speed
+  (user guidance 2026-05-10).
+
+All polypascal-test 4-cell PASS at parity through every phase
+(both compilers).
+
+## Phase 63: -disable-machine-cse (-16 B clang) (May 10, 2026) — Easy
+
+- Continued the LLVM-flag bisection past Phase 62.  Found
+  `-mllvm -disable-machine-cse` saves 11 B on snios_c.o and 16 B
+  on full payload.  Common-subexpression elimination introduces
+  spills on Z80's limited register file; disabling pushes the
+  recomputes back inline (which Z80 prefers because its memory
+  loads are 3 B / instruction).
+
+- Tested but rejected: `-disable-block-placement` would have given
+  another -8 B on snios_c.o but pushed init.c 1 B over the 640 B
+  INIT_CODE budget.  Multi-file budget grow not worth 8 B.
+
+- Result: clang payload **2020 → 2004 B** (-16 B).  Cumulative
+  reduction since pre-Phase 62: 2138 → 2004 B (-134 B / -6.3 %).
+  SDCC unchanged (LLVM-only flag).
+
+- cpnos-polypascal-test PASS at 51.93 s (clang).
+
+## Phase 62: -disable-machine-licm + SNIOS source tighten (May 10, 2026) — Medium
+
+- **Goal**: investigate whether `+static-stack` (and similar build
+  flags) can be undone or replaced for a smaller resident, and whether
+  the C source itself has slack the compiler isn't recovering.
+
+- **Method**: per-flag bisection on snios_c.c text-section size,
+  one knob at a time:
+
+  | configuration | snios_c.o |
+  |---|---:|
+  | -O3 | 1484 |
+  | -O2 | 1480 |
+  | -Os | 1255 |
+  | -Oz | 1225 |
+  | -Oz +static-stack | 875 |
+  | -Oz +static-stack -disable-lsr (current HEAD pre-62) | **868** |
+  | -Oz +static-stack -disable-lsr -disable-machine-licm | **795** |
+  | -Oz -disable-machine-licm | 1320 |
+  | -Os +static-stack -disable-lsr -disable-machine-licm | 899 |
+
+  `+static-stack` is essential (saves ~450 B alone — locals to BSS
+  vs IX-frame).  `-disable-lsr` saves another 7 B.  New finding:
+  `-disable-machine-licm` saves another **73 B** — MachineLICM
+  hoists invariants out of loops, but on Z80 with limited register
+  pressure the spill/reload cost often outweighs hoisting wins.
+
+- **Source-level changes**:
+
+  1. Timeout-folding trick: `0xFFFF & 0x7F = 0x7F` differs from every
+     CP/NET 1.2 control byte (SOH=1 .. ACK=6), so the explicit
+     `if (r >= 0x100) return RC_RETRY;` can fold into the existing
+     `(r & 0x7F) != X` check.  Applied 6 sites; -44 B clang on
+     snios_c.o.
+
+  2. Direct slaveid==0xFF check: replaced the
+     `(uint8_t)(slaveid+1) != 0` indirection with `slaveid != 0xFF`;
+     -5 B clang.
+
+  3. Read-once `b = (uint8_t)r` pattern in the byte-receive loops
+     was tested and reverted: 0 B clang win, +8 SDCC IX-frame
+     entries.  Not worth doing.
+
+- **Result**:
+
+  | | clang payload | SDCC resident |
+  |---|---:|---:|
+  | Pre-62 (HEAD) | 2138 B | 2154 B |
+  | Post-62 | **2020 B** (-118 B, -5.5%) | **2120 B** (-34 B, -1.6%) |
+
+  Per-function deltas (clang -Oz):
+  - `_snios_rcvmsg_c`: 471 -> 396 B (-75 B)
+  - `_snios_sndmsg_force`: 311 -> 264 B (-47 B)
+  - snios_c.o total: 868 -> 746 B (-122 B)
+
+- **Verification**:
+  - cpnos-polypascal-test 4-cell PASS at parity (clang 51.23 s,
+    SDCC 47.95 s).
+  - check_no_frame_ptr SDCC try_recv_frame raised 2 -> 10
+    (timeout-folding eliminated live-range boundaries SDCC was
+    using to recycle registers).  User-authorized loosening
+    (2026-05-10); baseline updated with rationale.
+
+- **Rule captured**: user said "for code only running a few times
+  code size is more important than speed" — folded into
+  `feedback_size_over_speed_for_cold_paths.md` (user-side memory).
+
+## Phase 61: close #88 cross-TU barrier (structural mitigations exhausted) (May 10, 2026) — Easy
+
+- **Goal**: re-measure the cross-TU compilation barrier (#88) after
+  Phase 59 + 60 file consolidation, decide whether to keep it open.
+
+- **Findings** (full comment on the issue):
+
+  - Phase 59 merged 4 INIT_CODE TUs (cfgtbl + init + netboot_mpm +
+    cpnos_cold) into one `init.c` — all candidates from Option A.
+  - Phase 60 merged isr + transport_pio (shared RESIDENT_PRE_CODE),
+    folded payload_checksum into resident, deleted dead
+    rc700_console.
+  - Empirical byte recovery from the merge phases: **0 B**.  The
+    only cross-TU win came from Phase 58's `__preserves_regs(d, e)`
+    declaration (-12 B SDCC), which works *because* of the cross-TU
+    boundary, not despite it.
+  - Cold-init functions are called exactly once each — inlining a
+    once-called function nets zero bytes (saves 4 B call/ret, adds
+    body inline).
+  - Remaining cross-TU edges are all non-inlinable:
+    cold-init-once-calls, fixed-ABI JT, `--defsym` alias
+    indirection, inline-asm BSS data loads.
+
+- **Decision**: closed #88 as "structural mitigations exhausted,
+  residual cost empirically negligible".  Re-open under the
+  original trigger conditions (resident size budget tight, ZX0
+  lands, hot-path inlining wins identified).
+
+- **Net diff**: 0 source changes; one issue closed, one timeline
+  entry.  Engagement-mode-gate book-keeping: parked-issue count
+  -1.
+
+## Phase 60: cpnos-rom dead-code drop + isr/payload-checksum merges (May 10, 2026) — Easy
+
+- **Goal**: continue file consolidation past Phase 59.  Three actions:
+
+  1. **Delete `rc700_console.{c,h}`**: dead code.  Header declared
+     `rc700_console_init` / `rc700_console_putc`; no caller anywhere
+     in the project; not in any Makefile object list.  A
+     parallel-implementation that was never wired up.  −250 LOC.
+
+  2. **Merge `isr.c` → `transport_pio.c`**: both halves share the
+     SDCC `RESIDENT_PRE_CODE` codeseg and the PIO-B receive ring
+     buffer (`pio_rx_buf` + head/tail).  Co-locating lets `isr_pio_par`
+     push directly into the file-static buffer instead of crossing
+     TUs.  isr.c body (set_i_reg, enable_im2, enable_interrupts,
+     disable_interrupts, isr_noop, isr_crt, isr_pio_kbd, isr_pio_par)
+     appended after the transport recv path.
+
+  3. **Fold `payload_checksum.c` → `resident.c`**: 24-line file with
+     4 lines of actual code (a `SECTION_PAYLOAD_CKSUM` 0xFFFF
+     placeholder).  Lives in its own clang section regardless of
+     hosting TU; SDCC default codeseg works either way.
+
+- **Linkage**: no externally-visible symbols changed; isr's
+  `pio_rx_head`/`pio_rx_tail` externs are now redundant (both are
+  defined earlier in the same TU).  pio_rx_buf_page stays a
+  linker-defined constant.
+
+- **Result**: clang payload byte-stable at **2138 B**; SDCC resident
+  **2154 B** (+2 B vs Phase 59's 2152 B — noise from layout shift,
+  not a regression).  Both polypascal-test 4-cell PASS at parity
+  (clang 50.85 s; SDCC TBD).
+
+- **Net diff**: −3 source files (`isr.c`, `payload_checksum.c`,
+  `rc700_console.c`); −2 Makefile recipes; −1 SDCC per-target
+  CFLAGS override.  C-source file count after Phase 60: **7 files**
+  (cpnos_main, init, resident, snios_c, transport_pio, transport_sio,
+  relocator).
+
+## Phase 59: cpnos-rom cold-init 4-into-1 file merge (May 10, 2026) — Easy
+
+- **Goal**: merge the four cold-init translation units (`cfgtbl.c` +
+  `init.c` + `netboot_mpm.c` + `cpnos_cold.c`) into a single `init.c`
+  so the compiler sees the full call graph in one TU and the three
+  helper functions can become file-static.
+
+- **Source order in merged init.c** (mirrors call order from
+  `cpnos_cold_entry`):
+
+  1. CFGTBL ABI declarations + `cfgtbl_init` template
+  2. Hardware bring-up (`port_init` table, `setup_ivt`, `init_hardware`)
+  3. CP/NET netboot of `A:CPNOS.IMG` (`netboot_mpm` + helpers)
+  4. Cold-boot orchestrator + banner (`cpnos_cold_entry`, `print_banner`)
+
+- **Linkage cleanup**: `cfgtbl_init`, `init_hardware`, `netboot_mpm`
+  all become `static`; only `cpnos_cold_entry` (named in `payload.ld`
+  ENTRY and in `reset.s`) stays externally visible.  Dead extern
+  declarations in `cpnos_main.c` removed.
+
+- **Makefile**: `PAYLOAD_OBJS` and `SDCC_C_OBJS` lose three entries
+  each; per-file recipes for `cpnos_cold.o`, `cfgtbl.o`,
+  `netboot_mpm.o` deleted; SDCC `--codeseg INIT_CODE` per-target
+  override now lists only `init.o`.  `NETBOOT_OBJ` variable removed.
+
+- **Result**: clang payload byte-stable at **2138 B**; SDCC resident
+  byte-stable at **2152 B**.  Both polypascal-test 4-cell PASS at
+  parity (clang 50 s, SDCC 50 s).
+
+- **Net diff**: −1 source file (4 → 1), -3 object recipes, no size
+  change.  The merge unlocks future intra-TU optimization (current
+  `static` keyword pinning yields 0 B because the four functions are
+  each called exactly once and the compiler already inlined or
+  preserved them across the TU boundary; future shared rodata or
+  helper extraction can now happen freely).
+
 ## Phase 58: cpnos-rom SNIOS C size optimization investigation (May 10, 2026) — Easy
 
 - **Goal**: investigate size-optimization angles for the plain-C

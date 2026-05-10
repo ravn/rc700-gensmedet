@@ -351,7 +351,7 @@ A CP/NOS slave has NO local drives by design.  Every CFGTBL drive
 slot (offsets +2..+33, 16 entries) is either:
 
 - A network drive (`bit 7 of low byte = 1`, encoded by the `NET_DRV`
-  macro in `cfgtbl.c`), routed by NDOS over the wire to the master, OR
+  macro in `init.c`), routed by NDOS over the wire to the master, OR
 - Empty (`0x0000`, "no drive at this slot"), in which case BDOS calls
   for that drive return "no such drive".
 
@@ -360,7 +360,7 @@ runs ALL disk I/O through NDOS → SNIOS → wire → master's BDOS.  Local-
 floppy support would make it a hybrid CP/M+CP/NET system, not CP/NOS,
 and is explicitly out of scope.
 
-The `LOCAL` macro `#define LOCAL 0x0000` in `cfgtbl.c` is a vestige
+The `LOCAL` macro `#define LOCAL 0x0000` in `init.c` is a vestige
 from never-completed hybrid-mode scaffolding; it's defined but not
 referenced anywhere and means "no drive at this slot" (same as
 0x0000).  Same story for the `ENABLE_FDC=1` Makefile option — wired

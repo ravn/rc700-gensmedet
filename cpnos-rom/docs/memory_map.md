@@ -171,11 +171,9 @@ All RAM gaps total: **~3.85 KB**.  PROM gap: **~1.55 KB**.
 | `cpnos-rom/relocator.ld`            | (similar) relocator linker script              |
 | `cpnos-rom/cpnos_main.c`            | ZP_INIT, snios_jt copy, JP NDOSE seed         |
 | `cpnos-rom/cpnos-build/`            | cpnos.com (DRI RMAC+LINK build of NDOS+CCP+BDOS) |
-| `cpnos-rom/cfgtbl.c`                | _cfgtbl struct (173 B)                        |
-| `cpnos-rom/netboot_mpm.c`           | _msg buffer (200 B)                           |
+| `cpnos-rom/init.c`                  | merged cold-init TU: cfgtbl struct (210 B), msg buffer (aliased over cfgtbl.fmt+0..170), IVT setup, port_init, netboot_mpm |
 | `cpnos-rom/transport_pio.c`         | _pio_rx_buf (256 B page-aligned)              |
 | `cpnos-rom/resident.c`              | _kbd_ring (16 B), _curx/_cury, ISR-touched BSS |
-| `cpnos-rom/init.c`                  | IVT setup (`__ivt_start = 0xEC00`)            |
 | `cpnos-rom/hal.h`                   | DISPLAY_ADDR (0xF800), 8275/DMA port consts   |
 
 ## Things worth knowing
@@ -183,7 +181,7 @@ All RAM gaps total: **~3.85 KB**.  PROM gap: **~1.55 KB**.
 - **Symbols in cpnos.sym are partially absolute**: `NDOSRL`, `NDOS`,
   `BDOSDS`, `NIOS` are all linked to fixed addresses by the DRI
   RMAC/LINK build, NOT by our payload.ld.  Moving any of them
-  requires rebuilding cpnos-build (and updating netboot_mpm.c's
+  requires rebuilding cpnos-build (and updating init.c's
   `IMG_BASE`, cpnos_main.c's `NDOS_SNIOS_ADDR`, and the JP target
   in ZP[0x0006..0x0007]).
 

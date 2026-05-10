@@ -103,8 +103,9 @@ MEMORY {
  * buffer.  Now both pipelines say "HIGH byte of the symbol's actual
  * address" — the linker computes both, drift is impossible.  Defined
  * AFTER the .pio_rx_bss section below; until then the symbol is
- * unresolved.  isr.c uses `_pio_rx_buf_page` as a high-byte literal
- * in `ld h, _pio_rx_buf_page`. */
+ * unresolved.  transport_pio.c (which absorbed isr.c in Phase 60)
+ * uses `_pio_rx_buf_page` as a high-byte literal in
+ * `ld h, _pio_rx_buf_page`. */
 
 SECTIONS {
   /* IM 2 IVT (NOLOAD: not in ROM image; relocator's BSS-clear pass

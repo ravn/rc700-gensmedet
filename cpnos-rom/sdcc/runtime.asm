@@ -11,11 +11,10 @@
 ;
 ; The general overlap-safe `_memmove_callee` (~33 B) was removed from
 ; this file when its only caller (resident.c::insert_line) migrated to
-; mem_copy_backwards.  rc700_console.c is clang-only; SDCC has no
-; remaining call site for the general memmove.  If a future SDCC
-; caller emerges with unknown direction, either restore the helper
-; here (overrides z88dk libc's 150 B `_memmove_callee`) or refactor
-; the caller to use mem_copy_backwards.  Tracked as
+; mem_copy_backwards.  No remaining call site for the general memmove.
+; If a future caller emerges with unknown direction, either restore
+; the helper here (overrides z88dk libc's 150 B `_memmove_callee`) or
+; refactor the caller to use mem_copy_backwards.  Tracked as
 ; ravn/rc700-gensmedet#77.
 
 SECTION RESIDENT_CODE
