@@ -56,8 +56,15 @@
 #define RECV_TIMEOUT_TICKS  0x8000  /* per-RECVBT inner-timeout passed to xport_recv_byte */
 
 /* Forward declarations of the chip-specific byte transport.  Resolved at
- * link time by clang `--defsym` or SDCC `xport_aliases.asm`. */
-extern void xport_send_byte(uint8_t b);
+ * link time by clang `--defsym` or SDCC `xport_aliases.asm`.
+ *
+ * `__preserves_regs(d, e)` on xport_send_byte: verified by inspection
+ * of the SDCC asm output (sdcc/audit/transport_pio.s) that
+ * transport_pio_send_byte never writes D or E in either path (PIO
+ * already-output or PIO state-change).  Lets SDCC skip push/pop DE
+ * around xport_send_byte calls in the state-machine loops.  Clang
+ * ignores the attribute (compat.h `#define __preserves_regs(...)`). */
+extern void xport_send_byte(uint8_t b) __preserves_regs(d, e);
 extern uint16_t xport_recv_byte(uint16_t timeout_ticks);
 
 /* ============================================================
