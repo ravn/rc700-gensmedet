@@ -157,9 +157,10 @@ static uint8_t try_send_frame(uint8_t *msg) {
         xport_send_byte((uint8_t)-hcs);
     }
 
-    /* (4) wait header-ACK (single RECVBT, no inner retry) */
+    /* (4) wait header-ACK (single RECVBT, no inner retry).
+     * Timeout (r=0xFFFF) folds into the (r & 0x7F)!=ACK test:
+     * 0xFFFF & 0x7F = 0x7F ≠ ACK=0x06.  Saves ~4 B per recv check. */
     r = recv_byte_t();
-    if (r >= 0x100) return 1;
     if (((uint8_t)r & 0x7F) != ACK) return 1;
 
     /* (5) send STX + (SIZ+1) data bytes + ETX + CKS + EOT.
@@ -181,9 +182,8 @@ static uint8_t try_send_frame(uint8_t *msg) {
         xport_send_byte(EOT);
     }
 
-    /* (6) wait final ACK */
+    /* (6) wait final ACK.  Same timeout-folding trick as step (4). */
     r = recv_byte_t();
-    if (r >= 0x100) return 1;
     if (((uint8_t)r & 0x7F) != ACK) return 1;
 
     return 0;
@@ -262,12 +262,17 @@ static uint8_t try_recv_frame(uint8_t *msg) {
     }
     xport_send_byte(ACK);
 
-    /* (2) receive SOH (timeout-bearing per DRI spec). */
+    /* (2) receive SOH (timeout-bearing per DRI spec).
+     * Timeout (0xFFFF) folds into the (r & 0x7F)!=SOH check:
+     * 0xFFFF & 0x7F = 0x7F ≠ SOH=0x01.  One branch covers both. */
     r = recv_byte_t();
-    if (r >= 0x100) return RC_RETRY;
     if (((uint8_t)r & 0x7F) != SOH) return RC_RETRY;
 
-    /* (3) receive 5 header bytes, accumulate HCS init=SOH. */
+    /* (3) receive 5 header bytes, accumulate HCS init=SOH.
+     * Pattern: store, then read-back via *p++ — keeps SDCC's iCode
+     * allocator in registers (a named `b` local would push it to the
+     * IX-frame on SDCC; check_no_frame_ptr enforces this).  Clang
+     * doesn't care which form. */
     {
         uint8_t hcs = SOH;
         uint8_t *p = msg;
@@ -290,12 +295,13 @@ static uint8_t try_recv_frame(uint8_t *msg) {
     }
     xport_send_byte(ACK);
 
-    /* (5) receive STX */
+    /* (5) receive STX.  Timeout-folding trick: 0xFFFF & 0x7F = 0x7F ≠ STX. */
     r = recv_byte_t();
-    if (r >= 0x100) return RC_RETRY;
     if (((uint8_t)r & 0x7F) != STX) return RC_RETRY;
 
-    /* (6) receive (SIZ+1) data bytes, accumulate CKS init=STX. */
+    /* (6) receive (SIZ+1) data bytes, accumulate CKS init=STX.
+     * Same store-then-read-back pattern as step (3) -- a named `b`
+     * local would push SDCC's `b` into the IX-frame. */
     {
         uint8_t cks = STX;
         uint8_t *p = msg + 5;
@@ -307,9 +313,11 @@ static uint8_t try_recv_frame(uint8_t *msg) {
             cks += *p++;
         } while (k--);
 
-        /* (7) receive ETX, fold into CKS */
+        /* (7) receive ETX, fold into CKS.  Timeout-folding trick:
+         * 0xFFFF & 0x7F = 0x7F ≠ ETX=0x03; either branch returns
+         * RC_RETRY.  cks += 0xFF on a timed-out path is fine because
+         * we return before checking cks. */
         r = recv_byte_t();
-        if (r >= 0x100) return RC_RETRY;
         {
             uint8_t b = (uint8_t)r;
             if ((b & 0x7F) != ETX) return RC_RETRY;
@@ -326,21 +334,17 @@ static uint8_t try_recv_frame(uint8_t *msg) {
         }
     }
 
-    /* (9) receive EOT */
+    /* (9) receive EOT.  Timeout-folding trick: 0xFFFF & 0x7F = 0x7F ≠ EOT. */
     r = recv_byte_t();
-    if (r >= 0x100) return RC_RETRY;
     if (((uint8_t)r & 0x7F) != EOT) return RC_RETRY;
 
-    /* (10) DID check; ACK regardless. */
-    {
-        uint8_t sid_plus_one = (uint8_t)(cfgtbl.slaveid + 1);
-        uint8_t result = RC_OK_MATCH;
-        if (sid_plus_one != 0 && msg[1] != cfgtbl.slaveid) {
-            result = RC_OK_MISMATCH;
-        }
-        xport_send_byte(ACK);
-        return result;
-    }
+    /* (10) DID check; ACK regardless.  slaveid==0xFF is the init-mode
+     * sentinel ("accept any DID") -- spelt directly here instead of via
+     * the prior `(uint8_t)(slaveid+1) != 0` indirection. */
+    xport_send_byte(ACK);
+    if (cfgtbl.slaveid != 0xFF && msg[1] != cfgtbl.slaveid)
+        return RC_OK_MISMATCH;
+    return RC_OK_MATCH;
 }
 
 /* snios_rcvmsg_c: public C entry, with ACTIVE-flag gate.

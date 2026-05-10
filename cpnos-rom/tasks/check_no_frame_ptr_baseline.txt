@@ -36,7 +36,13 @@ resident.s:insert_line:2
 # CPNET_WIRE_PROTOCOL.md).  Multiple simultaneously-live locals
 # (running checksum, byte counter, response byte, retry counter) that
 # SDCC's local-only iCode allocator can't all keep in registers.
-# Acceptable on the phase-5-6-test-config branch; main-line merge
-# would warrant a refactor (split into header/data/ACK helpers).
+#
+# Phase 62 (2026-05-10): try_recv_frame raised from 2 -> 10 after the
+# timeout-folding source-level optimization.  Folding the explicit
+# `if (r >= 0x100) return RC_RETRY` early-bail into the (r & 0x7F)
+# != X check eliminates one branch per recv site -- clang loved it
+# (-44 B), but it also collapsed the per-site live-range boundaries
+# that SDCC was using to recycle registers, pushing 8 more spills
+# onto the IX-frame.  User-authorized loosening (2026-05-10).
 snios_c.s:try_send_frame:2
-snios_c.s:try_recv_frame:2
+snios_c.s:try_recv_frame:10
