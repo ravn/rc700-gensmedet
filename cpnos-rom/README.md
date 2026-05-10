@@ -94,6 +94,121 @@ Both produce a 4096-byte image split into `prom0.bin` (0x0000–0x07FF) and
 - Transport abstracted behind a vtable — parallel port (J3/J4) is parked
   but drops in without restructuring.
 
+## Compiler tuning notes
+
+This ROM is dual-built by clang (LLVM Z80 backend at `ravn/llvm-z80`)
+and SDCC (z88dk's `zsdcc` 4.5.0).  Both compilers target the same
+Z80 ISA with the same register pressure, but they need very
+different optimizer-flag settings to produce small code.  The
+findings below come from a per-flag bisection (see Phases 62-63 in
+`tasks/timeline.md`):
+
+### clang (LLVM Z80)
+
+The production Makefile sets:
+```
+-Oz -nostdlib -g
+-Xclang -target-feature -Xclang +static-stack
+-mllvm -disable-lsr
+-mllvm -disable-machine-licm
+-mllvm -disable-machine-cse
+```
+
+| flag | role | net Δ on snios_c.o |
+|---|---|---:|
+| `+static-stack` | locals to per-function BSS instead of IX-frame | **−450 B** (without it, IX-relative addressing dominates) |
+| `-disable-lsr` | skip Loop Strength Reduction | −7 B |
+| `-disable-machine-licm` | skip Loop-Invariant Code Motion (machine-IR pass) | −73 B |
+| `-disable-machine-cse` | skip Machine Common Subexpression Elimination | −11 B |
+
+The three "disable" flags work around a Z80-LLVM regalloc cost-model
+limitation (see `ravn/llvm-z80#128`): MachineLICM and MachineCSE
+hoist values they assume the regalloc can keep in registers, but
+Z80's `TargetTransformInfo` under-predicts spill cost, so the
+hoisted values get force-spilled to BSS (3 B per access, repeated
+inside the loop or at every CSE use site).  Disabling lets the
+recompute stay inline, where Z80 prefers it.
+
+Tested but not adopted:
+- `-disable-block-placement` — would save another 8 B but pushes
+  init.c 1 B over the 640 B INIT_CODE region budget; deferred to
+  `ravn/rc700-gensmedet#93`.
+
+### SDCC (z88dk)
+
+The production Makefile sets:
+```
+-SO3 --sdcccall 1 --max-allocs-per-node 1000000 --fomit-frame-pointer
+--allow-unsafe-read --std-sdcc23
+```
+
+The SDCC-side equivalents of clang's "disable" flags are
+**counterproductive on this code**:
+
+| SDCC flag | clang analog | Δ on snios_c.o |
+|---|---|---:|
+| `--noinvariant` | `-disable-machine-licm` | 0 (no-op here) |
+| `--noloopreverse` | (none) | 0 (no-op) |
+| `--nogcse` | `-disable-machine-cse` | **+88 B** |
+| `--nolabelopt` | (none) | **+116 B** |
+| `--noinduction` | `-disable-lsr` | **+140 B** |
+
+The asymmetry is the diagnostic finding: clang and SDCC compile the
+same C code, target the same ISA, hit the same register pressure —
+but clang benefits from disabling LICM/CSE while SDCC suffers.
+Architecturally:
+
+- **clang/LLVM** runs MachineLICM and MachineCSE *after* instruction
+  selection but *before* register allocation, deciding what to hoist
+  using `TargetTransformInfo` cost estimates.  Z80's TTI is
+  incomplete (open Cluster A: `ravn/llvm-z80#94`, `#98`, `#89`,
+  `#95`), so the cost model under-predicts spill weight.
+- **SDCC** runs all loop optimizations on its higher-level iCode
+  with the iCode allocator running concurrently — invariants are
+  hoisted only when a register is available; CSE is budgeted
+  against register count.  No "hoist first, hope regalloc handles
+  it" path.
+
+Practical takeaway: the LICM/CSE pessimization is a Z80-LLVM
+cost-model problem, not a fundamental C-on-Z80 constraint.  SDCC's
+flag set is already optimal for its model; only clang needs the
+backend-tuning workarounds.
+
+### Source-level patterns that help both compilers
+
+A handful of source-level idioms in `snios_c.c` give size wins on
+*both* compilers:
+
+- **Timeout-folding trick**: `xport_recv_byte` returns `0xFFFF` on
+  timeout.  Since `0xFFFF & 0x7F = 0x7F` and no CP/NET 1.2 control
+  byte is `0x7F`, the explicit `if (r >= 0x100) return RETRY` check
+  can fold into the existing `(r & 0x7F) != EXPECTED` check at
+  every receive site that compares against a known control byte
+  (SOH, STX, ETX, EOT, ENQ, ACK).  Saves ~4 B per fold site.
+  Phase 62 net: −44 B clang.
+
+- **Direct sentinel test**: prefer `if (slaveid != 0xFF)` over
+  `if ((uint8_t)(slaveid + 1) != 0)` — both express "slaveid is
+  not the init-mode wildcard," but the direct form generates one
+  fewer instruction.
+
+- **Store-then-readback over named-temporary in tight loops**: in
+  patterns like `*p = (uint8_t)r; sum += *p++;`, leaving the byte
+  unnamed avoids forcing SDCC's iCode allocator to push the named
+  temp to the IX-frame.  Clang doesn't care which form.  See
+  `feedback_dont_fight_sdcc_icode` rule.
+
+### Cumulative impact (May 2026 session)
+
+| | clang payload | SDCC resident |
+|---|---:|---:|
+| HEAD pre-investigation | 2138 B | 2152 B |
+| HEAD post-Phase-63 | 2004 B | 2120 B |
+| Δ | **−134 B (−6.3 %)** | **−32 B (−1.5 %)** |
+
+Both compilers PASS the 4-cell `cpnos-polypascal-test` at parity
+through every change.
+
 ## Reference docs
 
 - [`CPNET_WIRE_PROTOCOL.md`](CPNET_WIRE_PROTOCOL.md) — authoritative
