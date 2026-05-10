@@ -62,10 +62,25 @@ only piece of RC702 knowledge is the address `NIOS = 0xEA00` — i.e.
 RC702 for a different CP/NOS slave and you'd rewrite this PROM; you'd
 not touch `cpnos.com`.
 
+## Architecture invariant: CP/NOS is diskless
+
+A CP/NOS slave does NOT support local drives.  All disk I/O goes
+through NDOS to the master via SNIOS over the wire — that's what
+makes it CP/NET-OS rather than CP/M-with-network-drives.  CFGTBL
+drive entries on the slave are either `NET_DRV(...)` (network drive)
+or `0x0000` (no drive); local-floppy mounting is not part of the
+CP/NOS architecture.
+
+Historical note: an `ENABLE_FDC=1` build option exists in the
+Makefile from a never-completed hybrid-mode design.  No C source
+currently consumes the macro, so it's a no-op build flag — kept for
+backwards compatibility with build scripts that pass it through.
+Don't propose adding back local-floppy support; that would be a
+different OS.
+
 ## Build configurations
 
-- `make cpnos ENABLE_FDC=0` — NOS-only, targets ~55–56 KB TPA
-- `make cpnos ENABLE_FDC=1` — NOS + 8" DSDD local floppy, targets ~52 KB TPA
+- `make cpnos` — single config, NOS-only over CP/NET, targets ~55-56 KB TPA
 
 Both produce a 4096-byte image split into `prom0.bin` (0x0000–0x07FF) and
 `prom1.bin` (0x2000–0x27FF) for burning.

@@ -345,11 +345,39 @@ byte and clears the two error bits as a side effect (so consecutive
 cfgtbl still says ACTIVE; this matches DRI behaviour and master expects
 the slave to log back in for any further traffic.
 
+## Architecture invariant: CP/NOS is diskless
+
+A CP/NOS slave has NO local drives by design.  Every CFGTBL drive
+slot (offsets +2..+33, 16 entries) is either:
+
+- A network drive (`bit 7 of low byte = 1`, encoded by the `NET_DRV`
+  macro in `cfgtbl.c`), routed by NDOS over the wire to the master, OR
+- Empty (`0x0000`, "no drive at this slot"), in which case BDOS calls
+  for that drive return "no such drive".
+
+CP/NOS is CP/NET-OS — the OS replacement that ships in `cpnos.com`
+runs ALL disk I/O through NDOS → SNIOS → wire → master's BDOS.  Local-
+floppy support would make it a hybrid CP/M+CP/NET system, not CP/NOS,
+and is explicitly out of scope.
+
+The `LOCAL` macro `#define LOCAL 0x0000` in `cfgtbl.c` is a vestige
+from never-completed hybrid-mode scaffolding; it's defined but not
+referenced anywhere and means "no drive at this slot" (same as
+0x0000).  Same story for the `ENABLE_FDC=1` Makefile option — wired
+through `-DENABLE_FDC=` but no C source consumes it.
+
+This matters for the wire protocol because it bounds the legal CFGTBL
+contents the slave will produce: the slave never advertises a drive
+that doesn't have a corresponding `NET_DRV(letter, srv)` mapping to a
+master-side drive.  Any FNC=BDOS-disk-call the slave sends will name a
+drive that exists on the master.
+
 ## Unsupported / out-of-scope
 
 cpnos-rom does NOT implement:
 
 - 7-bit ASCII (hex-encoded) mode — see [§ Encoding modes](#encoding-modes).
+- Local drives — see [§ Architecture invariant](#architecture-invariant-cpnos-is-diskless) above.
 - Multi-slave operation on one master link (we are slave #1, single-link).
 - Master-initiated unsolicited messages (NDOS pull-only model).
 - CP/NET 1.5 extensions (different `FNC` values, not relevant for
