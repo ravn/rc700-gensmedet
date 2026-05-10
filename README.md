@@ -8,6 +8,8 @@ Work in progress!
 
 ---
 
+2026-05-10: CP/NOS now build with both z88dk and clang, and snios is rewritten in C.
+
 2026-04-30: CP/NOS feature-complete for current goals.  Cold-boot
 banner reads `RC702 CP/NOS 52K PIO-IRQ <date> <hash>`; slave boots
 straight to `E>` (= master `I:` 4 MB hard disk on cpmsim mpm-net2),
