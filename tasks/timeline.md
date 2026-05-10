@@ -1,5 +1,62 @@
 # RC700-SYSGEN Project Timeline
 
+## Investigation: closing the pure-C-vs-asm SNIOS gap (May 11, 2026)
+
+User: "goal is still to have clang emit better code aspiring to
+reach handwritten assembly.  Investigate"  /  "and if clang needs
+fixing raise that issue".
+
+### Analysis
+
+Current pure-C clang sizes:
+- `_snios_rcvmsg_c`: 384 B C vs 154 B asm (`-230` B / `-60 %`)
+- `_snios_sndmsg_force`: 265 B C vs 114 B asm (`-150` B / `-57 %`)
+
+Per-slot spill traffic in `_snios_rcvmsg_c` (15 sites, 29 BSS
+events):
+- slot-2: 6 stores + 6 loads (the `uint16_t r` recv result)
+- slot-8: 1 store + 3 loads (likely msg ptr, set once, read in
+  three separate phases)
+
+The hand-rolled asm keeps `D` (running checksum), `E` (byte
+counter), `HL` (msg ptr) alive across recv calls **because it
+knows the recv routine preserves them**.  Clang's default
+sdcccall(1) treats EVERY call as clobbering everything except IX,
+so values must be spilled to BSS before each call and reloaded
+after.
+
+### Source-level workaround attempts
+
+Tried inlining `(uint8_t)recv_byte_t()` cast directly at the
+timeout-fold sites (eliminating the `uint16_t r` named local).
+clang's optimizer already produces identical code — no change.
+
+The bottleneck is genuinely **regalloc behavior across CALL
+boundaries**, not C-source-level patterns.
+
+### Backend fix needed
+
+Filed `ravn/llvm-z80#131` for a clang Z80 calling-convention
+attribute analogous to SDCC's `__preserves_regs(d, e)`.  Estimated
+savings on cpnos-rom SNIOS: 70-110 B clang once implemented,
+closing most of the 312 B asm-vs-C gap.
+
+Other relevant filed issues remain open:
+- #128 (LICM/CSE pessimize at -Oz; workaround in Makefile)
+- #129 (BSS-spill peephole; cross-class single-load implemented
+  Phase 65; cross-BB extension would help more)
+- #130 (memset_pattern lowering; mostly subsumed for
+  constant-pattern case)
+- #131 (preserves_regs attribute; HIGHEST LEVERAGE for the
+  remaining pure-C gap)
+
+### Pure-C ceiling
+
+Without backend changes: ~1964 B clang payload.  Phase 64's asm
+rewrite reached 1652 B, parity with hand-rolled assembly.  The
+gap (312 B) is structurally addressable only via the Z80 backend
+changes filed above; no source-level pure-C work can close it.
+
 ## Phase 68: revert SNIOS to plain C (May 10, 2026) — Easy
 
 User: "i'd rather continue with the new c code instead of the
