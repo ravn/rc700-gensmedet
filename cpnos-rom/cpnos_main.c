@@ -46,7 +46,15 @@ extern void enable_interrupts(void);
 extern NORETURN void enter_coldst(void);
 
 #if defined(PIO_SPEED_TEST) || defined(PIO_LOOPBACK_TEST)
-extern void     transport_pio_send_byte(uint8_t c);
+/* PRESERVES_REGS_CLANG mirrors the definition in transport_pio.c so
+ * direct callers here (PIO_SPEED_TEST loops, PIO_LOOPBACK_TEST exchange)
+ * narrow the call-site RegMask the same way SNIOS does via the
+ * xport_send_byte declaration in snios_c.c.  These paths are init-time
+ * (cold-init); savings are tiny but maintain a single source of truth
+ * for the preserves set.  No annotation on recv per audit in
+ * snios_c.c:96-111 (no shippable win).  See ravn/rc700-gensmedet#97. */
+extern void     transport_pio_send_byte(uint8_t c)
+                    PRESERVES_REGS_CLANG("d", "e", "h", "l", "b", "c");
 extern uint16_t transport_pio_recv_byte(uint16_t timeout_ticks);
 extern uint8_t  pio_test_done;            /* defined in transport_pio.c */
 #endif

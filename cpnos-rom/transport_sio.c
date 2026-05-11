@@ -18,7 +18,17 @@
 #define RESIDENT      SECTION_RESIDENT
 #define RESIDENT_DATA SECTION_RESIDENT_DATA
 
+/* ravn/llvm-z80#131/#133 + ravn/rc700-gensmedet#97 Part C: the
+ * SNIOS-facing xport_send_byte declaration in snios_c.c declares
+ * D preserved.  Under TRANSPORT=sio, --defsym aliases it to this
+ * function.  Clang's body uses D as scratch (`ld d,a`) to stash the
+ * `c` argument across the IN-loop, then restores D from A before
+ * the OUT.  The body-side annotation makes Z80FrameLowering emit
+ * push de in prologue and pop de in epilogue (#133 layer 1),
+ * so callers' D state genuinely survives.  Body cost +2 B; the
+ * caller-side win mirrors the PIO transport's session-58 result. */
 RESIDENT
+PRESERVES_REGS_CLANG("d", "e", "h", "l", "b", "c")
 void transport_send_byte(uint8_t c) {
     while ((_port_in(PORT_SIO_A_CTRL) & SIO_RR0_TX_BUF_EMPTY) == 0) { }
     _port_out(PORT_SIO_A_DATA, c);

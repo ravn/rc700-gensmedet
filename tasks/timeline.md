@@ -1,5 +1,95 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 59: z80_preserves_regs Part C — close latent TRANSPORT=sio correctness gap (May 11, 2026) — Easy
+
+Picked up ravn/rc700-gensmedet#97 Part C: mirror
+`PRESERVES_REGS_CLANG` to `transport.h` + `cpnos_main.c`.  Part A
+already obviated by session 58's #133 layer 1 work; Part B audit
+re-confirmed (recv-side `("b")` annotation costs +4 B with no
+caller-side win — recorded in `snios_c.c:96-111`).
+
+During the audit I caught a **latent correctness gap on
+TRANSPORT=sio**: snios_c.c declares `xport_send_byte` preserves D,
+which under `TRANSPORT=sio` `--defsym`-aliases to
+`_transport_send_byte`.  Clang's SIO body uses `ld d,a` to stash
+the `c` argument across the IN-loop just like the PIO body — but
+`transport_sio.c` had no matching `PRESERVES_REGS_CLANG` on its
+definition, so #133 layer 1 didn't fire, no push/pop wrapped the
+body, and SNIOS callers were silently relying on the body's
+coincidental `ld a,d ; out (..),a` to restore D=c (true only
+because the value clobbered IS the argument).  The 4-cell test
+passed by coincidence-of-protocol.
+
+### Changes
+
+- `transport.h` — `transport_send_byte` declaration gets
+  `PRESERVES_REGS_CLANG("d","e","h","l","b","c")`; recv stays
+  unannotated per snios_c.c audit.  `#include "compiler/compat.h"`
+  added for the macro.
+- `transport_sio.c` — `transport_send_byte` definition gets the
+  matching `PRESERVES_REGS_CLANG(...)` so #133 layer 1 fires.
+  `Z80FrameLowering` emits `push de` in prologue + `pop de` in
+  epilogue.  Body cost +2 B; correctness now honest end-to-end.
+- `cpnos_main.c` — externs for `transport_pio_send_byte` /
+  `transport_pio_recv_byte` (gated by `PIO_SPEED_TEST` /
+  `PIO_LOOPBACK_TEST`) get the matching annotation on send; recv
+  unannotated.  Init-time path; zero observed delta on production
+  build.
+
+### Verification — 4 cells + runtime
+
+| Cell | Resident pre | Resident post | Delta |
+|---|---|---|---|
+| clang+pio-irq | 1906 B | **1906 B** | 0 |
+| clang+sio     | 1818 B | **1820 B** | **+2 B** (push de / pop de) |
+| sdcc+pio-irq  | 1875 B | 1875 B | 0 (SDCC ignores macro) |
+| sdcc+sio      | 1875 B | 1875 B | 0 |
+
+- `make cpnos-polypascal-test COMPILER=clang TRANSPORT=pio-irq`
+  → **PASS** (all 5 stages, 29989 seen, Q→E>, 47 s wall).
+- `make sio-smoke COMPILER=clang TRANSPORT=sio` exercises the
+  SIO send path through netboot + login + `dir`; slave reaches
+  `E>` with `2026-05-11 13:56 9ff8a61+` banner.  Final marker
+  check `CPNET OK A314` FAILED — pre-existing harness bug
+  (`smoke_inject` waits for `A>` but default drive is now `E:`,
+  flagged as caveat in this file at line 3927).  Byte-transport
+  itself is exercised hundreds of times before the failed grep,
+  proving the +2 B push/pop fix is runtime-clean.
+
+### Inline asm verification
+
+Disassembly of the new SIO send body (TRANSPORT=sio + clang):
+
+```
+0000f0d2 <_xport_send_byte>:
+    f0d2: d5           push de       ; <- new
+    f0d3: 57           ld   d,a
+    f0d4: db 0a        in   a,($a)
+    f0d6: e6 04        and  $4
+    f0d8: 28 fa        jr   z,$f0d4
+    f0da: 7a           ld   a,d
+    f0db: d3 08        out  ($8),a
+    f0dd: d1           pop  de       ; <- new
+    f0de: c9           ret
+```
+
+11 B → 13 B.  D is now genuinely preserved by callee push/pop, not
+by argument-equals-clobber coincidence.
+
+### Issues touched
+
+- ravn/rc700-gensmedet#97 — Part A obviated by session 58;
+  Part B audit closed (no shippable set on recv-side without
+  body refactor); Part C **done**.  Recommend closing #97.
+
+### Why "Easy"
+
+Single design decision (mirror declaration + audit SIO definition);
+edits surgical; verification mechanical (4 builds + 1 polypascal +
+1 smoke); the latent SIO correctness gap was a bonus catch on top
+of the originally-scoped consistency work.
+
+
 ## Session 58: z80_preserves_regs end-to-end (clang frontend + backend + cpnos), -36 B resident (May 11, 2026) — Medium
 
 Closed the pure-C-vs-asm SNIOS spill-traffic gap diagnosed in the

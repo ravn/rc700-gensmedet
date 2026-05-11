@@ -23,12 +23,28 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "compiler/compat.h"
 
 /* recv_byte timeout sentinel.  Protocol layers treat -1/0xFFFF as timeout. */
 #define TRANSPORT_TIMEOUT 0xFFFF
 
-/* SIO byte-level (used by SNIOS for the wire envelope). */
-void transport_send_byte(uint8_t c);
+/* SIO byte-level (used by SNIOS for the wire envelope).
+ *
+ * PRESERVES_REGS_CLANG matches the xport_send_byte declaration in
+ * snios_c.c (which becomes _transport_send_byte under
+ * TRANSPORT=sio via --defsym alias).  The matching definition-side
+ * annotation in transport_sio.c triggers ravn/llvm-z80#133 layer 1
+ * (Z80FrameLowering push de / pop de around the body's `ld d,a`
+ * scratch use).  Without the definition annotation, SIO callers
+ * silently rely on the body's coincidental restore of D=c (because
+ * `c` is what gets stashed in D anyway) — fragile and not a real
+ * preservation guarantee.  See ravn/rc700-gensmedet#97 Part C. */
+void transport_send_byte(uint8_t c) PRESERVES_REGS_CLANG("d", "e", "h", "l", "b", "c");
+/* No preserves attribute on recv: clang's body uses A, HL, DE for
+ * return value; B and C are honest-preserved but SNIOS callers don't
+ * hold meaningful state in BC across recv calls (state-machine routes
+ * pointer/counter work through other regs), so declaring would be
+ * zero net win.  Cross-references the audit in snios_c.c:96-111. */
 uint16_t transport_recv_byte(uint16_t timeout_ticks);
 
 /* The transport is fixed at build time: SNIOS envelope on top of
