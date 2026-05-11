@@ -104,7 +104,14 @@ static void pio_b_set_output(void) {
     pio_b_dir = PIO_DIR_OUTPUT;
 }
 
+/* ravn/llvm-z80#131/#133: this function only writes A — every other
+ * register is preserved.  Declaring the broad set lets the lone
+ * caller (transport_pio_recv_byte) keep its timeout_ticks (initially
+ * in HL) alive across the call without spilling.  Body cost is zero
+ * because PEI's isPhysRegModified returns false for the declared
+ * regs (none of them is defined by the body). */
 RESIDENT
+PRESERVES_REGS_CLANG("b", "c", "d", "e", "h", "l")
 static void pio_b_set_input(void) {
     if (pio_b_dir == PIO_DIR_INPUT) return;
     /* Mode 1 select latches direction; ICW 0x97 + mask 0x00
