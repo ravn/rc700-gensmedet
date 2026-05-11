@@ -136,7 +136,17 @@ static void pio_b_set_input(void) {
  * chip latches it without emitting), then the mode switch fires the
  * callback with the byte we actually want to send.  No stale prefix.
  * (See ravn/mame#7 for the underlying chip-emulation behaviour.) */
+/* ravn/llvm-z80#131/#133: the function preserves D, E, H, L, B, C
+ * from its callers' perspective.  The clang attribute on the *definition*
+ * makes Z80FrameLowering emit prologue push / epilogue pop for any of
+ * these registers the body actually modifies (clang chose D as scratch
+ * to stash the incoming `c` argument, so D in particular needs the
+ * save).  Together with the matching declaration in snios_c.c (read by
+ * Z80CallLowering for caller-side RegMask narrowing), this lets SNIOS
+ * state-machine callers keep values alive in those registers across
+ * the call. */
 RESIDENT
+PRESERVES_REGS_CLANG("d", "e", "h", "l", "b", "c")
 void transport_pio_send_byte(uint8_t c) {
     if (pio_b_dir == PIO_DIR_OUTPUT) {
         _port_out(PORT_PIO_B_DATA, c);

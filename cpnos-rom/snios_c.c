@@ -66,16 +66,28 @@
  * ignores the attribute (compat.h `#define __preserves_regs(...)`). */
 extern void xport_send_byte(uint8_t b)
     __preserves_regs(d, e)                  /* SDCC's syntax */
-    /* clang's syntax (ravn/llvm-z80#131): audited transport_pio_send_byte's
-     * clang asm body (f0ff..f11b): the only registers it clobbers are A
-     * and D.  Note this diverges from the SDCC body (which uses C as
-     * scratch and so preserves D), and from the SDCC __preserves_regs
-     * declaration above which claims D preserved.  Declaring D preserved
-     * for clang produced a runtime miscompile (polypascal hung at boot)
-     * because clang's callers DO keep values in D across the call.  We
-     * keep the SDCC declaration as-is (it's honest about the SDCC body)
-     * and use the narrower set for clang. */
-    PRESERVES_REGS_CLANG("e", "h", "l", "b", "c");
+    /* clang's syntax (ravn/llvm-z80#131 + #133): D is declared preserved
+     * even though clang's body of transport_pio_send_byte chose D as
+     * scratch — because that definition now also carries the attribute
+     * (#133 callee-side honoring), Z80FrameLowering emits prologue
+     * push / epilogue pop for D, making the assertion genuine end-to-end.
+     * Without #133, declaring D here produced a runtime miscompile
+     * (polypascal hung at boot, value-oracle CAUGHT) because the body
+     * silently clobbered D. */
+    /* clang's syntax (ravn/llvm-z80#131 + #133): now that
+     * transport_pio_send_byte's definition also carries the attribute,
+     * Z80FrameLowering emits prologue push de / epilogue pop de
+     * (D is the only body-modified register in the declared set), so
+     * declaring D preserved is now genuine end-to-end.  Empirical
+     * cpnos-polypascal-test bisect of the full {d,e,h,l,b,c} set:
+     *
+     *   d,e,b,c     -> PASS, -36 B
+     *   d,e,h,l     -> PASS,  -2 B
+     *   d,e,h,l,b,c -> FAIL at PPAS launch (HL+BC+DE all-pairs interaction)
+     *
+     * Conservatively staying at d,e,b,c.  The HL-pair regression is
+     * tracked as a follow-up issue. */
+    PRESERVES_REGS_CLANG("d", "e", "b", "c");
 extern uint16_t xport_recv_byte(uint16_t timeout_ticks);
 
 /* ============================================================
