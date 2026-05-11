@@ -89,6 +89,22 @@ extern void xport_send_byte(uint8_t b)
      * tracked as a follow-up issue. */
     PRESERVES_REGS_CLANG("d", "e", "b", "c");
 extern uint16_t xport_recv_byte(uint16_t timeout_ticks);
+/* ravn/llvm-z80#131/#133 NOTE: audit of transport_pio_recv_byte's clang
+ * asm body (f11f..f148, 42 B) shows it clobbers A, C (in the normal-
+ * return path via `ld c,a`), DE (return value), HL (scratch).  Only B
+ * and IX/IY are safely preserved.  Empirical test of
+ * PRESERVES_REGS_CLANG("b"):
+ *   - With #133 callee-side, the body picks up a push bc / pop bc pair
+ *     (+4 B in body, because PEI's isPhysRegModified(BC) is true due
+ *     to `ld c,a` defining C).
+ *   - Caller-side win is 0 B — the SNIOS state machines don't route
+ *     anything through B across recv calls; the pointer / counter
+ *     work uses other registers.
+ *   - Net: +4 B regression.  Not shipped.
+ * The path to real savings here is a *body* refactor (similar to the
+ * send-side: use a different scratch instead of C, or restructure
+ * the loop so C's def doesn't span the whole function).  Tracked
+ * upstream as ravn/rc700-gensmedet#97 Part B. */
 
 /* ============================================================
  * SNIOS JT entry points.  Reached from NDOS via the JT slots in
