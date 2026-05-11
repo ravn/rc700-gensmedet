@@ -68,26 +68,30 @@ extern void xport_send_byte(uint8_t b)
     __preserves_regs(d, e)                  /* SDCC's syntax */
     /* clang's syntax (ravn/llvm-z80#131 + #133): D is declared preserved
      * even though clang's body of transport_pio_send_byte chose D as
-     * scratch — because that definition now also carries the attribute
-     * (#133 callee-side honoring), Z80FrameLowering emits prologue
-     * push / epilogue pop for D, making the assertion genuine end-to-end.
+     * scratch — the matching definition annotation in transport_pio.c
+     * triggers #133 callee-side honoring, so Z80FrameLowering emits
+     * `push de` in prologue and `pop de` in every epilogue.  The body
+     * thus genuinely preserves D end-to-end.
+     *
      * Without #133, declaring D here produced a runtime miscompile
      * (polypascal hung at boot, value-oracle CAUGHT) because the body
-     * silently clobbered D. */
-    /* clang's syntax (ravn/llvm-z80#131 + #133): now that
-     * transport_pio_send_byte's definition also carries the attribute,
-     * Z80FrameLowering emits prologue push de / epilogue pop de
-     * (D is the only body-modified register in the declared set), so
-     * declaring D preserved is now genuine end-to-end.  Empirical
-     * cpnos-polypascal-test bisect of the full {d,e,h,l,b,c} set:
+     * silently clobbered D.
      *
-     *   d,e,b,c     -> PASS, -36 B
-     *   d,e,h,l     -> PASS,  -2 B
-     *   d,e,h,l,b,c -> FAIL at PPAS launch (HL+BC+DE all-pairs interaction)
+     * Empirical resident-payload sizes (cpnos.bin, clang+pio-irq):
      *
-     * Conservatively staying at d,e,b,c.  The HL-pair regression is
-     * tracked as a follow-up issue. */
-    PRESERVES_REGS_CLANG("d", "e", "b", "c");
+     *   no attribute       -> 1964 B  (baseline)
+     *   e,h,l,b,c          -> 1960 B  (-4 B; pre-#133, D clobbered)
+     *   d,e,b,c            -> 1928 B  (-36 B; matched #131 estimate)
+     *   d,e,h,l,b,c        -> 1928 B  (-36 B; byte-identical to d,e,b,c)
+     *
+     * The full d,e,h,l,b,c set produces a byte-identical binary to
+     * d,e,b,c (clang's regalloc doesn't have anything live in HL across
+     * xport_send_byte calls today, so the extra HL preservation is
+     * inert).  An earlier bisect flagged d,e,h,l,b,c as a polypascal-
+     * test failure — turned out to be a test-harness flake (binaries
+     * verified identical with cmp).  Declaring the broader, honest set
+     * future-proofs against the day clang's regalloc finds an HL win. */
+    PRESERVES_REGS_CLANG("d", "e", "h", "l", "b", "c");
 extern uint16_t xport_recv_byte(uint16_t timeout_ticks);
 /* ravn/llvm-z80#131/#133 NOTE: audit of transport_pio_recv_byte's clang
  * asm body (f11f..f148, 42 B) shows it clobbers A, C (in the normal-
