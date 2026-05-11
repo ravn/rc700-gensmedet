@@ -73,12 +73,21 @@
 #define __interrupt(n) __attribute__((interrupt))
 #define __sdcccall(x)
 #define __preserves_regs(...)
+/* ravn/llvm-z80#131: a clang attribute exists that lets the caller's
+ * regalloc keep values alive in the listed regs across the call.
+ * Argument syntax differs from SDCC: clang takes STRING literals
+ * (`"d","e"`), SDCC takes BARE identifiers (`d, e`).  Use the
+ * PRESERVES_REGS_CLANG(...) helper alongside __preserves_regs(...)
+ * at every declaration so both compilers see what they understand. */
+#define PRESERVES_REGS_CLANG(...) __attribute__((z80_preserves_regs(__VA_ARGS__)))
 
 #elif defined(__SDCC) || defined(__SCCZ80)
 /* SDCC: __naked, __critical, __interrupt etc. are real keywords —
  * leave them as-is.  Define __sdcccall(0/1) only if the SDCC version
  * is too old to know it (unlikely on z88dk-zsdcc 4.x).  We rely on
  * the toolchain's --sdcccall=1 flag rather than per-function decls. */
+/* PRESERVES_REGS_CLANG is a no-op for SDCC — it uses __preserves_regs. */
+#define PRESERVES_REGS_CLANG(...)
 
 #elif defined(__HITECH__) || defined(HI_TECH_C)
 /* HiTech C: TODO — verify naked/interrupt syntax on real zc.
@@ -93,6 +102,7 @@
 #define __interrupt(n)
 #define __sdcccall(x)
 #define __preserves_regs(...)
+#define PRESERVES_REGS_CLANG(...)
 #endif
 
 /* ================================================================

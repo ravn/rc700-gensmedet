@@ -64,7 +64,18 @@
  * already-output or PIO state-change).  Lets SDCC skip push/pop DE
  * around xport_send_byte calls in the state-machine loops.  Clang
  * ignores the attribute (compat.h `#define __preserves_regs(...)`). */
-extern void xport_send_byte(uint8_t b) __preserves_regs(d, e);
+extern void xport_send_byte(uint8_t b)
+    __preserves_regs(d, e)                  /* SDCC's syntax */
+    /* clang's syntax (ravn/llvm-z80#131): audited transport_pio_send_byte's
+     * clang asm body (f0ff..f11b): the only registers it clobbers are A
+     * and D.  Note this diverges from the SDCC body (which uses C as
+     * scratch and so preserves D), and from the SDCC __preserves_regs
+     * declaration above which claims D preserved.  Declaring D preserved
+     * for clang produced a runtime miscompile (polypascal hung at boot)
+     * because clang's callers DO keep values in D across the call.  We
+     * keep the SDCC declaration as-is (it's honest about the SDCC body)
+     * and use the narrower set for clang. */
+    PRESERVES_REGS_CLANG("e", "h", "l", "b", "c");
 extern uint16_t xport_recv_byte(uint16_t timeout_ticks);
 
 /* ============================================================
