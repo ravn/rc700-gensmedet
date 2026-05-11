@@ -59,12 +59,11 @@ else
     echo "warning: zmac not found at $ZMAC; FILECOPY.COM not staged" >&2
 fi
 
-# Also stage a minimal tiny.asm for M80 diagnostic — smallest possible
-# valid M80 source.  If M80 fails even on this, the bug isn't in our
-# generated sumtest.asm at all.
+# TINY.ASM diagnostic staging removed (was: smallest-possible M80
+# source used by the old smoke workload's `type tiny.asm` + `m80 tiny`
+# steps).  Current minimal workload goes straight to m80 sumtest, so
+# the artifact is dead code.  See ravn/rc700-gensmedet#43.
 cpmrm -f ibm-3740 "$OUT_DISK" 0:TINY.ASM 2>/dev/null || true
-printf '\tORG\t100H\r\n\tRET\r\n\tEND\r\n' > /tmp/_tiny.asm
-cpmcp -f ibm-3740 "$OUT_DISK" /tmp/_tiny.asm 0:TINY.ASM
 
 # mpm-net2-1.dsk ships RMAC/M80/LINK/LOAD but no L80.  Our smoke script
 # uses Microsoft's M80+L80 pair, so pull L80.COM off cpm22-1.dsk.
