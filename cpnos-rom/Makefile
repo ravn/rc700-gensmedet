@@ -896,6 +896,35 @@ _check-mame-irq:
 # smoke_inject "bench=X.XXXs" timing, and (for filecopy) extracts
 # SUMTEST.ASM + SUMTEST.CPY from the master's drivea.dsk and byte-
 # compares them.  WORKLOAD must already be set by the caller.
+# Comprehensive shutdown of any lingering mpm-net2 + cpmsim + screen
+# session from a previous run.  Entry-side safety net (subsequent test
+# runs always find :4002 clean even if a prior run aborted without
+# exit-side cleanup) and exit-side reaper (so daemons don't accumulate
+# across sessions).
+#
+# Tries `screen -X quit` first (preferred — the screen session sends
+# SIGHUP to its child mpm-net2 chain).  Then pkills any orphan
+# `login -pflq ravn ./mpm-net2` (reparented to PID 1 when screen
+# master died) and any standalone `cpmsim`.  Verifies :4002 is
+# actually free at the end so callers get a hard error if cleanup
+# didn't take.
+#
+# Use as `$(MAKE) _kill-mpm` (errors if cleanup fails) at the entry of
+# any test target spawning the mpm-net2 daemon; use as
+# `-$(MAKE) _kill-mpm` (best-effort) right after MAME exits to reap
+# on the happy path.  See ravn/rc700-gensmedet#99.
+.PHONY: _kill-mpm
+_kill-mpm:
+	-@screen -S mpm -X quit >/dev/null 2>&1 || true
+	-@pkill -f 'login -pflq ravn ./mpm-net2' >/dev/null 2>&1 || true
+	-@pkill -f cpmsim >/dev/null 2>&1 || true
+	@sleep 0.5
+	@if lsof -nP -iTCP:4002 -sTCP:LISTEN 2>/dev/null | grep -q .; then \
+	    echo "ERROR: port 4002 still bound after _kill-mpm:"; \
+	    lsof -nP -iTCP:4002 -sTCP:LISTEN; \
+	    exit 1; \
+	fi
+
 .PHONY: _verify-bench
 _verify-bench:
 	@echo "=== verify ($(WORKLOAD)): marker '$(WORKLOAD_MARKER)' ==="
@@ -964,16 +993,7 @@ sio-smoke:
 	python3 testutil/mksmokeasm.py
 	testutil/mksmokedisk.sh
 	@echo "=== 2/5 restarting MP/M with fresh drive D: ==="
-	-screen -S mpm -X quit >/dev/null 2>&1 || true
-	@sleep 1
-	@# Guard: make sure nothing else is squatting on :4002 (orphan
-	@# cpmsim from a previous run, etc.) — any phantom listener will
-	@# intercept MAME's netboot and produce misleading results.
-	@if lsof -nP -iTCP:4002 -sTCP:LISTEN 2>/dev/null | grep -q .; then \
-	    echo "ERROR: port 4002 already bound — kill the squatter first:"; \
-	    lsof -nP -iTCP:4002 -sTCP:LISTEN; \
-	    exit 1; \
-	fi
+	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
 	@echo "=== 3/5 waiting for MP/M CP/NET server on :4002 ==="
 	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.5; done
@@ -993,6 +1013,7 @@ sio-smoke:
 	    -rs232b null_modem -bitb2 socket.127.0.0.1:$(SMOKE_PORT) \
 	    -autoboot_script mame_porttap.lua
 	@kill $$(cat /tmp/cpnos_smoke_inject.pid) 2>/dev/null || true
+	-$(MAKE) _kill-mpm  # exit-side reap; best-effort so verify-bench still runs on cleanup error
 	@$(MAKE) _verify-bench WORKLOAD=$(WORKLOAD)
 
 # ---- pio-irq-netboot: PIO-IRQ-direct topology against mpm-net2 -----
@@ -1013,13 +1034,7 @@ sio-smoke:
 MAME_IRQ ?= $(CURDIR)/../../mame
 pio-irq-netboot: cpnos-install _check-tag-pio-irq _check-mame-irq
 	@echo "=== 1/4 restarting MP/M with fresh disks ==="
-	-screen -S mpm -X quit >/dev/null 2>&1 || true
-	@sleep 1
-	@if lsof -nP -iTCP:4002 -sTCP:LISTEN 2>/dev/null | grep -q .; then \
-	    echo "ERROR: port 4002 already bound — kill the squatter first:"; \
-	    lsof -nP -iTCP:4002 -sTCP:LISTEN; \
-	    exit 1; \
-	fi
+	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
 	@echo "=== 2/4 waiting for MP/M CP/NET server on :4002 ==="
 	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
@@ -1037,6 +1052,7 @@ pio-irq-netboot: cpnos-install _check-tag-pio-irq _check-mame-irq
 	    -piob cpnet_bridge \
 	    -bitb3 socket.127.0.0.1:4002 \
 	    -autoboot_script mame_porttap.lua
+	-$(MAKE) _kill-mpm  # exit-side reap; best-effort
 	@echo "--- boot-marker strip ---"
 	@cat /tmp/cpnos_boot_marks.txt 2>/dev/null && echo
 	@echo "--- SIO-B (printable) ---"
@@ -1065,12 +1081,7 @@ pio-irq-smoke: cpnos-install _check-tag-pio-irq _check-mame-irq
 	python3 testutil/mksmokeasm.py
 	testutil/mksmokedisk.sh
 	@echo "=== 2/5 restarting MP/M with fresh disks ==="
-	-screen -S mpm -X quit >/dev/null 2>&1 || true
-	@sleep 1
-	@if lsof -nP -iTCP:4002 -sTCP:LISTEN 2>/dev/null | grep -q .; then \
-	    echo "ERROR: port 4002 already bound"; \
-	    lsof -nP -iTCP:4002 -sTCP:LISTEN; exit 1; \
-	fi
+	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
 	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
 	@sleep 2
@@ -1095,6 +1106,7 @@ pio-irq-smoke: cpnos-install _check-tag-pio-irq _check-mame-irq
 	    -bitb3 socket.127.0.0.1:4002 \
 	    -autoboot_script mame_porttap.lua
 	@kill $$(cat /tmp/cpnos_smoke_inject.pid) 2>/dev/null || true
+	-$(MAKE) _kill-mpm  # exit-side reap; best-effort
 	@$(MAKE) _verify-bench WORKLOAD=$(WORKLOAD)
 
 # PolyPascal regression: drive cpnos through "PPAS PRIMES" / "R" / "Q"
@@ -1120,13 +1132,7 @@ cpnos-polypascal-test:
 	@echo "=== 1/4 building cpnos-rom with MIRROR_SIOB=1 + installing ==="
 	$(MAKE) MIRROR_SIOB=1 cpnos-install
 	@echo "=== 2/4 (re)starting MP/M with fresh disks ==="
-	-screen -S mpm -X quit >/dev/null 2>&1 || true
-	@sleep 1
-	@if lsof -nP -iTCP:4002 -sTCP:LISTEN 2>/dev/null | grep -q .; then \
-	    echo "ERROR: port 4002 already bound -- kill the squatter first:"; \
-	    lsof -nP -iTCP:4002 -sTCP:LISTEN; \
-	    exit 1; \
-	fi
+	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
 	@echo "=== 3/4 waiting for MP/M CP/NET server on :4002 ==="
 	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
@@ -1179,6 +1185,7 @@ else
 	    -bitb3 socket.127.0.0.1:4002 \
 	    -autoboot_script mame_polypascal_test.lua
 endif
+	-$(MAKE) _kill-mpm  # exit-side reap; best-effort
 	@echo "--- polypascal-test log tail ---"
 	@tail -30 /tmp/cpnos_polypascal_log.txt 2>/dev/null
 	@echo "--- result ---"
@@ -1205,13 +1212,7 @@ cpnos-bios-jt-trace:
 	@echo "=== 1/4 building cpnos-rom + installing ==="
 	$(MAKE) MIRROR_SIOB=1 cpnos-install
 	@echo "=== 2/4 (re)starting MP/M with fresh disks ==="
-	-screen -S mpm -X quit >/dev/null 2>&1 || true
-	@sleep 1
-	@if lsof -nP -iTCP:4002 -sTCP:LISTEN 2>/dev/null | grep -q .; then \
-	    echo "ERROR: port 4002 already bound -- kill the squatter first:"; \
-	    lsof -nP -iTCP:4002 -sTCP:LISTEN; \
-	    exit 1; \
-	fi
+	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
 	@echo "=== 3/4 waiting for MP/M CP/NET server on :4002 ==="
 	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
@@ -1230,6 +1231,7 @@ cpnos-bios-jt-trace:
 	    -piob cpnet_bridge \
 	    -bitb3 socket.127.0.0.1:4002 \
 	    -autoboot_script mame_bios_jt_trace.lua
+	-$(MAKE) _kill-mpm  # exit-side reap; best-effort
 	@if [ ! -s /tmp/cpnos_bios_jt_trace.log ]; then \
 	    echo "FAIL: trace log empty or missing -- did the autoboot_script run?"; \
 	    exit 1; \

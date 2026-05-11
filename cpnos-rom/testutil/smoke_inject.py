@@ -21,23 +21,46 @@ import sys
 import time
 
 WORKLOADS = {
-    # Each workload is (steps, finish_marker).
+    # Each workload is (commands, finish_marker).  All steps wait for the
+    # same CCP prompt — any drive letter followed by `>` at the buffer
+    # tail (matched by _is_ccp_prompt below).  Used to be hardcoded `A>`,
+    # but the cpnos-rom default drive moved to E: in Phase 27 (timeline.md
+    # line 3927).  See ravn/rc700-gensmedet#98.
     # 'sumtest': m80 + l80 assembles+links+runs sumtest.asm; output is
     #   "CPNET OK A314" (deterministic 16-bit sum of 1..1000 mod 65536).
     # 'filecopy': pre-assembled FILECOPY.COM reads SUMTEST.ASM and
     #   writes SUMTEST.CPY via BDOS F_READ/F_WRITE.  Pure I/O — no
     #   m80/l80 in the timed window.  Marker "FILECOPY OK".
+    #
+    # First step on every workload is `A:` to switch from the slave's
+    # default drive (E:, the local netboot drive carrying cpnos.com +
+    # PolyPascal stuff) to the MP/M-served network drive A: where
+    # M80.COM / L80.COM / sumtest.asm actually live.  Pre-Phase-27 the
+    # default drive was A: so this step was implicit; after PROM 1
+    # rework the default moved to E: and the smoke tools weren't
+    # there to find.  See init.c:147 cfgtbl_init_template +
+    # mksmokedisk.sh's drivea-only assumption.  ravn/rc700-gensmedet#98.
     'sumtest': (
-        [(b'A>', b'm80 sumtest,=sumtest.asm\r'),
-         (b'A>', b'l80 sumtest,sumtest/n/e\r'),
-         (b'A>', b'sumtest\r')],
+        [b'A:\r',
+         b'm80 sumtest,=sumtest.asm\r',
+         b'l80 sumtest,sumtest/n/e\r',
+         b'sumtest\r'],
         b'CPNET OK ',
     ),
     'filecopy': (
-        [(b'A>', b'filecopy\r')],
+        [b'A:\r',
+         b'filecopy\r'],
         b'FILECOPY OK ',
     ),
 }
+
+
+def _is_ccp_prompt(buf):
+    """Buffer tail looks like a CCP prompt: ASCII drive letter + '>'."""
+    if len(buf) < 2 or buf[-1:] != b'>':
+        return False
+    c = buf[-2]
+    return 0x41 <= c <= 0x50  # 'A'..'P' (CP/M supports up to 16 drives)
 
 
 def main():
@@ -81,12 +104,12 @@ def main():
         nonlocal step_idx, cooldown_until
         if step_idx >= len(STEPS): return False
         if time.monotonic() < cooldown_until: return False
-        prompt, cmd = STEPS[step_idx]
-        if buf[-len(prompt):] != prompt: return False
+        if not _is_ccp_prompt(buf): return False
+        cmd = STEPS[step_idx]
         if bench_start[0] is None:
             bench_start[0] = time.monotonic()
             print(f'[bench_start] t={bench_start[0]:.3f}s', flush=True)
-        print(f'[step {step_idx}] prompt {prompt!r} matched; '
+        print(f'[step {step_idx}] CCP prompt {bytes(buf[-2:])!r} matched; '
               f'sending {cmd!r} (t+{time.monotonic()-bench_start[0]:.3f}s)',
               flush=True)
         for b in cmd:

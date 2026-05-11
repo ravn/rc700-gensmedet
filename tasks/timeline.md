@@ -1,5 +1,109 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 59b: smoke harness rehab (#98 + #99) — sio-smoke green end-to-end (May 11, 2026) — Easy
+
+Followup to session 59.  Fixed the two pre-existing smoke-harness
+issues caught during session 59's runtime verification, and got
+`sio-smoke` to runtime-PASS for the first time since the slave's
+default drive moved from A: to E: in Phase 27 (2026-04-28).
+
+### #98: drive-letter-agnostic CCP prompt match
+
+`testutil/smoke_inject.py` was hardcoded to wait for `A>` as the
+CCP prompt before sending the next workload step.  With the
+post-Phase-27 default drive now `E:`, every workload's first step
+never fired (`steps sent: 0/3`).
+
+- Restructured `WORKLOADS` from `[(prompt, cmd), ...]` to
+  `[cmd, ...]` — prompts are all the same (CCP), no per-step
+  variation needed.
+- New `_is_ccp_prompt(buf)` helper matches any `[A-P]>` at the
+  buffer tail (CP/M supports up to 16 drives).
+- Caller `maybe_fire_step()` uses the helper instead of literal
+  byte-tail comparison.
+
+### #98 follow-on: workload drive switch
+
+`A>`-fix alone wasn't enough — the slave defaulted to `E:` (local
+netboot drive, carrying cpnos.com + PolyPascal payload), but
+`M80.COM` / `L80.COM` / `sumtest.asm` live on slave `A:` (mapped
+to MP/M's `drivea.dsk` per `init.c:147` cfgtbl_init_template).
+Sending `m80 ...` on E: produced `M80?` (CP/M unknown-command).
+
+Prepended an `A:\r` step as the first command in every workload
+(`sumtest`, `filecopy`).  4-step workload now: A: -> m80 -> l80 ->
+sumtest.
+
+### #99: daemon cleanup discipline
+
+Five test targets (`cpnet-smoke`, `pio-irq-netboot`,
+`pio-irq-smoke`, `cpnos-polypascal-test`,
+`cpnos-bios-jt-trace`) each had a 7-line entry preamble of
+`screen -X quit / sleep / lsof check / error-if-busy`.  That
+preamble only killed the screen master — orphan
+`login -pflq ravn ./mpm-net2` children got reparented to PID 1
+and outlived screen.  Subsequent runs erroed on :4002 still bound
+and the user had to manually pkill (session 59 friction).
+
+- New `.PHONY: _kill-mpm` Make target factors the cleanup into one
+  recipe: screen -X quit + pkill the login chain + pkill cpmsim +
+  verify :4002 free at the end.
+- Replaced the five 7-line preambles with `$(MAKE) _kill-mpm`.
+- Added `-$(MAKE) _kill-mpm` after every MAME run (best-effort
+  exit-side reap so successful runs don't leak daemons either).
+- `make _kill-mpm` is idempotent on a clean state (no-op).
+
+### Verification — sio-smoke end-to-end PASS
+
+First successful `sio-smoke` since Phase 27.  Run from a clean
+state with both fixes active:
+
+```
+[step 0] CCP prompt b'E>' matched; sending b'A:\r' (t+0.000s)
+[step 1] CCP prompt b'A>' matched; sending b'm80 sumtest,=sumtest.asm\r' (t+0.579s)
+[step 2] CCP prompt b'A>' matched; sending b'l80 sumtest,sumtest/n/e\r' (t+30.578s)
+[step 3] CCP prompt b'A>' matched; sending b'sumtest\r' (t+35.500s)
+[marker] CPNET OK found (bench=36.354s)
+peer closed
+done (steps sent: 4/4, marker seen: True)
+...
+A>sumtest
+CPNET OK A314
+
+PASS: marker 'CPNET OK A314' present
+BENCH (-nothrottle, m80+l80+sumtest): bench=36.354s
+```
+
+- M80 assembled sumtest.rel
+- L80 linked sumtest.com
+- `sumtest` ran to completion and emitted the deterministic
+  `CPNET OK A314` marker (16-bit sum of 1..1000 = 0xA314)
+- bench=36.354s
+- Exit-side `_kill-mpm` ran; no daemon leak
+- Total wall: 46 s (vs 4-minute timeout pre-fix)
+
+This run also **closes the runtime loop** on session 59's SIO
+push-de/pop-de correctness fix: M80 + L80 + sumtest each call
+through `_xport_send_byte` -> `_transport_send_byte` thousands of
+times, each push/pop'ing D correctly to preserve SNIOS state
+across the call.  Prior to session 59 this would have worked by
+coincidence-of-protocol; now it's honest.
+
+### Pre-existing files touched
+
+- `cpnos-rom/Makefile` — `_kill-mpm` recipe; five entry-side
+  cleanup replacements; five exit-side reaper additions.
+- `cpnos-rom/testutil/smoke_inject.py` — `WORKLOADS` simplified,
+  `_is_ccp_prompt()` helper, drive-switch `A:` prepended.
+
+### Why "Easy"
+
+Two filed issues; mechanical fixes; runtime test exposed a third
+sub-issue (drive switch) the audit didn't anticipate; one more
+edit closed it.  Total ~30 minutes including the two `sio-smoke`
+runs.  Both issues closeable.
+
+
 ## Session 59: z80_preserves_regs Part C — close latent TRANSPORT=sio correctness gap (May 11, 2026) — Easy
 
 Picked up ravn/rc700-gensmedet#97 Part C: mirror
