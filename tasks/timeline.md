@@ -1,6 +1,124 @@
 # RC700-SYSGEN Project Timeline
 
-## Investigation: closing the pure-C-vs-asm SNIOS gap (May 11, 2026)
+## Session 58: z80_preserves_regs end-to-end (clang frontend + backend + cpnos), -36 B resident (May 11, 2026) — Medium
+
+Closed the pure-C-vs-asm SNIOS spill-traffic gap diagnosed in the
+prior session's investigation by building out the
+`z80_preserves_regs` attribute end-to-end.  Resident payload
+1964 B -> **1928 B** (-36 B / -1.8 %, matches the lower end of the
+ravn/llvm-z80#131 original 30-50 B estimate).
+
+### Phases
+
+- **#131 caller-side backend** (llvm-z80 `2940fec8`): `Z80CallLowering`
+  reads the callee's `"z80-preserves-regs"` LLVM IR function attribute
+  via `Info.CB->getCalledFunction()->getFnAttribute(...)`, narrows the
+  call-site RegMask by setting bits for the declared regs + sub-regs,
+  and strips the matching `implicit-def` operands from the `CALL_nn`
+  MI (since CALL_nn's TableGen `Defs = [A, BC, DE, HL, IY, FLAGS]`
+  otherwise override the RegMask per LLVM semantics).  Lit fixture
+  `preserves-regs.ll`.
+
+- **#131 clang frontend** (llvm-z80 `70eed199`): new
+  `Z80PreservesRegs` attribute in `Attr.td` with
+  `VariadicStringArgument`, function-only subject, validated against
+  the register-name set in `SemaDeclAttr.cpp`, lowered in
+  `CGCall.cpp::ConstructAttributeList` to the IR string attribute
+  `"z80-preserves-regs"="d,e,..."`.  Custom diagnostic
+  `err_z80_preserves_regs_unknown` for unrecognised register names.
+  Sema + CodeGen lit fixtures.
+
+- **cpnos-rom integration** (rc700-gensmedet `773c641`, `51082c8`,
+  `e4857e8`): `xport_send_byte` declared
+  `PRESERVES_REGS_CLANG("d","e","h","l","b","c")` in `snios_c.c`,
+  with a matching `PRESERVES_REGS_CLANG` on
+  `transport_pio_send_byte`'s definition in `transport_pio.c`.
+  New `PRESERVES_REGS_CLANG(...)` macro in `compiler/compat.h`
+  bridges the syntax gap (SDCC's `__preserves_regs(d, e)` takes
+  bare identifiers; clang's takes string literals).  Bisected the
+  preserved set against `cpnos-polypascal-test` empirically.
+
+- **#133 layer 1: callee-side honoring** (llvm-z80 `f1a4200`):
+  `Z80RegisterInfo::getCalleeSavedRegs` extension that builds a
+  per-function CSR save list when the function carries the
+  attribute.  PEI's `spillCalleeSavedRegisters` (unchanged) then
+  emits `push de` in prologue and `pop de` in epilogue for any
+  declared-preserved register the body modifies — making the
+  attribute a genuine end-to-end assertion, not just a programmer's
+  unenforced promise.  Lazy per-function cache in
+  `Z80FunctionInfo::ExtendedCSRSaveList`.  Pair completion: lone
+  halves promote to their pair (Z80 push/pop is pair-granular).
+  Lit fixture `preserves-regs-callee.ll`.
+
+- **pio_b_set_input tightening** (rc700-gensmedet `7958021`): the
+  one-A-write helper called from inside `transport_pio_recv_byte`
+  declared `PRESERVES_REGS_CLANG("b","c","d","e","h","l")` on its
+  definition.  Body cost zero (no body-modified regs from the
+  declared set); caller-side
+  `push hl ; call _pio_b_set_input ; pop de` collapses to a single
+  `ex de,hl` (-1 B in recv body, absorbed by alignment in total
+  payload).
+
+### New issues filed
+
+- ravn/llvm-z80#132 — cross-MBB BSS-spill->PUSH/POP peephole
+  (SP-balance correctness across bypass-LOAD escape edges, gated
+  on adding `MachineDominatorTree` to `Z80LateOptimization`).
+- ravn/llvm-z80#133 — callee-side honoring layer 1 (done) +
+  layer 2 (regalloc allocation-order tweak, open) +
+  `-Wz80-preserves-regs-violation` diagnostic (open).
+- ravn/llvm-z80#134 — initially filed for an "all-three-pairs
+  regression" that turned out to be a test-harness flake
+  (`cmp -l` showed byte-identical binaries).  **Closed as
+  not-a-bug** + memory rule extracted (see below).
+- ravn/rc700-gensmedet#96 — `cpnos-polypascal-test` orphan
+  cpmsim leak (`./cpmsim` instead of `exec ./cpmsim` in
+  `mpm-net2`).  One-line fix proposed.
+- ravn/rc700-gensmedet#97 — expand `z80_preserves_regs` coverage:
+  Part A obviated by #133 layer 1.  Parts B (recv body refactor)
+  and C (transport.h + cpnos_main.c declarations) still pending.
+
+### Issues closed in code
+
+- ravn/llvm-z80#129 — closed with explanatory comment: in-MBB
+  BSS-spill->PUSH/POP peephole was already complete in tree (line
+  4859 since `0c74b56` 2026-03-27, cross-class extension at line
+  5104 in `fc34593` the prior HEAD).  Empirical awk scan of
+  `cpnos.lis` for `STORE_BSS rr ; CALL ; LOAD_BSS rr` with no
+  intervening terminator: zero residuals.  Cross-MBB form (the
+  SNIOS-pattern residual) split out as ravn/llvm-z80#132.
+
+### New memory rules
+
+- `feedback_dont_kill_ninja.md` — SIGTERM/SIGKILL on ninja
+  truncates `.ninja_log`; the next run prints "premature end of
+  file; recovering" and conservatively rebuilds 1700+ steps.
+  Wait builds out; if interrupt is essential, Ctrl-C ONCE; never
+  run two ninja processes against the same `build-macos/`.
+- `feedback_diff_binaries_before_blaming_codegen.md` — when two
+  compiler configurations seem to "behave differently",
+  `cmp -l a.bin b.bin` FIRST.  Byte-identical binaries can't have
+  a codegen miscompile; the failure is environmental.  Caught
+  the ravn/llvm-z80#134 phantom regression after I'd already
+  bisected attribute subsets and filed an issue.
+
+### Final state
+
+| Metric | Pre-session | Post-session | Δ |
+|---|---:|---:|---:|
+| cpnos resident (clang+pio-irq) | 1964 B | **1928 B** | **-36 B** |
+| LLVM Z80 lit suite | 90 PASS + 2 XFAIL | **91 PASS + 2 XFAIL** | +1 PASS (new fixture) |
+| test-runner clang -Oz | 113 PASS / 0 FAIL | **113 PASS / 0 FAIL** | unchanged |
+| cpnos-polypascal-test 4-cell | PASS | **PASS** | unchanged |
+
+Engagement-mode gate from the roadmap (Phase 3 Cluster A close):
+**satisfied under both loose and strict readings** after this
+session.  Remaining residuals (cross-MBB BSS-spill #132,
+`z80_preserves_regs` callee-side layer 2 in #133, recv-side body
+refactor in `rc700-gensmedet#97 Part B`) are all well-scoped
+multi-session follow-ups.
+
+
 
 User: "goal is still to have clang emit better code aspiring to
 reach handwritten assembly.  Investigate"  /  "and if clang needs
