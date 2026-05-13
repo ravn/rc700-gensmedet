@@ -32,8 +32,17 @@ all: test
 # corpus compiles+links cleanly for behavioural verification.
 # Real cpnos-rom production code needs to ensure --sdcccall 1 builds
 # don't reach any 16-bit-mul helper path.
+#
+# Size optimization: --opt-code-size switches SDCC's peephole pass from
+# the default (sdcc_peeph.3) to the size-focused variant
+# (sdcc_peeph_cs.3) and biases other heuristics for code density.
+# cpnos-rom disables it (NET LOSS due to ___sdcc_enter_ix helper
+# amortization in that 2-function-IX-frame profile, see cpnos-rom
+# Makefile). For this stand-alone 10-function corpus the flag is the
+# correct choice — we want each compiler in its smallest-code mode.
 zsdcc.bin: $(SRCS)
 	$(ZCC) +z80 -compiler=sdcc -clib=sdcc_iy \
+	    --opt-code-size \
 	    -SO3 -Cs"--max-allocs-per-node 25000" \
 	    -Cs"--fomit-frame-pointer" \
 	    -create-app \
@@ -80,9 +89,9 @@ clang.ld:
 CLANG_RT = /Users/ravn/z80/llvm-z80/build-macos/lib/z80/elf-runtime/builtins/mulhi3.o
 
 clang.elf: $(SRCS) reset_clang.s clang.ld
-	$(CLANG) --target=z80 -Os -nostdlib -ffreestanding -c reset_clang.s -o reset_clang.o
-	$(CLANG) --target=z80 -Os -nostdlib -ffreestanding -c corpus.c -o corpus_clang.o
-	$(CLANG) --target=z80 -Os -nostdlib -ffreestanding -c test_main.c -o test_main_clang.o
+	$(CLANG) --target=z80 -Oz -nostdlib -ffreestanding -c reset_clang.s -o reset_clang.o
+	$(CLANG) --target=z80 -Oz -nostdlib -ffreestanding -c corpus.c -o corpus_clang.o
+	$(CLANG) --target=z80 -Oz -nostdlib -ffreestanding -c test_main.c -o test_main_clang.o
 	$(LLDLD) -T clang.ld -o clang.elf reset_clang.o corpus_clang.o test_main_clang.o $(CLANG_RT)
 	$(LLVMNM) --numeric-sort clang.elf | head -30
 
