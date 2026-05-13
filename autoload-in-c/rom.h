@@ -15,31 +15,10 @@
 
 #include <stdint.h>
 
-/* Map SDCC keywords and attribute macros for other compilers.
- *
- *   __z80__: defined by llvm-z80 cross-compiler (clang --target=z80).
- *   __SDCC : defined by SDCC.
- *   HITECH : defined on the command line for HI-TECH C V4.11
- *            (MS-DOS cross compiler hosted via DOSBox).
- *   none of the above: host compiler / IDE (CLion, clangd) — stub. */
-
-/* SECTION(name): place the following declaration in named linker section.
- * NORETURN     : function does not return.
- * USED         : keep the symbol even if unreferenced. */
-#if defined(__z80__) && defined(__ELF__)
-#define SECTION(name)  __attribute__((section(name)))
-#define NORETURN       __attribute__((noreturn))
-#define USED           __attribute__((used))
-#elif defined(__z80__)
-#define SECTION(name)
-#define NORETURN       __attribute__((noreturn))
-#define USED
-#else
-#define SECTION(name)
-#define NORETURN
-#define USED
-#endif
-
+/* Map SDCC keywords for other compilers.
+ * __z80__: defined by llvm-z80 cross-compiler (clang --target=z80).
+ * __SDCC: defined by SDCC.
+ * Neither: host compiler / IDE (CLion, clangd) — stub everything. */
 #if defined(__z80__)
 /* llvm-z80: map SDCC keywords to clang equivalents */
 #define __sfr volatile unsigned char
@@ -47,24 +26,9 @@
 #define __interrupt(n) __attribute__((interrupt))
 #define __critical
 #define __naked
+#define NORETURN __attribute__((noreturn))
 #elif defined(__SDCC)
-/* SDCC keywords are native. */
-#elif defined(HITECH)
-/* HI-TECH C V4.11 has native `interrupt` and `port` qualifiers and rejects
- * the inline keyword.  __critical / __naked have no equivalent; ISR bodies
- * that need them must wrap with di()/ei() or be written in inline asm. */
-#define __sfr unsigned char
-#define __at(x)
-#define __interrupt(n) interrupt
-#define __critical
-#define __naked
-#define inline
-/* V4.11 also lacks _Static_assert; provide the classic typedef trick.
- * Two-stage paste so __LINE__ expands before concatenation. */
-#define _STATIC_ASSERT_CAT2(a, b) a##b
-#define _STATIC_ASSERT_CAT(a, b)  _STATIC_ASSERT_CAT2(a, b)
-#define _Static_assert(c, m) \
-    typedef char _STATIC_ASSERT_CAT(_sa_, __LINE__)[(c) ? 1 : -1]
+#define NORETURN
 #else
 /* Host compiler / IDE — no-op SDCC keywords */
 #define __sfr volatile unsigned char
@@ -72,6 +36,7 @@
 #define __interrupt(x)
 #define __critical
 #define __naked
+#define NORETURN __attribute__((noreturn))
 #endif
 
 typedef uint8_t  byte;
@@ -173,13 +138,6 @@ typedef uint16_t word;
 #define DEFPORT(name, addr) __sfr __at (addr) _sfr_##name;
 #define port_in(name)       (_sfr_##name)
 #define port_out(name, val) (_sfr_##name = (val))
-#elif defined(HITECH)
-/* HI-TECH C V4.11 has a native `port` type qualifier that emits IN/OUT
- * directly.  Port addresses are bound at link time by --defsym (see
- * hitech/Makefile); the C source only declares the symbolic names. */
-#define DEFPORT(name, addr) port unsigned char _hp_##name;
-#define port_in(name)       (_hp_##name)
-#define port_out(name, val) (_hp_##name = (val))
 #else
 #define DEFPORT(name, addr) \
     static inline uint8_t port_in_##name(void) { \
@@ -257,12 +215,6 @@ static void set_i_reg(byte page) {
 #elif defined(__z80__)
 #include "clang/intrinsic.h"
 static inline void intrinsic_im_2(void) { __asm__ volatile("im 2"); }
-#elif defined(HITECH)
-/* V4.11 inline asm syntax: asm("string") at statement level. */
-static void intrinsic_di(void)   { asm("    di"); }
-static void intrinsic_ei(void)   { asm("    ei"); }
-static void intrinsic_im_2(void) { asm("    im 2"); }
-static void set_i_reg(byte page) { (void) page; asm("    ld i,a"); }
 #else
 static inline void intrinsic_di(void) {}
 static inline void intrinsic_ei(void) {}
@@ -279,8 +231,6 @@ static inline void set_i_reg(byte page) { (void) page; }
 #define SET_SP(addr) __asm__("ld sp, #" STR(addr) "\n")
 #elif defined(__z80__)
 #define SET_SP(addr) __asm__ volatile("ld sp, " STR(addr))
-#elif defined(HITECH)
-#define SET_SP(addr) asm("    ld sp," STR(addr))
 #else
 #define SET_SP(addr) ((void)0)
 #endif

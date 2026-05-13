@@ -20,10 +20,8 @@
  */
 
 // ReSharper disable CppJoinDeclarationAndAssignment
-/* Include rom.h before <string.h> — see boot_rom.c for V4.11 cgen
- * sensitivity to this ordering.  No-op for clang/SDCC. */
-#include "rom.h"
 #include <string.h>
+#include "rom.h"
 
 /* Wait for FDC ready-to-write, then write val to data register.
  * Polls MSR until RQM=1 and DIO=0 (CPU->FDC direction). */

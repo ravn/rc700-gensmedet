@@ -11,12 +11,8 @@
  * NMI handler (address 0x0066).
  */
 
-/* Include order matters under HI-TECH C V4.11: rom.h's port declarations
- * must precede <string.h>'s memcpy/memset declarations, otherwise the
- * downstream cgen pass silently emits empty output.  Order-independent
- * for clang and SDCC; only V4.11 is sensitive. */
-#include "rom.h"
 #include <string.h>
+#include "rom.h"
 
 extern void main_relocated(void);
 
@@ -32,7 +28,9 @@ extern char _bss_start[], _bss_size[];
 /* Banner string — NUL-terminated, referenced by display_banner in CODE.
  * memcpy copies exactly BUILD_BANNER_LENGTH bytes; the NUL is not transferred. */
 #include "clang/banner.h"
-SECTION(".pagezero.data") USED
+#ifdef __ELF__
+__attribute__((section(".pagezero.data"), used))
+#endif
 const char banner_string[] = BUILD_BANNER;
 _Static_assert(sizeof(banner_string) - 1 == BUILD_BANNER_LENGTH, "banner length mismatch");
 _Static_assert(BUILD_BANNER_LENGTH <= 80, "banner must fit in one display line");
@@ -64,23 +62,6 @@ extern const byte code_end;
 #define BSS_DST     ((void *)0)
 #define BSS_SIZE    ((unsigned)0)
 
-#elif defined(HITECH)
-
-/* HI-TECH V4.11: the linker auto-generates standard section-bound symbols.
- * Names below are placeholders — the actual link-time symbols depend on
- * the -A flag and psect specification.  See hitech/Makefile. */
-#include "hitech/banner.h"
-USED const char banner_string[] = BUILD_BANNER;
-
-extern char _Lcode_load[], _Lcode_start[], _Lcode_end[];
-extern char _Lbss_start[], _Lbss_end[];
-
-#define RELOC_DST   ((void *)_Lcode_start)
-#define RELOC_SRC   ((const void *)_Lcode_load)
-#define RELOC_SIZE  ((unsigned)(_Lcode_end - _Lcode_start))
-#define BSS_DST     ((void *)_Lbss_start)
-#define BSS_SIZE    ((unsigned)(_Lbss_end - _Lbss_start))
-
 #else
 /* IDE fallback — stubs so CLion can parse start() */
 #define RELOC_DST   ((void *)0)
@@ -98,7 +79,9 @@ extern char _Lbss_start[], _Lbss_end[];
  * For SDCC: must be the first function in the BOOT section.
  * ================================================================ */
 
-SECTION(".pagezero.text")
+#ifdef __ELF__
+__attribute__((section(".pagezero.text")))
+#endif
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-noreturn"
 void start(void) {  /* not marked noreturn: allows tail-call JP to main_relocated */

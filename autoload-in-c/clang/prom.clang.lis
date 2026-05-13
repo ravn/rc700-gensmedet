@@ -38,8 +38,8 @@ Disassembly of section .boot:
 0000002d <_banner_string>:
       2d: 20 52 43 37 30 30 20 43          RC700 C
       35: 4c 20 32 30 32 36 2d 30         L 2026-0
-      3d: 35 2d 31 33 20 31 34 2e         5-13 14.
-      45: 31 36 2f 72 61 76 6e 00         16/ravn.
+      3d: 35 2d 31 33 20 32 32 2e         5-13 22.
+      45: 33 30 2f 72 61 76 6e 00         30/ravn.
 
 Disassembly of section .nmi:
 
