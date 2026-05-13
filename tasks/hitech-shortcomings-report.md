@@ -389,4 +389,205 @@ the structural changes.
 
 The two `/tmp/` lab directories are not in git but trivially
 recreatable from the in-repo `autoload-in-c/hitech/` infrastructure
-plus the V4.11 fork checkout.
+plus the V4.11 fork checkout — see reproduction recipe below.
+
+---
+
+## Reproducing the V4.11 lab on macOS (Apple Silicon)
+
+Steps to recreate `/tmp/hitech-lab/` from scratch and run V4.11
+interactively or programmatically. Verified on macOS 15.x / arm64,
+no brew required.
+
+### Prereqs
+
+1. **DOSBox Staging** for macOS (or DOSBox-X). Drag-drop .dmg install,
+   no installer needed:
+   - DOSBox Staging: <https://www.dosbox-staging.org/> → Download → .dmg
+     → mount → drag `DOSBox Staging.app` to `/Applications` → eject.
+   - DOSBox-X (alternative, supports more options): <https://dosbox-x.com/>.
+
+   Binary path used in scripts:
+   ```
+   /Applications/DOSBox Staging.app/Contents/MacOS/dosbox
+   ```
+
+2. **NASM** for building the diagnostic DOS .COM tools. Comes with
+   Xcode Command Line Tools (`xcrun --find nasm` if installed) or via
+   Docker:
+   ```sh
+   docker run --rm -v $PWD:/work ubuntu:24.04 sh -c \
+       'apt-get update -qq && apt-get install -y -qq nasm && \
+        cd /work && nasm -f bin runcap.asm -o RUNCAP.COM'
+   ```
+
+3. **Docker** for the V4.11 hitech-wrap host pipeline (we don't run
+   DOSBox-in-docker here — we use Docker only for `gcc -E`, NASM, and
+   the V4.11 image build). Already required for the rest of the
+   project.
+
+4. **V4.11 distribution** cloned locally:
+   ```sh
+   git clone https://github.com/ravn/hitech-v411 /tmp/hitech-v411
+   ```
+   (~25 MB. The distribution itself is byte-identical to agn453
+   upstream; the fork adds Docker wrapper + tools.)
+
+### Stage the lab files
+
+```sh
+LAB=/tmp/hitech-lab
+mkdir -p "$LAB"/HITECH "$LAB"/work
+
+# V4.11 toolchain — binaries + headers + libs
+cp /tmp/hitech-v411/diskA/HITECH/*.EXE "$LAB"/HITECH/
+cp /tmp/hitech-v411/diskA/HITECH/*.H   "$LAB"/HITECH/
+cp /tmp/hitech-v411/diskA/HITECH/ZCRT*.OBJ "$LAB"/HITECH/
+cp /tmp/hitech-v411/diskA/ZC.EXE       "$LAB"/HITECH/
+cp /tmp/hitech-v411/diskB/HITECH/*.EXE "$LAB"/HITECH/
+cp /tmp/hitech-v411/diskB/HITECH/*.LIB "$LAB"/HITECH/
+cp /tmp/hitech-v411/diskB/HITECH/DUMP.COM "$LAB"/HITECH/
+
+# Diagnostic DOS .COMs — sources at ravn/hitech-v411/tools/
+# Build via NASM (Docker fallback shown above), then drop into work/:
+cp /path/to/RUNCAP.COM  "$LAB"/work/
+cp /path/to/DUP2TEST.COM "$LAB"/work/
+cp /path/to/SCRDUMP.COM "$LAB"/work/
+```
+
+### dosbox.conf template
+
+The critical pieces are `window_position=-3000,-3000` (off-screen),
+`cpu_cycles_protected=max` (full host speed), and the autoexec mounts.
+
+```ini
+[sdl]
+windowresolution=640x400
+window_position=-3000,-3000
+output=texturepp
+
+[cpu]
+cpu_cycles_protected=max
+
+[autoexec]
+mount c /tmp/hitech-lab/HITECH
+mount d /tmp/hitech-lab/work
+set HITECH=C:\
+path C:\;D:\
+d:
+```
+
+For **interactive** sessions, stop after the mounts and let DOSBox
+land at the `D:\>` prompt — drop the trailing autoexec commands.
+
+For **scripted runs**, append the commands to execute followed by
+`exit`:
+
+```ini
+[autoexec]
+mount c /tmp/hitech-lab/HITECH
+mount d /tmp/hitech-lab/work
+d:
+c:\p1.exe -QP,port ROM.I PROBE.T2 PROBE.T3
+c:\cgen.exe PROBE.T2 PROBE.T1
+scrdump.com
+exit
+```
+
+### Hide the DOSBox window on macOS
+
+DOSBox Staging on macOS doesn't support `SDL_VIDEODRIVER=dummy` or
+`offscreen` — it requires a real SDL window. The `window_position=
+-3000,-3000` in the conf positions it off the visible desktop, but
+**macOS keeps it on the active screen** unless we also hide the app.
+
+The recipe: launch DOSBox in the background, then immediately use
+`osascript` to hide its app process. The osascript polls for up to
+2.5 s until the app appears.
+
+```sh
+"/Applications/DOSBox Staging.app/Contents/MacOS/dosbox" \
+    -conf /tmp/hitech-lab/auto.conf >/dev/null 2>&1 &
+DBOX_PID=$!
+
+osascript -e 'tell application "System Events"
+    repeat 50 times
+        try
+            set visible of (every process whose name is "dosbox") to false
+            exit repeat
+        end try
+        delay 0.05
+    end repeat
+end tell' 2>/dev/null
+
+wait $DBOX_PID
+```
+
+With this in place, DOSBox runs invisibly and the script proceeds
+silently. The full-speed `cpu_cycles_protected=max` means a typical
+cgen run completes in ~0.5–1 s.
+
+### Reading the captured screen
+
+`scrdump.com` writes 80 rows of 80 chars each (with attribute bytes
+stripped) plus CR+LF to `SCRDUMP.LOG` in `/tmp/hitech-lab/work/`. The
+content includes ANSI BIOS characters; filter with `tr` for plain
+ASCII:
+
+```sh
+LC_ALL=C cat /tmp/hitech-lab/work/SCRDUMP.LOG \
+  | LC_ALL=C tr -d '\000-\010\013-\037\177-\377' \
+  | sed 's/ *$//' \
+  | grep -v '^$'
+```
+
+### Interactive launch
+
+```sh
+"/Applications/DOSBox Staging.app/Contents/MacOS/dosbox" \
+    -conf /tmp/hitech-lab/dosbox.conf
+```
+
+Lands at `D:\>` with everything mounted. The autoexec banner prints
+suggested commands. To reproduce the rom.c truncation:
+
+```
+D:\> c:\cgen.exe ROM.T2 OUT.T1
+ROM.I:44: expression generates no code (warning)
+ROM.I:153: expression generates no code (warning)
+...
+Assertion failed - tp->t_type (trees.c, line 1230)
+ROM.I:258: Assertion
+Syms = 106, nodes = 3, membs = 17
+Dynamic mem = 11883 bytes, syms = 4452 bytes, ...
+
+D:\> dir OUT.T1                         (~6104 bytes — truncated)
+D:\> type OUT.T1                        (stops mid-instruction)
+D:\> exit
+```
+
+### Programmatic iterative use
+
+`/tmp/al-hitech-test/find_all_asserts.py` (also reproducible via the
+`ravn/hitech-v411` `tools/` sources, with the iteration loop in
+Python) uses the above hide-on-launch recipe to run cgen many times
+without window-flash distraction. ~50 iterations per minute on
+Apple Silicon.
+
+### Sources for the diagnostic tools
+
+Vendored in `ravn/hitech-v411`:
+- `tools/runcap.asm`   — DUP2-based stderr capture before EXEC.
+- `tools/dup2test.asm` — sanity-check for the DUP2 mechanism.
+- `tools/scrdump.asm`  — VGA text-buffer dump (filed as issue #4 to
+                          land in the fork).
+
+Build with NASM:
+```sh
+nasm -f bin tools/runcap.asm   -o RUNCAP.COM
+nasm -f bin tools/dup2test.asm -o DUP2TEST.COM
+nasm -f bin tools/scrdump.asm  -o SCRDUMP.COM
+```
+
+All three are < 300 bytes; the .COM files are real-mode 8086 DOS
+binaries that DOSBox runs without modification.
