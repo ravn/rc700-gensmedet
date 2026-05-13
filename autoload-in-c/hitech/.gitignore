@@ -1,0 +1,11 @@
+build/
+*.OBJ
+*.PP
+*.PPERR
+*.I
+*.T1
+*.T2
+*.T3
+*.P1L
+*.CGL
+*.ZSL

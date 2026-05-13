@@ -1,0 +1,2 @@
+#define BUILD_BANNER " RC700 HTC4.11 dev"
+#define BUILD_BANNER_LENGTH 18
