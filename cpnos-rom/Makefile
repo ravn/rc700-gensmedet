@@ -1255,9 +1255,15 @@ cpnos-bios-jt-trace:
 # cpnos-lis override at the bottom of this file that points at the
 # per-file .lst and the cpnos.map.
 ifeq ($(COMPILER),clang)
-cpnos-lis: $(BUILDDIR)/payload.elf
+cpnos-lis: $(BUILDDIR)/payload.elf tasks/scripts/check_no_helper_calls.py
 	$(OBJDUMP) -d -S -r --symbolize-operands --triple=z80 $< > $(BUILDDIR)/cpnos.lis
 	@echo "wrote $(BUILDDIR)/cpnos.lis (with C source + symbol-resolved operands)"
+	@# Same helper-call gate as the SDCC build.  The clang build's
+	@# ___umodqi3 / ___mulhi3 etc. ARE register-ABI-compatible (clang's
+	@# compiler-rt), so technically safe -- but cpnos-rom has tight PROM
+	@# budgets and a helper call costs ~10 B per site + 30+ B helper
+	@# body.  Keep the resident image helper-free.
+	python3 tasks/scripts/check_no_helper_calls.py $(BUILDDIR)/cpnos.lis
 
 cpnos-map: $(BUILDDIR)/payload.elf
 	$(NM) --numeric-sort $<
@@ -1499,12 +1505,18 @@ $(BUILDDIR)/cpnos.cim: $(SDCC_C_OBJS) $(SDCC_ASM_SRCS) $(BUILDDIR)/xport_aliases
                        tasks/scripts/check_sdcc_layout.py \
                        tasks/scripts/check_no_frame_ptr.py \
                        tasks/check_no_frame_ptr_baseline.txt \
+                       tasks/scripts/check_no_helper_calls.py \
                        tasks/scripts/check_unreferenced_publics.py \
                        tasks/check_unreferenced_publics_allowlist.txt
 	@mkdir -p $(BUILDDIR)
 	@# Audit BEFORE the link so a regression fails fast.
 	python3 tasks/scripts/check_no_frame_ptr.py \
 	    tasks/check_no_frame_ptr_baseline.txt $(SDCC_AUDIT_S)
+	@# HARD GATE: --sdcccall 1 + any arch-helper call = silent miscompile
+	@# under z88dk's stock sdcc stdlib (helpers are sdcccall-0 only).
+	@# Production survives by being helper-free; this gate enforces it.
+	@# See tasks/scripts/check_no_helper_calls.py for full background.
+	python3 tasks/scripts/check_no_helper_calls.py $(SDCC_AUDIT_S)
 	@# zcc wants to write outputs alongside the named -o file.  Run
 	@# from $(BUILDDIR) so per-section .bin files land there.
 	cd $(BUILDDIR) && $(CC) $(ZFLAGS_BASE) $(SDCC_ZLFLAGS) \
