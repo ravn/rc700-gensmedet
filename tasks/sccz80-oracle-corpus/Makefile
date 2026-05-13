@@ -43,13 +43,16 @@ all: test
 # stack-passed args; per-function size larger than register ABI would
 # be). --opt-code-size still applies — picks SDCC's size-focused
 # peephole pass.
-zsdcc.bin: $(SRCS)
+# PoC: bringing a sdcccall-1-compatible __moduchar shim into the link
+# unblocks --sdcccall 1. moduchar_sdcccall1.asm provides the helper;
+# z88dk's stock version is overridden by link order (our file first).
+zsdcc.bin: $(SRCS) moduchar_sdcccall1.asm
 	$(ZCC) +z80 -compiler=sdcc -clib=sdcc_iy \
 	    --opt-code-size \
-	    -SO3 -Cs"--max-allocs-per-node 25000" \
+	    -SO3 -Cs"--sdcccall 1" -Cs"--max-allocs-per-node 25000" \
 	    -Cs"--fomit-frame-pointer" \
 	    -create-app \
-	    -o zsdcc $(SRCS) 2>&1 | tail -30
+	    -o zsdcc moduchar_sdcccall1.asm $(SRCS) 2>&1 | tail -30
 	@test -f zsdcc.bin || (echo "zsdcc.bin missing — see zcc output above"; false)
 
 # ---------- sccz80 ----------

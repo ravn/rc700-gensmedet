@@ -10,8 +10,8 @@
 
 #include <stdint.h>
 
-extern uint8_t bss_buf[8];
-extern uint8_t flag;
+extern volatile uint8_t bss_buf[8];
+extern volatile uint8_t flag;
 
 uint8_t  sw_dense(uint8_t x);
 uint8_t  djnz_count(uint8_t n);

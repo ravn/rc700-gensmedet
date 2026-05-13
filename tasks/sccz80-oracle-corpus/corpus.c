@@ -11,8 +11,14 @@
 
 #include <stdint.h>
 
-uint8_t bss_buf[8];
-uint8_t flag;
+/* Volatile to model real production usage: bss_buf and flag would be
+ * ISR-shared or hardware-state in the BIOS / cpnos-rom. Marking them
+ * volatile prevents the compiler from optimising away stores, which is
+ * the actual production constraint. Note: clang's LoopIdiomRecognize
+ * rejects volatile, so memset/memcpy/LDIR-overlap patterns won't apply
+ * to fills of bss_buf — see memory rule [[feedback_volatile_blocks_loop_idiom]]. */
+volatile uint8_t bss_buf[8];
+volatile uint8_t flag;
 
 /* 1. Dense switch on uint8_t -- jumptable vs cascaded CP candidate.
  *    SDCC tends to emit JP table; clang's choice varies. */

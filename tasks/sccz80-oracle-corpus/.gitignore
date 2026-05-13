@@ -4,8 +4,11 @@
 *.bin
 *.ram
 *.map
+# Build outputs (the moduchar_sdcccall1.asm shim is source — see exception below)
 *.asm
 *.s
+# Source asm files we keep:
+!moduchar_sdcccall1.asm
 # zcc split outputs
 *_CODE.bin
 *_DATA.bin
