@@ -48,11 +48,19 @@ ZLFLAGS = -m --list -create-app -Cz"--org 0" $(ZLIB)
 
 .PHONY: clean
 
+# Shared with cpnos-rom (canonical home: ../../cpnos-rom/tasks/scripts/).
+# Both subprojects use -Cs"--sdcccall 1" + -Cs"--disable-warning 296",
+# which under z88dk's stock stdlib is a silent-miscompile trap if any
+# arch-helper (__moduchar / __mulint / __divuchar / ...) is reached.
+# Production stays helper-free; this gate enforces it at build time.
+HELPER_CALL_GUARD = ../../cpnos-rom/tasks/scripts/check_no_helper_calls.py
+
 bios.cim: z88dk_section_layout.asm $(PARENT)/boot_block.c $(PARENT)/boot_confi.c \
           $(PARENT)/boot_entry.c $(PARENT)/bios_hw_init.c \
           $(PARENT)/bios_jump_vector_table.c $(PARENT)/bios.c \
           $(PARENT)/hal.h $(PARENT)/bios.h \
-          $(PARENT)/builddate.h $(PARENT)/builddate.inc peephole.def
+          $(PARENT)/builddate.h $(PARENT)/builddate.inc peephole.def \
+          $(HELPER_CALL_GUARD)
 	$(RUN) sh -c '\
 	zcc $(ZFLAGS) -Cs"--codeseg BOOT" -Cs"--constseg BOOT" -c ../boot_block.c -o boot_block.o && \
 	zcc $(ZFLAGS) -Cs"--codeseg BOOT_DATA" -Cs"--constseg BOOT_DATA" $(if $(filter-out DANISH,$(KBLANG)),-Cs"-D$(KBLANG)") -c ../boot_confi.c -o boot_confi.o && \
@@ -61,6 +69,9 @@ bios.cim: z88dk_section_layout.asm $(PARENT)/boot_block.c $(PARENT)/boot_confi.c
 	zcc $(ZFLAGS) -Cs"--codeseg BIOS" -Cs"--constseg BIOS" -c ../bios_jump_vector_table.c -o bios_jump_vector_table.o && \
 	zcc $(ZFLAGS) $(ZLFLAGS) -o bios z88dk_section_layout.asm ../bios.c \
 		boot_block.o boot_confi.o boot_entry.o bios_hw_init.o bios_jump_vector_table.o'
+	@# HARD GATE: any arch-helper call from sdcccall-1 user code would
+	@# silently miscompile against z88dk's stack-args helpers.
+	python3 $(HELPER_CALL_GUARD) bios.lis
 	@BSS_HEAD=$$(grep '__bss_compiler_head' bios.map | head -1 | sed 's/.*= \$$\([0-9A-Fa-f]*\).*/\1/'); \
 	CODESIZE=$$((0x$$BSS_HEAD - $(BIOSAD))); \
 	cat bios_BOOT.bin > bios.cim; \
