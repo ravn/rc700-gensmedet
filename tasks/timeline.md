@@ -1,5 +1,204 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 71: HiTech V4.11 cross-compiler deep-dive — RE-PARKED (May 13, 2026) — Hard
+
+Followup to session 70's V3.09-only parking. Discovered the V4.11
+DOS-hosted cross-compiler (Microchip 2018 freeware release; agn453
+vendoring at `ravn/hitech-v411`) has the ROM-target features V3.09's
+manual described but freeware lacked: ROM as default, `-A
+ROMADR,RAMADR,RAMSIZE`, native `interrupt` / `port` qualifiers,
+ROM library, inlined function prologue/epilogue saving ~40% on
+microbenchmarks.
+
+Built a Docker wrapper around V4.11 (DOSBox), an integration test
+suite, and DOS-side diagnostic tools (`runcap.com` for INT 21h/46h
+stderr capture, `scrdump.com` for VGA text-buffer dump). Committed
+to ravn/hitech-v411 (commit `b9c02d7`).
+
+Added a HITECH compile path to `rc700-gensmedet/autoload-in-c/`
+(commit `c131b85`): SECTION/NORETURN/USED macro shim layer, HITECH
+branches in rom.h, `hitech/` subdir with banner/stdint shims and
+build-htc.sh (host gcc -E + python filter + DOSBox p1+cgen+zas).
+`intvec.c` and `boot_rom.c` compile cleanly under V4.11 end-to-end.
+
+`rom.c` does NOT compile. V4.11 cgen.exe has two structural bugs
+blocking it:
+
+  Bug V4.11-A: trees.c:1230 'tp->t_type' assertion on (i) compound
+  shift `tb <<= 1` on word, (ii) sizeof(struct) as loop bound,
+  (iii) cast-then-index `((byte *)&fdc_cmd)[i]`.  Per-site rewrites
+  fix each, but Bug B fires next.
+
+  Bug V4.11-B: sym.c:433 'pp->s_nelem == 0' assertion -- V4.11 cgen
+  conflates struct member count with array element count, then scalar-
+  only paths trip on the struct symbol's non-zero count.  Fires on
+  `fdc_cmd = {0};`, `fdc_result = {0};`, `(byte *)&fdc_cmd`.  Structural;
+  requires reshaping the struct globals to byte arrays + named indices,
+  ~30-50 sites.
+
+These were invisible in headless mode: V4.11 writes errors to BIOS
+console rather than handle 2, and DOSBox 0.74 in headless drops it
+all.  Identified by writing scrdump.com (a 60-byte DOS tool that
+reads the text-mode VGA buffer at B800:0000) and running V4.11
+interactively in DOSBox Staging.  The screen text revealed the
+specific cgen assertion mechanism.
+
+Full analysis in `tasks/hitech-shortcomings-report.md` (the comprehensive
+parking report covering both V3.09 and V4.11 investigations).
+
+### Re-park reasoning
+
+Same value-calculus conclusion as session 70: clang Z80 with `sdcccall(1)`
++ `z80_preserves_regs` will beat 1989/1992-era HiTech on byte count
+for any register-pressure-sensitive code.  HiTech is fundamentally a
+stack-args compiler; no flag, pragma, or attribute changes that.
+
+V4.11 specifically also has cgen bugs that block the most-relevant
+source file (rom.c).  Fixing requires either source restructuring
+(~30-50 site refactor of struct globals to byte arrays) or
+compiler-side fixes that aren't possible because V4.11's cgen source
+isn't shipped (only the ZC.C driver source ships in the freeware).
+
+### Cumulative findings recorded
+
+  ravn/hitech (V3.09): 4 bugs filed and fixed (issues #1-#4); docs note
+  open as #5.  ghcr.io/ravn/hitech:latest now passes its 11-cell suite.
+
+  ravn/hitech-v411: Docker wrapper + tests + tools committed.  Two cgen
+  bugs identified, no fix possible without source we don't have.
+
+  rc700-gensmedet/autoload-in-c: HITECH compile path landed in `c131b85`,
+  intvec.c+boot_rom.c compile clean, rom.c partial.  Workaround sweeps
+  attempted and reverted; final state has the macro shim layer + sources
+  unchanged.
+
+### Files touched
+
+  rc700-gensmedet/tasks/hitech-shortcomings-report.md  (this entry's
+                                                       full backing report)
+  rc700-gensmedet/tasks/hitech-port-parked.md          (cross-ref updated)
+  rc700-gensmedet/tasks/timeline.md                    (this entry)
+
+### Why "Hard"
+
+V4.11 internals are closed-source.  Diagnosis required writing two
+NASM-built DOS .COM tools (runcap, scrdump) to capture state that
+DOSBox in headless mode silently discards.  V3.09 source (Nikitin
+RE) had to be read carefully as a proxy for V4.11 internals (sufficiently
+similar but not identical).  Each of the two cgen bugs surfaced only
+after an interactive lab session was set up.  Long tail of false-start
+hypotheses ("DOSBox file flush issue", "6KB output buffer", "Out of
+memory") were ruled out by direct experiment before the actual
+mechanism (cgen assertion failures) became visible.
+
+## Session 70: HiTech-C investigation + ravn/hitech bug sweep — port PARKED (May 13, 2026) — Medium
+
+Investigated using `ghcr.io/ravn/hitech` (vendored HI-TECH C 3.09)
+as a third compiler alongside clang Z80 and SDCC. Found and fixed
+real bugs upstream; concluded the source-side port is doable but
+not worth the work given the value gap. Full parking note:
+`tasks/hitech-port-parked.md`.
+
+### `ravn/hitech` bug sweep — 4 issues filed, 4 fixes merged
+
+Image was effectively broken for any non-trivial input: `zc -O`
+produced "optim: Can't find op" on almost every C source. Root
+cause: `optim/optim.c:1189` declared `char cmp` then stored
+`strcmp()`'s return; on aarch64 Linux (char defaults to unsigned
+per AAPCS64) the `cmp < 0` test was always false, making the
+binary search of the 110-entry `operators[]` table unreachable for
+roughly half of all Z80 mnemonics including `ld`, `add`, `jr`,
+`djnz`. Identical idiom to the cgen fix already landed in
+ogdenpm/hitech PR #6 — that PR didn't sweep sibling tools.
+
+| Commit | Issue | Fix |
+|---|---|---|
+| `6b07966` | #1 | `optim/optim.c:1189` `char cmp` → `int cmp` |
+| `546cab1` | #4 | latent `uint8_t hi/lo/mid` widened to `int` in optim/cgen/p1 binary searches |
+| `3515251` | #3 | `-fsigned-char` added to global `CFLAGS` in `Linux/hi.mk` |
+| `596cf3c` | #2 | `tests/Makefile` adds 5 `zc -O` cells (`helloO/prfmtO/stropsO/arithO/pairO`) |
+
+All four pushed to `ravn/hitech` `main`; Container CI republished
+`ghcr.io/ravn/hitech:latest` for each. Integration suite is 11/11
+green (5 base + 5 -O + 1 negative) on the published image.
+Issue #5 (docs note on V3.09 manual claims vs freeware reality)
+remains open as documentation, not a bug.
+
+Optim now actually shaves bytes: hello -14, prfmt -38, strops -69,
+arith -42, pair -44 — small fractions of total, but real and
+verifiable.
+
+### Why the port is parked (full reasoning in `hitech-port-parked.md`)
+
+Three weighted reasons:
+
+1. **Stack-only calling convention, no escape hatch.** HiTech V3.09
+   hardwires `call ncsv / (ix+N) args / jp cret` for every function.
+   No flag/pragma/attribute switches to register-passing. The
+   user's framing was "use HiTech as a reference for Z80 codegen
+   clang should aspire to" — but clang with `sdcccall(1)` +
+   `z80_preserves_regs` will beat 1989-HiTech-stack-args on byte
+   count for any register-pressure-sensitive code (session 58 saved
+   36 B on `xport_send_byte` callers via exactly this). HiTech
+   serves as a qualitative instruction-selection reference, not a
+   quantitative byte-count target. Smaller value than imagined.
+
+2. **Source-language adaptation cost.** 35 .c+.h files contain
+   substantial C23/C99 surface that HiTech's K&R-ANSI parser
+   rejects: `inline` (93), C23 SDCC-compat attributes (219),
+   `0b…` literals (42), `_Static_assert` (14), `address_space(2)`
+   (12), for-loop decls (10), plus unknown count of mid-block
+   declarations. Estimate: 1.5d cpnos-rom + 1d rcbios-in-c + 0.5d
+   autoload-in-c. Mechanical but tedious.
+
+3. **Manual ≠ freeware reality.** The V3.09 manual describes a ROM
+   cross-compiler mode (`-A ROMADR,RAMADR,RAMSIZE`, ROM startoff
+   .obj, `interrupt`/`port` qualifiers) that was part of HI-TECH's
+   commercial product and never entered the agn453 freeware
+   vendoring. We'd be writing the ROM startup, the linker
+   invocation, and asm wrappers for ISRs and port I/O ourselves —
+   that's possible (`csv.obj`/`brelop.obj` in `libc.lib` are
+   bare-metal-safe, and `link -Ptext=ADDR,bss=ADDR -Cbase` placement
+   works) but expands the per-subproject Makefile rework.
+
+A `zc -C -DHITECH=1 -UCPM` dry-run against `autoload-in-c/boot_rom.c`
+hit the wall on item 2 immediately (`static inline` and
+`address_space(2)` both reject at parse time), confirming the
+estimate before deeper investment.
+
+### Resume conditions
+
+See `tasks/hitech-port-parked.md` for full unblockers. Headline:
+pick scope first (codegen-reference-only is dramatically cheaper
+than bootable-ROM), then start with `compat.h`'s already-stubbed
+`__HITECH__||HI_TECH_C` branch and grow outward. Drop the
+"quantitative byte-count comparison" framing — that goal isn't
+reachable through HiTech V3.09.
+
+### Files touched (rc700-gensmedet)
+
+- `tasks/timeline.md` — this entry
+- `tasks/hitech-port-parked.md` — new, parking note + resume plan
+
+Nothing in `cpnos-rom/`, `rcbios-in-c/`, or `autoload-in-c/`
+changed — investigation was read-only against our sources.
+`compat.h` and `hal.h` `__HITECH__` stubs remain `#error`'ed as
+before.
+
+### Files touched (ravn/hitech)
+
+- `optim/optim.c`, `cgen/cgen.c`, `p1/lex.c` — widened types
+- `Linux/hi.mk` — `-fsigned-char`
+- `tests/Makefile` — 5 new -O cells
+
+### Why "Medium"
+
+Bug investigation was satisfying and yielded real fixes that
+benefit anyone using the image. Port-scoping was harder than
+expected because the manual misled on multiple fronts; that
+asymmetry cost a couple of iterations. The parking decision
+itself is clean.
+
 ## Session 59b: smoke harness rehab (#98 + #99) — sio-smoke green end-to-end (May 11, 2026) — Easy
 
 Followup to session 59.  Fixed the two pre-existing smoke-harness
