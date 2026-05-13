@@ -26,20 +26,23 @@ all: test
 # That fits ticks' default `load at PC=0, run from 0` model. We choose
 # RESULTS_ADDR=0xC000 in test_main.c so the results land cleanly above
 # BSS but well within 64K RAM.
-# NOTE: --sdcccall 1 (cpnos-rom production flag) is incompatible with
-# z88dk's stock __mulint runtime (built for sdcccall 0, expects args on
-# stack). zcc's warning 296 flags it. Using sdcccall 0 here so the
-# corpus compiles+links cleanly for behavioural verification.
-# Real cpnos-rom production code needs to ensure --sdcccall 1 builds
-# don't reach any 16-bit-mul helper path.
+# --sdcccall 1 is BROKEN under z88dk's stock stdlib for any helper call.
+# Verified 2026-05-14: both __mulint (16-bit mul) and __moduchar (8-bit
+# mod) are stack-args-only in z88dk's libsrc/l/sdcc/, regardless of
+# whether the .asm or the _callee variant is linked. zcc emits
+# warning 296 ("non-default sdcccall specified, but default stdlib or
+# crt0") then links anyway, miscompiling silently.
 #
-# Size optimization: --opt-code-size switches SDCC's peephole pass from
-# the default (sdcc_peeph.3) to the size-focused variant
-# (sdcc_peeph_cs.3) and biases other heuristics for code density.
-# cpnos-rom disables it (NET LOSS due to ___sdcc_enter_ix helper
-# amortization in that 2-function-IX-frame profile, see cpnos-rom
-# Makefile). For this stand-alone 10-function corpus the flag is the
-# correct choice — we want each compiler in its smallest-code mode.
+# Production cpnos-rom escapes this only because no helper paths fire
+# (no mul/mod/div in source). The rcbios BIOS clang build uses clang's
+# own compiler-rt umodqi3 (which IS register-ABI compatible). The
+# rcbios BIOS sdcc build appears to inline `x % N` rather than call a
+# helper — different SDCC flag mix, not investigated further.
+#
+# For this corpus we use sdcccall 0 + z88dk stdlib (matches by ABI;
+# stack-passed args; per-function size larger than register ABI would
+# be). --opt-code-size still applies — picks SDCC's size-focused
+# peephole pass.
 zsdcc.bin: $(SRCS)
 	$(ZCC) +z80 -compiler=sdcc -clib=sdcc_iy \
 	    --opt-code-size \
@@ -86,7 +89,8 @@ clang.ld:
 	    '}' \
 	    > $@
 
-CLANG_RT = /Users/ravn/z80/llvm-z80/build-macos/lib/z80/elf-runtime/builtins/mulhi3.o
+CLANG_RT_DIR = /Users/ravn/z80/llvm-z80/build-macos/lib/z80/elf-runtime/builtins
+CLANG_RT = $(CLANG_RT_DIR)/umodqi3.o $(CLANG_RT_DIR)/udivqi3.o
 
 clang.elf: $(SRCS) reset_clang.s clang.ld
 	$(CLANG) --target=z80 -Oz -nostdlib -ffreestanding -c reset_clang.s -o reset_clang.o

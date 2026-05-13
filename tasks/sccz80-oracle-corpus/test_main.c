@@ -16,7 +16,8 @@ extern uint8_t flag;
 uint8_t  sw_dense(uint8_t x);
 uint8_t  djnz_count(uint8_t n);
 void     seq_bss(void);
-uint16_t mul_8x8(uint8_t a, uint8_t b);
+uint8_t  mod_10(uint8_t x);
+uint8_t  mod_7(uint8_t x);
 void     set_flag(uint8_t v);
 void     copy8(uint8_t *dst, const uint8_t *src);
 uint8_t  test_bit3(uint8_t x);
@@ -56,14 +57,17 @@ int main(void) {
     r[10] = bss_buf[2];
     r[11] = bss_buf[3];
 
-    /* mul_8x8: 16-bit product. Stored low-byte at even, high-byte at odd. */
-    {
-        uint16_t p;
-        p = mul_8x8(0, 0);     r[12] = (uint8_t)p;       r[13] = (uint8_t)(p>>8);
-        p = mul_8x8(3, 7);     r[14] = (uint8_t)p;       r[15] = (uint8_t)(p>>8);
-        p = mul_8x8(15, 17);   r[16] = (uint8_t)p;       r[17] = (uint8_t)(p>>8);
-        p = mul_8x8(255, 255); r[18] = (uint8_t)p;       r[19] = (uint8_t)(p>>8);
-    }
+    /* mod_10 (___umodqi3 with divisor=10): boundaries + a wide value. */
+    r[12] = mod_10(0);     /* 0 */
+    r[13] = mod_10(9);     /* 9 */
+    r[14] = mod_10(10);    /* 0 */
+    r[15] = mod_10(99);    /* 9 */
+    r[16] = mod_10(255);   /* 5 */
+
+    /* mod_7 (___umodqi3 with divisor=7): different divisor. */
+    r[17] = mod_7(0);      /* 0 */
+    r[18] = mod_7(7);      /* 0 */
+    r[19] = mod_7(123);    /* 4 */
 
     /* set_flag: 0 -> 0, anything else -> 1 */
     set_flag(0);  r[20] = flag;

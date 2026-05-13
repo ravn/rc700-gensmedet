@@ -45,9 +45,19 @@ void seq_bss(void) {
     bss_buf[3] = 0x44;
 }
 
-/* 4. 8x8 -> 16 promotion. Pure multiply via Z80 helper. */
-uint16_t mul_8x8(uint8_t a, uint8_t b) {
-    return (uint16_t)a * (uint16_t)b;
+/* 4. 8-bit unsigned modulo by a non-power-of-2 constant.
+ *    Lowers to a call to ___umodqi3 in clang and SDCC. Chosen because
+ *    ___umodqi3 is the only arch helper actually called in our
+ *    production rcbios BIOS clang build; mul_8x8 (formerly here) is
+ *    not used in our production code at all. */
+uint8_t mod_10(uint8_t x) {
+    return x % 10;
+}
+
+/* 4b. 8-bit unsigned modulo by 7 -- second helper-call test with a
+ *     different divisor to confirm the codegen is divisor-agnostic. */
+uint8_t mod_7(uint8_t x) {
+    return x % 7;
 }
 
 /* 5. Conditional flag store -- `_Bool` shape without _Bool. */
