@@ -6,8 +6,8 @@ expected = [
     10, 20, 30, 40, 0,
     1, 5, 255,
     0x11, 0x22, 0x33, 0x44,
-    0, 9, 0, 9, 5,
-    0, 0, 4,
+    0, 7, 0, 3, 7,
+    0, 0, 0,
     0, 1, 1,
     36,
     0, 1, 1,
@@ -20,8 +20,8 @@ LABELS = [
     "sw_dense(0)", "sw_dense(1)", "sw_dense(2)", "sw_dense(3)", "sw_dense(99)",
     "djnz_count(1)", "djnz_count(5)", "djnz_count(255)",
     "seq_bss[0]", "seq_bss[1]", "seq_bss[2]", "seq_bss[3]",
-    "mod_10(0)", "mod_10(9)", "mod_10(10)", "mod_10(99)", "mod_10(255)",
-    "mod_7(0)", "mod_7(7)", "mod_7(123)",
+    "mod_8(0)", "mod_8(7)", "mod_8(8)", "mod_8(99)", "mod_8(255)",
+    "filler17", "filler18", "filler19",
     "set_flag(0)", "set_flag(1)", "set_flag(99)",
     "copy8 sum",
     "test_bit3(0)", "test_bit3(0x08)", "test_bit3(0xFF)",
@@ -31,7 +31,7 @@ LABELS = [
 ]
 
 fail = False
-for c in ("zsdcc", "sccz80", "clang"):
+for c in ("zsdcc", "zsdcc_vol", "sccz80", "sccz80_vol", "clang", "clang_vol"):
     try:
         d = open(f"{c}.ram", "rb").read()
     except FileNotFoundError:

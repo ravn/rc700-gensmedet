@@ -11,14 +11,22 @@
 
 #include <stdint.h>
 
-/* Volatile to model real production usage: bss_buf and flag would be
- * ISR-shared or hardware-state in the BIOS / cpnos-rom. Marking them
- * volatile prevents the compiler from optimising away stores, which is
- * the actual production constraint. Note: clang's LoopIdiomRecognize
- * rejects volatile, so memset/memcpy/LDIR-overlap patterns won't apply
- * to fills of bss_buf — see memory rule [[feedback_volatile_blocks_loop_idiom]]. */
-volatile uint8_t bss_buf[8];
-volatile uint8_t flag;
+/* Build-time switch: -DUSE_VOLATILE makes bss_buf and flag volatile to
+ * model real production usage (ISR-shared / hardware-state, as in the
+ * BIOS / cpnos-rom). Both variants are interesting: non-volatile shows
+ * each compiler's best-case codegen (LoopIdiomRecognize, store merging,
+ * etc.), volatile shows the real production cost of the constraints
+ * that hardware-facing code lives under. See memory rule
+ * [[feedback_volatile_blocks_loop_idiom]] — clang's idiom recognition
+ * rejects volatile stores, so LDIR-overlap / memset patterns vanish. */
+#ifdef USE_VOLATILE
+#define VQ volatile
+#else
+#define VQ
+#endif
+
+VQ uint8_t bss_buf[8];
+VQ uint8_t flag;
 
 /* 1. Dense switch on uint8_t -- jumptable vs cascaded CP candidate.
  *    SDCC tends to emit JP table; clang's choice varies. */
@@ -51,19 +59,12 @@ void seq_bss(void) {
     bss_buf[3] = 0x44;
 }
 
-/* 4. 8-bit unsigned modulo by a non-power-of-2 constant.
- *    Lowers to a call to ___umodqi3 in clang and SDCC. Chosen because
- *    ___umodqi3 is the only arch helper actually called in our
- *    production rcbios BIOS clang build; mul_8x8 (formerly here) is
- *    not used in our production code at all. */
-uint8_t mod_10(uint8_t x) {
-    return x % 10;
-}
-
-/* 4b. 8-bit unsigned modulo by 7 -- second helper-call test with a
- *     different divisor to confirm the codegen is divisor-agnostic. */
-uint8_t mod_7(uint8_t x) {
-    return x % 7;
+/* 4. 8-bit power-of-2 modulo — lowers to AND inline, no helper call.
+ *    cpnos-rom + rcbios-in-c/sdcc production avoids any `x % N` for
+ *    non-power-of-2 N specifically because z88dk's stock SDCC stdlib
+ *    is sdcccall-0 only. Matching that constraint here. */
+uint8_t mod_8(uint8_t x) {
+    return x & 7;
 }
 
 /* 5. Conditional flag store -- `_Bool` shape without _Bool. */

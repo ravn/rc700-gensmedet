@@ -10,14 +10,19 @@
 
 #include <stdint.h>
 
-extern volatile uint8_t bss_buf[8];
-extern volatile uint8_t flag;
+#ifdef USE_VOLATILE
+#define VQ volatile
+#else
+#define VQ
+#endif
+
+extern VQ uint8_t bss_buf[8];
+extern VQ uint8_t flag;
 
 uint8_t  sw_dense(uint8_t x);
 uint8_t  djnz_count(uint8_t n);
 void     seq_bss(void);
-uint8_t  mod_10(uint8_t x);
-uint8_t  mod_7(uint8_t x);
+uint8_t  mod_8(uint8_t x);
 void     set_flag(uint8_t v);
 void     copy8(uint8_t *dst, const uint8_t *src);
 uint8_t  test_bit3(uint8_t x);
@@ -57,17 +62,16 @@ int main(void) {
     r[10] = bss_buf[2];
     r[11] = bss_buf[3];
 
-    /* mod_10 (___umodqi3 with divisor=10): boundaries + a wide value. */
-    r[12] = mod_10(0);     /* 0 */
-    r[13] = mod_10(9);     /* 9 */
-    r[14] = mod_10(10);    /* 0 */
-    r[15] = mod_10(99);    /* 9 */
-    r[16] = mod_10(255);   /* 5 */
-
-    /* mod_7 (___umodqi3 with divisor=7): different divisor. */
-    r[17] = mod_7(0);      /* 0 */
-    r[18] = mod_7(7);      /* 0 */
-    r[19] = mod_7(123);    /* 4 */
+    /* mod_8: power-of-2 modulo lowers to `and 7` inline, no helper call. */
+    r[12] = mod_8(0);      /* 0 */
+    r[13] = mod_8(7);      /* 7 */
+    r[14] = mod_8(8);      /* 0 */
+    r[15] = mod_8(99);     /* 99 & 7 = 3 */
+    r[16] = mod_8(255);    /* 7 */
+    /* slots r[17..r[19] unused (kept for vector-shape stability) */
+    r[17] = 0;
+    r[18] = 0;
+    r[19] = 0;
 
     /* set_flag: 0 -> 0, anything else -> 1 */
     set_flag(0);  r[20] = flag;
