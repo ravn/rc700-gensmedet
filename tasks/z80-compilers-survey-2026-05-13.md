@@ -27,20 +27,25 @@ workspace via the z88dk Docker image — no new toolchain needed.
 Oracle value: **high**. Different design philosophy from both SDCC and clang;
 likely to surface fresh outliers in the cpnos-rom matrix.
 
-### vbcc Z80 backend (Volker Barthelmann)
+### ~~vbcc Z80 backend~~ — CORRECTION 2026-05-14: vbcc has NO Z80 backend
 
-Manual reissued February 2025. Genuinely independent IR + register allocator +
-peepholer; well-regarded across the compiler-construction community. Z80 target
-supports ROM via linker scripts; no CP/M dependency.
+This entry was wrong. Re-verified 2026-05-14 against authoritative sources:
 
-- C89 plus parts of C99 (covers cpnos sources)
-- Multi-backend (m68k/PPC/6502/8086/Z80); Z80 backend mature
-- Licensing requires unaltered vbcc download + separate Z80 patch
-- Needs Docker image (no brew per project rule)
+- Wikipedia "vbcc" article CPU list: *"68k, ColdFire, PowerPC, 6502, 65C02,
+  65C816 (in native mode), VideoCore, 80x86 (386 and above), Alpha,
+  C16x/ST10, 6809/6309/68HC12, and Z-machine."* No Z80.
+- vbcc upstream target archives at `sun.hasenbraten.de/vbcc/?view=targets`:
+  all targets are m68k/PPC/ColdFire variants for Amiga/Atari. No Z80
+  download exists.
+- The earlier survey conflated **Z-machine** (Infocom interactive-fiction
+  virtual machine) with **Z80** (Zilog 8-bit CPU). David Given's `vbccz`
+  is the Z-machine backend, not a Z80 backend.
 
-Oracle value: **high**. Backend choices on the same source highlight where
-clang/llvm-z80 makes weak decisions that SDCC happens to share — the most
-useful kind of third opinion.
+There may be a private / third-party vbcc-Z80 fork somewhere, but nothing
+public was found in 2026-05-14 searches. Treating vbcc as **not viable**
+for Z80 oracle work.
+
+ACK is promoted to the highest-value remaining candidate (see below).
 
 ## Tier 2 — useful but lower priority
 
@@ -136,9 +141,9 @@ use.
 |----------|------------|---------------------|-------------|-------------|--------------|
 | SDCC / zsdcc | Yes | Yes | Yes | (already used) | baseline |
 | clang / llvm-z80 | Yes | Yes (with our patches) | Yes | (already used) | baseline |
-| **sccz80** | Yes | Yes | Yes | Low (Docker present) | **High** |
-| **vbcc** | Yes | Yes | Yes | Med (new Docker) | **High** |
-| ACK | Yes | Yes | Yes (via cpm) | Med (new Docker) | Medium-low |
+| **sccz80** | Yes | Yes | Yes | Low (Docker present) | Low (~2.2× clang, uniformly worse — corpus 2026-05-14) |
+| ~~vbcc~~ | n/a | n/a | **NO Z80 target** | n/a | n/a |
+| **ACK** | Yes | Yes | Yes (via cpm; ROM needs platform stanza) | Med (new Docker) | Unknown — only remaining candidate |
 | MESCC | Yes | Yes | CP/M only | High (port C subset) | None (C subset) |
 | Rust-LLVM-z80 | Partial | No (shares LLVM) | Experimental | High | Mirror only |
 | Zig eZ80 | Early | No (shares LLVM) | Experimental | High | Mirror only |
@@ -146,14 +151,23 @@ use.
 | HiTech C | Parked | Yes | Yes | (parked) | n/a |
 | IAR / Zilog ZDS / Cosmic | n/a | Yes | Yes | Unobtainable | n/a |
 
-## Recommendation
+## Recommendation (revised 2026-05-14)
 
-1. Add **sccz80** as a third cpnos-rom build cell. Cheapest by far.
-2. Add **vbcc** as a fourth codegen oracle (size-diff only, do not ship a
-   PROM). Medium effort; high expected signal.
-3. **ACK** is opportunistic; pick up only if (1) and (2) plateau and we still
-   want a fourth independent opinion.
-4. Skip everything else unless project priorities change.
+1. ~~Add sccz80~~ — DONE 2026-05-14 in `sccz80-oracle-corpus/`. Result:
+   sccz80 lands at ~2.2× clang's size on every codegen pattern tested.
+   Uniformly worse → low oracle value (disagreement always means "sccz80
+   is wrong", not actionable about clang). Do not add as cpnos-rom build
+   cell.
+2. ~~Add vbcc~~ — IMPOSSIBLE. No Z80 backend in vbcc. Survey error
+   corrected above.
+3. **Try ACK next** if a third codegen oracle is still desired. Its Z80
+   backend is real but reputedly weak — worse-or-equal to sccz80
+   probably. Verifying that intuition before investing Docker-image
+   effort is itself useful signal (rule out ACK definitively or surface
+   surprising strength).
+4. **Stop here** is also a valid answer. With vbcc gone and sccz80
+   characterised, no compelling third oracle remains. Direct llvm-z80
+   work (the original goal) is the higher-value direction.
 
 Tasks tracked in `rc700-gensmedet/tasks/todo.md` under "Additional Z80 C
 compilers as codegen oracles".

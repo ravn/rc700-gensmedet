@@ -167,18 +167,14 @@ Tasks:
 - [ ] Add to `cpnos-rom` 4-cell test matrix → 6-cell (sccz80 × {SIO,PIO}). Value oracle covers all TRANSPORT cells per [[feedback_value_oracle_all_transport_cells]].
 - [ ] Document size delta vs SDCC + clang in a session note; outliers (>50 B or >1.5×) get codegen comparison per [[feedback_outlier_first_not_sweep]].
 
-### vbcc Z80 backend (Volker Barthelmann, manual reissued Feb 2025)
+### ~~vbcc Z80 backend~~ — NOT VIABLE (correction 2026-05-14)
 
-- Genuinely independent IR + register allocator + peepholer. Most useful as a *codegen oracle* — its choices on the same C source highlight where clang/llvm-z80 makes weak decisions that SDCC also happens to share.
-- Z80 target supports ROM via linker scripts; no CP/M dependency.
-- Licensing requires unaltered vbcc download + separate Z80 patch; needs a Docker image.
+vbcc does NOT have a Z80 backend. Survey error corrected; Wikipedia
+CPU list + vbcc upstream target archives both confirm no Z80 target.
+The earlier survey conflated Z-machine (Infocom VM) with Z80. All
+"vbcc" tasks in this section are cancelled.
 
-Tasks:
-- [ ] Build a `vbcc-z80` Docker image (mirror of existing z88dk / llvm-z80 Docker patterns). No brew, no host install per environment constraints.
-- [ ] Smoke-test on `cpnos-rom/init.c` (smallest TU) to confirm the toolchain reaches binary.
-- [ ] Per-function `.text` size diff vs clang and SDCC across the cpnos-rom and BIOS sources. Use total section sizes per [[feedback_compare_total_section_sizes]], not per-function .text alone.
-- [ ] For any vbcc < clang AND vbcc < SDCC outlier of ≥10 B, read disassembly and file as llvm-z80 codegen issue with the vbcc output as oracle evidence.
-- [ ] Do NOT ship a vbcc-built PROM — runtime-test only if a specific bug repro needs it.
+See `z80-compilers-survey-2026-05-13.md` for the correction details.
 
 ### ACK (Amsterdam Compiler Kit) — lower priority third oracle
 
