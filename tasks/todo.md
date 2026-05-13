@@ -151,6 +151,63 @@ IOBYTE fully implemented. SIO roles swapped:
 - [ ] Full CCP+BDOS+BIOS download mode (user can provide replacement CCP/BDOS)
 - [ ] Clean up cfg/ stale overrides in Makefile (delete before MAME runs)
 
+## Additional Z80 C compilers as codegen oracles (research 2026-05-13)
+
+Two maintained Z80 C compilers identified as worth adding alongside SDCC + clang/llvm-z80, primarily as third codegen oracles for outlier-first regression detection (not necessarily as shipping compilers).
+
+### sccz80 (z88dk's native non-optimising C compiler)
+
+- Distinct from zsdcc (already used) — independent codegen, emphasis on small code via runtime helpers rather than inlining; very different shape from SDCC's IX-frame-heavy output.
+- Already installed via z88dk Docker; no new toolchain needed.
+- ROM output via `zcc +z80 -clib=sdcc_ix -create-app` with custom target cfg (ORG configurable).
+
+Tasks:
+- [ ] Add `cpnos-rom-sccz80` cell in cpnos-rom Makefile (mirrors clang/SDCC recipes, see [[feedback_symmetric_recipes_per_compiler]]).
+- [ ] Write minimal target cfg / CRT0 for the cpnos resident layout (PROM 0/1, BSS at 0xED00..). Reuse z88dk +embedded as starting point.
+- [ ] Add to `cpnos-rom` 4-cell test matrix → 6-cell (sccz80 × {SIO,PIO}). Value oracle covers all TRANSPORT cells per [[feedback_value_oracle_all_transport_cells]].
+- [ ] Document size delta vs SDCC + clang in a session note; outliers (>50 B or >1.5×) get codegen comparison per [[feedback_outlier_first_not_sweep]].
+
+### vbcc Z80 backend (Volker Barthelmann, manual reissued Feb 2025)
+
+- Genuinely independent IR + register allocator + peepholer. Most useful as a *codegen oracle* — its choices on the same C source highlight where clang/llvm-z80 makes weak decisions that SDCC also happens to share.
+- Z80 target supports ROM via linker scripts; no CP/M dependency.
+- Licensing requires unaltered vbcc download + separate Z80 patch; needs a Docker image.
+
+Tasks:
+- [ ] Build a `vbcc-z80` Docker image (mirror of existing z88dk / llvm-z80 Docker patterns). No brew, no host install per environment constraints.
+- [ ] Smoke-test on `cpnos-rom/init.c` (smallest TU) to confirm the toolchain reaches binary.
+- [ ] Per-function `.text` size diff vs clang and SDCC across the cpnos-rom and BIOS sources. Use total section sizes per [[feedback_compare_total_section_sizes]], not per-function .text alone.
+- [ ] For any vbcc < clang AND vbcc < SDCC outlier of ≥10 B, read disassembly and file as llvm-z80 codegen issue with the vbcc output as oracle evidence.
+- [ ] Do NOT ship a vbcc-built PROM — runtime-test only if a specific bug repro needs it.
+
+### ACK (Amsterdam Compiler Kit) — lower priority third oracle
+
+- Tanenbaum/Jacobs's retargetable toolchain, maintained by David Given at `davidgiven/ack` (V6.2+ April 2025).
+- C frontend; Z80 backend with `cpm` platform emits .COM; ROM target needs custom platform stanza but is structurally feasible.
+- Caveat: backend is reputedly weak on code density (teaching/portability project), so a *worse* compiler agreeing with clang carries less signal than vbcc would.
+- Pick up only after sccz80 + vbcc results are characterised — they are the higher-signal pair.
+
+Tasks:
+- [ ] Build a `ack-z80` Docker image (no host install per [[reference_build_binaries]]).
+- [ ] Smoke-test on `cpnos-rom/init.c` to confirm ACK reaches binary on our C dialect.
+- [ ] If smoke passes, run size-diff vs clang+SDCC+sccz80+vbcc on cpnos-rom sources; record outliers.
+- [ ] Decision point: continue or park, based on whether ACK adds signal beyond sccz80 + vbcc.
+
+### Survey reference
+
+Full landscape including Tier 3 (HiTech, IAR, Zilog ZDS, Cosmic, BDS C, ASCII MSX-C, GST C, etc.) and explicitly-rejected options (Rust→Z80, Zig eZ80, Z80Babel, MESCC, ZNC, GCC, TCC, …) documented in `rc700-gensmedet/tasks/z80-compilers-survey-2026-05-13.md`.
+
+### Out of scope (do not pursue without explicit user signal)
+
+- HiTech C — parked per `rc700-gensmedet/tasks/hitech-port-parked.md` ([[feedback_check_hitech_park_note]]).
+- IAR Z80 / Zilog ZDS-II — unavailable for purchase, no public benchmarks possible.
+- Cosmic/Whitesmiths Z80 — frozen, no current release.
+- MESCC — Small-C subset; can't compile cpnos sources without rewrites.
+- ZNC (Spectrum Next) — C-like, not C; cannot ingest cpnos sources.
+- Rust→Z80 / Zig eZ80 / Z80Babel — experimental; either downstream of LLVM (no oracle value) or not yet stable.
+- BDS C, ASCII MSX-C, GST C, Aztec C, Software Toolworks C/80, Mark Williams Let's C, Lattice C, HiSoft C — historical only, frozen.
+- GCC, TCC, chibicc, cproc, 8cc, PCC, Open Watcom, CompCert — no Z80 backend.
+
 ## Upstream bug reports for jacobly0/llvm-z80
 
 Collect all codegen bugs found during BIOS/PROM work and file them as
