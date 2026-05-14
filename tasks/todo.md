@@ -155,17 +155,18 @@ IOBYTE fully implemented. SIO roles swapped:
 
 Two maintained Z80 C compilers identified as worth adding alongside SDCC + clang/llvm-z80, primarily as third codegen oracles for outlier-first regression detection (not necessarily as shipping compilers).
 
-### sccz80 (z88dk's native non-optimising C compiler)
+### sccz80 (z88dk's native non-optimising C compiler) — MEASURED 2026-05-14
 
 - Distinct from zsdcc (already used) — independent codegen, emphasis on small code via runtime helpers rather than inlining; very different shape from SDCC's IX-frame-heavy output.
 - Already installed via z88dk Docker; no new toolchain needed.
 - ROM output via `zcc +z80 -clib=sdcc_ix -create-app` with custom target cfg (ORG configurable).
+- Measured 2.2× clang on the oracle corpus (257 B vs 115 B). Uniformly worse than zsdcc and clang on every pattern tested.
 
 Tasks:
-- [ ] Add `cpnos-rom-sccz80` cell in cpnos-rom Makefile (mirrors clang/SDCC recipes, see [[feedback_symmetric_recipes_per_compiler]]).
-- [ ] Write minimal target cfg / CRT0 for the cpnos resident layout (PROM 0/1, BSS at 0xED00..). Reuse z88dk +embedded as starting point.
-- [ ] Add to `cpnos-rom` 4-cell test matrix → 6-cell (sccz80 × {SIO,PIO}). Value oracle covers all TRANSPORT cells per [[feedback_value_oracle_all_transport_cells]].
-- [ ] Document size delta vs SDCC + clang in a session note; outliers (>50 B or >1.5×) get codegen comparison per [[feedback_outlier_first_not_sweep]].
+- [x] Build sccz80 cell in `sccz80-oracle-corpus/Makefile` (corpus + behavioural verification).
+- [x] Document size delta vs zsdcc + clang in `findings-2026-05-13.md`.
+
+Outcome: low oracle value — disagreements always mean "sccz80 is worse", not actionable about clang codegen. Do NOT add as a cpnos-rom build cell.
 
 ### ~~vbcc Z80 backend~~ — NOT VIABLE (correction 2026-05-14)
 
@@ -176,18 +177,58 @@ The earlier survey conflated Z-machine (Infocom VM) with Z80. All
 
 See `z80-compilers-survey-2026-05-13.md` for the correction details.
 
-### ACK (Amsterdam Compiler Kit) — lower priority third oracle
+### ACK (Amsterdam Compiler Kit) — MEASURED 2026-05-14
 
-- Tanenbaum/Jacobs's retargetable toolchain, maintained by David Given at `davidgiven/ack` (V6.2+ April 2025).
-- C frontend; Z80 backend with `cpm` platform emits .COM; ROM target needs custom platform stanza but is structurally feasible.
-- Caveat: backend is reputedly weak on code density (teaching/portability project), so a *worse* compiler agreeing with clang carries less signal than vbcc would.
-- Pick up only after sccz80 + vbcc results are characterised — they are the higher-signal pair.
+- Maintained at `davidgiven/ack` (V6.2+ April 2025).
+- **No separate Z80 backend.** `cpm` platform uses i80 (Intel 8080).
+  Output `.COM` runs natively on Z80 since 8080 is a strict subset →
+  ACK is a Tier-1 Z80-capable compiler (the weakest of four).
+- Measured 4.2× clang on the oracle corpus (481 B vs 115 B).
+- Zero CB/DD/ED/FD prefix bytes in linked output → confirmed emits no
+  Z80-only instructions (no DJNZ/JR/BIT/SET/RES/LDIR/IX/IY/EXX).
 
 Tasks:
-- [ ] Build a `ack-z80` Docker image (no host install per [[reference_build_binaries]]).
-- [ ] Smoke-test on `cpnos-rom/init.c` to confirm ACK reaches binary on our C dialect.
-- [ ] If smoke passes, run size-diff vs clang+SDCC+sccz80+vbcc on cpnos-rom sources; record outliers.
-- [ ] Decision point: continue or park, based on whether ACK adds signal beyond sccz80 + vbcc.
+- [x] Add ACK Docker invocation to `sccz80-oracle-corpus/Makefile` (commit 45ba433).
+- [x] Behavioural verification (all 8 cells PASS, byte-identical results vector).
+- [x] Per-function size measurement via `anm -n` + `asize` on `corpus_ack.o`.
+- [x] Document in `findings-2026-05-13.md` and `z80-compilers-survey-2026-05-13.md`.
+
+Outcome: low oracle value (disagreement direction always "ACK lacks
+the Z80 instruction", structurally pre-determined by ISA scope). Kept
+in the harness as a Tier-1 reference point and i8080-floor regression
+detector. No cpnos-rom build cell needed — ACK output is byte-bloat
+without compensating advantage.
+
+### Future Tier 3 audit: z80.eu/c-compiler.html (deferred)
+
+User-requested follow-up 2026-05-14: walk through
+http://z80.eu/c-compiler.html, record current state of every listed
+compiler, and create Docker images for the ones that still build, so
+they're usable on modern systems without host installs (per
+[[reference_build_binaries]]).
+
+The z80.eu page is a long-standing community catalogue covering many
+historical compilers that our 2026-05-13 survey treated as frozen /
+parked (BDS C, HiTech, Aztec, Whitesmiths, Software Toolworks C/80,
+GST, Lattice, etc.) plus some we may not have covered. Goal of this
+follow-up is **availability triage**, not oracle value — make the
+historical Z80 C compilers boot-up-able from a one-line `docker run`
+on macOS/Linux without polluting the host.
+
+Tasks:
+- [ ] Scrape http://z80.eu/c-compiler.html into a working list with
+      current upstream status per entry (alive / archived / dead-link).
+- [ ] Per surviving compiler: locate binaries / source, attempt build,
+      record CP/M-host vs cross-compile shape.
+- [ ] Docker image per buildable compiler under `ghcr.io/ravn/` namespace
+      mirroring the `ghcr.io/ravn/hitech` pattern (HiTech zc Docker
+      [[reference_hitech_zc_docker]]).
+- [ ] Update `z80-compilers-survey-2026-05-13.md` Tier 3 section with
+      "available as `docker run ghcr.io/ravn/<name>`" flag per entry.
+
+Not a blocker on any current work. Probably an evening / weekend item
+once direct llvm-z80 codegen work (Cluster A: #89, #27) is back in
+focus.
 
 ### Survey reference
 
