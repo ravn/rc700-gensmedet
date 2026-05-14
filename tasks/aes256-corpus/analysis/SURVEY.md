@@ -41,10 +41,9 @@ count**, NOT with K&R-vs-ANSI:
   rj_sbox, rj_sb_inv, rj_xtime — all take a u8 by value, not by
   pointer): 0 IX uses
 
-## Hypothesis disproved: K&R is NOT the IX trigger
+## Hypothesis: K&R blocks the IX-frame mode
 
-Tested `aes_subBytes` (1-pointer-arg) in both K&R and ANSI
-prototype variants:
+**Single-function test result** (aes_subBytes, 1-pointer-arg):
 
 ```c
 void aes_subBytes_kr(buf) unsigned char *buf;
@@ -54,39 +53,63 @@ void aes_subBytes_ansi(uint8_t *buf)
 { register uint8_t i = 16; while (i--) buf[i] = rj_sbox(buf[i]); }
 ```
 
-Result: **both 125 B, identical**. Converting K&R to ANSI does NOT
-unlock the IX-frame mode for single-pointer-arg functions.
+Both 125 B, identical. Looked like the K&R hypothesis was wrong.
 
-## The actual IX-mode trigger: pointer arg count
+## Updated finding: K&R DOES matter at corpus scale (just not via IX)
 
-clang's Z80 backend appears to choose IX-frame mode when the
-function's register-pressure-at-entry overflows the available
-register pairs (HL, DE, BC). With 2+ pointer args (each i16 = 16
-bits = needs a register pair), pressure is high enough that
-spilling to a frame pointer becomes the right tradeoff.
+A full-corpus ANSI-conversion experiment
+(`analysis/EXPERIMENT_full_ansi.md`) showed:
 
-With 1 pointer arg, the parameter fits in HL — but then clang's
-local register allocation immediately spills HL to the stack and
-goes SP-relative for the rest. This is the dominant pattern in
-the +1699 B gap.
+- clang.bin: 5114 → **4239 B (−17%)** with all K&R → ANSI
+- zsdcc.bin: 3604 → 3323 B (−8%)
+- Clang vs zsdcc gap: 1.57× → **1.41× (35% of gap closed)**
+
+But where the savings actually came from is NOT what the single-
+function test suggested:
+
+| Function | Δ from K&R → ANSI | Notes |
+|---|---:|---|
+| `aes_mc_inv` | **−403 B** (47%) | Complex w/many locals; propagation? |
+| `aes_mixColumns` | **−230 B** (43%) | Same |
+| `rj_sb_inv` | −140 B (90% smaller) | #158 — u8 rotate chain |
+| `rj_xtime` | −38 B | #158 same pattern |
+| `gf_log` | −23 B | #158 modest |
+| 1-arg pointer (`aes_subBytes` etc.) | 0..−2 B | No effect (matches single-fn test) |
+| 2-arg pointer (`aes_expandEncKey`) | −16 B | Modest |
+
+The aes_subBytes test was a representative sample of its CLASS
+(1-pointer-arg, simple loop) but not of the corpus. The **biggest
+savings come from aes_mc_inv and aes_mixColumns**, which are NOT
+hit by #158 directly — they call rj_xtime inlined, and ANSI on the
+inlined callees somehow propagates to caller codegen quality.
+
+This is a **fourth distinct optimisation pattern** (separate from
+#157 spill-storm, #158 K&R rotate, #159 ANSI rotate-chain
+miscompile): ANSI prototypes on inlined u8-callees materially
+improve the caller's regalloc choices.
 
 ## What this means for the priority queue
 
-- The K&R-to-ANSI source workaround **does NOT close the gap**.
-  Don't bother converting aes256.c wholesale.
-- The remaining gap is squarely the **regalloc-quality / IX-frame
-  heuristic** in [ravn/llvm-z80#157](https://github.com/ravn/llvm-z80/issues/157).
-  The fix is upstream-clang work; no source workaround helps.
-- Confirms #157 is THE issue to close to make AES competitive.
+- **K&R → ANSI source workaround DOES close ~35% of the gap** when
+  applied corpus-wide. But:
+- **Currently blocked by #159** — clang silently miscompiles ANSI
+  `rj_sb_inv`. Until fixed, full-ANSI variant cannot ship.
+- After #159 fix: ANSI conversion becomes a viable workaround for
+  35% of the gap; the remaining 65% is the genuine #157 spill-storm.
 
-## What's still useful in this branch
+## Filed issues recap
 
-- **#158** (K&R int-promotion) remains valid for the rotate-chain
-  pattern in `rj_sb_inv` — that one IS K&R-driven and ANSI fixes
-  it. Just not the spill-storm gap.
-- The per-function analysis docs document the variation in #157
-  manifestation: from "small function, mild spill" (gf_log) to
-  "huge function, full spill-storm" (aes_mc_inv).
+- [#157](https://github.com/ravn/llvm-z80/issues/157) — spill-storm
+  (regalloc quality + SP-relative spill encoding)
+- [#158](https://github.com/ravn/llvm-z80/issues/158) — K&R
+  int-promotion blocking u8 rotate recognition (correctness OK,
+  bloat 5–10×)
+- [#159](https://github.com/ravn/llvm-z80/issues/159) — ANSI
+  chained u8 rotates produce wrong output (silent miscompile via
+  uninit `E` register read)
+
+A fourth issue (ANSI-propagation to inlined callees, the
+aes_mc_inv −403 B finding) is worth filing once #159 is unblocked.
 
 ## Note on filed issues
 
