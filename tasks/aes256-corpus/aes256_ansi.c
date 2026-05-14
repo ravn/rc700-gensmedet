@@ -155,8 +155,7 @@ uint8_t rj_sbox(uint8_t x)
 } /* rj_sbox */
 
 /* -------------------------------------------------------------------------- */
-uint8_t rj_sb_inv(x)
-uint8_t x;
+uint8_t rj_sb_inv(uint8_t x)
 {
     uint8_t y, sb;
 
