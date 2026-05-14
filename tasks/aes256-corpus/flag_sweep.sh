@@ -123,6 +123,14 @@ build_and_measure "10_Oz_no_licm_cse_lsr"     -Oz -mllvm -disable-machine-licm \
 build_and_measure "11_Oz_no_licm_cse_gc"      -Oz -mllvm -disable-machine-licm \
                                               -mllvm -disable-machine-cse \
                                               -ffunction-sections -fdata-sections
+# Closes ravn/llvm-z80#157: forces hasFP=true so spill slots use
+# IX-relative (3B/access) instead of SP-relative recompute (5B/access).
+build_and_measure "12_Oz_no_omit_fp"          -Oz -fno-omit-frame-pointer
+build_and_measure "13_Oz_no_omit_fp_no_licm_cse_gc" \
+                                              -Oz -fno-omit-frame-pointer \
+                                              -mllvm -disable-machine-licm \
+                                              -mllvm -disable-machine-cse \
+                                              -ffunction-sections -fdata-sections
 
 # Generate the markdown table.
 cd ..

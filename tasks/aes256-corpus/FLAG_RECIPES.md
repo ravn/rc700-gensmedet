@@ -19,8 +19,8 @@ clang --target=z80 -Oz -nostdlib -ffreestanding -std=c89 \
       -Wno-deprecated-non-prototype
 ```
 
-Last validated against ravn/llvm-z80 HEAD `0dd6f9e47330`,
-2026-05-14.
+Last validated against ravn/llvm-z80 HEAD `3369f137dd2d`,
+2026-05-15.
 
 ## Recipes (verified on aes256-corpus)
 
@@ -44,6 +44,43 @@ Linked with `--gc-sections`.
   Verify behavior on workloads with high register pressure.
 - **Validation status**: validated on cpnos-rom (1928 B clang
   resident); FAIL on aes256-corpus.
+
+### Universal IX-frame-pointer recipe (closes ravn/llvm-z80#157)
+
+```
+clang ... -fno-omit-frame-pointer
+```
+
+- **Use for**: any non-`+static-stack` build where the function
+  has more than ~5 byte locals or otherwise spills.  This forces
+  `hasFP=true` on the Z80 backend, reserving IX as frame pointer
+  and switching all spill-slot access from `LD HL,N; ADD HL,SP;
+  LD (HL),X` (5 B per access) to `LD (IX±N),X` (3 B per access).
+- **AES corpus impact** (HEAD `3369f137dd2d`, post-#156):
+
+  | Variant | default | `-fno-omit-FP` | Δ |
+  |---|---:|---:|---:|
+  | clang.bin (K&R) | 4450 B | **3805 B** | **−645 (−14.5%)** |
+  | clang_ansi.bin | 4241 B | **3608 B** | **−633 (−14.9%)** |
+  | clang_kr tstates | 65.98M | **41.79M** | **−37%** |
+  | clang_ansi tstates | not measured | **36.97M** | (vs zsdcc 12.08M) |
+
+- **Per-function (clang K&R)**:
+  - `aes_mc_inv` 460 → **330 B** (−130; close to zsdcc 314)
+  - `aes_mixColumns` 300 → **236 B** (−64; **beats** zsdcc 241)
+  - `aes_expDecKey` 604 → **495 B** (−109)
+  - `aes_expandEncKey` 529 → **442 B** (−87)
+  - `aes_shiftRows`/`aes_sr_inv` each 271 → **200 B** (−71)
+  - `gf_log` 153 → **113 B** (−40)
+  - `aes_done` 54 → 58 B (**+4**; tiny leaf regression)
+- **Gap vs zsdcc**: K&R was +846 B → +201 B; ANSI was +637 B → **+4 B**
+  (essentially tied with the smallest sdcc config).
+- **Combine with**: `+static-stack` superlatively beats it when re-entrancy
+  is not needed (production cpnos-rom config, 2806 B on the same corpus).
+- **Why this isn't the backend default**: small leaf functions with no
+  spills pay ~4 B (PUSH IX / LD IX,0 / ADD IX,SP / POP IX) for no payback.
+  ravn/llvm-z80 leaves the choice to the user via this flag; production
+  PROMs already use `+static-stack` which is the strictly better option.
 
 ### Real-world u8-heavy code — runtime + size win (clang)
 

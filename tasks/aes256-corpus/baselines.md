@@ -158,6 +158,62 @@ those two functions.  `rj_sb_inv` (+138 B K&R vs ANSI) and `gf_log`
 (+23 B) remain on K&R; they are likely #157-class (regalloc) or
 caller-of-K&R-callee residuals not addressed by the icmp-sink fix.
 
+## llvm-z80 HEAD: `3369f137dd2d` + `-fno-omit-frame-pointer` recipe (closes #157)
+
+Captured 2026-05-15 session 71 after deciding closure path A on #157.
+No compiler change — the flag was always there.  This documents the
+empirical recipe and re-runs the sweep with two new configs (12, 13).
+
+### AES corpus `make sweep_clang`
+
+```
+make clean && make sweep_clang
+```
+
+Same compiler as the row above (no compiler change), just two added rows:
+
+| Config | bin B | aes_text B | tstates | verify |
+|---|------:|-----------:|--------:|:------:|
+| `01_baseline_Oz` | 4450 | 3996 | 65 979 155 | PASS |
+| `02_Os` | 4725 | 4285 | 65 653 409 | PASS |
+| `03_O3` | 12688 | 11445 | 65 564 499 | PASS |
+| `04_O2` | 8654 | 7497 | 65 648 107 | PASS |
+| `05_Oz_static_stack` | 2995 | 2565 | 33 588 245 | PASS |
+| `06_Oz_no_licm_cse` | 3988 | 3584 | 31 403 069 | PASS |
+| `07_Oz_no_lsr` | 4816 | 4052 | 65 968 593 | PASS |
+| `08_Oz_gc_sections` | 4430 | 3996 | 65 979 155 | PASS |
+| `09_Oz_prod_like` | **2806** | 2446 | **22 649 211** | PASS |
+| `10_Oz_no_licm_cse_lsr` | 4344 | 3596 | 31 426 610 | PASS |
+| `11_Oz_no_licm_cse_gc` | 3968 | 3584 | 31 403 069 | PASS |
+| **`12_Oz_no_omit_fp`** | **3805** | **3351** | **41 788 650** | PASS |
+| **`13_Oz_no_omit_fp_no_licm_cse_gc`** | **3488** | **3104** | **25 468 348** | PASS |
+
+Best non-`+static-stack` config is now `13_Oz_no_omit_fp_no_licm_cse_gc`
+at 3488 B (was 3968 at `11_Oz_no_licm_cse_gc` — **−480 B**).
+`09_Oz_prod_like` remains the absolute winner via `+static-stack`.
+
+### Per-function (clang K&R) at default vs `-fno-omit-FP`
+
+| Function | default | `-fno-omit-FP` | Δ B |
+|---|------:|------:|------:|
+| `aes_mc_inv` | 460 | **330** | −130 |
+| `aes_expDecKey` | 604 | **495** | −109 |
+| `aes_expandEncKey` | 529 | **442** | −87 |
+| `aes_shiftRows` | 271 | **200** | −71 |
+| `aes_sr_inv` | 271 | **200** | −71 |
+| `aes_mixColumns` | 300 | **236** | −64 |
+| `gf_log` | 153 | **113** | −40 |
+| `aes_sb_inv` | 127 | 101 | −26 |
+| `aes_subBytes` | 127 | 101 | −26 |
+| `aes_addRoundKey` | 135 | 116 | −19 |
+| `rj_sb_inv` | 156 | 150 | −6 |
+| `aes_done` | 54 | 58 | **+4** |
+| (others) | unchanged | unchanged | 0 |
+
+Net: −649 B summed (out of 4450 B function-level total — −14.6%).
+Tested all 4 corpus cells: PASS.  Gap vs zsdcc shrinks K&R +846 → +201,
+ANSI +637 → +4 (essentially tied).
+
 ## How to re-capture if HEAD moves
 
 The two-step:
