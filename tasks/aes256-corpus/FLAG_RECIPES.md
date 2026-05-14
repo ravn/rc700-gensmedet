@@ -122,7 +122,7 @@ workload. Recorded so future sessions don't re-try them.
 | `-flto` | AES K&R repro | Produces bitcode; doesn't integrate with the current ld.lld build path. Needs LTO toolchain setup before it can be evaluated. |
 | `-mllvm -aggressive-ext-opt` | AES K&R repro | 0% change (this build's pass already at its default level). |
 | `-mllvm -aggressive-machine-cse` | AES K&R repro | 0% change. |
-| `-mllvm -z80-loop-rotate` | AES K&R repro | **+34 B regression** (mc_loop 863→897). The flag is off-by-default per its help text "gates on #100"; off-by-default is correct. |
+| `-mllvm -enable-z80-loop-rotate` | AES K&R repro | **+34 B regression** (mc_loop 863→897). The flag is off-by-default per its help text "gates on #100"; off-by-default is correct. (Renamed from `-mllvm -z80-loop-rotate` in llvm-z80 commit `9bd19f5ac351` — old name collided with the legacy pass arg-name.) |
 | `-mllvm -combiner-shrink-load-replace-store-with-store` | AES K&R repro | 0% change. |
 | `-mllvm -combiner-reduce-load-op-store-width-force-narrowing-profitable` | AES K&R repro | 0% change. |
 | `-mllvm -disable-postra-machine-licm` | AES K&R repro | 0% change. |
