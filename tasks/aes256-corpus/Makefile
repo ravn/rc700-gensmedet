@@ -69,7 +69,15 @@ zsdcc.bin: $(SRCS)
 	$(ZCC) $(ZSDCC_FLAGS) -o zsdcc $(SRCS) 2>&1 | tail -10
 	@test -f zsdcc.bin || (echo "zsdcc.bin missing"; false)
 
+# ANSI variant: aes256_ansi.c is the K&R-to-ANSI converted source
+# (with rj_sb_inv reverted to K&R to work around the clang silent
+# miscompile filed as ravn/llvm-z80#159). Both compilers PASS.
+zsdcc_ansi.bin: aes256_ansi.c test_main.c
+	$(ZCC) $(ZSDCC_FLAGS) -o zsdcc_ansi aes256_ansi.c test_main.c 2>&1 | tail -10
+	@test -f zsdcc_ansi.bin || (echo "zsdcc_ansi.bin missing"; false)
+
 zsdcc: zsdcc.bin
+zsdcc_ansi_target: zsdcc_ansi.bin
 
 # ---------- clang ----------
 # K&R prototypes survived in aes256.c; -std=c89 + Wno-deprecated keeps
@@ -113,7 +121,18 @@ clang.elf: $(SRCS) reset_clang.s clang.ld
 clang.bin: clang.elf
 	$(LLVMOBJCOPY) -O binary clang.elf clang.bin
 
+# ANSI variant build (clang).
+clang_ansi.elf: aes256_ansi.c test_main.c reset_clang.s clang.ld
+	$(CLANG) $(CLANG_FLAGS) -c reset_clang.s -o reset_clang_ansi.o
+	$(CLANG) $(CLANG_FLAGS) -c aes256_ansi.c -o aes256_ansi_clang.o
+	$(CLANG) $(CLANG_FLAGS) -c test_main.c -o test_main_ansi_clang.o
+	$(LLDLD) -T clang.ld -o clang_ansi.elf reset_clang_ansi.o aes256_ansi_clang.o test_main_ansi_clang.o
+
+clang_ansi.bin: clang_ansi.elf
+	$(LLVMOBJCOPY) -O binary clang_ansi.elf clang_ansi.bin
+
 clang: clang.bin
+clang_ansi_target: clang_ansi.bin
 
 # ---------- Test runner ----------
 # z88dk-ticks exit conditions (verified from src/ticks/ticks.c):
@@ -145,14 +164,36 @@ zsdcc.end_addr: zsdcc.bin
 clang.ram clang.tstates: clang.bin clang.end_addr
 	@$(TICKS) -mz80 -end $$(cat clang.end_addr) -counter 300000000 \
 	          -output clang.ram clang.bin 2>&1 | tail -1 > clang.tstates
-	@printf '%-12s tstates=%s\n' clang "$$(cat clang.tstates)"
+	@printf '%-16s tstates=%s\n' clang_kr "$$(cat clang.tstates)"
 
 zsdcc.ram zsdcc.tstates: zsdcc.bin zsdcc.end_addr
 	@$(TICKS) -mz80 -end $$(cat zsdcc.end_addr) -counter 300000000 \
 	          -output zsdcc.ram zsdcc.bin 2>&1 | tail -1 > zsdcc.tstates
-	@printf '%-12s tstates=%s\n' zsdcc "$$(cat zsdcc.tstates)"
+	@printf '%-16s tstates=%s\n' zsdcc_kr "$$(cat zsdcc.tstates)"
 
-RAMS = zsdcc.ram clang.ram
+# ANSI variant runs — separate end_addrs (clang's _done addr is
+# linker-determined, same reset stub so still 0x0007; zsdcc's HALT
+# pattern same crt0).
+clang_ansi.end_addr: clang_ansi.elf
+	@$(LLVMNM) clang_ansi.elf | awk '$$3=="_done"{print "0x" $$1; exit}' > $@
+	@test -s $@ || (echo "couldn't extract _done from clang_ansi.elf"; rm -f $@; false)
+
+zsdcc_ansi.end_addr: zsdcc_ansi.bin
+	@python3 -c "import re; d=open('zsdcc_ansi.bin','rb').read(); \
+	    m=re.search(b'\\xe5\\xf3\\xe1\\x76', d); \
+	    print(f'0x{m.start()+3:04X}') if m else exit(1)" > $@
+
+clang_ansi.ram clang_ansi.tstates: clang_ansi.bin clang_ansi.end_addr
+	@$(TICKS) -mz80 -end $$(cat clang_ansi.end_addr) -counter 300000000 \
+	          -output clang_ansi.ram clang_ansi.bin 2>&1 | tail -1 > clang_ansi.tstates
+	@printf '%-16s tstates=%s\n' clang_ansi "$$(cat clang_ansi.tstates)"
+
+zsdcc_ansi.ram zsdcc_ansi.tstates: zsdcc_ansi.bin zsdcc_ansi.end_addr
+	@$(TICKS) -mz80 -end $$(cat zsdcc_ansi.end_addr) -counter 300000000 \
+	          -output zsdcc_ansi.ram zsdcc_ansi.bin 2>&1 | tail -1 > zsdcc_ansi.tstates
+	@printf '%-16s tstates=%s\n' zsdcc_ansi "$$(cat zsdcc_ansi.tstates)"
+
+RAMS = zsdcc.ram clang.ram zsdcc_ansi.ram clang_ansi.ram
 
 # Vector layout: [0..15] ciphertext, [16] enc PASS, [17..32] plaintext,
 # [33] dec PASS, [34] 0xA5 end sentinel.
@@ -161,42 +202,42 @@ EXPECTED_PT  = 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
 
 test: $(RAMS)
 	@echo "--- AES-256 verification at 0xC000 (35 bytes) ---"
-	@echo "expected     ct: $(EXPECTED_CT)  enc=01"
-	@echo "expected     pt: $(EXPECTED_PT)  dec=01  end=a5"
-	@for c in zsdcc clang; do \
-	    printf "%-12s " $$c; \
+	@echo "expected         ct: $(EXPECTED_CT)  enc=01"
+	@echo "expected         pt: $(EXPECTED_PT)  dec=01  end=a5"
+	@for c in zsdcc clang zsdcc_ansi clang_ansi; do \
+	    printf "%-16s " $$c; \
 	    python3 -c "import sys; d=open('$$c.ram','rb').read(); v=d[0xC000:0xC023]; \
 		print('ct:',' '.join(f'{b:02x}' for b in v[0:16]), \
-		      'enc='+f'{v[16]:02x}'); \
-		print(' '*12,'pt:',' '.join(f'{b:02x}' for b in v[17:33]), \
+		      'enc='+f'{v[16]:02x}', \
 		      'dec='+f'{v[33]:02x}', \
-		      'end='+f'{v[34]:02x}')"; \
+		      'end='+f'{v[34]:02x}', \
+		      '[PASS]' if v[16]==1 and v[33]==1 and v[34]==0xA5 else '[FAIL]')"; \
 	done
 	@echo ""
-	@echo "--- Runtime (tstates from start to post-main HALT) ---"
-	@printf '%-12s %12s tstates\n' zsdcc "$$(cat zsdcc.tstates)"
-	@printf '%-12s %12s tstates\n' clang "$$(cat clang.tstates)"
-	@python3 -c "z=int(open('zsdcc.tstates').read()); c=int(open('clang.tstates').read()); \
-	    print(f'             clang/zsdcc ratio: {c/z:.2f}x')"
+	@echo "--- 4-cell benchmark matrix (variant x compiler) ---"
+	@python3 bench_table.py
 
 # ---------- Size reporting ----------
-sizes: clang.bin zsdcc.bin
+sizes: clang.bin zsdcc.bin clang_ansi.bin zsdcc_ansi.bin
 	@echo "--- Binary sizes ---"
-	@for f in clang.bin zsdcc.bin DEMO.COM; do \
+	@for f in clang.bin clang_ansi.bin zsdcc.bin zsdcc_ansi.bin DEMO.COM; do \
 	    if [ -f $$f ]; then \
-		printf "%-15s %6d B\n" $$f $$(wc -c < $$f); \
+		printf "%-18s %6d B\n" $$f $$(wc -c < $$f); \
 	    fi; \
 	done
 	@echo ""
-	@echo "--- aes256.c text size (per compiler) ---"
-	@printf "%-12s " clang; \
+	@echo "--- aes256.c text size (clang, per variant) ---"
+	@printf "%-18s " clang_kr; \
 	    $(LLVMNM) --print-size --size-sort aes256_clang.o 2>/dev/null | \
 	    python3 -c "import sys; t=sum(int(p[1],16) for p in (l.split() for l in sys.stdin) if len(p)>=4 and p[2] in 'tT'); print(t, 'bytes')"
-	@printf "%-12s " zsdcc; \
-	    ls -la aes256.o 2>/dev/null || echo "(no aes256.o — zsdcc keeps intermediates in tmp)"
+	@printf "%-18s " clang_ansi; \
+	    $(LLVMNM) --print-size --size-sort aes256_ansi_clang.o 2>/dev/null | \
+	    python3 -c "import sys; t=sum(int(p[1],16) for p in (l.split() for l in sys.stdin) if len(p)>=4 and p[2] in 'tT'); print(t, 'bytes')"
 
 clean:
-	rm -f *.o *.bin *.map *.elf *.ram *.end_addr reset_clang.s clang.ld \
-	      zsdcc clang \
+	rm -f *.o *.bin *.map *.elf *.ram *.end_addr *.tstates \
+	      reset_clang.s clang.ld \
+	      zsdcc clang zsdcc_ansi clang_ansi \
 	      *_CODE.bin *_DATA.bin *_BSS.bin \
-	      aes256.c.lis test_main.c.lis aes256.lis test_main.lis
+	      aes256.c.lis test_main.c.lis aes256.lis test_main.lis \
+	      aes256_ansi.c.lis aes256_ansi.lis

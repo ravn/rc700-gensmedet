@@ -11,15 +11,19 @@ The reference `DEMO.COM` in the upstream zip is 9216 B as built by
 Peter Dassow's CP/M-targeted compiler. Provenance is NOT preserved
 in the zip — see "DEMO.COM provenance" section below.
 
-## Headline (baseline configs)
+## Headline — 4-cell baseline matrix
 
-| Compiler | bin B | aes256.c text B | runtime tstates | × baseline |
-|---|---:|---:|---:|---:|
-| **clang `-Oz`** | 5114 | 4660 | 66,121,724 | 1.00 / 1.00 |
-| **zsdcc** (cpnos-rom production flags) | 3604 | 2961 | 14,185,104 | **0.70 / 0.21** |
+```
+Variant   zsdcc bin  clang bin   gap B      ×    zsdcc ts    clang ts      ×
+K&R            3604       5114   +1510  1.42×    14185104    66121724   4.66×
+ANSI           3336       4375   +1039  1.31×    12118593    59725323   4.93×
+```
 
-zsdcc wins this real-world workload by **42% on size and 4.66× on
-runtime**. This **reverses** the micro-corpus result in
+ANSI vs K&R: clang.bin **−14.5%**, zsdcc.bin **−7.4%**.
+
+zsdcc wins this real-world workload by **42% on size / 4.66× on
+runtime** under K&R; by **31% / 4.93×** under ANSI. This
+**reverses** the micro-corpus result in
 `sccz80-oracle-corpus/findings-2026-05-13.md` where clang was 1.5×
 smaller than zsdcc on synthetic patterns.
 
@@ -27,8 +31,17 @@ The reversal is the headline finding. The micro-corpus measured
 clang's strengths (mid-end identity recognition, branchless boolify,
 LDIR-overlap fill). AES is dominated by clang's weaknesses: regalloc
 churn under high pressure, BSS spill traffic, the LICM+CSE
-pessimization (open issue #128), and a `+static-stack` miscompile
-(now filed as ravn/llvm-z80#156).
+pessimization (open issue #128), the K&R int-promotion cascade
+(filed as #158 + #160 + the propagation-into-callers Effect 3), the
+silent miscompile in ANSI chained rotates (#159), and the
+`+static-stack` AES miscompile (#156).
+
+Observation worth flagging: under ANSI, the clang/zsdcc runtime
+ratio actually **gets worse** (4.66× → 4.93×) even though both
+compilers run faster. zsdcc benefits more proportionally on runtime
+than clang does. Suggests the K&R int-promotion was masking some
+zsdcc runtime overhead that's now visible — orthogonal to the size
+analysis. Worth a small follow-up investigation.
 
 ## Best PASS configs from the sweeps
 
@@ -76,45 +89,43 @@ Findings:
 - **`--opt-code-speed`** is 81 B BIGGER than `--opt-code-size`
   *and* only 1.2% faster → not a useful trade on this workload.
 
-## Miscompile findings (filed as issues, NOT fixed)
+## Filed issues (this corpus's queue, none fixed)
 
-Three real compiler bugs surfaced from the sweep:
+### ravn/llvm-z80 (5 issues)
 
-### ravn/llvm-z80#156 — clang `+static-stack` miscompiles AES
+| # | Title | Manifestation on corpus | Repro |
+|---|---|---|---|
+| **#156** | `+static-stack` miscompile (ret pops corrupted return addr) | clang +static-stack FAILs AES decrypt; would be −1.7 KB if fixed | `repros/repro_clang_static_stack.c` |
+| **#157** | Spill-storm under high register pressure (SP-recompute per access) | aes_mc_inv +549 B, aes_mixColumns +289 B, gf_log +121 B | `repros/repro_aes_mc_inv_spill_storm.c` + `analysis/aes_mc_inv/ANALYSIS.md` |
+| **#158** | K&R int-promotion blocks u8 rotate recognition (body bloat) | rj_sb_inv 156 B vs 16 B ANSI (5.20× ratio) | `repros/repro_rj_sb_inv_bisect.c` |
+| **#159** | Silent miscompile in ANSI chained u8 rotates (uses uninit E reg) | ANSI rj_sb_inv produces wrong output despite 16 B clean code | `analysis/EXPERIMENT_full_ansi.md` bisection record |
+| **#160** | K&R callee declaration bloats CALLER's regalloc 87% | mc_loop 460→863 B from `f`'s declaration style alone | `repros/repro_kr_callee_propagates.c` |
 
-`-Xclang -target-feature -Xclang +static-stack` produces a binary
-36% smaller (3355 B aes_text vs 5114 B baseline) but at some point
-during AES a `ret` pops a corrupted return address (`0x7E0C`) and
-execution escapes into uninit RAM. Test never completes. Production
-cpnos-rom uses `+static-stack` successfully on its own code shape;
-AES is the first corpus where the flag triggers a miscompile.
+Cross-cutting: also validates open issue
+[**#128**](https://github.com/ravn/llvm-z80/issues/128) (MachineLICM/CSE
+pessimize on Z80) with **−52% runtime** on AES, much sharper than
+the original cpnos-rom evidence.
 
-If fixed, this would be a clear ~1.7 KB size win on AES-class code.
+### ravn/z88dk (2 issues)
 
-### ravn/z88dk#5 — zsdcc `--nogcse` AES miscompile (late absolute-pointer assign)
+| # | Title | Manifestation | Repro |
+|---|---|---|---|
+| **#5** | zsdcc `--nogcse` drops late-assigned absolute-pointer writes after struct-arg call | All writes through `r = (uint8_t *)0xC000;` elided | `repros/repro_nogcse_late_r.c` |
+| **#6** | zsdcc `-clib=sdcc_ix` silently miscompiles AES output | Wrong ciphertext, 33% larger code | `repros/repro_clib_ix.c` |
 
-`-Cs"--nogcse"` causes silent miscompile when the source has:
-```c
-uint8_t *r;          /* declared early */
-... aes256_encrypt_ecb(&ctx, buf); ...
-r = (uint8_t *)0xC000;   /* late assignment */
-r[i] = buf[i];           /* writes are dropped */
-```
-The function call before the late assignment is required to
-trigger. Initialising `r` at declaration avoids the bug. `volatile
-uint8_t *r` also masks it. Independent of `-SO`/`--opt-code-size`.
+### Strategic frame
 
-### ravn/z88dk#6 — zsdcc `-clib=sdcc_ix` AES miscompile
+Per `GOAL.md`: two-track mission. Clang track is upstream-LLVM work
+on int-promotion narrowing + regalloc quality. SDCC track is
+upstream-SDCC work on the two correctness bugs.
 
-`-clib=sdcc_ix` with AES produces wrong ciphertext (deterministic
-`20 01 3e 08 ...` instead of `8e a2 b7 ca ...`). End sentinel is
-written, so execution completes — only the AES values are wrong.
-Reproduces under both `--sdcccall 0` and `--sdcccall 1` with
-different (still-wrong) outputs, so it's an sdcc_ix-clib codegen
-issue not an ABI mismatch.
-
-Code is also 33% larger than sdcc_iy on the same source (4163 vs
-2961 B).
+Until the issues are fixed, the workarounds are:
+- **Clang track**: use ANSI prototypes where possible. Even with #159
+  blocking one function, the corpus-wide ANSI variant saves 14.5%
+  binary size (5114 → 4375 B). Production cpnos-rom is already
+  ANSI; aes256.c is the upstream-K&R source kept for provenance.
+- **SDCC track**: avoid `--nogcse` and `-clib=sdcc_ix`. Stick with
+  the production `-clib=sdcc_iy --sdcccall 1` recipe.
 
 ## Tooling findings (the ticks investigation)
 
@@ -162,12 +173,23 @@ anything, just curiosity).
    production currently disables it. Worth a sweep on actual
    cpnos-rom workload before flipping the default.
 3. **Add AES to the regular regression suite** — runtime tstate
-   metric is a much sharper signal than size alone (the LICM/CSE
-   regression would have been caught in days, not "discovered 2 years
-   later in a flag sweep").
+   metric is a much sharper signal than size alone.
 4. **Find the DEMO.COM-producing compiler** — try other HiTech flags,
    BDS C, Aztec C.
-5. **Wait on the three miscompile fixes** (#156, z88dk#5, z88dk#6).
+5. **Continue down the priority queue**: aes_shiftRows / aes_sr_inv
+   (+102 / +100 B each), then aes_subBytes / aes_sb_inv /
+   aes_addRoundKey (+85 B each). Per the per-function survey, all
+   are #157 variants — confirm and add as evidence comments to #157
+   without filing duplicate issues.
+6. **Investigate why zsdcc gets a bigger runtime ratio improvement
+   under ANSI than clang** (4.66× → 4.93×). Probably reveals an
+   SDCC peephole that's K&R-blocked. Worth a brief bisect.
+7. **Wait on the 5 llvm-z80 + 2 z88dk filed issues**. Re-run
+   `make test` and `make sweep` after each fix to capture FAIL→PASS
+   transitions and size deltas.
+8. **Extend sweeps to ANSI variant** — currently sweeps target
+   K&R only. Doubling sweep time is justified once we have an upstream
+   fix landing that affects both variants differently.
 
 ## How to interpret the sweep tables
 

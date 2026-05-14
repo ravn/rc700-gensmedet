@@ -16,17 +16,21 @@ not preserved in the upstream zip).
 
 | File | Purpose |
 |---|---|
-| `aes256.c` | Upstream AES-256 implementation (three K&R prototypes converted to ANSI for SDCC parser; see comments in-file) |
+| `aes256.c` | Upstream AES-256 implementation (three K&R prototypes converted to ANSI for SDCC parser; see comments in-file). **K&R baseline.** |
+| `aes256_ansi.c` | Same source converted K&R → ANSI throughout, EXCEPT `rj_sb_inv` left K&R to work around clang miscompile [#159](https://github.com/ravn/llvm-z80/issues/159). **ANSI baseline.** |
 | `test_main.c` | Freestanding harness: known-answer encrypt+decrypt, writes 35-byte result vector at 0xC000 |
 | `demo_original.c` | Original demo.c from upstream zip, kept for provenance (uses stdio printf — needs a CP/M target to link, unlike our test harness) |
 | `aes256-original.zip` | Upstream zip, byte-faithful |
 | `DEMO.COM` | Reference binary from the upstream zip (9216 B) |
-| `Makefile` | Build + test recipes for both compilers |
-| `flag_sweep.sh` | clang flag-sweep driver |
-| `flag_sweep_sdcc.sh` | zsdcc flag-sweep driver |
+| `Makefile` | Build + 4-cell test matrix for both compilers × both variants |
+| `bench_table.py` | Helper: prints the 4-cell matrix in `make test` output |
+| `flag_sweep.sh` | clang flag-sweep driver (runs on K&R variant) |
+| `flag_sweep_sdcc.sh` | zsdcc flag-sweep driver (runs on K&R variant) |
 | `clang-flag-sweep.md` | **persistent table** of clang flag results — diff this in git to catch regressions |
 | `sdcc-flag-sweep.md`  | **persistent table** of zsdcc flag results — same |
+| `FLAG_RECIPES.md` | **persistent record** of empirically-validated flag combos per code shape |
 | `findings.md` | Analysis of the headline result + outlier per-function gap |
+| `GOAL.md` | Strategic two-track mission for the corpus |
 
 ## Targets
 
