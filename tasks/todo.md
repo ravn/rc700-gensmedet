@@ -255,17 +255,31 @@ full per-function and per-flag analysis.
 
 ### Filed compiler issues (do NOT fix — record only)
 
-- **ravn/llvm-z80#156** — `+static-stack` miscompile on AES (ret
-  pops corrupted return address `0x7E0C`, escapes into uninit RAM).
-  Bin would be 36% smaller if fixed. Production cpnos-rom uses
-  `+static-stack` successfully; AES is the first failing shape.
-- **ravn/z88dk#5** — zsdcc `--nogcse` silently drops writes through
-  a late-assigned absolute-address pointer after a struct-pointer-
-  arg call. Adding `volatile` masks; initialising at declaration
-  avoids.
-- **ravn/z88dk#6** — zsdcc `-clib=sdcc_ix` produces wrong AES
-  output (deterministic miscompile, ~33% larger code too).
-  Reproduces under both `--sdcccall 0` and `--sdcccall 1`.
+**ravn/llvm-z80** (5 issues, all open):
+
+- **#156** — clang `+static-stack` miscompile on AES (ret pops
+  corrupted return address). −1.7 KB if fixed.
+- **#157** — Spill-storm under high register pressure: SP-relative
+  slot recompute (5 B per access) vs IX-relative (3 B). aes_mc_inv
+  +549 B, aes_mixColumns +289 B, gf_log +121 B all traced here.
+- **#158** — K&R int-promotion blocks u8 rotate recognition. rj_sb_inv
+  bloats 16 B → 156 B (5.20× ratio) on K&R-declared function.
+- **#159** — Silent miscompile: ANSI chained u8 rotates produce wrong
+  output via uninitialised `E` register read. Blocks the
+  source-workaround of K&R → ANSI conversion.
+- **#160** — K&R declaration of u8-by-value callee bloats CALLER's
+  regalloc 87% via i16-ABI propagation. Same-source caller
+  (`mc_loop`) compiles 460 B vs 863 B based purely on callee's
+  declaration style.
+
+**ravn/z88dk** (2 issues, all open):
+
+- **#5** — zsdcc `--nogcse` silently drops writes through a
+  late-assigned absolute-address pointer after a struct-pointer-arg
+  call.
+- **#6** — zsdcc `-clib=sdcc_ix` produces wrong AES output
+  (deterministic miscompile, 33% larger code; reproduces under both
+  `--sdcccall 0` and `--sdcccall 1`).
 
 ### Stated goal (see `aes256-corpus/GOAL.md`)
 
@@ -281,48 +295,72 @@ Two parallel tracks, each producing an upstream-bound queue:
 
 ### Priority clang gaps to file (largest absolute B first)
 
-- [ ] **`aes_mc_inv`** (+549 B / 2.75×) — disassemble both
-      compilers, identify codegen pattern, file `ravn/llvm-z80`
-      issue with reduced C repro. Largest single function.
-- [ ] **`aes_mixColumns`** (+289 B / 2.20×) — same approach as
-      `aes_mc_inv`; share the reduced repro if the pattern is
-      identical.
-- [ ] **`rj_sb_inv`** (+126 B / **5.20× ratio**) — bitwise rotate
-      chain `y<<1|y>>7`, `y<<2|y>>6`, `y<<3|y>>5`; suspect missing
-      `rlca` chain peephole.
-- [ ] **`gf_log`** (+121 B / 4.78×) — tight while+xor loop; suspect
-      flag-recomputation regression (may overlap with
-      [llvm-z80#77](https://github.com/ravn/llvm-z80/issues/77)).
+Done so far (4 of 7 priority targets):
+
+- [x] **`aes_mc_inv`** (+549 B / 2.75×) — filed as #157
+      (spill-storm). `analysis/aes_mc_inv/ANALYSIS.md`.
+- [x] **`aes_mixColumns`** (+289 B / 2.20×) — same #157 pattern.
+      Comment added on #157. `analysis/aes_mixColumns/ANALYSIS.md`.
+- [x] **`rj_sb_inv`** (+126 B / **5.20× ratio**) — filed as #158
+      (K&R int-promotion). Plus surfaced silent miscompile in
+      ANSI variant → filed as #159. `analysis/rj_sb_inv/ANALYSIS.md`.
+- [x] **`gf_log`** (+121 B / 4.78×) — both #157 + #158 layered.
+      Comment added on #157. `analysis/gf_log/ANALYSIS.md`.
+
+Remaining (all predicted to be #157 variants per
+`analysis/SURVEY.md`):
+
+- [ ] **`aes_shiftRows` / `aes_sr_inv`** (+102 / +100 B each) —
+      pure byte-swap functions, only 2 byte locals each. Pattern
+      stats already extracted (`analysis/aes_shiftRows/`). Confirm
+      shape; add to #157 as evidence.
 - [ ] **`aes_subBytes` / `aes_sb_inv` / `aes_addRoundKey`** (each
       +85 B / ~3×) — all 16-byte iterator loops with byte-pointer
-      ops, very similar shapes; one reduced repro probably covers
-      all three.
+      ops, very similar shapes. The single-fn bisection (K&R = ANSI
+      = 125 B) already showed these aren't K&R-driven. Pure #157
+      variants.
+
+### New tasks surfaced this session
+
+- [ ] **Investigate why zsdcc gets a bigger runtime ratio improvement
+      under ANSI than clang** (clang/zsdcc runtime ratio:
+      4.66× → 4.93× under ANSI). zsdcc's body shrinks less than
+      clang's under ANSI, but its runtime drops MORE. Suggests an
+      SDCC peephole or codegen path that's K&R-blocked. Brief
+      bisect on a single u8-by-value function might surface it.
+- [ ] **Extend `make sweep` to run on aes256_ansi.c too** — current
+      sweeps target K&R only. After any of #156/#157/#158/#159/#160
+      lands, both variants' sweep tables should be refreshed to
+      capture the deltas. Doubles sweep time but worth it on a
+      tracked compiler change.
+- [ ] **Document the `__attribute__((always_inline))` workaround for
+      #160** in a project-level note. Closes ~17% of the K&R gap
+      per the FLAG_RECIPES verified measurement; possibly worth
+      applying to specific hot u8-callees in cpnos-rom if a
+      production-level workaround is needed before upstream fix.
 
 ### Cross-cutting tasks
 
-- [ ] **Adopt the AES-validated `-mllvm -disable-machine-licm
-      -mllvm -disable-machine-cse` flags in any new C corpus by
-      default.** Already in cpnos-rom production. Validates
+- [x] **Adopt `-mllvm -disable-machine-licm -mllvm -disable-machine-cse`**
+      — already in cpnos-rom production. Validates
       [llvm-z80#128](https://github.com/ravn/llvm-z80/issues/128)
-      with hard numbers: −7.4% size, **−52% runtime** on AES.
+      with hard numbers from AES: −7.4% size, **−52% runtime**.
+- [x] **Add `-mllvm -disable-machine-sink` to the recipe** — newly
+      verified: saves an additional ~22 B per high-pressure
+      function. See `FLAG_RECIPES.md`.
 - [ ] **Re-measure cpnos-rom with `-mllvm -disable-lsr` removed.**
-      AES shows LSR helps (+366 B without it), counter to the
-      production choice to disable it. Cpnos-rom production may be
-      leaving size on the table for loop-heavy code shapes.
-- [ ] **Wire AES corpus into the regression suite.** Catch the next
-      LICM/CSE-shaped regression in days not years. Runtime tstate
-      metric is much sharper than size alone for surfacing codegen
-      regressions.
+      AES shows LSR helps (+366 B without it). Cpnos-rom production
+      may be leaving size on the table for loop-heavy code shapes.
+- [ ] **Wire AES corpus into the regular regression suite.**
+      Runtime tstate metric is much sharper than size alone.
 - [ ] **Find the compiler that produced the original DEMO.COM
       (9216 B).** HiTech 3.09x with `-O` produces 12581 B — bytes
-      differ from offset 1. So either different HiTech flags
-      (`-Z`, `-O1`, …), different HiTech version, or BDS C / Aztec
-      C / another z80.eu-listed compiler. Low priority — curiosity
-      only.
-- [ ] **Once miscompiles get fixed upstream:** re-run
-      `make sweep` and update `clang-flag-sweep.md` /
-      `sdcc-flag-sweep.md` to capture the new FAIL→PASS transitions
-      and any size deltas they unlock.
+      differ from offset 1. So either different HiTech flags, or
+      different HiTech version, or BDS C / Aztec C / another
+      z80.eu-listed compiler. Low priority — curiosity only.
+- [ ] **Once miscompile fixes land upstream:** re-run `make test`
+      (4-cell matrix) and `make sweep`. Diff the persistent .md
+      tables to capture FAIL→PASS transitions and size deltas.
 
 ## Upstream bug reports for jacobly0/llvm-z80
 
