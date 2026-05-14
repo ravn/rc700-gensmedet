@@ -18,6 +18,8 @@ clang.ld
 # Per-compiler driver outputs from zcc (no extension).
 zsdcc
 clang
+zsdcc_ansi
+clang_ansi
 
 # Sweep scratch directories.
 sweep/
