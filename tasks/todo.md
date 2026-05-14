@@ -267,7 +267,38 @@ full per-function and per-flag analysis.
   output (deterministic miscompile, ~33% larger code too).
   Reproduces under both `--sdcccall 0` and `--sdcccall 1`.
 
-### Open tasks
+### Stated goal (see `aes256-corpus/GOAL.md`)
+
+Two parallel tracks, each producing an upstream-bound queue:
+
+1. **Clang track** — drive ravn/llvm-z80 to zsdcc parity on AES
+   (currently +1699 B / +57% size, 4.66× runtime). Each per-function
+   gap → filed `ravn/llvm-z80` issue with reduced repro. NO fixes
+   here; fixes land in `llvm-z80/`.
+2. **SDCC track** — collect zsdcc miscompiles as `ravn/z88dk`
+   issues with repros. Long-term: summarise the queue against
+   upstream SDCC.
+
+### Priority clang gaps to file (largest absolute B first)
+
+- [ ] **`aes_mc_inv`** (+549 B / 2.75×) — disassemble both
+      compilers, identify codegen pattern, file `ravn/llvm-z80`
+      issue with reduced C repro. Largest single function.
+- [ ] **`aes_mixColumns`** (+289 B / 2.20×) — same approach as
+      `aes_mc_inv`; share the reduced repro if the pattern is
+      identical.
+- [ ] **`rj_sb_inv`** (+126 B / **5.20× ratio**) — bitwise rotate
+      chain `y<<1|y>>7`, `y<<2|y>>6`, `y<<3|y>>5`; suspect missing
+      `rlca` chain peephole.
+- [ ] **`gf_log`** (+121 B / 4.78×) — tight while+xor loop; suspect
+      flag-recomputation regression (may overlap with
+      [llvm-z80#77](https://github.com/ravn/llvm-z80/issues/77)).
+- [ ] **`aes_subBytes` / `aes_sb_inv` / `aes_addRoundKey`** (each
+      +85 B / ~3×) — all 16-byte iterator loops with byte-pointer
+      ops, very similar shapes; one reduced repro probably covers
+      all three.
+
+### Cross-cutting tasks
 
 - [ ] **Adopt the AES-validated `-mllvm -disable-machine-licm
       -mllvm -disable-machine-cse` flags in any new C corpus by
