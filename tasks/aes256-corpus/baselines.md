@@ -59,6 +59,53 @@ make clean && make sweep_clang
 | zsdcc_ansi.bin | 3323 |
 | DEMO.COM (HiTech-mystery) | 9216 |
 
+## llvm-z80 HEAD: `3369f137dd2d` (post-#156 +static-stack miscompile fix)
+
+Captured 2026-05-15 in session 71 after merging fix-156-bss-spill-loop-header
+to main.  Branch hash `b6b684d9a9b0`; merge commit `3369f137dd2d`.
+
+### z80-utils test-runner — `cargo run --release -- clang`
+
+| Total | PASS | FAIL | FATAL | SKIP |
+|------:|-----:|-----:|------:|-----:|
+| 990 | **685** | **42** | 56 | 207 |
+
++4 PASS / −4 FAIL vs `7801a8f10f62` baseline above.  Unrelated tests
+unblocked by the peephole fix — see #156 for details.
+
+### AES corpus `make sweep_clang`
+
+| Config | bin B | tstates | verify |
+|---|------:|--------:|:------:|
+| `01_baseline_Oz` | 4450 | 65979155 | PASS |
+| `02_Os` | 4725 | 65653409 | PASS |
+| `03_O3` | 12688 | 65564499 | PASS |
+| `04_O2` | 8654 | 65648107 | PASS |
+| **`05_Oz_static_stack`** | **2995** | **33588245** | **PASS** ← was FAIL |
+| `06_Oz_no_licm_cse` | 3988 | 31403069 | PASS |
+| `07_Oz_no_lsr` | 4816 | 65968593 | PASS |
+| `08_Oz_gc_sections` | 4430 | 65979155 | PASS |
+| **`09_Oz_prod_like`** | **2806** | **22649211** | **PASS** ← was FAIL |
+| `10_Oz_no_licm_cse_lsr` | 4344 | 31426610 | PASS |
+| `11_Oz_no_licm_cse_gc` | 3968 | 31403069 | PASS |
+
+**All 11 configs PASS.**  Smallest+fastest PASS config is now
+`09_Oz_prod_like` at 2806 B / 22.6M tstates — production knob set
+(static-stack + no-licm/cse + no-lsr + gc-sections).
+
+### AES `make sizes`
+
+| Variant | bin B | Δ vs `7801a8f` |
+|---|------:|------:|
+| clang.bin (K&R) | 4450 | 0 |
+| clang_ansi.bin | 4241 | 0 |
+| zsdcc.bin | 3604 | 0 |
+| zsdcc_ansi.bin | 3323 | 0 |
+
+Per-function sizes unchanged on the no-static-stack default build.
+The fix is in a peephole that only fires under `+static-stack`, so the
+baseline build is by-construction untouched.
+
 ## llvm-z80 HEAD: `7801a8f10f62` (post-#160 icmp-sink)
 
 Captured 2026-05-14 in session 70 after committing the
