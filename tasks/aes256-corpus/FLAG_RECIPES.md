@@ -49,17 +49,49 @@ Linked with `--gc-sections`.
 
 ```
 clang ... -mllvm -disable-machine-licm \
-          -mllvm -disable-machine-cse
+          -mllvm -disable-machine-cse \
+          -mllvm -disable-machine-sink
 ```
 
 - **Use for**: AES-class C code with byte locals and loop bodies.
   Validates open issue [#128](https://github.com/ravn/llvm-z80/issues/128).
 - **AES headline numbers**: aes256.c text 4660 → 4329 B
-  (**−7.4%**); runtime **66.1M → 31.6M tstates (−52%)**.
+  (**−7.4%**); runtime **66.1M → 31.6M tstates (−52%)** with
+  `-disable-machine-licm/cse` alone.  Adding `-disable-machine-sink`
+  saves an additional ~22 B per high-pressure function on the
+  K&R-callee repro.
 - **Combine with**: `-ffunction-sections -fdata-sections --gc-sections`
   for an additional ~50 B.
 - **Watch out**: not validated to be a win on tight BIOS-style
   code. Re-measure cpnos-rom before adopting elsewhere.
+
+### Workaround for K&R-callee bloat (issue #160)
+
+```
+clang ... -mllvm -disable-machine-licm \
+          -mllvm -disable-machine-cse \
+          -mllvm -disable-machine-sink
+```
+
+Plus, on each K&R-style u8-by-value function that has hot callers:
+
+```c
+__attribute__((always_inline)) static
+uint8_t f(x) uint8_t x;
+{ ... }
+```
+
+- **Use for**: AES-class code where you can't convert K&R to ANSI
+  in the source (e.g. preserving upstream provenance).
+- **Impact on canonical repro** (`repros/repro_kr_callee_propagates.c`):
+  K&R baseline 914 B → 819 B with `-disable-machine-sink` family
+  (−10.4%), or 839 B with `always_inline` alone.  Combined:
+  somewhere in between (not yet measured).
+- **Watch out**: `always_inline` eliminates only the call ABI; the
+  int-promotion at the source-level parameter declaration is NOT
+  fixed.  Closes ~17% of the K&R gap, not the full 48%.  The rest
+  is genuinely a clang IR optimization gap (#158 + #160) and
+  cannot be flag-worked-around at HEAD.
 
 ### Micro-corpus (synthetic patterns) — best-clang config
 
@@ -88,6 +120,17 @@ workload. Recorded so future sessions don't re-try them.
 | `-mllvm -aggressive-instcombine` | AES K&R repro | **Flag not recognised** at ravn/llvm-z80 HEAD `0dd6f9e47330`. May exist in upstream LLVM. |
 | `-mllvm -instcombine-max-iterations=100` | AES K&R repro | **Flag not recognised**. |
 | `-flto` | AES K&R repro | Produces bitcode; doesn't integrate with the current ld.lld build path. Needs LTO toolchain setup before it can be evaluated. |
+| `-mllvm -aggressive-ext-opt` | AES K&R repro | 0% change (this build's pass already at its default level). |
+| `-mllvm -aggressive-machine-cse` | AES K&R repro | 0% change. |
+| `-mllvm -z80-loop-rotate` | AES K&R repro | **+34 B regression** (mc_loop 863→897). The flag is off-by-default per its help text "gates on #100"; off-by-default is correct. |
+| `-mllvm -combiner-shrink-load-replace-store-with-store` | AES K&R repro | 0% change. |
+| `-mllvm -combiner-reduce-load-op-store-width-force-narrowing-profitable` | AES K&R repro | 0% change. |
+| `-mllvm -disable-postra-machine-licm` | AES K&R repro | 0% change. |
+| `-mllvm -disable-postra-machine-sink` | AES K&R repro | 0% change. |
+| `-mllvm -disable-machine-dce` | AES K&R repro | 0% change. |
+| `-mllvm -enable-spill-copy-elim` | AES K&R repro | 0% change. |
+| `-mllvm -enable-gvn-hoist`, `-enable-gvn-sink`, `-enable-newgvn` | AES K&R repro | 0% change individually or combined. |
+| `-mllvm -enable-memcpy-dag-opt` | AES K&R repro | 0% change. |
 
 ## SDCC recipes (zsdcc)
 
