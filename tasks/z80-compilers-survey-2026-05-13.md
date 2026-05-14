@@ -47,25 +47,39 @@ for Z80 oracle work.
 
 ACK is promoted to the highest-value remaining candidate (see below).
 
+**Resolution 2026-05-14: ACK measured.** No Z80 backend exists in ACK either
+— `cpm` platform uses i80 (Intel 8080). Output is 4.2× clang on this corpus.
+See ACK section below for details. No third oracle remains to add.
+
 ## Tier 2 — useful but lower priority
 
-### ACK (Amsterdam Compiler Kit)
+### ACK (Amsterdam Compiler Kit) — MEASURED 2026-05-14
 
-Tanenbaum/Jacobs's classic retargetable toolchain, maintained by David Given
-(same author as vbccz). V6.2+ as of April 2025; active GitHub repo at
-`davidgiven/ack`. C/Pascal/Modula-2/BASIC frontends. Z80 backend with `cpm`
-platform target emits `.COM` files; ROM target needs custom platform stanza
-but is structurally feasible.
+Tanenbaum/Jacobs's classic retargetable toolchain, maintained by David Given.
+V6.2+ as of April 2025; active GitHub repo at `davidgiven/ack`.
+C/Pascal/Modula-2/BASIC frontends.
 
-Caveat: ACK's Z80 backend is widely considered weak on code density — more of
-a teaching / portability project than an optimizing compiler. Its oracle
-value is inverted from vbcc's: a *worse* compiler agreeing with clang carries
-less signal than a *better* compiler diverging. Still genuinely independent
-code, so a disagreement is informative.
+**Correction 2026-05-14: ACK has NO Z80 backend.** Its `cpm` platform target
+uses the `i80` (Intel 8080) machine description. Output `.COM` files run on
+Z80 (strict 8080 superset) but cannot use any Z80-specific instructions
+(`DJNZ`, `JR`, `EX AF,AF'`, `EXX`, `IX`/`IY`, `BIT`/`SET`/`RES`, `LDIR`/`LDDR`,
+block I/O, etc.). Confirmed: zero CB/DD/ED/FD prefix bytes in linked output.
 
-Recommendation: add after sccz80 + vbcc are landed and their signal is
-characterised. If those two exhaust the cheap codegen wins, ACK is unlikely
-to add much.
+Measured in `sccz80-oracle-corpus/findings-2026-05-13.md`:
+- Total corpus: **481 B**, vs clang's 115 B → **4.2× clang**
+- Worst-of-four on every function tested
+- `-DUSE_VOLATILE` produces byte-identical output (ACK ignores volatile for
+  codegen — no merging to suppress, no caching to skip)
+
+Oracle value: low. Disagreement direction is always "ACK lacks the instruction
+clang used", which is structurally pre-determined by the i8080 ISA, not by
+codegen choices. Some indirect value as a "1976 i8080 floor" data point: if
+clang ever regresses to within 2× of ACK, that signals a structural backend
+breakage.
+
+Folklore "ACK is the world's smallest CP/M C compiler" refuted on this
+corpus — likely referred to the *compiler binary* being small, not its
+generated code.
 
 ### MESCC (Mike's Enhanced Small C Compiler)
 
@@ -143,7 +157,7 @@ use.
 | clang / llvm-z80 | Yes | Yes (with our patches) | Yes | (already used) | baseline |
 | **sccz80** | Yes | Yes | Yes | Low (Docker present) | Low (~2.2× clang, uniformly worse — corpus 2026-05-14) |
 | ~~vbcc~~ | n/a | n/a | **NO Z80 target** | n/a | n/a |
-| **ACK** | Yes | Yes | Yes (via cpm; ROM needs platform stanza) | Med (new Docker) | Unknown — only remaining candidate |
+| **ACK** | Yes | Yes (i8080, not Z80) | Yes (via cpm) | Done | **Low (~4.2× clang, i8080 floor — corpus 2026-05-14)** |
 | MESCC | Yes | Yes | CP/M only | High (port C subset) | None (C subset) |
 | Rust-LLVM-z80 | Partial | No (shares LLVM) | Experimental | High | Mirror only |
 | Zig eZ80 | Early | No (shares LLVM) | Experimental | High | Mirror only |
@@ -160,14 +174,17 @@ use.
    cell.
 2. ~~Add vbcc~~ — IMPOSSIBLE. No Z80 backend in vbcc. Survey error
    corrected above.
-3. **Try ACK next** if a third codegen oracle is still desired. Its Z80
-   backend is real but reputedly weak — worse-or-equal to sccz80
-   probably. Verifying that intuition before investing Docker-image
-   effort is itself useful signal (rule out ACK definitively or surface
-   surprising strength).
-4. **Stop here** is also a valid answer. With vbcc gone and sccz80
-   characterised, no compelling third oracle remains. Direct llvm-z80
-   work (the original goal) is the higher-value direction.
+3. ~~Try ACK next~~ — DONE 2026-05-14 in `sccz80-oracle-corpus/`. Result:
+   no Z80 backend exists in ACK; `cpm` platform uses i8080. Output is
+   4.2× clang on this corpus, byte-identical between volatile/non-volatile.
+   Useful only as a "1976 i8080 floor" data point; no codegen oracle value
+   because every disagreement is "ACK lacks the instruction" rather than
+   "ACK chose differently".
+4. **Stop here.** No C compiler exists for Z80 oracle expansion beyond the
+   four now measured (clang / zsdcc / sccz80 / ack). Direct llvm-z80 work
+   (the original goal) is the higher-value direction. Future oracle
+   expansion should target hand-written assembly references rather than
+   another C compiler — see `findings-2026-05-13.md` final section.
 
 Tasks tracked in `rc700-gensmedet/tasks/todo.md` under "Additional Z80 C
 compilers as codegen oracles".

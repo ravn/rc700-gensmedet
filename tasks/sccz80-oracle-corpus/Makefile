@@ -36,7 +36,8 @@ TICKS ?= $(Z88DK)/bin/z88dk-ticks
 # different kind of data point than the other three -- a "what does C
 # look like when restricted to the 1976 i8080 ISA" baseline.
 ACK_DOCKER ?= bensuperpc/ack
-ACK = docker run --rm -v $(CURDIR):/work -w /work $(ACK_DOCKER)
+# --platform linux/amd64: ACK image has no arm64 manifest, runs via Rosetta.
+ACK = docker run --rm --platform linux/amd64 -v $(CURDIR):/work -w /work $(ACK_DOCKER)
 
 ZCC_ENV = ZCCCFG=$(Z88DK)/lib/config PATH=$(Z88DK)/bin:$$PATH
 ZCC = $(ZCC_ENV) $(Z88DK)/bin/zcc
@@ -120,25 +121,57 @@ endef
 $(eval $(call BUILD_CLANG,clang,))
 $(eval $(call BUILD_CLANG,clang_vol,-DUSE_VOLATILE))
 
+# ---------- ack (i8080 baseline via Docker) ----------
+# ACK targets `cpm` which uses the i8080 backend. Output is a .com file
+# at ORG 0x0100. Runs on Z80 (strict 8080 superset) but emits NO Z80
+# instructions — no DJNZ, JR, EX(X), IX/IY, BIT/SET/RES, LDIR. This is
+# the "1976 i8080 floor" data point, structurally weaker than the
+# Z80-aware compilers on every pattern that uses Z80-only opcodes.
+#
+# Per-function text-segment sizes come from anm/asize on the corpus
+# object file (.com is post-link and asize rejects it as "bad format").
+ack.com: $(SRCS)
+	$(ACK) ack -mcpm -O corpus.c test_main.c -o ack.com 2>&1 | tail -5
+	@test -f ack.com || (echo "ack.com missing"; false)
+
+ack_vol.com: $(SRCS)
+	$(ACK) ack -mcpm -O -DUSE_VOLATILE corpus.c test_main.c -o ack_vol.com 2>&1 | tail -5
+	@test -f ack_vol.com || (echo "ack_vol.com missing"; false)
+
+# ACK object kept around so anm/asize can report per-function sizes.
+corpus_ack.o: corpus.c
+	$(ACK) ack -mcpm -O -c.o corpus.c -o corpus_ack.o
+
+corpus_ack_vol.o: corpus.c
+	$(ACK) ack -mcpm -O -DUSE_VOLATILE -c.o corpus.c -o corpus_ack_vol.o
+
 zsdcc: zsdcc.bin
 zsdcc_vol: zsdcc_vol.bin
 sccz80: sccz80.bin
 sccz80_vol: sccz80_vol.bin
 clang: clang.bin
 clang_vol: clang_vol.bin
+ack: ack.com corpus_ack.o
+ack_vol: ack_vol.com corpus_ack_vol.o
 
 # ---------- Test runner ----------
 %.ram: %.bin
 	$(TICKS) -mz80 -counter 5000000 -output $@ $<
 	@ls -la $@
 
-RAMS = zsdcc.ram zsdcc_vol.ram sccz80.ram sccz80_vol.ram clang.ram clang_vol.ram
+# ACK output is a .com (ORG 0x0100), so PC must start at 0x0100.
+%.ram: %.com
+	$(TICKS) -mz80 -counter 5000000 -pc 0x100 -output $@ $<
+	@ls -la $@
+
+RAMS = zsdcc.ram zsdcc_vol.ram sccz80.ram sccz80_vol.ram \
+       clang.ram clang_vol.ram ack.ram ack_vol.ram
 
 test: $(RAMS)
 	@echo "--- Results at 0xC000 (33 bytes per binary) ---"
 	@printf "%-12s" "expected"; \
 	    python3 expected.py
-	@for c in zsdcc zsdcc_vol sccz80 sccz80_vol clang clang_vol; do \
+	@for c in zsdcc zsdcc_vol sccz80 sccz80_vol clang clang_vol ack ack_vol; do \
 	    printf "%-12s" $$c; \
 	    python3 -c "import sys; d=open('$$c.ram','rb').read(); print(' '.join(f'{b:02x}' for b in d[0xC000:0xC021]))"; \
 	done
@@ -147,7 +180,7 @@ verify: test
 	@python3 verify.py
 
 clean:
-	rm -f *.o *.bin *.map *.elf *.ram reset_clang.s clang.ld \
+	rm -f *.o *.bin *.map *.elf *.ram *.com reset_clang.s clang.ld \
 	      zsdcc zsdcc_vol sccz80 sccz80_vol \
 	      *_CODE.bin *_DATA.bin *_BSS.bin \
 	      corpus.c.lis test_main.c.lis
