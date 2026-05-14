@@ -253,24 +253,33 @@ clang 1.42× on size and 4.66× on runtime — the reverse of the
 synthetic micro-corpus. See `aes256-corpus/findings.md` for the
 full per-function and per-flag analysis.
 
-### Filed compiler issues (do NOT fix — record only)
+### Filed compiler issues (post-session 69)
 
-**ravn/llvm-z80** (5 issues, all open):
+**ravn/llvm-z80** (6 filed, 3 fixed):
 
 - **#156** — clang `+static-stack` miscompile on AES (ret pops
-  corrupted return address). −1.7 KB if fixed.
+  corrupted return address). −1.7 KB if fixed. **OPEN**.
 - **#157** — Spill-storm under high register pressure: SP-relative
-  slot recompute (5 B per access) vs IX-relative (3 B). aes_mc_inv
-  +549 B, aes_mixColumns +289 B, gf_log +121 B all traced here.
-- **#158** — K&R int-promotion blocks u8 rotate recognition. rj_sb_inv
-  bloats 16 B → 156 B (5.20× ratio) on K&R-declared function.
+  slot recompute (5 B per access) vs IX-relative (3 B). Residual
+  ~860 B of the post-session-69 aes256.c K&R gap is in #157 territory
+  (aes_mc_inv +223 B, aes_mixColumns +174 B, etc.).  **OPEN**.
+- **#158** — K&R int-promotion blocks u8 rotate recognition.
+  **FIXED + MERGED** (session 69, llvm-z80 main).  −472 B K&R,
+  unblocked −873 B on ANSI.  TruncInstCombine narrowing through
+  function arguments.
 - **#159** — Silent miscompile: ANSI chained u8 rotates produce wrong
-  output via uninitialised `E` register read. Blocks the
-  source-workaround of K&R → ANSI conversion.
+  output via uninitialised `E` register read. **FIXED + MERGED**
+  (session 69).  Z80LateOptimization ALU shortcut peephole now
+  checks liveness of the temp register.
 - **#160** — K&R declaration of u8-by-value callee bloats CALLER's
-  regalloc 87% via i16-ABI propagation. Same-source caller
-  (`mc_loop`) compiles 460 B vs 863 B based purely on callee's
-  declaration style.
+  regalloc via i16-ABI propagation. **81% closed by #158 side
+  effect** (isolated repro now +84 B vs +441 B pre-session).  At
+  corpus scale the residual is larger (rj_sb_inv +126 B, gf_log
+  +121 B, gf_alog +1 B chained through K&R u8 calls).  **OPEN**.
+- **#161** — Session 69 follow-up to #159: replace MO.isKill() with
+  computeRegisterLiveness for the ALU shortcut peephole.
+  **FIXED + CLOSED**.  Recovered the 2 B conservatism cost on
+  autoload + 2 B on AES ANSI corpus.
 
 **ravn/z88dk** (2 issues, all open):
 
@@ -285,40 +294,47 @@ full per-function and per-flag analysis.
 
 Two parallel tracks, each producing an upstream-bound queue:
 
-1. **Clang track** — drive ravn/llvm-z80 to zsdcc parity on AES
-   (currently +1699 B / +57% size, 4.66× runtime). Each per-function
-   gap → filed `ravn/llvm-z80` issue with reduced repro. NO fixes
-   here; fixes land in `llvm-z80/`.
+1. **Clang track** — drive ravn/llvm-z80 to zsdcc parity on AES.
+   Post-session 69: K&R gap is **+1227 B (1.41×)** (was +1699 / 1.57×).
+   ANSI gap is **+918 B (1.31×)** (previously unbuildable).
+   Three filed issues fixed this session; three open targets remain.
 2. **SDCC track** — collect zsdcc miscompiles as `ravn/z88dk`
    issues with repros. Long-term: summarise the queue against
    upstream SDCC.
 
-### Priority clang gaps to file (largest absolute B first)
+### Priority clang gaps (post-session 69 — refreshed numbers)
 
-Done so far (4 of 7 priority targets):
+Done — all 4 originally-prioritised targets analysed AND fixed in
+their primary class:
 
-- [x] **`aes_mc_inv`** (+549 B / 2.75×) — filed as #157
-      (spill-storm). `analysis/aes_mc_inv/ANALYSIS.md`.
-- [x] **`aes_mixColumns`** (+289 B / 2.20×) — same #157 pattern.
-      Comment added on #157. `analysis/aes_mixColumns/ANALYSIS.md`.
-- [x] **`rj_sb_inv`** (+126 B / **5.20× ratio**) — filed as #158
-      (K&R int-promotion). Plus surfaced silent miscompile in
-      ANSI variant → filed as #159. `analysis/rj_sb_inv/ANALYSIS.md`.
-- [x] **`gf_log`** (+121 B / 4.78×) — both #157 + #158 layered.
-      Comment added on #157. `analysis/gf_log/ANALYSIS.md`.
+- [x] **`aes_mc_inv`** (+549 → **+223 B**, 1.71×) — #158 saved 326 B.
+      Residual is #157 regalloc territory.  `analysis/aes_mc_inv/`.
+- [x] **`aes_mixColumns`** (+289 → **+174 B**, 1.72×) — #158 saved
+      115 B.  Residual #157.  `analysis/aes_mixColumns/`.
+- [x] **`rj_sb_inv`** (+126 B / 5.20×, **unchanged on K&R**) — #158
+      doesn't help because the chain bridges through gf_mulinv
+      (K&R u8 callee).  Blocked on #160.  ANSI variant: 16 B,
+      perfect.  `analysis/rj_sb_inv/`.
+- [x] **`gf_log`** (+121 B / 4.78×, **unchanged on K&R**) — same
+      shape as rj_sb_inv: blocked on #160 (chained K&R calls).
+      ANSI variant: 130 B (still +98 B because of more complex
+      arithmetic).  `analysis/gf_log/`.
 
-Remaining (all predicted to be #157 variants per
-`analysis/SURVEY.md`):
+Remaining (all #157-class variants):
 
-- [ ] **`aes_shiftRows` / `aes_sr_inv`** (+102 / +100 B each) —
-      pure byte-swap functions, only 2 byte locals each. Pattern
-      stats already extracted (`analysis/aes_shiftRows/`). Confirm
-      shape; add to #157 as evidence.
-- [ ] **`aes_subBytes` / `aes_sb_inv` / `aes_addRoundKey`** (each
-      +85 B / ~3×) — all 16-byte iterator loops with byte-pointer
-      ops, very similar shapes. The single-fn bisection (K&R = ANSI
-      = 125 B) already showed these aren't K&R-driven. Pure #157
-      variants.
+- [ ] **`aes_shiftRows` / `aes_sr_inv`** (+102 / +100 B, unchanged
+      session 69) — pure byte-swap, only 2 byte locals.  Add to
+      #157 as evidence.  Asm already in `analysis/aes_shiftRows/`.
+- [ ] **`aes_subBytes` / `aes_sb_inv` / `aes_addRoundKey`** (+85
+      each, unchanged) — 16-byte iterator loops.  Single-fn bisect
+      already showed these aren't K&R-driven.  Pure #157 variants.
+
+New target surfaced by re-measurement:
+
+- [ ] **`aes_expDecKey`** (+1 B, unchanged) ✓ — at parity.  Mention
+      as the canary that confirms #157's hypothesis is correct
+      (this function doesn't trigger spill-storm, ergo it's at
+      parity with zsdcc).
 
 ### New tasks surfaced this session
 

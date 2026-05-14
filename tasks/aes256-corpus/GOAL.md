@@ -40,53 +40,86 @@ Existing pre-AES queue (from earlier work, not AES-specific):
 
 ## Track 2 — clang: drive llvm-z80 output to SDCC parity
 
-The aes256.c text-segment size gap is **+1699 B (clang 4660 vs zsdcc
-2961, 1.57×)**. Each material per-function gap is a candidate for a
-filed llvm-z80 issue with a reduced test case.
+### Session 69 update (2026-05-14, post #158+#159+#161)
 
-Per-function ranking (from `findings.md`, sorted by absolute B-saved
-if clang reached zsdcc parity):
+The corpus-wide gap on the K&R variant of aes256.c is now
+**+1227 B (clang 4188 vs zsdcc 2961, 1.41×)**, down from the
+**+1699 B (1.57×)** pre-session 69 baseline.  The 472 B saving came
+mostly from `aes_mc_inv` (−326 B) and `aes_mixColumns` (−115 B),
+both of which were heavy beneficiaries of llvm-z80#158 (the
+TruncInstCombine narrowing-through-arguments fix).
 
-| Function | clang | zsdcc | gap B | gap × |
-|---|---:|---:|---:|---:|
-| **aes_mc_inv** | 863 | 314 | **+549** | 2.75× |
-| **aes_mixColumns** | 530 | 241 | **+289** | 2.20× |
-| **rj_sb_inv** | 156 | 30 | **+126** | 5.20× ‼ |
-| **gf_log** | 153 | 32 | **+121** | 4.78× ‼ |
-| aes_shiftRows | 271 | 169 | +102 | 1.60× |
-| aes_sr_inv | 271 | 171 | +100 | 1.58× |
-| aes_subBytes | 127 | 42 | +85 | 3.02× |
-| aes_sb_inv | 127 | 42 | +85 | 3.02× |
-| aes_addRoundKey | 135 | 50 | +85 | 2.70× |
-| aes256_decrypt_ecb | 216 | 146 | +70 | 1.48× |
-| aes256_encrypt_ecb | 228 | 164 | +64 | 1.39× |
-| rj_xtime | 51 | 18 | +33 | 2.83× |
-| aes_ar_cpy | 123 | 98 | +25 | 1.26× |
-| aes256_init | 152 | 137 | +15 | 1.11× |
-| aes_expandEncKey | 529 | 523 | +6 | 1.01× ✓ |
-| aes_expDecKey | 604 | 603 | +1 | 1.00× ✓ |
+The ANSI variant — unblocked by llvm-z80#159 — is at
+**+904 B (clang 3865 vs zsdcc 2961, 1.31×)**, the lowest gap any
+configuration has reached.
 
-Plus three functions where clang **wins**:
+Per-function ranking after the session 69 fixes (K&R variant —
+the version of aes256.c we ship for upstream-faithfulness; ANSI
+is the workaround):
+
+| Function | K&R clang | zsdcc | gap B | gap × | Pre-session 69 | Δ |
+|---|---:|---:|---:|---:|---:|---:|
+| **aes_mc_inv** | 537 | 314 | **+223** | 1.71× | +549 | **−326** |
+| **aes_mixColumns** | 415 | 241 | **+174** | 1.72× | +289 | **−115** |
+| **rj_sb_inv** | 156 | 30 | +126 | 5.20× | +126 | 0 ‼ |
+| **gf_log** | 153 | 32 | +121 | 4.78× | +121 | 0 |
+| aes_shiftRows | 271 | 169 | +102 | 1.60× | +102 | 0 |
+| aes_sr_inv | 271 | 171 | +100 | 1.58× | +100 | 0 |
+| aes_subBytes/sb_inv | 127 each | 42 each | +85 | 3.02× | +85 | 0 |
+| aes_addRoundKey | 135 | 50 | +85 | 2.70× | +85 | 0 |
+| aes256_decrypt_ecb | 216 | 146 | +70 | 1.48× | +70 | 0 |
+| aes256_encrypt_ecb | 228 | 164 | +64 | 1.39× | +64 | 0 |
+| rj_xtime | 51 | 18 | +33 | 2.83× | +33 | 0 |
+| aes_ar_cpy | 123 | 98 | +25 | 1.26× | +25 | 0 |
+| aes256_init | 152 | 137 | +15 | 1.11× | +15 | 0 |
+| aes_expandEncKey | 529 | 523 | +6 | 1.01× ✓ | +6 | 0 |
+| aes_expDecKey | 604 | 603 | +1 | 1.00× ✓ | +1 | 0 |
+
+Plus three functions where clang **wins** (unchanged):
 - aes_done (54 B vs 89, −35 B, 0.61×)
 - rj_sbox (22 B vs 31, −9 B, 0.71×)
 - gf_mulinv (21 B vs 31, −10 B, 0.68×)
 
-### Priority targets
+### Key observation: who benefits from #158?
+
+Functions that DID benefit (chain ends in trunc-to-i8):
+- aes_mc_inv (returns u8, no intermediate K&R u8 call)
+- aes_mixColumns (returns u8, no intermediate K&R u8 call)
+- gf_log (in the ANSI variant, where it dropped to 130 B)
+
+Functions that did NOT benefit on K&R (chain bridges through a
+K&R u8 callee):
+- rj_sb_inv → calls gf_mulinv (also K&R u8); the i16 chain doesn't
+  trunc to i8, it gets passed to gf_mulinv's i16 ABI
+- gf_log (K&R) → uses K&R parameter chained through u8 K&R callees
+
+So the residual K&R gap is **the #160 pattern at function-boundary
+scale**: K&R u8 functions can't narrow their parameter past the call
+boundary.  Fixing #160 (which is open) should close most of the
+remaining 1227 B K&R gap.
+
+### Priority targets (refreshed for session 69+)
 
 By absolute B saved:
-1. **`aes_mc_inv`** (+549 B) — largest single function. Inverse mix-
-   columns: tight 4-iteration loop with 9 byte locals (`a,b,c,d,e,x,y,z`)
-   and double-`rj_xtime` calls. Suspected weakness: high register
-   pressure + repeated SP-relative byte spills.
-2. **`aes_mixColumns`** (+289 B) — same pattern, shorter (no double
-   xtime).
-3. **`rj_sb_inv`** (+126 B, **5.2×**) — small function, biggest *ratio*
-   gap. The C is a bitwise rotate chain `y<<1|y>>7`, `y<<2|y>>6`,
-   `y<<3|y>>5` then XOR. Should generate `rlca; rlca; ...` sequences;
-   suspect clang is missing the rotate-pattern peephole.
-4. **`gf_log`** (+121 B, **4.78×**) — tight `while` loop with
-   carry-chain XOR and break. Suspect flag-recomputation regression
-   (per partly-overlapping open llvm-z80#77).
+
+1. **`aes_mc_inv`** (+223 B, was +549) — `aes_mc_inv` is still
+   the biggest single absolute target.  #158 helped 326 B; residual
+   223 B is regalloc-quality work (#157 territory).  Hard.
+2. **`aes_mixColumns`** (+174 B, was +289) — similar to aes_mc_inv;
+   #157 territory.
+3. **`rj_sb_inv`** (+126 B, **5.2× ratio**, unchanged) — blocked
+   on #160 (chained call to gf_mulinv as K&R u8 callee).
+4. **`gf_log`** (+121 B, **4.78× ratio**, unchanged) — also blocked
+   on #160 (chained calls to gf_alog etc.).
+5. **`aes_shiftRows` / `aes_sr_inv`** (+102 / +100 B, unchanged) —
+   byte-swap pattern; #157-class.
+6. **`aes_subBytes` / `aes_sb_inv` / `aes_addRoundKey`** (+85 each,
+   unchanged) — 16-byte iterator-loop pattern; #157-class.
+
+#160's three-path fix is the largest remaining unclaimed target.
+Per #160's update, the residual on the isolated repro is 84 B but
+at corpus scale it accounts for ~400 B+ across rj_sb_inv, gf_log,
+gf_alog, rj_xtime and the chained-call hotspots.
 
 ### Process per function
 

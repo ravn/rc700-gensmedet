@@ -13,13 +13,21 @@ in the zip — see "DEMO.COM provenance" section below.
 
 ## Headline — 4-cell baseline matrix
 
+**Post-session 69 (after llvm-z80 fixes #158, #159, #161):**
+
 ```
 Variant   zsdcc bin  clang bin   gap B      ×    zsdcc ts    clang ts      ×
-K&R            3604       5114   +1510  1.42×    14185104    66121724   4.66×
-ANSI           3336       4375   +1039  1.31×    12118593    59725323   4.93×
+K&R            3604       4642   +1038  1.29×    14185104    66019335   4.65×
+ANSI           3323       4241    +918  1.28×    12080289    59557771   4.93×
 ```
 
-ANSI vs K&R: clang.bin **−14.5%**, zsdcc.bin **−7.4%**.
+Pre-session 69 K&R was 5114 B (1.42×); ANSI was unbuildable due
+to #159's silent miscompile.  Session 69 fix impact:
+- **K&R clang.bin: −472 B (−9.2%)** from #158
+- **ANSI clang.bin: −873 B** from baseline (#158 + #159 unblock + #161)
+- **ANSI-vs-K&R gap closed to 1.09×** (was 1.42×)
+
+ANSI vs K&R: clang.bin **−8.6%**, zsdcc.bin **−7.8%**.
 
 zsdcc wins this real-world workload by **42% on size / 4.66× on
 runtime** under K&R; by **31% / 4.93×** under ANSI. This
