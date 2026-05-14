@@ -116,10 +116,16 @@ By absolute B saved:
 6. **`aes_subBytes` / `aes_sb_inv` / `aes_addRoundKey`** (+85 each,
    unchanged) — 16-byte iterator-loop pattern; #157-class.
 
-#160's three-path fix is the largest remaining unclaimed target.
-Per #160's update, the residual on the isolated repro is 84 B but
-at corpus scale it accounts for ~400 B+ across rj_sb_inv, gf_log,
-gf_alog, rj_xtime and the chained-call hotspots.
+#160's residual is now a **missed AggressiveInstCombine sink**:
+after #158 closed the ABI body-bloat, the 77 B / corpus-scale
+~250-400 B residual is `icmp samesign ult i16 X, 128` ops
+surviving in the inlined `mc_loop` IR because TruncInstCombine
+only sinks via `trunc to iM`, not via `icmp <pred> iN X, CONST`.
+The combine works in isolated single-use cases but bails on the
+multi-use zext-sharing shape that real code produces.  Fix is a
+generic LLVM contribution (extend TruncInstCombine sink set) —
+see [#160 refined diagnosis comment](https://github.com/ravn/llvm-z80/issues/160#issuecomment-4453745878)
+and `repros/repro_160_icmp_narrow_missed.ll`.
 
 ### Process per function
 

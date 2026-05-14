@@ -13,6 +13,8 @@ in the zip — see "DEMO.COM provenance" section below.
 
 ## Headline — 4-cell baseline matrix
 
+**Post-session 70 (refined #160 diagnosis — was ABI residual, actually missed AggressiveInstCombine icmp-sink narrowing; see [#160 comment](https://github.com/ravn/llvm-z80/issues/160#issuecomment-4453745878)):**
+
 **Post-session 69 (after llvm-z80 fixes #158, #159, #161):**
 
 ```
@@ -107,7 +109,7 @@ Findings:
 | **#157** | Spill-storm under high register pressure (SP-recompute per access) | aes_mc_inv +549 B, aes_mixColumns +289 B, gf_log +121 B | `repros/repro_aes_mc_inv_spill_storm.c` + `analysis/aes_mc_inv/ANALYSIS.md` |
 | **#158** | K&R int-promotion blocks u8 rotate recognition (body bloat) | rj_sb_inv 156 B vs 16 B ANSI (5.20× ratio) | `repros/repro_rj_sb_inv_bisect.c` |
 | **#159** | Silent miscompile in ANSI chained u8 rotates (uses uninit E reg) | ANSI rj_sb_inv produces wrong output despite 16 B clean code | `analysis/EXPERIMENT_full_ansi.md` bisection record |
-| **#160** | K&R callee declaration bloats CALLER's regalloc 87% | mc_loop 460→863 B from `f`'s declaration style alone | `repros/repro_kr_callee_propagates.c` |
+| **#160** | K&R callee declaration bloats CALLER's regalloc 87% (residual after #158 is missed AggressiveInstCombine icmp-sink narrowing) | mc_loop 460→863 B from `f`'s declaration style alone; 77 B residual post-#158 due to surviving `icmp samesign ult i16 X, 128` | `repros/repro_kr_callee_propagates.c` + `repros/repro_160_icmp_narrow_missed.ll` |
 
 Cross-cutting: also validates open issue
 [**#128**](https://github.com/ravn/llvm-z80/issues/128) (MachineLICM/CSE
