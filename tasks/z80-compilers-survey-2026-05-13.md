@@ -47,11 +47,14 @@ for Z80 oracle work.
 
 ACK is promoted to the highest-value remaining candidate (see below).
 
-**Resolution 2026-05-14: ACK measured.** No Z80 backend exists in ACK either
-— `cpm` platform uses i80 (Intel 8080). Output is 4.2× clang on this corpus.
-See ACK section below for details. No third oracle remains to add.
+**Resolution 2026-05-14: ACK measured and kept in Tier 1.** ACK's `cpm`
+platform targets i80 (Intel 8080), not Z80 — but **8080 is a strict subset
+of Z80, so ACK's `.com` output runs natively on Z80** and ACK is a Z80-capable
+Tier-1 compiler (the weakest of the four, but a fourth Tier-1 entry, not a
+separate category). Output is 4.2× clang on this corpus. See ACK section
+below for details. No further Tier-1 entries remain to add.
 
-## Tier 2 — useful but lower priority
+## Tier 1 (continued) — ACK
 
 ### ACK (Amsterdam Compiler Kit) — MEASURED 2026-05-14
 
@@ -59,11 +62,12 @@ Tanenbaum/Jacobs's classic retargetable toolchain, maintained by David Given.
 V6.2+ as of April 2025; active GitHub repo at `davidgiven/ack`.
 C/Pascal/Modula-2/BASIC frontends.
 
-**Correction 2026-05-14: ACK has NO Z80 backend.** Its `cpm` platform target
-uses the `i80` (Intel 8080) machine description. Output `.COM` files run on
-Z80 (strict 8080 superset) but cannot use any Z80-specific instructions
-(`DJNZ`, `JR`, `EX AF,AF'`, `EXX`, `IX`/`IY`, `BIT`/`SET`/`RES`, `LDIR`/`LDDR`,
-block I/O, etc.). Confirmed: zero CB/DD/ED/FD prefix bytes in linked output.
+**ACK has no separate Z80 backend.** Its `cpm` platform target uses the `i80`
+(Intel 8080) machine description. Output `.COM` files run on Z80 because
+8080 is a strict subset of Z80, but ACK does not emit any Z80-only
+instructions (`DJNZ`, `JR`, `EX AF,AF'`, `EXX`, `IX`/`IY`, `BIT`/`SET`/`RES`,
+`LDIR`/`LDDR`, block I/O, etc.). Confirmed: zero CB/DD/ED/FD prefix bytes in
+linked output.
 
 Measured in `sccz80-oracle-corpus/findings-2026-05-13.md`:
 - Total corpus: **481 B**, vs clang's 115 B → **4.2× clang**
