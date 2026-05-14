@@ -245,6 +245,54 @@ Full landscape including Tier 3 (HiTech, IAR, Zilog ZDS, Cosmic, BDS C, ASCII MS
 - BDS C, ASCII MSX-C, GST C, Aztec C, Software Toolworks C/80, Mark Williams Let's C, Lattice C, HiSoft C — historical only, frozen.
 - GCC, TCC, chibicc, cproc, 8cc, PCC, Open Watcom, CompCert — no Z80 backend.
 
+## AES-256 corpus follow-ups (2026-05-14)
+
+The `aes256-corpus/` directory is a real-world compiler-efficiency
+benchmark using AES-256 from z80.eu. Baseline shows zsdcc beats
+clang 1.42× on size and 4.66× on runtime — the reverse of the
+synthetic micro-corpus. See `aes256-corpus/findings.md` for the
+full per-function and per-flag analysis.
+
+### Filed compiler issues (do NOT fix — record only)
+
+- **ravn/llvm-z80#156** — `+static-stack` miscompile on AES (ret
+  pops corrupted return address `0x7E0C`, escapes into uninit RAM).
+  Bin would be 36% smaller if fixed. Production cpnos-rom uses
+  `+static-stack` successfully; AES is the first failing shape.
+- **ravn/z88dk#5** — zsdcc `--nogcse` silently drops writes through
+  a late-assigned absolute-address pointer after a struct-pointer-
+  arg call. Adding `volatile` masks; initialising at declaration
+  avoids.
+- **ravn/z88dk#6** — zsdcc `-clib=sdcc_ix` produces wrong AES
+  output (deterministic miscompile, ~33% larger code too).
+  Reproduces under both `--sdcccall 0` and `--sdcccall 1`.
+
+### Open tasks
+
+- [ ] **Adopt the AES-validated `-mllvm -disable-machine-licm
+      -mllvm -disable-machine-cse` flags in any new C corpus by
+      default.** Already in cpnos-rom production. Validates
+      [llvm-z80#128](https://github.com/ravn/llvm-z80/issues/128)
+      with hard numbers: −7.4% size, **−52% runtime** on AES.
+- [ ] **Re-measure cpnos-rom with `-mllvm -disable-lsr` removed.**
+      AES shows LSR helps (+366 B without it), counter to the
+      production choice to disable it. Cpnos-rom production may be
+      leaving size on the table for loop-heavy code shapes.
+- [ ] **Wire AES corpus into the regression suite.** Catch the next
+      LICM/CSE-shaped regression in days not years. Runtime tstate
+      metric is much sharper than size alone for surfacing codegen
+      regressions.
+- [ ] **Find the compiler that produced the original DEMO.COM
+      (9216 B).** HiTech 3.09x with `-O` produces 12581 B — bytes
+      differ from offset 1. So either different HiTech flags
+      (`-Z`, `-O1`, …), different HiTech version, or BDS C / Aztec
+      C / another z80.eu-listed compiler. Low priority — curiosity
+      only.
+- [ ] **Once miscompiles get fixed upstream:** re-run
+      `make sweep` and update `clang-flag-sweep.md` /
+      `sdcc-flag-sweep.md` to capture the new FAIL→PASS transitions
+      and any size deltas they unlock.
+
 ## Upstream bug reports for jacobly0/llvm-z80
 
 Collect all codegen bugs found during BIOS/PROM work and file them as
