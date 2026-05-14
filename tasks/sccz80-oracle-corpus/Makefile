@@ -28,13 +28,23 @@ LLVMOBJCOPY ?= /Users/ravn/z80/llvm-z80/build-macos/bin/llvm-objcopy
 LLVMNM ?= /Users/ravn/z80/llvm-z80/build-macos/bin/llvm-nm
 TICKS ?= $(Z88DK)/bin/z88dk-ticks
 
+# ACK (Amsterdam Compiler Kit) -- runs in Docker.
+# IMPORTANT: ACK has no z80 backend; the `cpm` platform uses ACK's
+# `i80` (Intel 8080) machine. Output runs on Z80 (since Z80 is a strict
+# superset of 8080) but cannot use Z80-specific instructions: DJNZ, JR,
+# EX, EXX, IX/IY, BIT, SET, RES, LDIR, etc. This is therefore a
+# different kind of data point than the other three -- a "what does C
+# look like when restricted to the 1976 i8080 ISA" baseline.
+ACK_DOCKER ?= bensuperpc/ack
+ACK = docker run --rm -v $(CURDIR):/work -w /work $(ACK_DOCKER)
+
 ZCC_ENV = ZCCCFG=$(Z88DK)/lib/config PATH=$(Z88DK)/bin:$$PATH
 ZCC = $(ZCC_ENV) $(Z88DK)/bin/zcc
 
 SRCS = corpus.c test_main.c
 
-.PHONY: all clean test verify zsdcc sccz80 clang \
-        zsdcc_vol sccz80_vol clang_vol
+.PHONY: all clean test verify zsdcc sccz80 clang ack \
+        zsdcc_vol sccz80_vol clang_vol ack_vol
 
 all: test
 
