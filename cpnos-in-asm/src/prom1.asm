@@ -201,6 +201,19 @@ sio_tx_wait:
 	inc	hl
 	djnz	sio_tx_loop
 
+	; Phase 3a: emit one CP/NET INIT-request header on SIO-B so the
+	; protocol-layer plumbing is exercised end-to-end (frame layout +
+	; runtime HCS computation).  No ENQ/ACK handshake yet -- this
+	; just shoves 7 bytes onto the wire.  A future phase will wrap
+	; the emission in the full CP/NET 1.2 send sequence (ENQ wait
+	; ACK, header + HCS wait ACK, data + CKS + EOT wait ACK).
+	;
+	; Sequence on the wire (per cpnos-shared/docs/CPNET_WIRE_PROTOCOL.md):
+	;   SOH FMT DID SID FNC SIZ HCS
+	; HCS = -(SOH + FMT + DID + SID + FNC + SIZ) mod 256 so the seven
+	; bytes sum to 0 mod 256.
+	call	send_cpnet_init_header
+
 	; Phase 2b: polled echo loop on SIO-B.  Waits for a byte to
 	; arrive on RX, echoes it back on TX, repeats.  Replaces the
 	; trailing `jr halt` -- the slave never returns once it enters
@@ -299,6 +312,80 @@ init_table:
 	db	PORT_SIO_B_CTRL, 0x01, PORT_SIO_B_CTRL, 0x00	; WR1 = no IRQ
 init_table_end:
 init_table_pairs equ (init_table_end - init_table) / 2
+
+; ---- CP/NET frame emission ----------------------------------------
+;
+; CP/NET 1.2 control bytes (per the protocol spec; only the ones we
+; emit at this stage are defined here).
+SOH		equ	0x01		; Start Of Header
+
+; INIT request body (5-byte CP/NET header, no data section yet).
+;   FMT = 0     request from slave
+;   DID = 0     destination = master
+;   SID = 0xFF  slave's own ID -- 0xFF until master tells us in the
+;               INIT response (cfgtbl.slaveid starts at 0xFF too)
+;   FNC = 0xFF  init / get-node-ID
+;   SIZ = 0     0 data bytes follow -- we don't emit any DAT section
+;               in this phase, so SIZ is informational only here
+init_header:
+	db	0x00			; FMT
+	db	0x00			; DID
+	db	0xFF			; SID
+	db	0xFF			; FNC
+	db	0x00			; SIZ
+init_header_len equ $ - init_header	; = 5
+
+; send_cpnet_init_header: emit SOH + 5 header bytes + HCS on SIO-B
+; (polled TX).  HCS is computed at runtime by accumulating SOH+header
+; into A and emitting NEG(sum) so the seven on-wire bytes sum to 0
+; mod 256, per cpnos-shared/docs/CPNET_WIRE_PROTOCOL.md.
+;
+; Clobbers: AF, BC, DE, HL.
+send_cpnet_init_header:
+	; Send SOH first; seed the HCS accumulator with it.
+	ld	d, SOH			; D = byte to send + sum seed
+	ld	e, SOH			; E = running 8-bit sum
+	call	sio_b_tx_de_seed	; sends D, leaves E with sum
+
+	; Walk the 5 header bytes, sending each + updating E.
+	ld	hl, init_header
+	ld	b, init_header_len
+.hdr_loop:
+	ld	d, (hl)
+	call	sio_b_tx_d_accum	; send D, E += D
+	inc	hl
+	djnz	.hdr_loop
+
+	; HCS = NEG(E) so sum + HCS == 0 mod 256.
+	xor	a
+	sub	e			; A = 0 - E = -E
+	ld	d, a
+	jp	sio_b_tx_d		; tail-call: send HCS, return
+
+; sio_b_tx_de_seed: like sio_b_tx_d but assumes E already holds the
+; seed sum and just sends D without re-adding (caller has already
+; baked D into E).  Used for the very first byte (SOH).
+sio_b_tx_de_seed:
+	; fall through into sio_b_tx_d (no sum update)
+
+; sio_b_tx_d: send the byte in D on SIO-B (polled TX).  Preserves E.
+sio_b_tx_d:
+.wait:
+	in	a, (PORT_SIO_B_CTRL)
+	and	SIO_TX_BUF_EMPTY
+	jr	z, .wait
+	ld	a, d
+	out	(PORT_SIO_B_DATA), a
+	ret
+
+; sio_b_tx_d_accum: send D, then E += D.  Used by the header loop so
+; HCS accumulates as we emit.
+sio_b_tx_d_accum:
+	call	sio_b_tx_d
+	ld	a, e
+	add	a, d
+	ld	e, a
+	ret
 
 banner:
 	db	"RC702 CP/NOS asm phase 2a alive"

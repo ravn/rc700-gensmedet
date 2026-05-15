@@ -124,10 +124,21 @@ cpnos-siob-test: cpnos-mame-install
 	    >/tmp/cpnos_asm_mame.log 2>&1 \
 	    || { echo "MAME exited non-zero; log tail:"; tail -10 /tmp/cpnos_asm_mame.log; exit 1; }
 	@echo "--- $(SIOB_RAW) head (printable bytes) ---"
-	@tr -cd '\11\12\15\40-\176' < $(SIOB_RAW) | head -c 200; echo
-	@grep -aq "$(EXPECTED_BANNER)" $(SIOB_RAW) \
+	@LC_ALL=C tr -cd '\11\12\15\40-\176' < $(SIOB_RAW) | head -c 200; echo
+	@LC_ALL=C grep -aq "$(EXPECTED_BANNER)" $(SIOB_RAW) \
 	    && echo "PASS: banner present on SIO-B" \
 	    || { echo "FAIL: banner not on SIO-B"; xxd $(SIOB_RAW) | head -4; exit 1; }
+	@# Phase 3a: verify the CP/NET INIT header follows the banner,
+	@# checksum-valid.  Expected raw bytes immediately after the
+	@# banner's "alive\r\n": 01 00 00 FF FF 00 01 (SOH, FMT, DID,
+	@# SID, FNC, SIZ, HCS).  HCS computed at runtime in PROM1.
+	@python3 -c "import sys; \
+	    d = open('$(SIOB_RAW)', 'rb').read(); \
+	    i = d.find(b'\x01\x00\x00\xff\xff\x00'); \
+	    sys.exit(0 if i >= 0 and sum(d[i:i+7]) % 256 == 0 \
+	             else (print(f'FAIL: CP/NET header not found / bad HCS at {i}') or 1))" \
+	    && echo "PASS: CP/NET INIT header present with valid HCS" \
+	    || { echo "FAIL: CP/NET header missing or HCS invalid"; xxd $(SIOB_RAW); exit 1; }
 
 cpnos-clean:
 	rm -rf $(BUILDDIR)
