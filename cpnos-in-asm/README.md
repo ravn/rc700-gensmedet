@@ -172,14 +172,28 @@ Everything in `../cpnos-shared/`:
    - **2a (DONE):** SIO-B transmit.  After autoload jumps to us, init
      CTC ch1 + SIO-B, then stream banner via polled-TX.  Verified by
      `make cpnos-siob-test`.
-   - **2b (CODE DONE, integration test deferred):** SIO-B receive
-     and echo.  Polled RX -> TX loop after the banner stream.  Full
-     byte-injection test waits on a socket-backed `null_modem`
-     harness.
+   - **2b (DONE):** SIO-B receive and echo.  Polled RX -> TX loop
+     after the banner stream + CP/NET frame.  Verified by
+     `make cpnos-echo-test`: Python TCP server at :4445, MAME
+     dials in via socket-mode null_modem, server reads banner +
+     frame then sends "PING\r\n" probe; slave's echo loop bounces
+     each byte back.
 
-3. **CP/NET frame parser** — minimal SNDMSG/RCVMSG state machine
-   parsing the 7-byte CP/NET header + payload.  Echo received
-   frames back to the host.
+3. **CP/NET frame layout** — IN PROGRESS.
+   - **3a (DONE):** emit 7-byte INIT header on SIO-B with runtime HCS.
+   - **3b (DONE):** emit STX + DAT + ETX + CKS + EOT data section
+     with runtime CKS.  Full 12-byte INIT frame now on the wire.
+     `make cpnos-siob-test` asserts both checksums.
+
+3c. **(NEXT) Move CP/NET frame emission to SIO-A.**  Currently
+    phase 3a/3b put the INIT frame on SIO-B; that's the operator
+    console.  Per cpnos-in-c's TRANSPORT split, CP/NET frames
+    belong on SIO-A (TRANSPORT=sio) or PIO-B (TRANSPORT=pio-irq).
+    SIO-B keeps banner + control / console echo.
+
+3d. **CP/NET frame parser** — minimal RCVMSG state machine on the
+    chosen transport, with HCS / CKS verification and DID demux.
+    Echo received frames back to the master.
 
 4. **NDOS dispatch** — implement BDOS function 105 (NDOS call entry)
    that hands off requested operations to the master.

@@ -164,6 +164,50 @@ cpnos-siob-test: cpnos-mame-install
 	    && echo "PASS: full CP/NET INIT frame on SIO-B with valid HCS + CKS" \
 	    || { echo "FAIL: CP/NET frame broken"; xxd $(SIOB_RAW); exit 1; }
 
+# Phase 2b/integration: socket-backed SIO-B echo round-trip.
+# Starts a Python TCP server in the background, then launches MAME
+# with SIO-B routed to it (socket-mode null_modem).  The slave's
+# banner + CP/NET frame land on the server; the server then probes
+# the echo loop with "PING\r\n" and verifies the same bytes come back.
+ECHO_PORT       = 4445
+ECHO_RESULT     = /tmp/cpnos_asm_echo_result.txt
+ECHO_SERVER_LOG = /tmp/cpnos_asm_echo_server.log
+
+.PHONY: cpnos-echo-test
+cpnos-echo-test: cpnos-mame-install
+	@rm -f $(ECHO_RESULT) $(ECHO_SERVER_LOG)
+	@echo "=== starting echo server on :$(ECHO_PORT) (background) ==="
+	@python3 tasks/sio_b_echo_server.py $(ECHO_PORT) $(ECHO_RESULT) \
+	    >$(ECHO_SERVER_LOG) 2>&1 & echo $$! > /tmp/cpnos_asm_echo_server.pid
+	@# Wait briefly for the listener to bind before MAME tries to connect.
+	@for i in 1 2 3 4 5; do \
+	    if grep -q "listening on" $(ECHO_SERVER_LOG) 2>/dev/null; then break; fi; \
+	    sleep 0.2; \
+	 done
+	@echo "=== launching MAME (~$(BOOT_DEADLINE_S) s) ==="
+	-$(CURDIR)/../../mame/regnecentralend rc702 \
+	    -rompath $(CURDIR)/../../mame/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run $(BOOT_DEADLINE_S) \
+	    -rs232b null_modem -bitb2 socket.127.0.0.1:$(ECHO_PORT) \
+	    -autoboot_script $(SHARED)/mame/asm_banner_check.lua \
+	    -snapname cpnos_asm_echo \
+	    >/tmp/cpnos_asm_mame.log 2>&1
+	@# Give the server up to 5 s to finish post-MAME-exit.
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+	    if [ -f $(ECHO_RESULT) ]; then break; fi; sleep 0.5; \
+	 done
+	@# Reap the server if it's still running.
+	@if [ -f /tmp/cpnos_asm_echo_server.pid ]; then \
+	    kill $$(cat /tmp/cpnos_asm_echo_server.pid) 2>/dev/null; \
+	    rm -f /tmp/cpnos_asm_echo_server.pid; \
+	 fi
+	@echo "--- server log tail ---"
+	@tail -15 $(ECHO_SERVER_LOG) 2>/dev/null
+	@echo "--- result ---"
+	@cat $(ECHO_RESULT) 2>/dev/null || { echo "no result file (server may have crashed)"; exit 1; }
+	@grep -q '^PASS' $(ECHO_RESULT)
+
 cpnos-clean:
 	rm -rf $(BUILDDIR)
 
