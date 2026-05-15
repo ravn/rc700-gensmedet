@@ -5,11 +5,14 @@ Acts as the host side of MAME's `-rs232b null_modem -bitb2
 socket.127.0.0.1:PORT`: MAME dials out, we listen.  We:
 
   1. Wait for the slave's banner to arrive (proves boot + SIO-B TX).
-  2. Skip past the trailing CP/NET INIT frame (12 bytes) from
-     phase 3a/3b.
-  3. Send a probe ("PING\r\n").
-  4. Read back the echoed probe -- this is what phase 2b's RX -> TX
+  2. Send a probe ("PING\r\n").
+  3. Read back the echoed probe -- this is what phase 2b's RX -> TX
      loop is supposed to produce.
+
+Phase 3c (CP/NET on SIO-A) note: the CP/NET INIT frame is emitted
+on SIO-A, NOT SIO-B.  SIO-B carries only the banner + the echo loop
+output.  This server therefore expects banner + CRLF and nothing
+else before the probe round-trip.
 
 Exits with 0 on PASS, 1 on FAIL.  Designed to be launched in the
 background by the Makefile target BEFORE MAME starts so we're already
@@ -24,7 +27,9 @@ RESULT_PATH = sys.argv[2] if len(sys.argv) > 2 else "/tmp/cpnos_asm_echo_result.
 
 PROBE = b"PING\r\n"
 BANNER_MATCH = b"RC702 CP/NOS asm phase"
-CPNET_FRAME_LEN = 12               # SOH + 5 hdr + HCS + STX + 1 dat + ETX + CKS + EOT
+BANNER_TAIL  = b"\r\n"             # banner is terminated with CRLF;
+                                   # CP/NET frame (formerly here) now
+                                   # lives on SIO-A.
 ACCEPT_TIMEOUT = 30.0              # waiting for MAME to dial in
 BANNER_TIMEOUT = 8.0               # waiting for banner after connect
 ECHO_TIMEOUT = 4.0                 # waiting for the probe to come back
@@ -51,7 +56,7 @@ except socket.timeout:
     _result("FAIL", f"MAME did not connect within {ACCEPT_TIMEOUT}s")
 _log(f"MAME connected from {peer}")
 
-# 1. Drain banner + CP/NET frame.
+# 1. Drain banner.
 buf = b""
 deadline = time.time() + BANNER_TIMEOUT
 conn.settimeout(0.5)
@@ -59,7 +64,7 @@ while time.time() < deadline:
     try:
         chunk = conn.recv(256)
     except socket.timeout:
-        if BANNER_MATCH in buf and len(buf) >= buf.find(BANNER_MATCH) + len(BANNER_MATCH) + 4 + CPNET_FRAME_LEN:
+        if BANNER_MATCH in buf and BANNER_TAIL in buf[buf.find(BANNER_MATCH):]:
             break
         continue
     if not chunk:
@@ -68,21 +73,7 @@ while time.time() < deadline:
 
 if BANNER_MATCH not in buf:
     _result("FAIL", f"banner not seen.  received {len(buf)} B: {buf[:60]!r}")
-
-# Locate frame and trim everything up through its EOT.
-end_of_banner = buf.find(BANNER_MATCH) + len(BANNER_MATCH)
-# Skip the "\r\n" + 12-byte CP/NET frame.
-post_frame_idx = end_of_banner
-# Look for the SOH that starts the CP/NET header within ~10 B after banner.
-soh_idx = buf.find(b"\x01", post_frame_idx)
-if soh_idx < 0 or len(buf) < soh_idx + CPNET_FRAME_LEN:
-    _result("FAIL", f"CP/NET frame not found after banner")
-
-# Anything beyond the EOT is unexpected pre-echo noise.
-extra = buf[soh_idx + CPNET_FRAME_LEN:]
-if extra:
-    _log(f"note: {len(extra)} extra byte(s) after EOT, before probe: {extra!r}")
-_log(f"banner + 12-byte CP/NET frame received cleanly")
+_log(f"banner received on SIO-B ({len(buf)} B)")
 
 # 2. Send probe.
 conn.sendall(PROBE)

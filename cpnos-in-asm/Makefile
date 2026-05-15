@@ -106,10 +106,11 @@ cpnos-size: $(CPNOS_BIN)
 # floppy-fail path is slower than my old PROM0 stub).
 
 EXPECTED_BANNER     = RC702 CP/NOS asm phase
+SIOA_RAW            = /tmp/cpnos_asm_sioa.raw
 SIOB_RAW            = /tmp/cpnos_asm_siob.raw
 BOOT_DEADLINE_S     = 8
 
-.PHONY: cpnos-banner-test cpnos-siob-test
+.PHONY: cpnos-banner-test cpnos-siob-test cpnos-sioa-test
 cpnos-banner-test: cpnos-mame-install
 	@rm -f /tmp/cpnos_asm_banner.txt
 	@echo "=== launching MAME for CRT-banner check (~$(BOOT_DEADLINE_S) s) ==="
@@ -127,9 +128,12 @@ cpnos-banner-test: cpnos-mame-install
 	    && echo "PASS: banner present in display memory" \
 	    || { echo "FAIL: expected banner not found"; exit 1; }
 
+# SIO-B = operator console.  Verifies the banner reaches the
+# console wire after autoload hands over.  CP/NET frame inspection
+# moved to cpnos-sioa-test below.
 cpnos-siob-test: cpnos-mame-install
 	@rm -f $(SIOB_RAW)
-	@echo "=== launching MAME for SIO-B TX check (~$(BOOT_DEADLINE_S) s) ==="
+	@echo "=== launching MAME for SIO-B (console) check (~$(BOOT_DEADLINE_S) s) ==="
 	$(CURDIR)/../../mame/regnecentralend rc702 \
 	    -rompath $(CURDIR)/../../mame/roms \
 	    -nothrottle -window -skip_gameinfo \
@@ -142,16 +146,29 @@ cpnos-siob-test: cpnos-mame-install
 	@LC_ALL=C grep -aq "$(EXPECTED_BANNER)" $(SIOB_RAW) \
 	    && echo "PASS: banner present on SIO-B" \
 	    || { echo "FAIL: banner not on SIO-B"; xxd $(SIOB_RAW) | head -4; exit 1; }
-	@# Phase 3a/b: verify the full CP/NET INIT frame follows the
-	@# banner, both checksums valid.  Expected raw bytes immediately
-	@# after the banner's "alive\r\n":
-	@#   SOH FMT DID SID FNC SIZ HCS  STX DAT[0] ETX CKS EOT
-	@#   01  00  00  FF  FF  00  01   02  00     03  FB  04
-	@# HCS makes bytes [0..6] sum to 0 mod 256.
-	@# CKS makes bytes [7..10] (STX..CKS) sum to 0 mod 256.
-	@# EOT (byte 11) is a raw delimiter, not in any checksum.
+
+# SIO-A = CP/NET transport stream.  Verifies the full 12-byte CP/NET
+# INIT frame the slave emits at boot, with both checksums valid.
+# Expected raw bytes (no banner -- banner is SIO-B only):
+#   SOH FMT DID SID FNC SIZ HCS  STX DAT[0] ETX CKS EOT
+#   01  00  00  FF  FF  00  01   02  00     03  FB  04
+# HCS makes bytes [0..6] sum to 0 mod 256.
+# CKS makes bytes [7..10] (STX..CKS) sum to 0 mod 256.
+# EOT (byte 11) is a raw delimiter, not in any checksum.
+cpnos-sioa-test: cpnos-mame-install
+	@rm -f $(SIOA_RAW)
+	@echo "=== launching MAME for SIO-A (CP/NET) check (~$(BOOT_DEADLINE_S) s) ==="
+	$(CURDIR)/../../mame/regnecentralend rc702 \
+	    -rompath $(CURDIR)/../../mame/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run $(BOOT_DEADLINE_S) \
+	    -rs232a null_modem -bitb1 $(SIOA_RAW) \
+	    >/tmp/cpnos_asm_mame.log 2>&1 \
+	    || { echo "MAME exited non-zero; log tail:"; tail -10 /tmp/cpnos_asm_mame.log; exit 1; }
+	@echo "--- $(SIOA_RAW) hex ---"
+	@xxd $(SIOA_RAW) | head -3
 	@python3 -c "import sys; \
-	    d = open('$(SIOB_RAW)', 'rb').read(); \
+	    d = open('$(SIOA_RAW)', 'rb').read(); \
 	    i = d.find(b'\x01\x00\x00\xff\xff\x00'); \
 	    ok = (i >= 0 \
 	          and len(d) >= i + 12 \
@@ -161,8 +178,8 @@ cpnos-siob-test: cpnos-mame-install
 	          and sum(d[i+7:i+11]) % 256 == 0 \
 	          and d[i+11] == 0x04); \
 	    sys.exit(0 if ok else (print(f'FAIL frame at {i}: {d[max(0,i):i+12].hex() if i>=0 else \"-\"}') or 1))" \
-	    && echo "PASS: full CP/NET INIT frame on SIO-B with valid HCS + CKS" \
-	    || { echo "FAIL: CP/NET frame broken"; xxd $(SIOB_RAW); exit 1; }
+	    && echo "PASS: full CP/NET INIT frame on SIO-A with valid HCS + CKS" \
+	    || { echo "FAIL: CP/NET frame broken"; xxd $(SIOA_RAW); exit 1; }
 
 # Phase 2b/integration: socket-backed SIO-B echo round-trip.
 # Starts a Python TCP server in the background, then launches MAME

@@ -22,12 +22,22 @@
 
 PORT_CRT_PARAM	equ	0x00
 PORT_CRT_CMD	equ	0x01
+PORT_SIO_A_DATA	equ	0x08
+PORT_SIO_B_DATA	equ	0x09
+PORT_SIO_A_CTRL	equ	0x0A
+PORT_SIO_B_CTRL	equ	0x0B
+PORT_CTC0	equ	0x0C
 PORT_CTC1	equ	0x0D
 PORT_CTC2	equ	0x0E
-PORT_SIO_B_DATA	equ	0x09
-PORT_SIO_B_CTRL	equ	0x0B
 SIO_RX_CHAR_AVAIL equ	0x01	; RR0 bit 0
 SIO_TX_BUF_EMPTY equ	0x04	; RR0 bit 2
+
+; Wire-split rationale:
+;   SIO-B = operator console (banner + interactive control echo).
+;   SIO-A = CP/NET transport stream when TRANSPORT=sio.
+; Matches cpnos-in-c's TRANSPORT split (the alternative is PIO-B for
+; TRANSPORT=pio-irq).  CTC ch0 drives SIO-A's baud clock; ch1 drives
+; SIO-B's.  Both SIO chips use identical 8N1 polled-TX programming.
 
 PORT_DMA_CH2_ADDR equ	0xF4
 PORT_DMA_CH2_WC  equ	0xF5
@@ -302,11 +312,25 @@ init_table:
 	; DMA stream.  Burst+spacing identical to autoload's start cmd.
 	db	PORT_CRT_CMD, CRT_CMD_START
 
-	; CTC ch1 = 0x47/TC=1 drives SIO-B baud.
-	db	PORT_CTC1, 0x47				; counter/timer, TC follows
-	db	PORT_CTC1, 0x01				; TC = 1
+	; CTC ch0 + ch1 = 0x47/TC=1 drive SIO-A and SIO-B baud clocks
+	; respectively.  Same programming for both -- gives a matched
+	; baud rate so a wire swap is just a port-number change.
+	db	PORT_CTC0, 0x47				; ch0: counter/timer, TC follows
+	db	PORT_CTC0, 0x01				; ch0: TC = 1
+	db	PORT_CTC1, 0x47				; ch1: counter/timer, TC follows
+	db	PORT_CTC1, 0x01				; ch1: TC = 1
 
-	; SIO-B WR0/WR2..5/WR1 (mirrors cpnos-in-c init.c port_init[]).
+	; SIO-A WR0/WR4/WR3/WR5/WR1 (CP/NET transport).  Mirrors
+	; cpnos-in-c init.c port_init[] for the SIO-A half.  Note: no
+	; WR2 here -- WR2 is the interrupt vector base register, B-side
+	; only on the Z80 SIO.
+	db	PORT_SIO_A_CTRL, 0x18				; WR0: channel reset
+	db	PORT_SIO_A_CTRL, 0x04, PORT_SIO_A_CTRL, 0x44	; WR4 = clk/16 8N1
+	db	PORT_SIO_A_CTRL, 0x03, PORT_SIO_A_CTRL, 0xE1	; WR3 = RX enable
+	db	PORT_SIO_A_CTRL, 0x05, PORT_SIO_A_CTRL, 0x6A	; WR5 = TX enable
+	db	PORT_SIO_A_CTRL, 0x01, PORT_SIO_A_CTRL, 0x00	; WR1 = no IRQ
+
+	; SIO-B WR0/WR2..5/WR1 (operator console).
 	db	PORT_SIO_B_CTRL, 0x18				; WR0: channel reset
 	db	PORT_SIO_B_CTRL, 0x02, PORT_SIO_B_CTRL, 0x10	; WR2 = 0x10
 	db	PORT_SIO_B_CTRL, 0x04, PORT_SIO_B_CTRL, 0x44	; WR4 = clk/16 8N1
@@ -349,24 +373,25 @@ init_data:
 	db	0x00			; DAT[0]
 init_data_len equ $ - init_data		; = 1 (must == SIZ+1)
 
-; send_cpnet_init_header: emit SOH + 5 header bytes + HCS on SIO-B
-; (polled TX).  HCS is computed at runtime by accumulating SOH+header
-; into A and emitting NEG(sum) so the seven on-wire bytes sum to 0
-; mod 256, per cpnos-shared/docs/CPNET_WIRE_PROTOCOL.md.
+; send_cpnet_init_header: emit SOH + 5 header bytes + HCS on SIO-A
+; (polled TX, CP/NET transport).  HCS is computed at runtime by
+; accumulating SOH+header into E and emitting NEG(E) so the seven
+; on-wire bytes sum to 0 mod 256, per
+; cpnos-shared/docs/CPNET_WIRE_PROTOCOL.md.
 ;
 ; Clobbers: AF, BC, DE, HL.
 send_cpnet_init_header:
 	; Send SOH first; seed the HCS accumulator with it.
 	ld	d, SOH			; D = byte to send + sum seed
 	ld	e, SOH			; E = running 8-bit sum
-	call	sio_b_tx_de_seed	; sends D, leaves E with sum
+	call	sio_a_tx_de_seed	; sends D, leaves E with sum
 
 	; Walk the 5 header bytes, sending each + updating E.
 	ld	hl, init_header
 	ld	b, init_header_len
 .hdr_loop:
 	ld	d, (hl)
-	call	sio_b_tx_d_accum	; send D, E += D
+	call	sio_a_tx_d_accum	; send D, E += D
 	inc	hl
 	djnz	.hdr_loop
 
@@ -374,10 +399,10 @@ send_cpnet_init_header:
 	xor	a
 	sub	e			; A = 0 - E = -E
 	ld	d, a
-	jp	sio_b_tx_d		; tail-call: send HCS, return
+	jp	sio_a_tx_d		; tail-call: send HCS, return
 
 ; send_cpnet_init_data: emit STX + DAT (init_data_len bytes) + ETX +
-; CKS + EOT on SIO-B.  CKS = NEG(STX + DAT[0..n-1] + ETX) so the
+; CKS + EOT on SIO-A.  CKS = NEG(STX + DAT[0..n-1] + ETX) so the
 ; bracketed (STX .. CKS) bytes sum to 0 mod 256.  EOT follows raw
 ; and is NOT included in CKS (it's a frame delimiter).
 ;
@@ -386,51 +411,52 @@ send_cpnet_init_data:
 	; Send STX; seed CKS accumulator with it.
 	ld	d, STX
 	ld	e, STX
-	call	sio_b_tx_d		; sends D; E still holds STX
+	call	sio_a_tx_d		; sends D; E still holds STX
 
 	; Walk init_data, sending each + updating E.
 	ld	hl, init_data
 	ld	b, init_data_len
 .dat_loop:
 	ld	d, (hl)
-	call	sio_b_tx_d_accum
+	call	sio_a_tx_d_accum
 	inc	hl
 	djnz	.dat_loop
 
 	; Send ETX and add it to the running sum.
 	ld	d, ETX
-	call	sio_b_tx_d_accum
+	call	sio_a_tx_d_accum
 
 	; CKS = NEG(E).
 	xor	a
 	sub	e
 	ld	d, a
-	call	sio_b_tx_d
+	call	sio_a_tx_d
 
 	; Send EOT (raw; not in CKS).
 	ld	d, EOT
-	jp	sio_b_tx_d		; tail-call: send EOT, return
+	jp	sio_a_tx_d		; tail-call: send EOT, return
 
-; sio_b_tx_de_seed: like sio_b_tx_d but assumes E already holds the
+; sio_a_tx_de_seed: like sio_a_tx_d but assumes E already holds the
 ; seed sum and just sends D without re-adding (caller has already
 ; baked D into E).  Used for the very first byte (SOH).
-sio_b_tx_de_seed:
-	; fall through into sio_b_tx_d (no sum update)
+sio_a_tx_de_seed:
+	; fall through into sio_a_tx_d (no sum update)
 
-; sio_b_tx_d: send the byte in D on SIO-B (polled TX).  Preserves E.
-sio_b_tx_d:
+; sio_a_tx_d: send the byte in D on SIO-A (polled TX).  Preserves E.
+; SIO-A carries CP/NET frames; SIO-B carries the operator console.
+sio_a_tx_d:
 .wait:
-	in	a, (PORT_SIO_B_CTRL)
+	in	a, (PORT_SIO_A_CTRL)
 	and	SIO_TX_BUF_EMPTY
 	jr	z, .wait
 	ld	a, d
-	out	(PORT_SIO_B_DATA), a
+	out	(PORT_SIO_A_DATA), a
 	ret
 
-; sio_b_tx_d_accum: send D, then E += D.  Used by the header loop so
+; sio_a_tx_d_accum: send D, then E += D.  Used by the header loop so
 ; HCS accumulates as we emit.
-sio_b_tx_d_accum:
-	call	sio_b_tx_d
+sio_a_tx_d_accum:
+	call	sio_a_tx_d
 	ld	a, e
 	add	a, d
 	ld	e, a
