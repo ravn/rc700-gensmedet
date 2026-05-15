@@ -216,6 +216,79 @@ cpnos-echo-test: cpnos-mame-install
 	@cat $(ECHO_RESULT) 2>/dev/null || { echo "no result file (server may have crashed)"; exit 1; }
 	@grep -q '^PASS' $(ECHO_RESULT)
 
+# Bidirectional CP/NET 1.2 frame exchange against a Python fake master.
+#
+# Phase A (slave -> master, exercises phase 3d-β send handshake):
+#   slave sends ENQ              master replies ACK
+#   slave sends header + HCS     master replies ACK
+#   slave sends data + CKS + EOT master replies ACK
+#
+# Phase B (master -> slave, exercises phase 3d-γ receive state machine):
+#   master sends ENQ             slave replies ACK
+#   master sends header + HCS    slave validates and replies ACK
+#   master sends data + CKS + EOT slave validates and replies ACK
+#
+# CURRENT STATE: phase A passes (slave's send works end-to-end);
+# phase B fails at the first ACK after master's header because the
+# slave reads the wrong 7 bytes off SIO-A.  In a probe run with the
+# debug-dump variant of recv_cpnet_frame, the bytes the slave saw
+# were `08 20 20 52 43 37 30` instead of the master's actual
+# `01 01 FF 00 FF 00 00`.  The bytes coincidentally contain
+# "RC70" -- ASCII fragment of the slave's own banner, which is sent
+# on SIO-B not SIO-A.  Hypotheses to investigate next: (a) SIO-A
+# baud-rate mismatch with MAME's default 38400 (the slave's
+# CTC ch0 / TC=1 mirror cpnos-in-c's, which works against mpm-net2,
+# so this seems unlikely), (b) MAME bitbanger socket buffering /
+# cross-port wiring, (c) some hidden SIO-A loopback bit, (d) a
+# subtle off-by-one in recv_cpnet_frame's accumulator that's
+# eating the right bytes but reading wrong ones.  Targeting a
+# session of focused debugging.
+#
+# To talk to the real master (z80pack mpm-net2): our slave would
+# also need to send a LOGIN frame (FNC=64, password "PASSWORD")
+# instead of the current INIT (FNC=0xFF), since mpm-net2 doesn't
+# recognise our FNC=0xFF init request.  See
+# cpnos-in-c/Makefile cpnos-polypascal-test for the master-side
+# wire-up pattern.
+CPNET_PORT       = 4446
+CPNET_RESULT     = /tmp/cpnos_asm_cpnet_result.txt
+CPNET_LOG        = /tmp/cpnos_asm_cpnet_master.log
+
+.PHONY: cpnos-cpnet-test
+cpnos-cpnet-test: cpnos-mame-install
+	@rm -f $(CPNET_RESULT) $(CPNET_LOG)
+	@echo "=== starting fake-master on :$(CPNET_PORT) (background) ==="
+	@python3 tasks/sio_a_fake_master.py $(CPNET_PORT) $(CPNET_RESULT) \
+	    >$(CPNET_LOG) 2>&1 & echo $$! > /tmp/cpnos_asm_cpnet_master.pid
+	@for i in 1 2 3 4 5; do \
+	    if grep -q "listening" $(CPNET_LOG) 2>/dev/null; then break; fi; \
+	    sleep 0.2; \
+	 done
+	@rm -f /tmp/cpnos_asm_cpnet_siob.raw
+	@echo "=== launching MAME (~12 s, longer than other oracles -- A+B exchange takes ~6 s) ==="
+	-$(CURDIR)/../../mame/regnecentralend rc702 \
+	    -rompath $(CURDIR)/../../mame/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run 15 \
+	    -rs232a null_modem -bitb1 socket.127.0.0.1:$(CPNET_PORT) \
+	    -rs232b null_modem -bitb2 /tmp/cpnos_asm_cpnet_siob.raw \
+	    -snapname cpnos_asm_cpnet \
+	    >/tmp/cpnos_asm_mame.log 2>&1
+	@echo "--- SIO-B capture (slave's view of forwarded SIO-A + ACK dump markers) ---"
+	@xxd /tmp/cpnos_asm_cpnet_siob.raw 2>/dev/null | head -20
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+	    if [ -f $(CPNET_RESULT) ]; then break; fi; sleep 0.5; \
+	 done
+	@if [ -f /tmp/cpnos_asm_cpnet_master.pid ]; then \
+	    kill $$(cat /tmp/cpnos_asm_cpnet_master.pid) 2>/dev/null; \
+	    rm -f /tmp/cpnos_asm_cpnet_master.pid; \
+	 fi
+	@echo "--- fake-master log tail ---"
+	@tail -20 $(CPNET_LOG) 2>/dev/null
+	@echo "--- result ---"
+	@cat $(CPNET_RESULT) 2>/dev/null || { echo "no result file"; exit 1; }
+	@grep -q '^PASS' $(CPNET_RESULT)
+
 cpnos-clean:
 	rm -rf $(BUILDDIR)
 

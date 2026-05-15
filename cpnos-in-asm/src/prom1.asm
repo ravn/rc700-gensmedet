@@ -505,18 +505,21 @@ sio_a_tx_d_accum:
 	ret
 
 ; sio_a_rx_with_timeout: poll SIO-A RX with a coarse 16-bit-counter
-; timeout.  ~50ms at 4 MHz with the ~25T inner loop (10000 iterations).
-; Returns:
+; timeout.  ~250 ms at 4 MHz with the ~25T inner loop (40000
+; iterations).  Returns:
 ;   CF = 0, A = received byte  on success
 ;   CF = 1, A undefined          on timeout
-; Clobbers: AF, BC.
+; Clobbers: AF only.  BC, DE, HL preserved (BC explicitly via
+; push/pop; receive-side callers use BC as a byte-count across
+; multiple calls so this preservation is load-bearing).
 ;
 ; Coarse counter is intentional -- CP/NET TMRETRY is forgiving (the
 ; spec lets the slave retry up to 10 whole frames per send), so a
-; precise CTC-driven timeout isn't load-bearing.  Tune the count
-; constant if a master needs longer to respond.
+; precise CTC-driven timeout isn't load-bearing.  250 ms is enough
+; cushion for MAME's serial-pipeline scheduling jitter.
 sio_a_rx_with_timeout:
-	ld	bc, 10000
+	push	bc			; caller's loop counter survives
+	ld	bc, 40000
 .poll:
 	in	a, (PORT_SIO_A_CTRL)
 	and	SIO_RX_CHAR_AVAIL
@@ -525,10 +528,12 @@ sio_a_rx_with_timeout:
 	ld	a, b
 	or	c
 	jr	nz, .poll
+	pop	bc
 	scf				; CF = 1 -> timeout
 	ret
 .ready:
 	in	a, (PORT_SIO_A_DATA)
+	pop	bc
 	or	a			; clear CF -> success
 	ret
 
