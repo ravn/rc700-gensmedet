@@ -48,23 +48,48 @@ CRT_CMD_START	equ	0x23	; 001xxxxx: start display.  bits 4..3
 				; bits 2..0 = 011 = 24-clock spacing.
 				; Identical to autoload's start command.
 
-; 8275 reset parameters (4 bytes after CRT_CMD_RESET).
-; Match autoload's geometry exactly except for param 4 (cursor format).
-;   P1 0x4F = 0100_1111: S=0 (no row spacing), H=79 -> 80 chars/row
-;   P2 0x98 = 1001_1000: V=10 (3 VRTC rows), R=24 -> 25 rows
-;   P3 0x9A = 1001_1010: U=9 underline line, L=10 lines per char row
-;   P4 0x6D = 0110_1101: bit 7 = 0 (offset_line_counter off),
-;                        bit 6 = 1 (visible_field_attribute on),
-;                        bits 5-4 = 10 -> NON-BLINKING REVERSE VIDEO
-;                                   BLOCK cursor (autoload uses
-;                                   01 = blinking underline; cpnos-in-c
-;                                   uses 10 too).
-;                        bits 3-0 = 1101 -> HRTC count = (13+1)*2 = 28.
-; Bit positions confirmed via MAME's i8275 cursor_format() reading
-; bits 5-4 of REG_SCN4 (src/devices/video/i8275.h).
+; 8275 reset parameters (4 bytes written after CRT_CMD_RESET).
+; Geometry matches autoload exactly; only P4's cursor format changes.
+;
+; Each byte is broken into named bit fields below.  Every numeric
+; field stored in the 8275 is encoded "N - 1" (the chip adds 1 to
+; produce the actual count), so the "= N count" comment is the
+; observable value while the bits show what's literally written.
+;
+; ---- P1 (Horizontal): SHHHHHHH ----
+;   bit 7   = S = 0           ; 0 -> no spaced rows
+;   bits 6-0 = H = 0x4F = 79  ; 79 + 1 = 80 chars per row
+;   -> P1 = 0x4F
 CRT_P1_GEOM_H	equ	0x4F
+
+; ---- P2 (Vertical): VV_RRRRRR ----
+;   bits 7-6 = V = 10b = 2    ; 2 + 1 = 3 VRTC (vertical retrace) rows
+;   bits 5-0 = R = 011000b    ; 24 -> 24 + 1 = 25 character rows per frame
+;                = 24 decimal
+;   -> P2 = 10_011000b = 0x98
 CRT_P2_GEOM_V	equ	0x98
+
+; ---- P3 (Underline / Lines per char row): UUUU_LLLL ----
+;   bits 7-4 = U = 1001b = 9  ; underline appears on scan line 9 of each char
+;   bits 3-0 = L = 1010b      ; 10 -> 10 + 1 = ? -- actually L counts directly:
+;                = 10 decimal ;   10 lines per char row (10x8 char cell)
+;   -> P3 = 1001_1010b = 0x9A
 CRT_P3_GEOM_UL	equ	0x9A
+
+; ---- P4 (Mode / cursor / HRTC): O_F_CC_ZZZZ ----
+;   bit 7   = O  = 0          ; offset_line_counter off
+;   bit 6   = F  = 1          ; visible_field_attribute on
+;   bits 5-4 = C = 10b        ; cursor format:
+;                              ;   00 = blinking reverse video block
+;                              ;   01 = blinking underline
+;                              ;   10 = NON-BLINKING REVERSE VIDEO BLOCK *
+;                              ;   11 = non-blinking underline
+;                              ; autoload uses 01 (blinking underline);
+;                              ; we want 10 to match cpnos-in-c's relocator.
+;                              ; Bit positions per MAME i8275 cursor_format()
+;                              ; (src/devices/video/i8275.h: bits 5-4 of P4).
+;   bits 3-0 = Z = 1101b = 13 ; HRTC count = (13 + 1) * 2 = 28 char clocks
+;   -> P4 = 0_1_10_1101b = 0x6D
 CRT_P4_MODE_NB_BLOCK equ 0x6D
 
 ; ---- PROM1 header (autoload-in-c signature contract) ----------------
