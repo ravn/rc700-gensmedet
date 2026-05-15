@@ -59,12 +59,17 @@ all: prom
 prom:
 	$(MAKE) $(PROM_TARGET)
 	@PROM=$$(wc -c < $(PROM_BIN) | tr -d ' '); \
-	 echo "$(COMPILER) PROM: $$PROM / 4096 bytes"; \
-	 if [ $$PROM -gt 4096 ]; then \
-	   echo "WARNING: exceeds 4096-byte limit by $$((PROM - 4096)) bytes"; \
+	 echo "$(COMPILER) PROM: $$PROM / 2048 bytes (PROM0 socket)"; \
+	 if [ $$PROM -gt 2048 ]; then \
+	   echo "ERROR: exceeds 2048-byte PROM0 limit by $$((PROM - 2048)) bytes"; \
+	   exit 1; \
 	 else \
-	   echo "OK: $$((4096 - PROM)) bytes free"; \
+	   echo "OK: $$((2048 - PROM)) bytes free in PROM0"; \
 	 fi
+	@# Pad to 4096 for MAME's roa375.ic66 slot (the file format is
+	@# 4 KB; high 2 KB is unused / 0xFF in autoload mode, holds the
+	@# cpnos-in-asm slave when that's installed).  Hard-limit failure
+	@# above stops anything exceeding the actual PROM0 EPROM size.
 	@{ cat $(PROM_BIN); \
 	   perl -e "print \"\\xff\" x (4096 - $$(wc -c < $(PROM_BIN) | tr -d ' '))"; \
 	 } > $(COMPILER)/prom0.ic66
@@ -100,7 +105,7 @@ sw1-test: prom
 	@if [ -f "$(SW1_PROM1_BACKUP)" ]; then cp "$(SW1_PROM1_BACKUP)" "$(SW1_PROM1)"; rm -f "$(SW1_PROM1_BACKUP)"; fi
 	@echo "--- display memory rows 0..2 (read from RAM at 0x7A00) ---"
 	@cat $(SW1_DUMP) 2>/dev/null || { echo "no dump produced"; exit 1; }
-	@grep -q "^row01: SW1: " $(SW1_DUMP) \
+	@grep -qE "^row01: SW1 12345678: [01]{8}" $(SW1_DUMP) \
 	    && echo "PASS: SW1 status present on row 1" \
 	    || { echo "FAIL: SW1 status not found on row 1"; exit 1; }
 

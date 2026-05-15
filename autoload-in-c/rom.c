@@ -234,32 +234,30 @@ extern const char banner_string[];
 
 /* Stamp the SW1 DIP-switch byte on display row 1 so the operator can
  * see how the switches are set without having to lift the cover.
- * Format (54 chars, fits in 80):
- *   "SW1: S1:ON  S2:OFF S3:ON  S4:ON  S5:ON  S6:ON  S7:ON  S8:ON "
- * S1=bit 0, S8=bit 7.  Switch position On => bit reads 0 (the active
- * convention used by autoload, rcbios, and docs/SW1_BIT_MAP.md).
+ * Format (22 chars, fits in 80):
+ *   "SW1 12345678: 01101000"
+ * The "12345678" header lines up each bit with its switch number; the
+ * 8 digits beneath show position per switch (S1=bit 0, S8=bit 7).
+ * Switch On => bit reads 0 (the active convention used by autoload,
+ * rcbios, and docs/SW1_BIT_MAP.md).
  *
  * Reading happens once at boot; the field is informational only and
- * isn't re-read after this point. */
+ * isn't re-read after this point.
+ *
+ * Compact form is chosen to keep PROM0 well under the 2048 B socket
+ * limit -- a per-switch "S1:ON " form previously cost ~167 B compiled
+ * for ~50 B of header + 8 B of dynamic bits here. */
 static void display_sw1_status(void) {
     byte sw = read_sw1();
     char *p = (char *)dspstr + 80;     /* row 1, column 0 */
-    static const char prefix[] = "SW1: ";
+    static const char prefix[] = "SW1 12345678: ";
     byte i;
 
     memcpy(p, prefix, sizeof prefix - 1);
     p += sizeof prefix - 1;
 
     for (i = 0; i < 8; i++) {
-        *p++ = 'S';
-        *p++ = (char)('1' + i);
-        *p++ = ':';
-        if (sw & (byte)(1u << i)) {
-            *p++ = 'O'; *p++ = 'F'; *p++ = 'F';
-        } else {
-            *p++ = 'O'; *p++ = 'N'; *p++ = ' ';
-        }
-        *p++ = ' ';                    /* gap between switches */
+        *p++ = (char)('0' + ((sw >> i) & 1));
     }
 }
 
@@ -592,8 +590,14 @@ NORETURN void halt_forever(void) {
 
 /* Copy 'len' bytes to display buffer, then halt forever.
  * Macro so 'len' is compile-time constant — sdcc inlines as LDIR.
- * 'len' must NOT include NUL terminator. */
-#define halt_msg(msg, len) do { memcpy(dspstr + 80 * 2, (msg), (len)); halt_forever(); } while(0)
+ * 'len' must NOT include NUL terminator.
+ *
+ * Halt messages land on row 3 (offset 80*3 = 240).  Row 0 holds the
+ * boot banner, row 1 holds the SW1 status line (display_sw1_status),
+ * row 2 is intentionally left blank as a visual separator.  Keep
+ * future status lines below row 3 — any messages overlapping row 3
+ * will scribble over a still-running halt message. */
+#define halt_msg(msg, len) do { memcpy(dspstr + 80 * 3, (msg), (len)); halt_forever(); } while(0)
 
 /* Compare 6 bytes.  A __naked DJNZ version would save only 1 byte
  * (sdcc uses DEC C/JR NZ = 3 bytes vs DJNZ = 2 bytes, but setup is same).

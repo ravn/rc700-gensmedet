@@ -29,7 +29,7 @@ emu.register_periodic(function()
     fired = true
 
     local f = io.open(RESULT_PATH, "w")
-    for row = 0, 2 do
+    for row = 0, 3 do
         local line = {}
         for col = 0, ROW_BYTES - 1 do
             local b = prog:read_u8(PROM_DSP + row * ROW_BYTES + col)
