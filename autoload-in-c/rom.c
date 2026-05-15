@@ -951,7 +951,13 @@ void main_relocated(void) __naked
      * Default-zero means an out-of-box RC702 keeps the original
      * chargen-load behavior. */
     if ((read_sw1() & 0x02) == 0) {
-        load_chargen();  /* PROM1 holds ROA327 font ROM */
+        /* load_chargen();  -- disabled 2026-05-15 while bring-up
+         * settles.  Re-enable when we (a) have a known-good ROA327
+         * font ROM image to put in PROM1 for chargen-mode boots, and
+         * (b) want the SEM702 board exercised again on real hardware.
+         * Gate structure preserved so the re-enable is a one-line
+         * uncomment.  MAME has no SEM702 model, so the call was a
+         * runtime no-op there. */
     }
     init_fdc();
     memset(dspstr, ' ', 80 * 25);   /* clear screen */
