@@ -46,13 +46,26 @@ PORT_DMA_MODE	equ	0xFB
 PORT_DMA_CLBP	equ	0xFC
 
 ; ---- RAM allocation ------------------------------------------------
-; PROM1 maps 0x2000..0x27FF as ROM (shadow over RAM).  Writable +
-; readable RAM that we can use as BSS:
-;   0x0800..0x1FFF  (between PROM0 and PROM1)
-;   0x2800..0xF7FF  (above PROM1; display memory is 0xF800..0xFFCF)
+; The RC702 has a "bank2h" mirror at 0x2800..0x2FFF that shadows the
+; PROM1 image (extended-EPROM 4 KB mode), so the apparent "RAM
+; immediately above PROM1" is actually still ROM-shadowed.  Bytes
+; written to 0x2800 vanish; reads return prom1.bin[0..0x7FF].
+; First investigated this with rx_frame_buf at 0x2800, which made
+; recv_cpnet_frame look like it was receiving PROM1's own header
+; bytes (08 20 20 52 43 37 30 = "08 20 RC70" = `dw slave_entry +
+; " RC702"`) regardless of what the master sent.  See task #66 for
+; the diagnostic story.
 ;
-; Received CP/NET frame goes at 0x2800 just above PROM1.  Layout
-; (matches the on-wire byte order for easy inspection):
+; Safe RAM regions (per MAME's rc702 memory map):
+;   0x0800..0x1FFF  (between PROM0 socket and PROM1 socket bank2)
+;     -- bank1h covers 0x0800..0x0FFF, so 0x1000..0x1FFF is the
+;     usable subrange.
+;   0x3000..0xF7FF  (above the bank2h mirror; display at 0xF800)
+;
+; Use 0x3000 for rx_frame_buf -- well clear of any PROM mirror, well
+; below autoload's INTVEC_ADDR (0x6000 on clang) and CODE_BASE
+; (0x6000+).  Layout matches the on-wire byte order for easy
+; inspection:
 ;   off  0: SOH
 ;   off  1..5: FMT DID SID FNC SIZ
 ;   off  6: HCS
@@ -62,7 +75,7 @@ PORT_DMA_CLBP	equ	0xFC
 ;   off 10+SIZ: CKS
 ;   off 11+SIZ: EOT
 ; Max frame (SIZ = 255 -> 256 DAT bytes): 12 + 255 = 267 bytes.
-rx_frame_buf	equ	0x2800
+rx_frame_buf	equ	0x3000
 
 ; 8275 commands.  Bits 7..5 select the command; remaining bits carry
 ; parameters baked into the byte for cmd-with-immediate-params.

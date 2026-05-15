@@ -228,28 +228,13 @@ cpnos-echo-test: cpnos-mame-install
 #   master sends header + HCS    slave validates and replies ACK
 #   master sends data + CKS + EOT slave validates and replies ACK
 #
-# CURRENT STATE: phase A passes (slave's send works end-to-end);
-# phase B fails at the first ACK after master's header because the
-# slave reads the wrong 7 bytes off SIO-A.  In a probe run with the
-# debug-dump variant of recv_cpnet_frame, the bytes the slave saw
-# were `08 20 20 52 43 37 30` instead of the master's actual
-# `01 01 FF 00 FF 00 00`.  The bytes coincidentally contain
-# "RC70" -- ASCII fragment of the slave's own banner, which is sent
-# on SIO-B not SIO-A.  Hypotheses to investigate next: (a) SIO-A
-# baud-rate mismatch with MAME's default 38400 (the slave's
-# CTC ch0 / TC=1 mirror cpnos-in-c's, which works against mpm-net2,
-# so this seems unlikely), (b) MAME bitbanger socket buffering /
-# cross-port wiring, (c) some hidden SIO-A loopback bit, (d) a
-# subtle off-by-one in recv_cpnet_frame's accumulator that's
-# eating the right bytes but reading wrong ones.  Targeting a
-# session of focused debugging.
+# PASS = all 6 ACKs exchanged.
 #
 # To talk to the real master (z80pack mpm-net2): our slave would
-# also need to send a LOGIN frame (FNC=64, password "PASSWORD")
-# instead of the current INIT (FNC=0xFF), since mpm-net2 doesn't
-# recognise our FNC=0xFF init request.  See
-# cpnos-in-c/Makefile cpnos-polypascal-test for the master-side
-# wire-up pattern.
+# need to send a LOGIN frame (FNC=64, password "PASSWORD") instead
+# of the current INIT (FNC=0xFF), since mpm-net2 doesn't recognise
+# our FNC=0xFF init request.  See cpnos-in-c/Makefile
+# cpnos-polypascal-test for the master-side wire-up pattern.
 CPNET_PORT       = 4446
 CPNET_RESULT     = /tmp/cpnos_asm_cpnet_result.txt
 CPNET_LOG        = /tmp/cpnos_asm_cpnet_master.log
