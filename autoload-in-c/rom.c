@@ -900,7 +900,16 @@ void main_relocated(void) __naked
     init_ctc();
     init_dma();
     init_crt();
-    load_chargen();  /* load font from PROM1 (ROA327) into SEM 702 RAM */
+    /* load_chargen() disabled 2026-05-15: when PROM1 holds the
+     * cpnos-in-asm slave (rather than a real ROA327 font ROM), the
+     * load would copy 2 KB of code bytes into SEM702 RAM and render
+     * the boot CRT illegible.  MAME's rc702 driver has no SEM702
+     * model so the emulator's built-in font is used regardless; on
+     * real hardware this only matters once the SEM702 board is
+     * installed AND PROM1 holds the asm slave instead of a font ROM.
+     * Re-enable (or replace with a font payload baked into PROM1)
+     * once cpnos-in-asm reaches a stable boot state. */
+    /* load_chargen(); */  /* load font from PROM1 (ROA327) into SEM 702 RAM */
     init_fdc();
     memset(dspstr, ' ', 80 * 25);   /* clear screen */
     display_banner_and_start_crt();
