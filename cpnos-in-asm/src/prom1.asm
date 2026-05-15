@@ -45,6 +45,25 @@ PORT_DMA_SMSK	equ	0xFA
 PORT_DMA_MODE	equ	0xFB
 PORT_DMA_CLBP	equ	0xFC
 
+; ---- RAM allocation ------------------------------------------------
+; PROM1 maps 0x2000..0x27FF as ROM (shadow over RAM).  Writable +
+; readable RAM that we can use as BSS:
+;   0x0800..0x1FFF  (between PROM0 and PROM1)
+;   0x2800..0xF7FF  (above PROM1; display memory is 0xF800..0xFFCF)
+;
+; Received CP/NET frame goes at 0x2800 just above PROM1.  Layout
+; (matches the on-wire byte order for easy inspection):
+;   off  0: SOH
+;   off  1..5: FMT DID SID FNC SIZ
+;   off  6: HCS
+;   off  7: STX
+;   off  8..8+SIZ: DAT
+;   off  9+SIZ: ETX
+;   off 10+SIZ: CKS
+;   off 11+SIZ: EOT
+; Max frame (SIZ = 255 -> 256 DAT bytes): 12 + 255 = 267 bytes.
+rx_frame_buf	equ	0x2800
+
 ; 8275 commands.  Bits 7..5 select the command; remaining bits carry
 ; parameters baked into the byte for cmd-with-immediate-params.
 CRT_CMD_RESET	equ	0x00	; 000xxxxx: reset (expects 4 params)
@@ -236,6 +255,20 @@ combined_io_loop:
 	jr	z, .check_sio_b
 	in	a, (PORT_SIO_A_DATA)
 	ld	c, a
+	; ENQ (0x05) from the master kicks off the receive-direction
+	; state machine; mask bit 7 per spec (control bytes are
+	; compared 7-bit so parity-stripping transports survive).
+	and	0x7F
+	cp	ENQ
+	jr	nz, .sio_a_forward
+	call	recv_cpnet_frame
+	or	a
+	jr	nz, combined_io_loop	; receive failed; back to idle
+	call	dump_rx_to_siob
+	jr	combined_io_loop
+.sio_a_forward:
+	; Not an ENQ -- forward verbatim to SIO-B as before (phase 3d-α
+	; behavior).  Useful for catching stray bytes / late ACKs.
 .sio_a_to_b_wait:
 	in	a, (PORT_SIO_B_CTRL)
 	and	SIO_TX_BUF_EMPTY
@@ -514,6 +547,182 @@ cpnet_wait_ack:
 	ret	z			; ACK -> Z=1 + CF=0
 	scf				; non-ACK -> CF=1
 	ret
+
+; sio_b_tx_d: send the byte in D on SIO-B (polled TX).  Mirror of
+; sio_a_tx_d for the operator console.  Preserves all registers
+; except A.
+sio_b_tx_d:
+.b_wait:
+	in	a, (PORT_SIO_B_CTRL)
+	and	SIO_TX_BUF_EMPTY
+	jr	z, .b_wait
+	ld	a, d
+	out	(PORT_SIO_B_DATA), a
+	ret
+
+; recv_cpnet_frame: caller has already consumed an ENQ on SIO-A.
+; Run the master-to-slave receive sequence per CP/NET 1.2:
+;
+;     master: ENQ                                    [already consumed]
+;     slave:  ACK
+;     master: SOH FMT DID SID FNC SIZ HCS            7 bytes
+;     slave:  ACK if HCS valid, NAK otherwise
+;     master: STX DAT[0..SIZ] ETX CKS EOT            5 + SIZ+1 bytes
+;     slave:  ACK if CKS valid + EOT correct
+;
+; Frame is written byte-by-byte into rx_frame_buf in on-wire order:
+;   off  0     SOH
+;   off  1..5  FMT DID SID FNC SIZ
+;   off  6     HCS
+;   off  7     STX
+;   off  8..   DAT
+;   off  8+SIZ ETX
+;   off  9+SIZ CKS
+;   off 10+SIZ EOT
+;
+; Returns:
+;   A = 0    success; rx_frame_buf holds a complete validated frame
+;   A = 0xFF failure at any step (timeout, bad SOH/STX/ETX/EOT, bad
+;            HCS, bad CKS).  Master may retry via another ENQ.
+; Clobbers: AF, BC, DE, HL.
+recv_cpnet_frame:
+	; Acknowledge the master's ENQ.
+	ld	d, ACK
+	call	sio_a_tx_d
+
+	; Receive 7 bytes (SOH + 5 header + HCS) into rx_frame_buf[0..6].
+	; Accumulate the sum in E; on valid HCS the sum mod 256 is 0.
+	ld	hl, rx_frame_buf
+	ld	b, 7
+	ld	e, 0
+.hdr_rx:
+	call	sio_a_rx_with_timeout
+	jr	c, .recv_fail
+	ld	(hl), a
+	inc	hl
+	add	a, e
+	ld	e, a
+	djnz	.hdr_rx
+
+	; Validate SOH at offset 0.
+	ld	a, (rx_frame_buf)
+	cp	SOH
+	jr	nz, .recv_send_nak
+
+	; Validate HCS: sum must be 0 mod 256.
+	ld	a, e
+	or	a
+	jr	nz, .recv_send_nak
+
+	; Send ACK to the header.
+	ld	d, ACK
+	call	sio_a_tx_d
+
+	; Compute data-section length = SIZ + 1 in BC.  SIZ=255 -> 256.
+	ld	a, (rx_frame_buf + 5)
+	ld	c, a
+	ld	b, 0
+	inc	bc			; BC = SIZ + 1; for SIZ=0xFF, BC = 0x0100 = 256
+
+	; Receive STX into rx_frame_buf[7]; seed CKS accumulator with it.
+	; HL still points just past the HCS (rx_frame_buf + 7).
+	call	sio_a_rx_with_timeout
+	jr	c, .recv_fail
+	ld	(hl), a
+	cp	STX
+	jr	nz, .recv_send_nak
+	inc	hl
+	ld	e, a			; E = STX seed for CKS
+
+	; Read SIZ+1 DAT bytes; accumulate into E.
+.dat_rx:
+	call	sio_a_rx_with_timeout
+	jr	c, .recv_fail
+	ld	(hl), a
+	inc	hl
+	add	a, e
+	ld	e, a
+	dec	bc
+	ld	a, b
+	or	c
+	jr	nz, .dat_rx
+
+	; Read ETX; accumulate.
+	call	sio_a_rx_with_timeout
+	jr	c, .recv_fail
+	ld	(hl), a
+	cp	ETX
+	jr	nz, .recv_send_nak
+	inc	hl
+	add	a, e
+	ld	e, a
+
+	; Read CKS; on valid checksum the accumulator + CKS == 0 mod 256.
+	call	sio_a_rx_with_timeout
+	jr	c, .recv_fail
+	ld	(hl), a
+	add	a, e
+	jr	nz, .recv_send_nak	; CKS invalid
+	; Store CKS happened above already via ld (hl), a; advance HL.
+	inc	hl
+
+	; Read EOT.
+	call	sio_a_rx_with_timeout
+	jr	c, .recv_fail
+	ld	(hl), a
+	cp	EOT
+	jr	nz, .recv_send_nak
+
+	; Frame valid.  Send final ACK and return success.
+	ld	d, ACK
+	call	sio_a_tx_d
+	xor	a			; A = 0 -> success
+	ret
+
+.recv_send_nak:
+	ld	d, NAK
+	call	sio_a_tx_d
+.recv_fail:
+	ld	a, 0xFF
+	ret
+
+; dump_rx_to_siob: write the most-recently-received frame to SIO-B
+; for visibility.  Length = 12 + SIZ (header 7 + STX 1 + DAT SIZ+1
+; + ETX 1 + CKS 1 + EOT 1).  Just streams the bytes raw -- the
+; operator hex-dumps the SIO-B capture file to inspect.  Wraps
+; the output in a 0xAA marker byte on each side so the dump is
+; distinguishable from forwarded raw bytes.
+dump_rx_to_siob:
+	ld	a, (rx_frame_buf + 5)	; SIZ
+	add	a, 12			; 12 + SIZ = total length (max 267)
+	jr	c, .dump_long		; SIZ = 0xF4..0xFF wraps
+	ld	c, a
+	jr	.dump_have_count
+.dump_long:
+	; SIZ + 12 >= 256.  Use 16-bit count.
+	; A holds the low byte (SIZ + 12 mod 256); B will be 1.
+	ld	c, a
+	ld	b, 1
+	jr	.dump_loop_16
+.dump_have_count:
+	ld	b, 0
+.dump_loop_16:
+	; Emit 0xAA framing marker.
+	ld	d, 0xAA
+	call	sio_b_tx_d
+	; Stream rx_frame_buf for BC bytes.
+	ld	hl, rx_frame_buf
+.dump_body:
+	ld	d, (hl)
+	call	sio_b_tx_d
+	inc	hl
+	dec	bc
+	ld	a, b
+	or	c
+	jr	nz, .dump_body
+	; Trailing 0xAA marker.
+	ld	d, 0xAA
+	jp	sio_b_tx_d
 
 ; send_cpnet_init_frame: emit one full CP/NET INIT request frame on
 ; SIO-A with the mandatory ENQ/ACK handshake at each phase.
