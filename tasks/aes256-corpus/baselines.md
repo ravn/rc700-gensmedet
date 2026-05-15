@@ -192,6 +192,55 @@ Best non-`+static-stack` config is now `13_Oz_no_omit_fp_no_licm_cse_gc`
 at 3488 B (was 3968 at `11_Oz_no_licm_cse_gc` — **−480 B**).
 `09_Oz_prod_like` remains the absolute winner via `+static-stack`.
 
+## llvm-z80 HEAD: `3d296f439645` (post-#164 TruncInstCombine cost gate)
+
+Captured 2026-05-15 session 72.  Lands ravn/llvm-z80#163 (and-mask
+synthetic trunc root) under the #164 TTI-isZExtFree cost gate.  On Z80
+the gate is `!hasOneUse && !isZExtFree(NarrowTy, OrigTy)`; Z80 returns
+isZExtFree=false, so multi-use ands are blocked.  Single-use ands fire
+but produce no net byte movement on this corpus (session 71 prediction
+held).
+
+### AES corpus
+
+| Config | bin B | vs post-#157 | verify |
+|---|------:|---:|:------:|
+| `01_baseline_Oz` | 4450 | 0 | PASS |
+| `02_Os` | 4725 | 0 | PASS |
+| `03_O3` | 12688 | 0 | PASS |
+| `04_O2` | 8654 | 0 | PASS |
+| `05_Oz_static_stack` | 2995 | 0 | PASS |
+| `06_Oz_no_licm_cse` | 3988 | 0 | PASS |
+| `07_Oz_no_lsr` | 4816 | 0 | PASS |
+| `08_Oz_gc_sections` | 4430 | 0 | PASS |
+| `09_Oz_prod_like` | 2806 | 0 | PASS |
+| `10_Oz_no_licm_cse_lsr` | 4344 | 0 | PASS |
+| `11_Oz_no_licm_cse_gc` | 3968 | 0 | PASS |
+| `12_Oz_no_omit_fp` | 3805 | 0 | PASS |
+| `13_Oz_no_omit_fp_no_licm_cse_gc` | 3488 | 0 | PASS |
+
+All 13/13 byte-identical to post-#157 baseline.  Cost gate works as
+designed.
+
+### z80-utils test-runner
+
+| Total | PASS | FAIL | FATAL | SKIP |
+|------:|-----:|-----:|------:|-----:|
+| 990 | 685 | 42 | 56 | 207 |
+
+Identical to session 71 baseline.  No regressions.
+
+### What this commit enables (not realised on AES corpus)
+
+- ravn/llvm-z80#163 infrastructure is now in main.  When future work
+  improves either the cost model (phase 2 of #164: byte budget instead
+  of boolean gate) or upstream KnownBits tracking through rotate idioms
+  (#162 path 3), the and-mask sink will fire on more chains without
+  changing this code.
+- On non-Z80 targets where `isZExtFree=true` (x86 mostly), the
+  synthetic root fires unconditionally.  Existing upstream lit test
+  `trunc_multi_uses.ll` continues to PASS via the new path.
+
 ### Per-function (clang K&R) at default vs `-fno-omit-FP`
 
 | Function | default | `-fno-omit-FP` | Δ B |

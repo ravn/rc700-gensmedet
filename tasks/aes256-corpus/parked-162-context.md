@@ -175,3 +175,32 @@ Remaining structural paths (same three as in #162 session 71 finding):
 
 None is a quick session.  The remaining `rj_sb_inv` +120-138 B K&R vs
 ANSI gap is now a documented structural item.
+
+## Status after session 72
+
+ravn/llvm-z80#163 (and-mask synthetic trunc root) + #164 (TTI cost gate)
+LANDED in `3d296f439645`:
+- TruncInstCombine receives TTI; phase 2 of `run()` walks `(and X, MASK)`
+  patterns and injects a synthetic trunc root for each.
+- Cost gate: `!hasOneUse && !isZExtFree(NarrowTy, OrigTy)` blocks the
+  multi-use regression observed in session 71 (+200-500 B / config).
+- Side-fix: pre-existing UB in `getMinBitWidth` when trunc's direct
+  operand is an Argument (cast<Instruction> without check) — added a
+  short-circuit mirroring the Constant case at line 254.
+- Z80 outcome: every AES corpus config byte-identical to post-#157
+  baseline; test-runner 685/42/56/207 unchanged.  Single-use path fires
+  but doesn't move the needle (matches session 71 prediction).
+- Other-target outcome: x86-family `isZExtFree=true`, synthetic root
+  fires unconditionally; existing upstream `trunc_multi_uses.ll` still
+  PASSes via the new path.
+
+What #164 unblocks for Z80 (still future work):
+- #164 phase 2: byte budget (`zext_bytes * use_count` vs
+  `narrow_bytes * chain_len`) instead of boolean gate — would let
+  single-use guard relax on chains where narrowing pays for re-extension.
+- #162 path 2 (per-callee body peek) and path 3 (tighter KnownBits for
+  rotate idioms) can now layer on top of the existing cost model rather
+  than fighting it.
+
+Branch `path-a-knr-zeroext` at `298a4cbe63d0` remains parked for #162's
+eventual frontend-tag approach.  Repro scripts and lit tests retained.
