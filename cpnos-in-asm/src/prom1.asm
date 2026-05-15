@@ -201,18 +201,21 @@ sio_tx_wait:
 	inc	hl
 	djnz	sio_tx_loop
 
-	; Phase 3a: emit one CP/NET INIT-request header on SIO-B so the
-	; protocol-layer plumbing is exercised end-to-end (frame layout +
-	; runtime HCS computation).  No ENQ/ACK handshake yet -- this
-	; just shoves 7 bytes onto the wire.  A future phase will wrap
-	; the emission in the full CP/NET 1.2 send sequence (ENQ wait
-	; ACK, header + HCS wait ACK, data + CKS + EOT wait ACK).
+	; Phase 3a/b: emit one full CP/NET INIT-request frame on SIO-B
+	; so the protocol-layer plumbing is exercised end-to-end (frame
+	; layout + runtime HCS + CKS computation).  No ENQ/ACK handshake
+	; yet -- this just shoves 12 bytes onto the wire.  A future phase
+	; will wrap the emission in the full CP/NET 1.2 send sequence
+	; (ENQ wait ACK, header + HCS wait ACK, data + CKS + EOT wait
+	; ACK).
 	;
 	; Sequence on the wire (per cpnos-shared/docs/CPNET_WIRE_PROTOCOL.md):
-	;   SOH FMT DID SID FNC SIZ HCS
-	; HCS = -(SOH + FMT + DID + SID + FNC + SIZ) mod 256 so the seven
-	; bytes sum to 0 mod 256.
+	;   SOH FMT DID SID FNC SIZ HCS  STX DAT[0..SIZ] ETX CKS EOT
+	; HCS = -(SOH + FMT + DID + SID + FNC + SIZ) mod 256
+	; CKS = -(STX + DAT[0..SIZ] + ETX) mod 256
+	; EOT is a raw frame delimiter, NOT counted in CKS.
 	call	send_cpnet_init_header
+	call	send_cpnet_init_data
 
 	; Phase 2b: polled echo loop on SIO-B.  Waits for a byte to
 	; arrive on RX, echoes it back on TX, repeats.  Replaces the
@@ -315,9 +318,12 @@ init_table_pairs equ (init_table_end - init_table) / 2
 
 ; ---- CP/NET frame emission ----------------------------------------
 ;
-; CP/NET 1.2 control bytes (per the protocol spec; only the ones we
-; emit at this stage are defined here).
+; CP/NET 1.2 control bytes (per the protocol spec).
 SOH		equ	0x01		; Start Of Header
+STX		equ	0x02		; Start of Data
+ETX		equ	0x03		; End of Data
+EOT		equ	0x04		; End Of Transmission (frame delimiter,
+					; NOT counted in CKS)
 
 ; INIT request body (5-byte CP/NET header, no data section yet).
 ;   FMT = 0     request from slave
@@ -332,8 +338,16 @@ init_header:
 	db	0x00			; DID
 	db	0xFF			; SID
 	db	0xFF			; FNC
-	db	0x00			; SIZ
+	db	0x00			; SIZ -- 1 data byte follows (SIZ+1)
 init_header_len equ $ - init_header	; = 5
+
+; INIT data section.  SIZ+1 = 1 data byte; content is irrelevant for
+; init/get-node-ID per the master's snios.asm -- master fills in the
+; assigned slave ID into msg[2] of its RESPONSE frame regardless of
+; what we put in DAT[0] here.  Use 0x00 as a stable placeholder.
+init_data:
+	db	0x00			; DAT[0]
+init_data_len equ $ - init_data		; = 1 (must == SIZ+1)
 
 ; send_cpnet_init_header: emit SOH + 5 header bytes + HCS on SIO-B
 ; (polled TX).  HCS is computed at runtime by accumulating SOH+header
@@ -361,6 +375,41 @@ send_cpnet_init_header:
 	sub	e			; A = 0 - E = -E
 	ld	d, a
 	jp	sio_b_tx_d		; tail-call: send HCS, return
+
+; send_cpnet_init_data: emit STX + DAT (init_data_len bytes) + ETX +
+; CKS + EOT on SIO-B.  CKS = NEG(STX + DAT[0..n-1] + ETX) so the
+; bracketed (STX .. CKS) bytes sum to 0 mod 256.  EOT follows raw
+; and is NOT included in CKS (it's a frame delimiter).
+;
+; Clobbers: AF, BC, DE, HL.
+send_cpnet_init_data:
+	; Send STX; seed CKS accumulator with it.
+	ld	d, STX
+	ld	e, STX
+	call	sio_b_tx_d		; sends D; E still holds STX
+
+	; Walk init_data, sending each + updating E.
+	ld	hl, init_data
+	ld	b, init_data_len
+.dat_loop:
+	ld	d, (hl)
+	call	sio_b_tx_d_accum
+	inc	hl
+	djnz	.dat_loop
+
+	; Send ETX and add it to the running sum.
+	ld	d, ETX
+	call	sio_b_tx_d_accum
+
+	; CKS = NEG(E).
+	xor	a
+	sub	e
+	ld	d, a
+	call	sio_b_tx_d
+
+	; Send EOT (raw; not in CKS).
+	ld	d, EOT
+	jp	sio_b_tx_d		; tail-call: send EOT, return
 
 ; sio_b_tx_de_seed: like sio_b_tx_d but assumes E already holds the
 ; seed sum and just sends D without re-adding (caller has already

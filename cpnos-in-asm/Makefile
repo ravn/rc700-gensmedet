@@ -142,17 +142,27 @@ cpnos-siob-test: cpnos-mame-install
 	@LC_ALL=C grep -aq "$(EXPECTED_BANNER)" $(SIOB_RAW) \
 	    && echo "PASS: banner present on SIO-B" \
 	    || { echo "FAIL: banner not on SIO-B"; xxd $(SIOB_RAW) | head -4; exit 1; }
-	@# Phase 3a: verify the CP/NET INIT header follows the banner,
-	@# checksum-valid.  Expected raw bytes immediately after the
-	@# banner's "alive\r\n": 01 00 00 FF FF 00 01 (SOH, FMT, DID,
-	@# SID, FNC, SIZ, HCS).  HCS computed at runtime in PROM1.
+	@# Phase 3a/b: verify the full CP/NET INIT frame follows the
+	@# banner, both checksums valid.  Expected raw bytes immediately
+	@# after the banner's "alive\r\n":
+	@#   SOH FMT DID SID FNC SIZ HCS  STX DAT[0] ETX CKS EOT
+	@#   01  00  00  FF  FF  00  01   02  00     03  FB  04
+	@# HCS makes bytes [0..6] sum to 0 mod 256.
+	@# CKS makes bytes [7..10] (STX..CKS) sum to 0 mod 256.
+	@# EOT (byte 11) is a raw delimiter, not in any checksum.
 	@python3 -c "import sys; \
 	    d = open('$(SIOB_RAW)', 'rb').read(); \
 	    i = d.find(b'\x01\x00\x00\xff\xff\x00'); \
-	    sys.exit(0 if i >= 0 and sum(d[i:i+7]) % 256 == 0 \
-	             else (print(f'FAIL: CP/NET header not found / bad HCS at {i}') or 1))" \
-	    && echo "PASS: CP/NET INIT header present with valid HCS" \
-	    || { echo "FAIL: CP/NET header missing or HCS invalid"; xxd $(SIOB_RAW); exit 1; }
+	    ok = (i >= 0 \
+	          and len(d) >= i + 12 \
+	          and sum(d[i:i+7]) % 256 == 0 \
+	          and d[i+7] == 0x02 \
+	          and d[i+9] == 0x03 \
+	          and sum(d[i+7:i+11]) % 256 == 0 \
+	          and d[i+11] == 0x04); \
+	    sys.exit(0 if ok else (print(f'FAIL frame at {i}: {d[max(0,i):i+12].hex() if i>=0 else \"-\"}') or 1))" \
+	    && echo "PASS: full CP/NET INIT frame on SIO-B with valid HCS + CKS" \
+	    || { echo "FAIL: CP/NET frame broken"; xxd $(SIOB_RAW); exit 1; }
 
 cpnos-clean:
 	rm -rf $(BUILDDIR)
