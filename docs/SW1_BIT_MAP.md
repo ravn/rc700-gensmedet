@@ -28,18 +28,26 @@ behavior wherever a switch hasn't been wired up.
         load_chargen();
     }
 
-For a stock RC702 with a ROA327 chargen ROM in the PROM1 socket, leave
-S02 in the **On** position.  When swapping in the cpnos-in-asm
-lineprog PROM (or any other PROM whose content is code/data rather
-than font bitmaps), flip S02 to **Off** so autoload skips the font
-load and the SEM702 RAM keeps whatever default state it boots into.
+**Important hardware-baseline note.**  Our current RC702 has NO
+SEM702 RAM-based character generator board.  The font is in IC82
+(a ROA327 ROM in the character-generator chip socket), which the
+CRT reads directly.  `load_chargen()` only does anything meaningful
+when a SEM702 is installed in IC82 -- on the no-SEM702 baseline its
+writes to ports 0xD1/0xD2/0xD3 land nowhere observable.  So in
+practice on the baseline machine SW1 bit 1 is informational only.
+
+For the day a SEM702 is fitted: leave S02 **On** when PROM1 holds a
+ROA327 font ROM image so autoload loads it into SEM702 RAM at boot.
+Flip S02 to **Off** when PROM1 holds the cpnos-in-asm lineprog (or
+any other code/data PROM) so autoload skips the now-misdirected
+font load.
 
 In MAME's `rc702` driver, S02 is labelled
 `"S02 PROM1=lineprog (skip chargen)"` to remind the operator which
 bit controls this.  MAME does not currently model the SEM702 (it
-uses a built-in font), so the switch is a no-op in the emulator;
-the gate matters only on real hardware once the SEM702 board is
-present.
+uses a built-in font), so the switch is also a no-op in the
+emulator.  The gate matters only when both (a) a real SEM702 board
+is fitted and (b) we choose to use it -- neither is true today.
 
 ## Adding new bits
 

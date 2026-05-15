@@ -32,12 +32,19 @@ work required, just choosing the right character per cell.
    (~40 B) plus a position lookup.  Within budget if we keep the
    compressed-font approach in PROM1 separate (or skip it).
 
-2. **PROM1 collision:** semigraphics requires either a ROA327 ROM
-   in the PROM1 socket OR a SEM702-RAM load from a font payload in
-   PROM1.  Today PROM1 holds the cpnos-in-asm slave; SW1 bit 1
-   gates `load_chargen()` (currently commented out).  Need to
-   pick: ship a font ROM (ROA327 image in PROM1 when SW1 S02 is
-   On), or compress a SEM702 font into PROM0 alongside autoload.
+2. **PROM1 is irrelevant for the font (current baseline):** the
+   RC702 we target has NO SEM702 RAM-based character generator
+   board installed.  The font is in IC82 (the character-generator
+   chip socket), which on a stock RC702 holds a ROA327 ROM.  The
+   CRT reads characters from IC82 directly -- nothing in PROM1 is
+   consulted to render text.  So we can keep cpnos-in-asm in
+   PROM1 AND still get semigraphics characters on screen from
+   IC82, without any font-load step.
+
+   `load_chargen()` (gated on SW1 bit 1, currently commented out)
+   only matters if a SEM702 ever appears in IC82 -- then PROM1
+   would need to hold the font backup the SEM702 RAM is loaded
+   from.  Until then it's a parked option, not a constraint.
 
 3. **Display placement:** QR is 13x9 cells.  Row 0 has banner +
    SW1 status; row 1 blank; row 2 halt messages.  Natural QR

@@ -941,25 +941,33 @@ void main_relocated(void) __naked
     init_crt();
     /* PROM1 socket content is selected by DIP switch SW1 bit 1
      * (port 0x14):
-     *   bit 1 clear (default) -> chargen ROM (ROA327): load it into
-     *                            SEM702 RAM as the boot font.
+     *   bit 1 clear (default) -> chargen-ROM-in-PROM1 mode.  When a
+     *                            SEM702 RAM-based character generator
+     *                            board is fitted in IC82, autoload
+     *                            loads its font from PROM1 bytes.
      *   bit 1 set             -> lineprog PROM (e.g. cpnos-in-asm
-     *                            slave): leave SEM702 alone, since
-     *                            the bytes are code/data, not a font.
+     *                            slave): code/data, NOT a font.
+     *                            Skip the font-load step.
+     *
+     * BASELINE (no SEM702 fitted): our current target machines have
+     * a ROA327 font ROM in IC82, not a SEM702 RAM board.  The 8275
+     * CRT reads the font directly from IC82 -- nothing in PROM1 is
+     * consulted to render text.  load_chargen()'s writes to ports
+     * 0xD1/0xD2/0xD3 land nowhere observable in that configuration.
+     * SW1 bit 1 is therefore informational on the baseline; the gate
+     * matters only when a SEM702 is actually fitted in IC82.
+     *
      * SW1 bit 0 is already taken by rcbios for SIO-B console mode
      * (see rcbios-in-c/tasks/siob-console-dipswitch.md).  Bit 7 is
      * documented hardware (mini/maxi floppy).  Bit 1 is the lowest
-     * undocumented bit; chosen here as the lineprog selector.
-     * Default-zero means an out-of-box RC702 keeps the original
-     * chargen-load behavior. */
+     * undocumented bit; chosen here as the lineprog selector. */
     if ((read_sw1() & 0x02) == 0) {
-        /* load_chargen();  -- disabled 2026-05-15 while bring-up
-         * settles.  Re-enable when we (a) have a known-good ROA327
-         * font ROM image to put in PROM1 for chargen-mode boots, and
-         * (b) want the SEM702 board exercised again on real hardware.
-         * Gate structure preserved so the re-enable is a one-line
-         * uncomment.  MAME has no SEM702 model, so the call was a
-         * runtime no-op there. */
+        /* load_chargen();  -- disabled 2026-05-15 because the no-
+         * SEM702 baseline makes the call a runtime no-op anyway.
+         * Re-enable when (a) a SEM702 board is fitted in IC82,
+         * (b) a known-good ROA327 font ROM image is in PROM1, and
+         * (c) we want SEM702 RAM populated at boot.  Gate structure
+         * preserved so re-enabling is a one-line uncomment. */
     }
     init_fdc();
     memset(dspstr, ' ', 80 * 25);   /* clear screen */
