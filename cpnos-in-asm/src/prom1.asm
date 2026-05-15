@@ -56,6 +56,19 @@ CRT_CMD_START	equ	0x23	; 001xxxxx: start display.  bits 4..3
 ; produce the actual count), so the "= N count" comment is the
 ; observable value while the bits show what's literally written.
 ;
+; Two CRT-timing acronyms appear below:
+;   VRTC = Vertical Retrace.   Time between drawing the last visible
+;          row of a frame and the first visible row of the next frame,
+;          while the electron beam flies from screen bottom back to
+;          screen top.  Display is blanked during these rows; CPU /
+;          DMA can use the gap to set up the next frame.  The 8275
+;          measures it in CHARACTER ROWS.
+;   HRTC = Horizontal Retrace.  Time between drawing the rightmost
+;          character of a scan line and the leftmost character of the
+;          next scan line, while the beam flies right-to-left.
+;          Display is blanked during these clocks.  The 8275 measures
+;          it in CHARACTER CLOCKS within a single scan line.
+;
 ; ---- P1 (Horizontal): SHHHHHHH ----
 ;   bit 7   = S = 0           ; 0 -> no spaced rows
 ;   bits 6-0 = H = 0x4F = 79  ; 79 + 1 = 80 chars per row

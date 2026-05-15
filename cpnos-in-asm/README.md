@@ -29,6 +29,29 @@ What we reconfigure once autoload hands over:
     boot, so we run a port table that does the CTC ch1 (SIO-B baud)
     and SIO-B WR0..WR5 sequence cpnos-in-c uses.
 
+### Code lives in PROM1 — no payload relocation
+
+cpnos-in-c copies its "payload" out of PROM into RAM at 0xED00 because
+clang's resident code is position-dependent and BSS has to live in
+RAM.  cpnos-in-asm does NOT replicate that scheme: the slave executes
+in place from PROM1.  Even the cold-init port-table walk that runs
+exactly once stays in PROM1 — there's no value in copying it to RAM
+just to throw the bytes away, and the saved 2 KB of TPA space below
+matters more.
+
+Concretely:
+
+  - All code (init, transport, NDOS dispatch) runs from PROM1
+    addresses 0x2000..0x27FF.
+  - State that needs to be written (ring buffers, slave-side NDOS
+    flags) lives in RAM somewhere below 0x7A00, allocated by `equ` /
+    `org` directives in prom1.asm rather than by a payload-header
+    relocation step.
+  - No payload header, no relocator stage, no `--defsym` plumbing.
+
+The cpnos-in-c "payload" model exists because the C compiler forces
+it; the asm slave is free of that constraint and uses it.
+
 ## Goal
 
 Implement a CP/NOS slave in pure Z80 assembly that fits in **PROM1
@@ -81,11 +104,10 @@ Everything in `../cpnos-shared/`:
    - **2a (DONE):** SIO-B transmit.  After autoload jumps to us, init
      CTC ch1 + SIO-B, then stream banner via polled-TX.  Verified by
      `make cpnos-siob-test`.
-   - **2b:** SIO-B receive (poll, echo bytes back).  Needed for any
-     duplex test.
-
-2. **Transport echo** — read a byte from PIO-A/B (or SIO depending
-   on TRANSPORT), echo it back.  Pre-CP/NET-frame work.
+   - **2b (CODE DONE, integration test deferred):** SIO-B receive
+     and echo.  Polled RX -> TX loop after the banner stream.  Full
+     byte-injection test waits on a socket-backed `null_modem`
+     harness.
 
 3. **CP/NET frame parser** — minimal SNDMSG/RCVMSG state machine
    parsing the 7-byte CP/NET header + payload.  Echo received
@@ -109,12 +131,6 @@ Everything in `../cpnos-shared/`:
 
 ## Open design questions
 
-- **Init code**: cpnos-in-c has rich cold-init (clear screen, init
-  CTC/PIO/SIO, set up IVT).  Can the asm variant share a generated
-  init blob from autoload-in-c, or does it need its own?  Probably
-  needs its own — the resident slave runs WITHOUT autoload's init
-  helper (PROM disable happens before payload runs).
-
 - **Linker script**: lld may not work well with zmac output.  May
   need a thin lld-compatible variant of `payload.ld` or a different
   link strategy (zmac's `LIBR`/`LINK` directives).
@@ -123,6 +139,13 @@ Everything in `../cpnos-shared/`:
   parity oracle.  Asm version compares directly against zsdcc-built
   cpnos-in-c bytes if we want a regression baseline, but the design
   is to track DRI's reference NDOS implementation (`testutil/acid/`).
+
+## Resolved design questions
+
+- **Init code placement (2026-05-15):** stays in PROM1, runs
+  in-place.  No payload relocation -- see "Code lives in PROM1"
+  above.  Settles the earlier open question about whether to share
+  an init blob with autoload-in-c.
 
 ## See also
 
