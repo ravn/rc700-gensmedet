@@ -20,6 +20,7 @@
 	.z80
 	org	0x2000
 
+PORT_CRT_CMD	equ	0x01
 PORT_CTC1	equ	0x0D
 PORT_CTC2	equ	0x0E
 PORT_SIO_B_DATA	equ	0x09
@@ -31,6 +32,17 @@ PORT_DMA_CH2_WC  equ	0xF5
 PORT_DMA_SMSK	equ	0xFA
 PORT_DMA_MODE	equ	0xFB
 PORT_DMA_CLBP	equ	0xFC
+
+; 8275 commands.  Bits 7..5 select the command; remaining bits carry
+; parameters baked into the byte for cmd-with-immediate-params.
+CRT_CMD_STOP	equ	0x40	; 010xxxxx: stop display
+CRT_CMD_PRESET	equ	0xE0	; 111xxxxx: preset counters (reset
+				; character counter + character row counter
+				; so the next start begins at row 0).
+CRT_CMD_START	equ	0x23	; 001xxxxx: start display.  bits 4..3
+				; = 00 = burst=0 (8 DMA cycles/burst),
+				; bits 2..0 = 011 = 24-clock spacing.
+				; Identical to autoload's start command.
 
 ; ---- PROM1 header (autoload-in-c signature contract) ----------------
 ; Byte 0..1: jump target (little-endian, read by autoload's
@@ -100,15 +112,29 @@ halt:
 	jr	halt
 
 ; ---- Init port table ------------------------------------------------
-; Display relocate (CTC ch2 quiet + DMA ch2 -> 0xF800 autoinit) + CTC
-; ch1 baud + SIO-B configuration.
+; Display relocate (8275 stop + CTC ch2 quiet + DMA ch2 -> 0xF800
+; autoinit + 8275 start) + CTC ch1 baud + SIO-B configuration.
+;
+; The 8275 stop/start pair is LOAD-BEARING.  Without it the 8275 is
+; mid-frame when we reprogram DMA: the first ~12 visible rows still
+; show autoload's 0x7A00 contents and only the bottom rows render from
+; 0xF800, leaving our banner at row ~12 instead of row 0.  Stop
+; freezes the CRT scan; restart begins a clean frame from row 0 against
+; the new DMA stream.  Verified visually with snap/cpnos_asm_phase2a.png
+; before vs after.
 init_table:
+	; 8275 stop: pauses CRT scanning + DMA requests so the next
+	; restart begins at top-left.
+	db	PORT_CRT_CMD, CRT_CMD_STOP
+
 	; Disable CTC ch2 IRQ.  0x03 = control word + sw reset (autoload's
 	; rom.c uses this exact value to disable ch3 at boot finish).  Once
 	; CTC ch2 is silent, the VRTC ISR stops re-pointing DMA at 0x7A00.
 	db	PORT_CTC2, 0x03
 
 	; DMA ch2: mask, set autoinit mode + new base 0xF800 + WC, unmask.
+	; Writing to the address/wc registers loads BOTH base and current,
+	; so the next byte the CRT requests comes from 0xF800.
 	db	PORT_DMA_SMSK,     0x06			; mask ch2 (set mask, ch=2)
 	db	PORT_DMA_MODE,     0x5A			; single mem->IO autoinit, ch=2
 	db	PORT_DMA_CLBP,     0x00			; clear byte-pointer flip-flop
@@ -117,6 +143,16 @@ init_table:
 	db	PORT_DMA_CH2_WC,   0xCF			; wc low  = (1999 & 0xFF)
 	db	PORT_DMA_CH2_WC,   0x07			; wc high = (1999 >> 8)
 	db	PORT_DMA_SMSK,     0x02			; unmask ch2 (clear mask, ch=2)
+
+	; 8275 preset counters: resets the character + character-row
+	; counters so the next start begins at row 0.  Stop alone does
+	; not reset these counters (verified empirically: without preset
+	; the banner rendered at row ~12 instead of row 0).
+	db	PORT_CRT_CMD, CRT_CMD_PRESET
+
+	; 8275 start: resumes CRT scanning from row 0 against the new
+	; DMA stream.  Burst+spacing identical to autoload's start cmd.
+	db	PORT_CRT_CMD, CRT_CMD_START
 
 	; CTC ch1 = 0x47/TC=1 drives SIO-B baud.
 	db	PORT_CTC1, 0x47				; counter/timer, TC follows
