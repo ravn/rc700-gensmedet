@@ -1,6 +1,6 @@
 # zsdcc flag sweep — AES-256 corpus
 
-Last run: 2026-05-14  
+Last run: 2026-05-15  
 z88dk HEAD: `a7031ad3c864`
 
 Reproducible via `make sweep_sdcc` in this directory. Each row is a
