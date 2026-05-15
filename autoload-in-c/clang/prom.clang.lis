@@ -285,7 +285,7 @@ Disassembly of section .text:
     6118: d3 1c        	out	($1c),a
 ;     halt_msg("**DISKETTE ERROR** ", 19);
     611a: 21 66 66     	ld	hl,$6666
-    611d: 11 f0 7a     	ld	de,$7af0
+    611d: 11 a0 7a     	ld	de,$7aa0
     6120: 01 13 00     	ld	bc,$13
     6123: ed b0        	ldir
     6125: cd b7 62     	call	$62b7
@@ -677,7 +677,7 @@ Disassembly of section .text:
     6316: c3 cc 66     	jp	$66cc
 ;     halt_msg(" **NO DISKETTE NOR LINEPROG** ", 30);
     6319: 21 a6 66     	ld	hl,$66a6
-    631c: 11 f0 7a     	ld	de,$7af0
+    631c: 11 a0 7a     	ld	de,$7aa0
     631f: 01 1e 00     	ld	bc,$1e
     6322: ed b0        	ldir
     6324: cd b7 62     	call	$62b7
@@ -1171,7 +1171,7 @@ Disassembly of section .text:
     65e9: cd cc 66     	call	$66cc
 ;     halt_msg(" **NO KATALOG** ", 16);
     65ec: 21 8e 66     	ld	hl,$668e
-    65ef: 11 f0 7a     	ld	de,$7af0
+    65ef: 11 a0 7a     	ld	de,$7aa0
     65f2: 01 10 00     	ld	bc,$10
     65f5: 18 2f        	jr	$6626
 ;             if (check_sysfile(boot_dir, "SYSM") == 0) {
@@ -1200,7 +1200,7 @@ Disassembly of section .text:
     661a: cd 27 63     	call	$6327
 ;         halt_msg(" **NO SYSTEM FILES** ", 21);
     661d: 21 4b 66     	ld	hl,$664b
-    6620: 11 f0 7a     	ld	de,$7af0
+    6620: 11 a0 7a     	ld	de,$7aa0
     6623: 01 15 00     	ld	bc,$15
     6626: ed b0        	ldir
     6628: cd b7 62     	call	$62b7

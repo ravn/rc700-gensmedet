@@ -594,12 +594,12 @@ NORETURN void halt_forever(void) {
  * Macro so 'len' is compile-time constant — sdcc inlines as LDIR.
  * 'len' must NOT include NUL terminator.
  *
- * Halt messages land on row 3 (offset 80*3 = 240).  Row 0 holds the
- * boot banner, row 1 holds the SW1 status line (display_sw1_status),
- * row 2 is intentionally left blank as a visual separator.  Keep
- * future status lines below row 3 — any messages overlapping row 3
- * will scribble over a still-running halt message. */
-#define halt_msg(msg, len) do { memcpy(dspstr + 80 * 3, (msg), (len)); halt_forever(); } while(0)
+ * Halt messages land on row 2 (offset 80*2 = 160).  Row 0 holds the
+ * boot banner (left) and SW1 status (right, see display_sw1_status);
+ * row 1 is intentionally blank as a visual separator.  Keep future
+ * status lines off row 2 — any messages overlapping it will scribble
+ * over a still-running halt message. */
+#define halt_msg(msg, len) do { memcpy(dspstr + 80 * 2, (msg), (len)); halt_forever(); } while(0)
 
 /* Compare 6 bytes.  A __naked DJNZ version would save only 1 byte
  * (sdcc uses DEC C/JR NZ = 3 bytes vs DJNZ = 2 bytes, but setup is same).
