@@ -7,9 +7,11 @@
 -- Phase 1 stamps the banner at row 0.
 
 local RESULT_PATH = "/tmp/cpnos_asm_banner.txt"
--- DSPSTR_ADDR per autoload-in-c rom.h (autoload programs DMA ch2
--- here at cold init; cpnos-in-c's relocator separately uses 0xF800).
-local DISPLAY_ADDR = 0x7A00
+-- CP/M-canonical display address.  cpnos-in-asm relocates the CRT
+-- DMA source from autoload's 0x7A00 to 0xF800 before stamping the
+-- banner, freeing 0x7A00..0x81CF for TPA.  cpnos-in-c also uses
+-- 0xF800.  See project_rc702_ivt_page_constraint memory.
+local DISPLAY_ADDR = 0xF800
 local ROW_BYTES    = 80
 local DEADLINE_S   = 3.0
 

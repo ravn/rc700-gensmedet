@@ -21,9 +21,16 @@
 	org	0x2000
 
 PORT_CTC1	equ	0x0D
+PORT_CTC2	equ	0x0E
 PORT_SIO_B_DATA	equ	0x09
 PORT_SIO_B_CTRL	equ	0x0B
 SIO_TX_BUF_EMPTY equ	0x04	; RR0 bit 2
+
+PORT_DMA_CH2_ADDR equ	0xF4
+PORT_DMA_CH2_WC  equ	0xF5
+PORT_DMA_SMSK	equ	0xFA
+PORT_DMA_MODE	equ	0xFB
+PORT_DMA_CLBP	equ	0xFC
 
 ; ---- PROM1 header (autoload-in-c signature contract) ----------------
 ; Byte 0..1: jump target (little-endian, read by autoload's
@@ -36,31 +43,43 @@ prom1_header:
 
 ; ---- Slave entry (referenced by the header above) -------------------
 slave_entry:
-	; SIO-B init (autoload does not program SIO).  Mirrors
-	; cpnos-in-c init.c port_init[] for the SIO-B half.
-	; CTC ch1 = 0x47 / TC=1 -> drives SIO-B baud (RX/TX clock).
-	ld	hl, sio_init_table
-	ld	b, sio_init_table_pairs
-sio_init_loop:
+	; Walk the combined port-init table:
+	;   - Disable CTC ch2 IRQ so autoload's VRTC ISR stops firing.
+	;     The ISR (refresh_crt_dma_50hz_interrupt) re-programs DMA
+	;     ch2 to DSPSTR_ADDR=0x7A00 every frame; we need it silent
+	;     before we can pin DMA ch2 at 0xF800.
+	;   - Reprogram DMA ch2 base to 0xF800 in AUTOINIT mode (0x5A).
+	;     The 8237 reloads its own base register at terminal count,
+	;     so no ISR is needed to keep the display refreshed.
+	;   - Init CTC ch1 + SIO-B (autoload skips SIO).
+	; All up front so the CRT switches sources before anything
+	; tries to draw.
+	ld	hl, init_table
+	ld	b, init_table_pairs
+init_loop:
 	ld	c, (hl)
 	inc	hl
 	ld	a, (hl)
 	inc	hl
 	out	(c), a
-	djnz	sio_init_loop
+	djnz	init_loop
 
-	; Clear display memory to spaces.  DSPSTR_ADDR = 0x7A00 per
-	; autoload-in-c rom.h; 80x25=2000 bytes programmed by autoload's
-	; init_crt + VRTC ISR.  LDIR-from-self idiom.
-	ld	hl, 0x7A00
+	; Display now refreshes from 0xF800 (CP/M-canonical location;
+	; matches the RC702 IVT page constraint
+	; project_rc702_ivt_page_constraint).  Autoload's 0x7A00
+	; framebuffer is no longer wired to the CRT; the TPA region from
+	; 0x7A00 upward is free for cpnos.com / NDOS / programs.
+
+	; Clear display memory to spaces.  LDIR-from-self idiom.
+	ld	hl, 0xF800
 	ld	(hl), 0x20
-	ld	de, 0x7A01
+	ld	de, 0xF801
 	ld	bc, 1999
 	ldir
 
 	; Stamp the banner on CRT row 0 (LDIR, no CRLF on screen).
 	ld	hl, banner
-	ld	de, 0x7A00
+	ld	de, 0xF800
 	ld	bc, banner_text_len
 	ldir
 
@@ -81,19 +100,37 @@ halt:
 	jr	halt
 
 ; ---- Init port table ------------------------------------------------
-; CTC ch1 drives SIO-B baud; SIO-B itself configured 8N1 polled.  Both
-; CTC and SIO programmed here because autoload didn't.
-sio_init_table:
-	db	PORT_CTC1, 0x47			; counter/timer, TC follows
-	db	PORT_CTC1, 0x01			; TC = 1
-	db	PORT_SIO_B_CTRL, 0x18		; WR0: channel reset
+; Display relocate (CTC ch2 quiet + DMA ch2 -> 0xF800 autoinit) + CTC
+; ch1 baud + SIO-B configuration.
+init_table:
+	; Disable CTC ch2 IRQ.  0x03 = control word + sw reset (autoload's
+	; rom.c uses this exact value to disable ch3 at boot finish).  Once
+	; CTC ch2 is silent, the VRTC ISR stops re-pointing DMA at 0x7A00.
+	db	PORT_CTC2, 0x03
+
+	; DMA ch2: mask, set autoinit mode + new base 0xF800 + WC, unmask.
+	db	PORT_DMA_SMSK,     0x06			; mask ch2 (set mask, ch=2)
+	db	PORT_DMA_MODE,     0x5A			; single mem->IO autoinit, ch=2
+	db	PORT_DMA_CLBP,     0x00			; clear byte-pointer flip-flop
+	db	PORT_DMA_CH2_ADDR, 0x00			; base low  = 0x00
+	db	PORT_DMA_CH2_ADDR, 0xF8			; base high = 0xF8 -> 0xF800
+	db	PORT_DMA_CH2_WC,   0xCF			; wc low  = (1999 & 0xFF)
+	db	PORT_DMA_CH2_WC,   0x07			; wc high = (1999 >> 8)
+	db	PORT_DMA_SMSK,     0x02			; unmask ch2 (clear mask, ch=2)
+
+	; CTC ch1 = 0x47/TC=1 drives SIO-B baud.
+	db	PORT_CTC1, 0x47				; counter/timer, TC follows
+	db	PORT_CTC1, 0x01				; TC = 1
+
+	; SIO-B WR0/WR2..5/WR1 (mirrors cpnos-in-c init.c port_init[]).
+	db	PORT_SIO_B_CTRL, 0x18				; WR0: channel reset
 	db	PORT_SIO_B_CTRL, 0x02, PORT_SIO_B_CTRL, 0x10	; WR2 = 0x10
 	db	PORT_SIO_B_CTRL, 0x04, PORT_SIO_B_CTRL, 0x44	; WR4 = clk/16 8N1
 	db	PORT_SIO_B_CTRL, 0x03, PORT_SIO_B_CTRL, 0xE1	; WR3 = RX enable
 	db	PORT_SIO_B_CTRL, 0x05, PORT_SIO_B_CTRL, 0x6A	; WR5 = TX enable
 	db	PORT_SIO_B_CTRL, 0x01, PORT_SIO_B_CTRL, 0x00	; WR1 = no IRQ
-sio_init_table_end:
-sio_init_table_pairs equ (sio_init_table_end - sio_init_table) / 2
+init_table_end:
+init_table_pairs equ (init_table_end - init_table) / 2
 
 banner:
 	db	"RC702 CP/NOS asm phase 2a alive"

@@ -15,8 +15,19 @@ tries floppy boot, fails, then calls `prom1_if_present()`:
   2. Jumps via `*(word *)0x2000` (the jump-target stored at PROM1 byte 0).
 
 `prom1.asm` lays out the contract bytes in `prom1_header` then runs.
-SIO is the only hardware we (re)init — autoload does not program it
-during cold boot.
+What we reconfigure once autoload hands over:
+
+  - **Display moves from 0x7A00 to 0xF800.**  Autoload places its
+    framebuffer at `DSPSTR_ADDR=0x7A00` (its own ROM is hard-wired
+    there — we cannot move it, or the floppy-boot path would break).
+    After handoff we disable CTC ch2's interrupt (autoload's VRTC ISR
+    keeps re-pointing DMA at 0x7A00) and reprogram DMA ch2 to autoinit
+    mode pointing at 0xF800.  TPA from 0x7A00 upward is then free for
+    cpnos.com / NDOS / programs, and the display lives at the
+    CP/M-canonical location.
+  - **SIO + CTC ch1.**  Autoload does not program SIO during cold
+    boot, so we run a port table that does the CTC ch1 (SIO-B baud)
+    and SIO-B WR0..WR5 sequence cpnos-in-c uses.
 
 ## Goal
 
