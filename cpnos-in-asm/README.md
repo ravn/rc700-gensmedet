@@ -1,6 +1,6 @@
 # cpnos-in-asm — pure Z80 assembly CP/NOS slave
 
-**Status: scaffold only.  Bring-up is the next session's work.**
+**Status: phase 1 alive (banner stamps to CRT at boot).  Phase 2+ pending.**
 
 ## Goal
 
@@ -45,12 +45,12 @@ Everything in `../cpnos-shared/`:
 
 ## Bring-up plan
 
-To be written next session in `tasks/bring-up-plan.md`.  Suggested
-ordering:
-
-1. **Stub slave that boots in MAME** — minimal asm at PROM1 origin
-   that prints a banner to the CRT.  Validates the PROM0->PROM1 jump
-   path with zero protocol logic.
+1. **Stub slave that boots in MAME** — DONE (session 73e, 2026-05-15).
+   `src/prom0.asm` (50 B) does minimal 8237 DMA + 8275 CRT init then
+   `JP 0x2000`; `src/prom1.asm` (~70 B) clears display RAM and stamps
+   "RC702 CP/NOS asm phase 1 alive" at row 0.  Verified by
+   `make cpnos-banner-test` (boots MAME, dumps display memory, greps
+   banner string, captures screenshot to `snap/cpnos_asm_phase1.png`).
 
 2. **Transport echo** — read a byte from PIO-A/B (or SIO depending
    on TRANSPORT), echo it back.  Pre-CP/NET-frame work.
