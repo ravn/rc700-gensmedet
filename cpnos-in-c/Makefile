@@ -196,6 +196,13 @@ else ifeq ($(PIO_LOOPBACK_TEST),1)
 CFLAGS += -DPIO_LOOPBACK_TEST
 endif
 
+# Pull in shared MAME-install / burn / verify recipes.  See
+# $(SHARED)/common.mk for the variables it defaults and the targets it
+# provides.  Must come AFTER BUILDDIR / COMPILER are resolved so
+# $(BUILDDIR)/cpnos.bin prereqs expand correctly.  cpnos-in-asm/Makefile
+# includes the same fragment to inherit identical install semantics.
+include $(SHARED)/common.mk
+
 # Slave talks CP/NET 1.2 (DRI MP/M protocol) to the master via the
 # netboot_mpm() helper -- LOGIN / OPEN / READ / CLOSE against z80pack
 # mpm-net2.  The legacy `SERVER=proxy` / netboot.c / NETBOOT_LEGACY
@@ -628,10 +635,8 @@ cpnos-loader: $(BUILDDIR)/cpnos.bin
 	@echo "staged $(SHARED)/testutil/cpnosldr.com (run 'cpnosldr' from CP/M A>)"
 
 # ---- Split for burner --------------------------------------------
-
-cpnos-burn: $(BUILDDIR)/cpnos.bin
-	@echo "PROM0 (0x0000-0x07FF): $(BUILDDIR)/prom0.bin ($$(wc -c < $(BUILDDIR)/prom0.bin | tr -d ' ') B)"
-	@echo "PROM1 (0x2000-0x27FF): $(BUILDDIR)/prom1.bin ($$(wc -c < $(BUILDDIR)/prom1.bin | tr -d ' ') B)"
+#
+# `cpnos-burn` provided by $(SHARED)/common.mk.
 
 # ---- Switch MAME into cpnos boot mode ----------------------------
 #
@@ -663,23 +668,9 @@ cpnos-burn: $(BUILDDIR)/cpnos.bin
 # user's job.  For BIOS-only verification work (no cpnos network
 # code), use rcbios standalone mode instead -- it boots end-to-end
 # without mpm.
-
-MAME_ROMS_DIR ?= $(CURDIR)/../../mame/roms/rc702
-
-mame-roms-cpnos: $(BUILDDIR)/cpnos.bin
-	@test -d "$(MAME_ROMS_DIR)" || \
-	    { echo "ERROR: MAME_ROMS_DIR=$(MAME_ROMS_DIR) does not exist"; exit 1; }
-	@P0=$$(wc -c < $(BUILDDIR)/prom0.bin | tr -d ' '); \
-	 P1=$$(wc -c < $(BUILDDIR)/prom1.bin | tr -d ' '); \
-	 test "$$P0" = "2048" || { echo "ERROR: prom0.bin is $$P0 B, expected 2048"; exit 1; }; \
-	 test "$$P1" = "2048" || { echo "ERROR: prom1.bin is $$P1 B, expected 2048"; exit 1; }
-	cp $(BUILDDIR)/prom0.bin "$(MAME_ROMS_DIR)/roa375.ic66"
-	cp $(BUILDDIR)/prom1.bin "$(MAME_ROMS_DIR)/prom1.ic65"
-	@echo "Switched MAME into cpnos mode:"
-	@echo "  $(MAME_ROMS_DIR)/roa375.ic66 (cpnos prom0)"
-	@echo "  $(MAME_ROMS_DIR)/prom1.ic65 (cpnos prom1)"
-	@echo "To switch back to rcbios standalone mode, run:"
-	@echo "  cd ../autoload-in-c && make prom"
+#
+# Target `mame-roms-cpnos` (and MAME_ROMS_DIR default) provided by
+# $(SHARED)/common.mk.
 
 # ---- Inspection --------------------------------------------------
 
@@ -689,10 +680,8 @@ cpnos-disasm: $(BUILDDIR)/payload.elf $(BUILDDIR)/relocator.elf
 	$(OBJDUMP) -d --triple=z80 $(BUILDDIR)/relocator.elf
 
 # ---- MAME boot test ----------------------------------------------
-
-MAME = /Users/ravn/git/mame
-MAME_PROM0 = $(MAME)/roms/rc702/roa375.ic66
-MAME_PROM1 = $(MAME)/roms/rc702/prom1.ic65
+#
+# MAME, MAME_PROM0, MAME_PROM1 defaults provided by $(SHARED)/common.mk.
 
 # Disk-image install: rebuild cpnos.com from cpnos-build/ and inject the
 # fresh blob into both MP/M library disks.  Prevents the "PROM updated
@@ -750,59 +739,14 @@ cpnos-build/d/cpnos.com: $(wildcard cpnos-build/src/*.asm cpnos-build/src/*.s) c
 $(BUILDDIR)/prom0_padded.ic66 $(BUILDDIR)/prom1.bin: $(BUILDDIR)/cpnos.bin
 	@:
 
-# MAME ROM file targets: copy from build artifacts whenever they're
-# newer.  Make tracks timestamps so subsequent builds auto-refresh.
-# Also mirror to MAME_IRQ tree if it exists -- pio-irq targets and
-# cpnos-bios-jt-trace launch from there, and an ad-hoc
-# `regnecentralend` against MAME_IRQ would otherwise see whatever
-# was in $(MAME_IRQ)/roms/rc702 from the previous polypascal-test
-# (sync-on-launch in those targets) and silently boot a stale build.
-# Same bug class as the asymmetric-recipe fix at 4e7f1de but on the
-# MAME-tree axis.  Conditional `-d` check so the rule passes when
-# MAME_IRQ doesn't exist on a given checkout.
-$(MAME_PROM0): $(BUILDDIR)/prom0_padded.ic66
-	cp $< $@
-	@if [ -d $(MAME_IRQ)/roms/rc702 ]; then \
-	    cp $@ $(MAME_IRQ)/roms/rc702/$(notdir $@); \
-	    echo "installed cpnos prom0 -> $@ (+ MAME_IRQ)"; \
-	else \
-	    echo "installed cpnos prom0 -> $@"; \
-	fi
-
-$(MAME_PROM1): $(BUILDDIR)/prom1.bin
-	cp $< $@
-	@if [ -d $(MAME_IRQ)/roms/rc702 ]; then \
-	    cp $@ $(MAME_IRQ)/roms/rc702/$(notdir $@); \
-	    echo "installed cpnos prom1 -> $@ (+ MAME_IRQ)"; \
-	else \
-	    echo "installed cpnos prom1 -> $@"; \
-	fi
-
-# Just the MAME-side install (no cpmsim disk write).  Pulled in by the
-# default `cpnos` target so a plain `make cpnos` is safe to follow with
-# any MAME launch -- direct or via Make.
-cpnos-mame-install: $(MAME_PROM0) $(MAME_PROM1)
+# MAME PROM install rules ($(MAME_PROM0), $(MAME_PROM1)),
+# cpnos-mame-install, and verify-mame-roms-current provided by
+# $(SHARED)/common.mk.  Mirroring into MAME_IRQ is conditional on
+# MAME_IRQ being set (this Makefile sets it further down for the
+# polypascal-test targets).
 
 # Full install: MAME PROMs + cpmsim disk-side cpnos.com.
 cpnos-install: cpnos-mame-install cpnos-disk-install
-
-# Verify the installed MAME PROMs match the latest build.  Use as a
-# pre-flight check before any direct MAME launch (`regnecentralend`
-# outside Make).  Fails with a clear error message + remediation if
-# the install is stale.  HARD RULE feedback_check_banner_timestamp.md.
-.PHONY: verify-mame-roms-current
-verify-mame-roms-current:
-	@if [ ! -f $(MAME_PROM0) ] || [ $(BUILDDIR)/prom0_padded.ic66 -nt $(MAME_PROM0) ]; then \
-	    echo "STALE ROM: $(MAME_PROM0) older than $(BUILDDIR)/prom0_padded.ic66"; \
-	    echo "  remediation: make COMPILER=$(COMPILER) cpnos-mame-install"; \
-	    exit 1; \
-	fi
-	@if [ ! -f $(MAME_PROM1) ] || [ $(BUILDDIR)/prom1.bin -nt $(MAME_PROM1) ]; then \
-	    echo "STALE ROM: $(MAME_PROM1) older than $(BUILDDIR)/prom1.bin"; \
-	    echo "  remediation: make COMPILER=$(COMPILER) cpnos-mame-install"; \
-	    exit 1; \
-	fi
-	@echo "MAME ROMs current ($(MAME_PROM0), $(MAME_PROM1))"
 
 # ---- cpnet-smoke: end-to-end test against live MP/M ---------------
 #
