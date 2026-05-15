@@ -144,8 +144,34 @@ improvement) remains the only path for that exact shape.
   - https://github.com/ravn/llvm-z80/issues/162 (initial diagnosis)
   - https://github.com/ravn/llvm-z80/issues/162#issuecomment-4454783096
     (Path A status + phase-ordering finding)
-- Related fixed: #158, #159, #160 (icmp-sink), #161
-- Adjacent unstarted: #156, #157
+  - https://github.com/ravn/llvm-z80/issues/162#issuecomment-4457134375
+    (session 71 Option 3 ruled out — zeroext is ABI signal not source-narrow)
+- #163 main comments:
+  - https://github.com/ravn/llvm-z80/issues/163 (and-mask sink filing)
+  - https://github.com/ravn/llvm-z80/issues/163#issuecomment-4457428303
+    (session 71 Option 1 ruled out — no use-count guard regressed
+    +200-500B/config; single-use guard inert)
+- Related fixed: #156, #157, #158, #159, #160 (icmp-sink), #161
 - Memory: `[[feedback_test_before_fix]]` (write test first),
   `[[reference_z80_tool_paths]]` (paths for clang/opt/lit),
-  `[[feedback_ab_before_blaming_test_runner]]` (A/B before diagnosing)
+  `[[feedback_ab_before_blaming_test_runner]]` (A/B before diagnosing),
+  `[[feedback_zeroext_is_abi_not_source]]` (session 71 #162 finding)
+
+## Status after session 71
+
+Both Option 1 (#163) and Option 3 (#162) attempted and ruled out:
+- Option 3: zeroext attribute alone is not a sound source-narrow proof
+  on multi-byte ABIs.  Cannot fire safely without a frontend tag.
+- Option 1: and-mask sink fires correctly but the trunc-zext roundtrip
+  cost on Z80 exceeds the upstream narrowing gain for chains with
+  multiple users.  Single-use guard makes it sound but inert.
+
+Remaining structural paths (same three as in #162 session 71 finding):
+
+1. **Frontend tag** distinguishing K&R-narrow from natural-i16 zeroext
+2. **Per-callee body peek** (IPO: if callee starts with `trunc i16 → i8`,
+   the high bits are observably discarded; narrowing at boundary is safe)
+3. **Tighter KnownBits** for rotate-idiom DAGs
+
+None is a quick session.  The remaining `rj_sb_inv` +120-138 B K&R vs
+ANSI gap is now a documented structural item.
