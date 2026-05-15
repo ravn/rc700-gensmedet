@@ -57,6 +57,69 @@ Pick exactly one in the next session.
 **Recommended: Option 3** (most contained, biggest match for the
 filed-issue scope, builds on existing pattern from #160 work).
 
+## Session 71 finding: Option 3 cannot fire without a frontend tag
+
+Implemented Option 3 with two eligibility variants.  Both ruled out.
+See https://github.com/ravn/llvm-z80/issues/162#issuecomment-4457134375
+for the full breakdown.
+
+**Safe (known-bits-only) variant: inert.**
+- `paramHasAttr(ZExt)` + `computeKnownBits` active-bits gate.
+- AES corpus: identical to post-#157 baseline (zero movement).
+- `rj_sb_inv` K&R: stays at 156 B.
+- z80-utils test-runner: zero regression (685/42/56/207).
+- The patterns this catches are already caught by existing #158
+  argument-leaf machinery; no new value.
+
+**Trust-zeroext (relaxed) variant: unsound.**
+- Drops the known-bits gate, narrows on the strength of `zeroext`
+  attribute alone.
+- AES corpus: −85 to −115 B per config; `rj_sb_inv` 156 → 36 B (−120).
+- AES verifier PASSes all 11 configs.
+- z80-utils test-runner: **318 FAIL, 80 FATAL** (was 42/56).  Massive
+  regression.
+- **Root cause**: `zeroext` on `i16` is an ABI signal, not a
+  source-narrowness signal.  `uint16_t` parameters carry `zeroext` too
+  on Z80 (i16 = natural ABI width).  Variant 2 narrowed
+  `dense_map(i16 zeroext 1000)` to `i8 trunc(1000) = -24`, breaking the
+  switch in `test_16_switch_case.c`.
+
+### What is structurally needed
+
+Three structural paths remain — none is a quick patch:
+
+1. **Frontend tag distinguishing K&R-narrow from natural-i16 zeroext.**
+   Path A on `path-a-knr-zeroext` adds `zeroext` to K&R-promoted narrow
+   params but doesn't *tag* them differently from natural-width
+   zeroext.  Would need a new attribute (e.g. `narrow_from_i8`) so
+   `canNarrowCallArgZeroext` can discriminate.
+2. **Per-callee body peek.**  If the callee starts with `trunc i16 %0
+   to i8`, narrowing at the boundary preserves observable behaviour.
+   Requires CGSCC pass ordering and IPO-style analysis.
+3. **Tighter KnownBits for rotate idioms.**  The `(x<<1)|(x>>7)` shape
+   widens transient values to 9 active bits even though the
+   reconstruction collapses to 8.  Improving KnownBits to track this
+   would let the sound variant fire.  Large scope; benefits beyond
+   #162.
+
+### Closure status
+
+- No code change landed; uncommitted work reverted.
+- Branch `path-a-knr-zeroext` left as-is (Path A frontend WIP at
+  `298a4cbe63d0` retained for Option 1 in #162 cross-listing).
+- #162 stays open with the finding documented.
+
+### Recommended next attempt
+
+**Option 1 (and-mask sink) is now the most attractive remaining path.**
+Treats `(and X, MASK)` where MASK = (2^M - 1) as a trunc-equivalent
+root.  Doesn't require a tag; doesn't require frontend changes.  Should
+catch the InstCombine-canonical form of K&R promotion.
+
+For rj_sb_inv specifically: Option 1 still doesn't fire on the rotate
+idiom (no terminal `(and X, 255)` masked-call-arg), so 3 (KnownBits
+improvement) remains the only path for that exact shape.
+
 ## How to resume
 
 1. `git checkout path-a-knr-zeroext` in llvm-z80
