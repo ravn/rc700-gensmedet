@@ -7,7 +7,9 @@
 -- Phase 1 stamps the banner at row 0.
 
 local RESULT_PATH = "/tmp/cpnos_asm_banner.txt"
-local DISPLAY_ADDR = 0xF800
+-- DSPSTR_ADDR per autoload-in-c rom.h (autoload programs DMA ch2
+-- here at cold init; cpnos-in-c's relocator separately uses 0xF800).
+local DISPLAY_ADDR = 0x7A00
 local ROW_BYTES    = 80
 local DEADLINE_S   = 3.0
 

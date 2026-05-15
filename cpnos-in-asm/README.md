@@ -1,6 +1,22 @@
 # cpnos-in-asm — pure Z80 assembly CP/NOS slave
 
-**Status: phase 1 alive (banner stamps to CRT at boot).  Phase 2+ pending.**
+**Status: phase 2a alive — boots through autoload-in-c, satisfies the
+PROM1 " RC702" signature, stamps banner to CRT (DSPSTR_ADDR=0x7A00)
+and streams it on SIO-B.  Phase 2b+ pending.**
+
+## Architecture
+
+PROM0 socket holds `../autoload-in-c/clang/prom0.ic66` (the production
+autoload).  PROM1 socket holds `cpnos-in-asm/build/prom1.bin` (this
+project).  autoload programs all hardware (DMA, 8275 CRT, CTC, PIO),
+tries floppy boot, fails, then calls `prom1_if_present()`:
+
+  1. Reads `" RC702"` at PROM1 offset 0x0002 to authenticate.
+  2. Jumps via `*(word *)0x2000` (the jump-target stored at PROM1 byte 0).
+
+`prom1.asm` lays out the contract bytes in `prom1_header` then runs.
+SIO is the only hardware we (re)init — autoload does not program it
+during cold boot.
 
 ## Goal
 
@@ -45,12 +61,17 @@ Everything in `../cpnos-shared/`:
 
 ## Bring-up plan
 
-1. **Stub slave that boots in MAME** — DONE (session 73e, 2026-05-15).
-   `src/prom0.asm` (50 B) does minimal 8237 DMA + 8275 CRT init then
-   `JP 0x2000`; `src/prom1.asm` (~70 B) clears display RAM and stamps
-   "RC702 CP/NOS asm phase 1 alive" at row 0.  Verified by
-   `make cpnos-banner-test` (boots MAME, dumps display memory, greps
-   banner string, captures screenshot to `snap/cpnos_asm_phase1.png`).
+1. **Stub slave that boots in MAME** — DONE (phase 1, session 73e).
+   First cut had its own minimal PROM0 (`src/prom0.asm`, deleted in
+   phase 2a) doing DMA+CRT init then `JP 0x2000`.  See
+   `snap/cpnos_asm_phase1.png` for the historical screenshot.
+
+2. **Transport echo** — IN PROGRESS.
+   - **2a (DONE):** SIO-B transmit.  After autoload jumps to us, init
+     CTC ch1 + SIO-B, then stream banner via polled-TX.  Verified by
+     `make cpnos-siob-test`.
+   - **2b:** SIO-B receive (poll, echo bytes back).  Needed for any
+     duplex test.
 
 2. **Transport echo** — read a byte from PIO-A/B (or SIO depending
    on TRANSPORT), echo it back.  Pre-CP/NET-frame work.
