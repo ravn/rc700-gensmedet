@@ -232,11 +232,44 @@ static void load_chargen(void)
 extern const char banner_string[];
 #define BANNER_PTR ((const byte *)banner_string)
 
-/* Copy banner from BOOT ROM to display and start CRT controller.
- * Programs DMA ch2 with display address before starting CRT so the
- * first frame renders immediately without waiting for the ISR. */
+/* Stamp the SW1 DIP-switch byte on display row 1 so the operator can
+ * see how the switches are set without having to lift the cover.
+ * Format (54 chars, fits in 80):
+ *   "SW1: S1:ON  S2:OFF S3:ON  S4:ON  S5:ON  S6:ON  S7:ON  S8:ON "
+ * S1=bit 0, S8=bit 7.  Switch position On => bit reads 0 (the active
+ * convention used by autoload, rcbios, and docs/SW1_BIT_MAP.md).
+ *
+ * Reading happens once at boot; the field is informational only and
+ * isn't re-read after this point. */
+static void display_sw1_status(void) {
+    byte sw = read_sw1();
+    char *p = (char *)dspstr + 80;     /* row 1, column 0 */
+    static const char prefix[] = "SW1: ";
+    byte i;
+
+    memcpy(p, prefix, sizeof prefix - 1);
+    p += sizeof prefix - 1;
+
+    for (i = 0; i < 8; i++) {
+        *p++ = 'S';
+        *p++ = (char)('1' + i);
+        *p++ = ':';
+        if (sw & (byte)(1u << i)) {
+            *p++ = 'O'; *p++ = 'F'; *p++ = 'F';
+        } else {
+            *p++ = 'O'; *p++ = 'N'; *p++ = ' ';
+        }
+        *p++ = ' ';                    /* gap between switches */
+    }
+}
+
+/* Copy banner from BOOT ROM to display, stamp SW1 status on row 1,
+ * and start CRT controller.  Programs DMA ch2 with display address
+ * before starting CRT so the first frame renders immediately without
+ * waiting for the ISR. */
 static void display_banner_and_start_crt(void) {
     memcpy(dspstr, BANNER_PTR, BANNER_LENGTH);
+    display_sw1_status();
     /* Pre-program DMA ch2 for first frame (ISR takes over for subsequent frames) */
     dma_mask(2);                     /* disable ch2 during programming */
     dma_clear_bp();                  /* reset byte pointer flip-flop */

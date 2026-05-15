@@ -74,6 +74,36 @@ prom:
 # MAME targets
 # ================================================================
 
+# SW1 status display test.  Boots autoload with a stock 0xFF PROM1
+# (no signature -> autoload reaches its NO-LINEPROG halt, leaving the
+# banner + SW1 line on display); dumps display rows 0..2 from RAM at
+# 0x7A00 and greps for "SW1: " on row 1.  Use to verify the
+# display_sw1_status() output after editing the formatting.
+SW1_DUMP    = /tmp/autoload_sw1_dump.txt
+SW1_PROM1   = $(MAME)/roms/rc702/prom1.ic65
+SW1_PROM1_BACKUP = /tmp/autoload_prom1_backup.bin
+
+.PHONY: sw1-test
+sw1-test: prom
+	@echo "=== preparing empty PROM1 (no signature) ==="
+	@if [ -f "$(SW1_PROM1)" ]; then cp "$(SW1_PROM1)" "$(SW1_PROM1_BACKUP)"; fi
+	@perl -e 'print "\xFF" x 2048' > "$(SW1_PROM1)"
+	@rm -f $(SW1_DUMP)
+	@echo "=== launching MAME for SW1 status check (~4 s) ==="
+	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run 6 \
+	    -autoboot_script mame_sw1_test.lua \
+	    -snapname autoload_sw1 \
+	    >/tmp/autoload_sw1_mame.log 2>&1
+	@echo "=== restoring PROM1 ==="
+	@if [ -f "$(SW1_PROM1_BACKUP)" ]; then cp "$(SW1_PROM1_BACKUP)" "$(SW1_PROM1)"; rm -f "$(SW1_PROM1_BACKUP)"; fi
+	@echo "--- display memory rows 0..2 (read from RAM at 0x7A00) ---"
+	@cat $(SW1_DUMP) 2>/dev/null || { echo "no dump produced"; exit 1; }
+	@grep -q "^row01: SW1: " $(SW1_DUMP) \
+	    && echo "PASS: SW1 status present on row 1" \
+	    || { echo "FAIL: SW1 status not found on row 1"; exit 1; }
+
 mame: prom mamesym
 	@awk '{printf "comadd %s,%s\n", $$1, $$2}' $(COMPILER)/prom0_mame.sym > $(COMPILER)/prom0_debug.cmd
 	$(eval EXPECT := $(if $(filter sdcc,$(COMPILER)),RC700 ROA375,RC700 CL))
