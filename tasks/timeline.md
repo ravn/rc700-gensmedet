@@ -1,5 +1,82 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73b/c: INC16/DEC16 rematerialization (#115/#27 S3') + prod-target analysis (May 15, 2026) — Medium
+
+After session 73's #165 landed, opened the regalloc-cluster investigation
+(`llvm-z80/tasks/plan-115-27-regalloc-cluster.md`).  S2 (hint-flavored
+fix) confirmed inert in one session.  S3 (single-register-class `HLReg`
+pre-RA pass) deferred via shape-mismatch reconnaissance: aes_mc_inv has
+4 simultaneously-live i16 pointer vregs in a single MBB, so pinning one
+to HLReg would just relocate the spill to DE/BC.
+
+**S3' lever**: mark `INC16` and `DEC16` pseudos `isAsCheapAsAMove` +
+`isReMaterializable` in Z80InstrInfo.td (8 LOC).  Real Z80 INC/DEC rr
+(16-bit) does not modify flags, so remat is sound.  Greedy now
+recomputes `base+small_const` chains at the use site instead of
+spilling each derived pointer to BSS.
+
+**AES corpus** (rc700-gensmedet/tasks/aes256-corpus, 13-config sweep):
+
+| Config | post-#165 | post-S3' | Δ |
+|---|---:|---:|---:|
+| 01_baseline_Oz | 4205 | 4111 | **−94** |
+| 02_Os | 4480 | 4417 | −63 |
+| 03_O3 | 12559 | 12472 | −87 |
+| 04_O2 | 8529 | 8411 | −118 |
+| 05_Oz_static_stack | 2855 | 2830 | −25 |
+| 07_Oz_no_lsr | 4571 | 4477 | −94 |
+| 08_Oz_gc_sections | 4185 | 4091 | −94 |
+| 09_Oz_prod_like | **2695** | **2695** | 0 |
+| 12_Oz_no_omit_fp | 3606 | 3568 | −38 |
+| 06/10/11/13 (no_licm_cse variants) | unchanged | — | 0 |
+
+8 of 13 configs improved (−25 to −118 B).  No regression on any
+config.  Inert on LICM/CSE-disabled configs (which is also the
+production knob 09_Oz_prod_like) because LICM creates the cross-
+iteration chain that remat unwinds.
+
+**Production-target A/B** (autoload PROM, cpnos-rom resident, rcbios
+BIOS): **byte-neutral**.  S3' is workload-limited to AES-shaped
+code; production targets don't exhibit the chain pattern.
+
+| Target | Pre-S3' | Post-S3' | Δ |
+|---|---:|---:|---:|
+| autoload PROM (clang, -Oz -g) | 1861 B | 1859 B | −2 |
+| cpnos-rom resident (PIO transport, .payload) | 2003 B | 2003 B | 0 |
+| rcbios BIOS | 5925 B | 5925 B | 0 |
+
+CLAUDE.md size figures updated to reflect current reality.  Note:
+the prior CLAUDE.md "autoload 1756 B" was the *non-`-g`* size; the
+Makefile-default `-Oz -g` build was always ~1861 B.
+
+**Value oracle**: Z80 lit suite 104 PASS + 2 XFAIL (unchanged);
+test-runner 685/42/56/207 (identical); AES verifier all 4 cells PASS;
+AES tstates 15.7M (unchanged from post-#165).
+
+**Build-infrastructure additions** (`llvm-z80/tasks/tools/`):
+
+1. `llvm-snap.sh` — snapshot bin/clang+llc+ld.lld for A/B (~200 MB,
+   ~2 s save vs ~120 s full rebuild).  Use:
+   `eval $(tasks/tools/llvm-snap.sh use NAME)`.
+2. sccache wired into `build-macos/` cmake cache.  Measured speedup
+   on typical iteration:
+   - `.cpp` touch + `ninja llc`:      120 s → 18 s  (6.5×)
+   - `.td` touch + `ninja clang llc`: 120 s → 42 s  (2.9×)
+   Cache lives in `~/Library/Caches/Mozilla.sccache/`.
+
+**Issues filed**:
+- ravn/llvm-z80 **#166** — S3'-extension follow-up: investigate
+  `ADD_HL_rr` / `LD_HL_a16` rematerialization.  Has potential to
+  reach production code (chain root doesn't need LICM).
+
+**TODO (parked)**: investigate why `-Oz -g` autoload PROM links
+~100 B larger than `-Oz` alone — referenced as ravn/llvm-z80 #123.
+
+**Commits** (llvm-z80, this session):
+- `006ba9607dd1` — [Z80] #115/#27 S3' INC16/DEC16 isAsCheapAsAMove + isReMaterializable
+- `6ee7df71a0af` — tasks/tools: llvm-snap.sh + sccache notes
+- `da1ac7a33181` — S3 deferred, shape-mismatch reconnaissance (session 73 close-out)
+
 ## Session 73: Outside-user allowlist extensions (#165) — gf_log 153 → 28 B (May 15, 2026) — Medium
 
 Extends `TruncInstCombine`'s outside-graph user allowlist with two
