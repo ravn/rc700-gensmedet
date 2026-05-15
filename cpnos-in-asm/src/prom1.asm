@@ -20,11 +20,13 @@
 	.z80
 	org	0x2000
 
+PORT_CRT_PARAM	equ	0x00
 PORT_CRT_CMD	equ	0x01
 PORT_CTC1	equ	0x0D
 PORT_CTC2	equ	0x0E
 PORT_SIO_B_DATA	equ	0x09
 PORT_SIO_B_CTRL	equ	0x0B
+SIO_RX_CHAR_AVAIL equ	0x01	; RR0 bit 0
 SIO_TX_BUF_EMPTY equ	0x04	; RR0 bit 2
 
 PORT_DMA_CH2_ADDR equ	0xF4
@@ -35,6 +37,8 @@ PORT_DMA_CLBP	equ	0xFC
 
 ; 8275 commands.  Bits 7..5 select the command; remaining bits carry
 ; parameters baked into the byte for cmd-with-immediate-params.
+CRT_CMD_RESET	equ	0x00	; 000xxxxx: reset (expects 4 params)
+CRT_CMD_LOADCUR	equ	0x80	; 100xxxxx: load cursor (expects col, row)
 CRT_CMD_STOP	equ	0x40	; 010xxxxx: stop display
 CRT_CMD_PRESET	equ	0xE0	; 111xxxxx: preset counters (reset
 				; character counter + character row counter
@@ -43,6 +47,25 @@ CRT_CMD_START	equ	0x23	; 001xxxxx: start display.  bits 4..3
 				; = 00 = burst=0 (8 DMA cycles/burst),
 				; bits 2..0 = 011 = 24-clock spacing.
 				; Identical to autoload's start command.
+
+; 8275 reset parameters (4 bytes after CRT_CMD_RESET).
+; Match autoload's geometry exactly except for param 4 (cursor format).
+;   P1 0x4F = 0100_1111: S=0 (no row spacing), H=79 -> 80 chars/row
+;   P2 0x98 = 1001_1000: V=10 (3 VRTC rows), R=24 -> 25 rows
+;   P3 0x9A = 1001_1010: U=9 underline line, L=10 lines per char row
+;   P4 0x6D = 0110_1101: bit 7 = 0 (offset_line_counter off),
+;                        bit 6 = 1 (visible_field_attribute on),
+;                        bits 5-4 = 10 -> NON-BLINKING REVERSE VIDEO
+;                                   BLOCK cursor (autoload uses
+;                                   01 = blinking underline; cpnos-in-c
+;                                   uses 10 too).
+;                        bits 3-0 = 1101 -> HRTC count = (13+1)*2 = 28.
+; Bit positions confirmed via MAME's i8275 cursor_format() reading
+; bits 5-4 of REG_SCN4 (src/devices/video/i8275.h).
+CRT_P1_GEOM_H	equ	0x4F
+CRT_P2_GEOM_V	equ	0x98
+CRT_P3_GEOM_UL	equ	0x9A
+CRT_P4_MODE_NB_BLOCK equ 0x6D
 
 ; ---- PROM1 header (autoload-in-c signature contract) ----------------
 ; Byte 0..1: jump target (little-endian, read by autoload's
@@ -108,8 +131,30 @@ sio_tx_wait:
 	inc	hl
 	djnz	sio_tx_loop
 
-halt:
-	jr	halt
+	; Phase 2b: polled echo loop on SIO-B.  Waits for a byte to
+	; arrive on RX, echoes it back on TX, repeats.  Replaces the
+	; trailing `jr halt` -- the slave never returns once it enters
+	; this loop.
+	;
+	; Use case: with rcbios in the master and S01=Off (CON_JOINED),
+	; SIO-B becomes the duplex console; this loop is the baby step
+	; toward the full character console.  Full integration test
+	; deferred to phase 3 when we have a host-side driver pushing
+	; bytes into MAME's bitbanger via a socket null_modem.
+sio_echo_loop:
+sio_rx_wait:
+	in	a, (PORT_SIO_B_CTRL)
+	and	SIO_RX_CHAR_AVAIL
+	jr	z, sio_rx_wait
+	in	a, (PORT_SIO_B_DATA)
+	ld	c, a			; preserve byte across TX wait
+sio_echo_tx_wait:
+	in	a, (PORT_SIO_B_CTRL)
+	and	SIO_TX_BUF_EMPTY
+	jr	z, sio_echo_tx_wait
+	ld	a, c
+	out	(PORT_SIO_B_DATA), a
+	jr	sio_echo_loop
 
 ; ---- Init port table ------------------------------------------------
 ; Display relocate (8275 stop + CTC ch2 quiet + DMA ch2 -> 0xF800
@@ -126,6 +171,23 @@ init_table:
 	; 8275 stop: pauses CRT scanning + DMA requests so the next
 	; restart begins at top-left.
 	db	PORT_CRT_CMD, CRT_CMD_STOP
+
+	; 8275 reset + 4 params.  Reprograms cursor format from
+	; autoload's non-blinking underline (P4=0x5D, C=11) to
+	; non-blinking block (P4=0x55, C=10).  Geometry params
+	; identical to autoload's so the line/row/column counts stay
+	; the same.
+	db	PORT_CRT_CMD, CRT_CMD_RESET
+	db	PORT_CRT_PARAM, CRT_P1_GEOM_H
+	db	PORT_CRT_PARAM, CRT_P2_GEOM_V
+	db	PORT_CRT_PARAM, CRT_P3_GEOM_UL
+	db	PORT_CRT_PARAM, CRT_P4_MODE_NB_BLOCK
+
+	; Load cursor to row 0, column 0 so it lands on the first
+	; character of the banner.
+	db	PORT_CRT_CMD, CRT_CMD_LOADCUR
+	db	PORT_CRT_PARAM, 0x00		; column = 0
+	db	PORT_CRT_PARAM, 0x00		; row = 0
 
 	; Disable CTC ch2 IRQ.  0x03 = control word + sw reset (autoload's
 	; rom.c uses this exact value to disable ch3 at boot finish).  Once
