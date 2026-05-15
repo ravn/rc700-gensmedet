@@ -52,6 +52,32 @@ Concretely:
 The cpnos-in-c "payload" model exists because the C compiler forces
 it; the asm slave is free of that constraint and uses it.
 
+### Size policy: make it work first, then make it fit
+
+The hard target is **resident <= 2048 bytes** so the binary lives
+entirely in the physical PROM1 socket (2 KB EPROM).  During phase
+development that target is treated as a SOFT limit: it's OK to
+exceed 2048 B while bringing up a new feature, and shrink-work
+follows once the feature is correct.
+
+The build wires this in:
+
+  - `make cpnos` WARNS over 2048 B and continues, padding prom1.bin
+    up to the next 2 KB boundary (max 4 KB).  cpnos.bin is then
+    stitched as (2 KB autoload PROM0) + (2 KB or 4 KB prom1.bin).
+  - Hard fail at 4096 B for prom1.bin (the cpnos.bin file-format
+    limit when over-sized PROM1 is doubled to 4 KB).
+  - autoload-in-c's `make prom` follows the same rule (warn > 2048,
+    fail > 4096).
+
+The warning line includes the byte overrun so the shrink job is
+quantified: e.g. "exceeds 2048 B PROM1 socket by 312 B" means we
+need to recover 312 B before burning.
+
+This relaxes the previous hard fail at 2048 B.  Burning a real
+EPROM still requires the binary to fit in the socket; the warn-only
+build is for MAME-side iteration.
+
 ### PROM1 must be disabled before any TPA program runs
 
 PROM1 occupies 0x2000..0x27FF, which is **inside the CP/M TPA**

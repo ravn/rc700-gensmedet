@@ -33,12 +33,22 @@ all: cpnos
 cpnos: $(CPNOS_BIN) cpnos-mame-install cpnos-size
 
 # Pad zmac's raw .cim to 2048 bytes with 0xFF.
+#
+# Per user policy: during development it is OK to exceed the 2048 B
+# PROM1 socket size to "make it work" first -- a shrink pass follows
+# once the feature is correct.  Over-size builds WARN and pad up to
+# the next 2 KB boundary (max 4 KB, the cpnos.bin file-format limit)
+# rather than failing.  Burning to a real EPROM still requires <= 2048.
 define PAD_TO_2048
 SZ=$$(wc -c < $(1) | tr -d ' '); \
 if [ "$$SZ" -lt 2048 ]; then \
     python3 -c "import sys; d=open('$(1)','rb').read(); open('$(1)','wb').write(d + b'\xFF' * (2048 - len(d)))"; \
-elif [ "$$SZ" -gt 2048 ]; then \
-    echo "ERROR: $(1) is $$SZ B, expected <= 2048"; exit 1; \
+elif [ "$$SZ" -le 4096 ]; then \
+    echo "WARNING: $(1) is $$SZ B, exceeds 2048 B PROM1 socket by $$((SZ - 2048)) B"; \
+    echo "  -- OK for dev per user policy; must shrink before burning EPROM."; \
+    python3 -c "import sys; d=open('$(1)','rb').read(); open('$(1)','wb').write(d + b'\xFF' * (4096 - len(d)))"; \
+else \
+    echo "ERROR: $(1) is $$SZ B, exceeds 4096 B file-format limit"; exit 1; \
 fi
 endef
 
@@ -60,12 +70,16 @@ $(PROM1_BIN): $(SRC)/prom1.asm
 	@echo "prom1.bin: $$(wc -c < $(PROM1_BIN) | tr -d ' ') B"
 
 # cpnos.bin = autoload PROM0 (first 2 KB of its 4 KB .ic66) + our PROM1.
+# Stitched length depends on the PROM1 pad target -- 2 KB when it fits
+# the socket, 4 KB when it's in over-size dev mode.
 $(CPNOS_BIN): $(AUTOLOAD_PROM0) $(PROM1_BIN)
 	@mkdir -p $(BUILDDIR)
 	@dd if=$(AUTOLOAD_PROM0) bs=2048 count=1 of=$(BUILDDIR)/prom0.bin 2>/dev/null
 	cat $(BUILDDIR)/prom0.bin $(PROM1_BIN) > $(CPNOS_BIN)
 	@SZ=$$(wc -c < $(CPNOS_BIN) | tr -d ' '); \
-	 test "$$SZ" = "4096" || { echo "ERROR: cpnos.bin is $$SZ B, expected 4096"; exit 1; }
+	 P1=$$(wc -c < $(PROM1_BIN) | tr -d ' '); \
+	 EXPECT=$$((2048 + P1)); \
+	 test "$$SZ" = "$$EXPECT" || { echo "ERROR: cpnos.bin is $$SZ B, expected $$EXPECT (2048 + prom1=$$P1)"; exit 1; }
 
 # common.mk's $(MAME_PROM0) rule depends on prom0_padded.ic66 (4 KB
 # image for the MAME slot).  Use autoload's pre-padded .ic66 directly.

@@ -60,9 +60,12 @@ prom:
 	$(MAKE) $(PROM_TARGET)
 	@PROM=$$(wc -c < $(PROM_BIN) | tr -d ' '); \
 	 echo "$(COMPILER) PROM: $$PROM / 2048 bytes (PROM0 socket)"; \
-	 if [ $$PROM -gt 2048 ]; then \
-	   echo "ERROR: exceeds 2048-byte PROM0 limit by $$((PROM - 2048)) bytes"; \
+	 if [ $$PROM -gt 4096 ]; then \
+	   echo "ERROR: exceeds 4096-byte file-format limit by $$((PROM - 4096)) bytes"; \
 	   exit 1; \
+	 elif [ $$PROM -gt 2048 ]; then \
+	   echo "WARNING: exceeds 2048-byte PROM0 socket by $$((PROM - 2048)) bytes"; \
+	   echo "  -- OK for development per user policy; must shrink before burning EPROM."; \
 	 else \
 	   echo "OK: $$((2048 - PROM)) bytes free in PROM0"; \
 	 fi
