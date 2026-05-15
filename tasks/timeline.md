@@ -1,5 +1,139 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73e: cpnos-in-asm bring-up phase 1..3d-γ + autoload polish (May 15-16, 2026) — Hard
+
+End-to-end CP/NET 1.2 slave in pure Z80 assembly, fitting in PROM1
+alongside autoload-in-c in PROM0.  Started the session at "scaffold
+only" (post-session-73d split); ended with a full bidirectional
+frame exchange against a Python fake master, all five MAME-based
+value oracles green, PROM1 at 550 / 2048 B (1498 B free).
+
+### Phases shipped (cpnos-in-asm)
+
+| Phase | What | Verified by |
+|---|---|---|
+| 1 | Stub boots in MAME with banner on CRT | `cpnos-banner-test` |
+| 2a | SIO-B TX (banner stream) | `cpnos-siob-test` |
+| 2b | SIO-B RX polled echo loop | `cpnos-echo-test` (Python socket) |
+| 3a | CP/NET INIT header w/ runtime HCS | siob/sioa-test |
+| 3b | DAT section + CKS + EOT | siob/sioa-test |
+| 3c | Split: SIO-B = console, SIO-A = CP/NET | both above |
+| 3d-α | SIO-A RX -> SIO-B forwarding | manual + Lua snapshot |
+| 3d-β | ENQ/ACK handshake on send + RX timeout | `cpnos-cpnet-test` phase A |
+| 3d-γ | Receive state machine (RCVMSG) | `cpnos-cpnet-test` phase B |
+
+Final asm sequence on boot:
+
+  1. autoload-in-c (PROM0) inits hardware, fails floppy boot,
+     jumps to PROM1 via " RC702" signature.
+  2. cpnos-in-asm slave: 8275 stop -> reset+params (non-blinking
+     block cursor) -> load cursor -> CTC ch2 IRQ disable ->
+     DMA ch2 autoinit at 0xF800 (display relocate; frees
+     0x7A00..0x81CF TPA) -> 8275 preset+start -> CTC ch0/ch1 +
+     SIO-A + SIO-B init.
+  3. Banner to CRT (0xF800) and SIO-B + CRLF.
+  4. send_cpnet_init_frame: ENQ -> wait ACK -> SOH+5+HCS ->
+     wait ACK -> STX+1DAT+ETX+CKS+EOT -> wait ACK (no retry yet).
+  5. Combined poll loop: SIO-A RX dispatches ENQ to
+     recv_cpnet_frame (full RCVMSG state machine with HCS/CKS
+     validation + ACK or NAK), other bytes forward to SIO-B;
+     SIO-B RX echoes on SIO-B.
+
+### Bug fix story (task #66, the time-sink)
+
+phase B of cpnos-cpnet-test failed: slave consistently read
+`08 20 20 52 43 37 30` from SIO-A instead of master's
+`01 01 FF 00 FF 00 00`.  Diagnosis path:
+
+  1. Phase A (slave-send) worked end-to-end.  Wire layer good.
+  2. tasks/sio_a_probe.py confirmed SIO-A RX delivered the right
+     bytes when slave was in combined-loop forward path.
+  3. Per-byte SIO-B forward inside recv_cpnet_frame's loop showed
+     A held correct received bytes.
+  4. So `ld (hl), a` was succeeding (A right) but post-loop reads
+     from rx_frame_buf returned wrong bytes -- meaning HL pointed
+     at non-RAM.
+  5. Grep MAME's rc702.cpp found bank2h covering 0x2800..0x2FFF
+     as PROM1's "extended-EPROM" mirror.  rx_frame_buf at 0x2800
+     was sitting in ROM-mirrored space; writes vanished, reads
+     returned PROM1's own first 7 bytes
+     (`dw slave_entry; db " RC702"`).
+  6. Moved rx_frame_buf to 0x3000 -- everything passed.
+
+Captured as memory rule feedback_rc702_bank2h_mirror.md so future
+asm work picks safe BSS regions on the first try.
+
+Also captured feedback_zmac_local_label_scope.md (zmac doesn't
+scope dotted labels per parent; multiple `.wait:` collide as
+multi-def) -- caught during the same investigation when adding a
+sio_b_tx_d helper.
+
+### autoload-in-c polish (same session)
+
+  - SW1 (port 0x14) bit 1 added as PROM1=lineprog selector.
+    load_chargen() gated on it (currently commented out anyway,
+    since current baseline RC702 has no SEM702 board; the ROA327
+    in IC82 provides the font directly to the 8275).
+  - SW1 status line drawn on display row 0 right side
+    ("SW1 12345678: 00000000") so operator can see DIP settings
+    without lifting the cover.  Compact 22-char format chosen to
+    fit PROM0 budget.
+  - Halt messages moved to row 2 (row 1 blank as separator).
+  - `make sw1-test` target: boots autoload with stock-0xFF PROM1,
+    greps display memory for the SW1 prefix, PASS/FAIL.
+  - MAME's rc702.cpp DIP-switch labels updated to match (S01 =
+    rcbios console, S02 = lineprog PROM).
+  - Size policy relaxed to soft-warn at 2048 B, hard fail at
+    4096 B -- "make it work first, then make it fit" per user
+    directive.  Burning real EPROMs still requires <= 2 KB.
+
+### Sizes (final)
+
+  - autoload PROM0: 1846 / 2048 B (202 B free; 6 B over original
+    1859 B baseline for the SW1 gate + dispatch).
+  - cpnos-in-asm PROM1: 550 / 2048 B (1498 B free).
+  - cpnos.bin combined: 4096 B (autoload + asm slave).
+
+### Oracles (final, all green)
+
+| Test | Asserts |
+|---|---|
+| `cpnos-banner-test` | CRT row 0 banner at 0xF800 |
+| `cpnos-siob-test` | Banner on SIO-B raw stream |
+| `cpnos-sioa-test` | ENQ-only (no-master case after phase 3d-β) |
+| `cpnos-echo-test` | SIO-B probe round-trips through echo loop |
+| `cpnos-cpnet-test` | Bidirectional CP/NET 1.2 frame exchange, 6/6 ACKs |
+
+### Memory rules added (this session)
+
+  - feedback_rc702_bank2h_mirror.md
+  - feedback_zmac_local_label_scope.md
+
+### Follow-on tasks filed
+
+  - #67 phase 3e: LOGIN frame (FNC=64, password "PASSWORD") so
+    real mpm-net2 master answers.  Today's INIT (FNC=0xFF) is
+    ignored by mpm-net2.
+  - #68 phase 3f: MAXRETRY=10 whole-frame retries per CP/NET spec.
+  - #69 phase 3g: interpret received frames (update slave SID
+    from INIT response DAT[0], dispatch BDOS replies, etc.).
+  - #70 cpnos-mpm-test: Makefile target patterned on
+    cpnos-polypascal-test for end-to-end mpm-net2 verification.
+  - #71 build-info in banner (date + short git hash).
+  - #55 still pending: RC703 PROM-disable compat audit before
+    phase 4 disable-stub lands.
+  - #61 still pending: semigraphics QR code at boot in
+    autoload-in-c (parked TODO).
+
+### Hard vs Easy
+
+Hard.  Three deep bugs (mid-frame DMA-reprogram CRT artifact,
+preset-counters needed between STOP and START, rx_frame_buf in
+PROM mirror RAM) that each cost a debug cycle.  Each surfaced as
+"output looks subtly wrong" not "build fails" -- the screenshot
+rule (always verify CRT visually, not just byte-dump grep) caught
+the first two; per-byte instrumentation caught the third.
+
 ## Session 73b/c: INC16/DEC16 rematerialization (#115/#27 S3') + prod-target analysis (May 15, 2026) — Medium
 
 After session 73's #165 landed, opened the regalloc-cluster investigation
