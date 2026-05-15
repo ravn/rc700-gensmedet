@@ -274,6 +274,55 @@ cpnos-cpnet-test: cpnos-mame-install
 	@cat $(CPNET_RESULT) 2>/dev/null || { echo "no result file"; exit 1; }
 	@grep -q '^PASS' $(CPNET_RESULT)
 
+# End-to-end test against the real z80pack mpm-net2 master.
+# Slave's LOGIN frame (FNC=64, password "PASSWORD" for slave 0x01)
+# triggers a real LOGIN response from mpm-net2 (FMT=1, DID=1, SID=0,
+# FNC=0x40, SIZ=0, DAT=0x00).  Pattern matches cpnos-in-c's
+# cpnos-polypascal-test mpm-net2 wire-up.
+#
+# Slave's dump_rx_to_siob wraps the received frame in 0xAA marker
+# bytes on SIO-B; we grep for those markers around the expected
+# response header to confirm the receive state machine fired.
+MPM_DIR     ?= $(CURDIR)/../z80pack/cpmsim
+MPM_SIOB    = /tmp/cpnos_asm_mpm_siob.raw
+
+.PHONY: cpnos-mpm-test _kill-mpm
+_kill-mpm:
+	@pkill -TERM -f cpmsim 2>/dev/null || true
+	@sleep 1
+	@if lsof -nP -iTCP:4002 -sTCP:LISTEN >/dev/null 2>&1; then \
+	    pkill -KILL -f cpmsim 2>/dev/null || true; \
+	    sleep 1; \
+	 fi
+
+cpnos-mpm-test: cpnos-mame-install _kill-mpm
+	@rm -f $(MPM_SIOB)
+	@echo "=== starting z80pack mpm-net2 in background ==="
+	@if [ ! -x "$(MPM_DIR)/mpm-net2" ]; then \
+	    echo "ERROR: $(MPM_DIR)/mpm-net2 missing -- build z80pack first"; \
+	    exit 1; \
+	 fi
+	@cd $(MPM_DIR) && (./mpm-net2 >/tmp/mpm_net2.log 2>&1 &)
+	@echo "=== waiting for :4002 to listen (up to 5 s) ==="
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+	    if nc -z 127.0.0.1 4002 2>/dev/null; then break; fi; sleep 0.5; \
+	 done
+	@nc -z 127.0.0.1 4002 || { echo "ERROR: mpm-net2 didn't start"; exit 1; }
+	@echo "=== launching MAME (~$(BOOT_DEADLINE_S) s) ==="
+	-$(CURDIR)/../../mame/regnecentralend rc702 \
+	    -rompath $(CURDIR)/../../mame/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run $(BOOT_DEADLINE_S) \
+	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
+	    -rs232b null_modem -bitb2 $(MPM_SIOB) \
+	    >/tmp/cpnos_asm_mame.log 2>&1
+	@$(MAKE) _kill-mpm 2>/dev/null || true
+	@echo "--- SIO-B hex tail ---"
+	@xxd $(MPM_SIOB) | tail -5
+	@python3 tasks/verify_mpm_login_response.py $(MPM_SIOB) \
+	    && echo "PASS: real-master CP/NET LOGIN exchange verified" \
+	    || { echo "FAIL: mpm-net2 didn't reply correctly"; exit 1; }
+
 cpnos-clean:
 	rm -rf $(BUILDDIR)
 

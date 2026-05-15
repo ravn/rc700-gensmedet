@@ -31,19 +31,24 @@ RESULT = sys.argv[2] if len(sys.argv) > 2 else "/tmp/cpnos_asm_cpnet_result.txt"
 
 SOH, STX, ETX, EOT, ENQ, ACK, NAK = 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x15
 
-# Slave's INIT request (FMT=0 req, DID=0 master, SID=0xFF init mode,
-# FNC=0xFF init/get-node-id, SIZ=0 -> 1 DAT byte = 0x00).
-EXPECT_SLAVE_HEADER = bytes([SOH, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x01])
-EXPECT_SLAVE_DATA   = bytes([STX, 0x00, ETX, 0xFB, EOT])
+# Slave's LOGIN request (phase 3e): FMT=0 req, DID=0 master,
+# SID=0x01 RC702_SLAVEID, FNC=64 LOGIN, SIZ=7 -> 8 password bytes
+# DAT = "PASSWORD" (the mpm-net2 default for slave 0x01).
+# HCS over SOH+FMT+DID+SID+FNC+SIZ = 01+00+00+01+40+07 = 0x49
+#   -> HCS = -0x49 mod 256 = 0xB7
+# CKS over STX+DAT[0..7]+ETX
+#   STX(2) + "PASSWORD"(0x273) + ETX(3) = 0x278 mod 256 = 0x78
+#   -> CKS = -0x78 mod 256 = 0x88
+EXPECT_SLAVE_HEADER = bytes([SOH, 0x00, 0x00, 0x01, 64, 7, 0xB7])
+EXPECT_SLAVE_DATA   = bytes([STX]) + b"PASSWORD" + bytes([ETX, 0x88, EOT])
 
-# Master's INIT response (FMT=1 resp, DID=0xFF accept-any, SID=0 master,
-# FNC=0xFF, SIZ=0 -> 1 DAT byte = 0x01 = assigned slave ID).
-# HCS chosen so SOH+FMT+DID+SID+FNC+SIZ+HCS == 0 mod 256:
-#   0x01 + 0x01 + 0xFF + 0x00 + 0xFF + 0x00 = 0x200 -> HCS = 0x00
-# CKS chosen so STX+DAT[0]+ETX+CKS == 0 mod 256:
-#   0x02 + 0x01 + 0x03 = 0x06 -> CKS = 0xFA
-MASTER_HEADER = bytes([SOH, 0x01, 0xFF, 0x00, 0xFF, 0x00, 0x00])
-MASTER_DATA   = bytes([STX, 0x01, ETX, 0xFA, EOT])
+# Master's LOGIN response: FMT=1 resp, DID=0x01 to-us, SID=0 master,
+# FNC=64 LOGIN, SIZ=0 -> 1 DAT byte = 0x00 (return code 0 = success
+# per CP/NET BDOS convention).
+# HCS over 01+01+01+00+40+00 = 0x43 -> HCS = -0x43 = 0xBD
+# CKS over STX+0x00+ETX = 0x05 -> CKS = -0x05 = 0xFB
+MASTER_HEADER = bytes([SOH, 0x01, 0x01, 0x00, 64, 0x00, 0xBD])
+MASTER_DATA   = bytes([STX, 0x00, ETX, 0xFB, EOT])
 
 ACCEPT_TIMEOUT = 30.0
 RECV_TIMEOUT   = 3.0
@@ -98,14 +103,17 @@ if sum(hdr) % 256 != 0:
     _result("FAIL", f"slave header HCS invalid (sum {sum(hdr) % 256})")
 conn.sendall(bytes([ACK]))
 
-dat = recv_exact(5, "slave data")
+dat = recv_exact(len(EXPECT_SLAVE_DATA), "slave data")
 _log(f"phase-A: got slave data {dat.hex()}")
 if dat != EXPECT_SLAVE_DATA:
     _result("FAIL", f"slave data mismatch: {dat.hex()} != {EXPECT_SLAVE_DATA.hex()}")
-if sum(dat[:4]) % 256 != 0:
-    _result("FAIL", f"slave data CKS invalid (sum {sum(dat[:4]) % 256})")
-if dat[4] != EOT:
-    _result("FAIL", f"slave EOT missing (got 0x{dat[4]:02x})")
+# Bracket bytes for CKS = STX + DAT[0..SIZ] + ETX + CKS (everything
+# except the trailing EOT, which is a delimiter not in the checksum).
+cks_bracket = dat[:-1]
+if sum(cks_bracket) % 256 != 0:
+    _result("FAIL", f"slave data CKS invalid (sum {sum(cks_bracket) % 256})")
+if dat[-1] != EOT:
+    _result("FAIL", f"slave EOT missing (got 0x{dat[-1]:02x})")
 conn.sendall(bytes([ACK]))
 _log("phase-A: slave INIT request received with all 3 ACKs")
 

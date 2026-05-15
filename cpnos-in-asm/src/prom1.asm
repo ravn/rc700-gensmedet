@@ -404,29 +404,42 @@ ENQ		equ	0x05		; Enquire (slave -> master, request to send)
 ACK		equ	0x06		; Acknowledge (master -> slave)
 NAK		equ	0x15		; Negative Acknowledge
 
-; INIT request body (5-byte CP/NET header, no data section yet).
+; LOGIN request body (5-byte CP/NET header + 8-byte password DAT).
+; This is the FIRST CP/NET frame the slave sends at boot, mirroring
+; cpnos-in-c's netboot_mpm() flow.  mpm-net2 (z80pack) doesn't
+; recognise FNC=0xFF as a "get-my-node-id" request -- it expects
+; LOGIN (FNC=64) as the first interaction from a slave, with the
+; slave's compiled-in SID (0x01 == RC702_SLAVEID convention).
+;
 ;   FMT = 0     request from slave
 ;   DID = 0     destination = master
-;   SID = 0xFF  slave's own ID -- 0xFF until master tells us in the
-;               INIT response (cfgtbl.slaveid starts at 0xFF too)
-;   FNC = 0xFF  init / get-node-ID
-;   SIZ = 0     0 data bytes follow -- we don't emit any DAT section
-;               in this phase, so SIZ is informational only here
+;   SID = 0x01  RC702 slave ID (compile-time constant, matches
+;               cpnos-in-c's RC702_SLAVEID default).  SNIOS rewrites
+;               this from CFGTBL in cpnos-in-c -- we don't have a
+;               CFGTBL here yet, so the literal is the source of
+;               truth on cpnos-in-asm until phase 3g.
+;   FNC = 64    LOGIN (CP/NET protocol function code; see
+;               cpnos-in-c/src/init.c netboot_mpm())
+;   SIZ = 7     8 bytes of password follow (SIZ+1)
+;
+; Resulting wire frame, with checksums baked in by send subroutines:
+;     01 00 00 01 40 07 B7  02  50 41 53 53 57 4F 52 44  03 8A 04
+;     SOH FMT DID SID FNC SIZ HCS STX  P  A  S  S  W  O  R  D  ETX CKS EOT
 init_header:
 	db	0x00			; FMT
 	db	0x00			; DID
-	db	0xFF			; SID
-	db	0xFF			; FNC
-	db	0x00			; SIZ -- 1 data byte follows (SIZ+1)
+	db	0x01			; SID -- RC702 slave 0x01
+	db	64			; FNC -- LOGIN
+	db	7			; SIZ -- 8 password bytes follow (SIZ+1)
 init_header_len equ $ - init_header	; = 5
 
-; INIT data section.  SIZ+1 = 1 data byte; content is irrelevant for
-; init/get-node-ID per the master's snios.asm -- master fills in the
-; assigned slave ID into msg[2] of its RESPONSE frame regardless of
-; what we put in DAT[0] here.  Use 0x00 as a stable placeholder.
+; LOGIN password.  mpm-net2's default password for slave 0x01 is the
+; ASCII string "PASSWORD" (8 chars).  cpnos-in-c overrides this at
+; build time via -DRC702_LOGIN_PWD='"OTHER   "' if needed; we hard-
+; code the default until cpnos-in-asm grows a build-time override.
 init_data:
-	db	0x00			; DAT[0]
-init_data_len equ $ - init_data		; = 1 (must == SIZ+1)
+	db	"PASSWORD"		; 8 ASCII bytes; must match SIZ+1
+init_data_len equ $ - init_data		; = 8 (must == SIZ+1)
 
 ; send_cpnet_init_header: emit SOH + 5 header bytes + HCS on SIO-A
 ; (polled TX, CP/NET transport).  HCS is computed at runtime by
