@@ -52,6 +52,40 @@ Concretely:
 The cpnos-in-c "payload" model exists because the C compiler forces
 it; the asm slave is free of that constraint and uses it.
 
+### PROM1 must be disabled before any TPA program runs
+
+PROM1 occupies 0x2000..0x27FF, which is **inside the CP/M TPA**
+(0x0100 .. NDOS - 1).  Any .COM larger than ~7.9 KB will load into
+the PROM1 range and either be shadowed (the bytes go to underlying
+RAM but reads return PROM bytes) or fail outright -- nothing in TPA
+above 0x2000 works while PROM1 is mapped.
+
+The PROM disable is the same port for both EPROMs:
+
+  OUT (0x18), A   ; RAMEN: disable PROM0 and PROM1 simultaneously,
+                  ; exposing the RAM underneath at 0x0000..0x0FFF
+                  ; and 0x2000..0x27FF.
+
+Two consequences for the asm slave:
+
+  - **Defer the disable until absolutely necessary.**  As long as no
+    TPA program is running, PROM1 can stay enabled and the slave
+    keeps executing from 0x2000..0x27FF.  Phase 2a/2b code runs
+    happily with PROM1 mapped, and the netboot fetch of cpnos.com
+    targets the NDOS region (around 0xDE80..0xE9FF), well above
+    PROM1.  Only the moment a user .COM is about to load into TPA
+    does the disable have to happen.
+  - **The disabler instruction must live in RAM.**  The OUT to
+    port 0x18 takes effect immediately; if the next fetch happens
+    from 0x2000..0x27FF it picks up whatever RAM is there, not our
+    PROM1 code.  A small "tail" stub copied to a known RAM address
+    will run the OUT and then `JP` to NDOS COLDST (or wherever
+    control needs to go next).  Same trick autoload-in-c uses for
+    its own PROM disable at 0x7000.
+
+These details are deferred work for phase 4 (NDOS dispatch) or
+later -- nothing in phases 1..2b touches the TPA.
+
 ## Goal
 
 Implement a CP/NOS slave in pure Z80 assembly that fits in **PROM1
