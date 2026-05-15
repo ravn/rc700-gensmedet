@@ -117,6 +117,38 @@ Two 2 KB PROMs are mapped at 0x0000 and 0x2000 at reset.  After
 shows through.  By that point the resident image is in RAM 0xED00+,
 so execution continues seamlessly.
 
+**Gotcha:** the RC702's address decoder (74S287 in IC55) maps the
+EPROM sockets in **extended-4 KB mode**, mirroring each 2 KB PROM
+across an additional 2 KB region:
+
+| Address       | Pre-RAMEN     | Post-RAMEN |
+|---------------|---------------|------------|
+| 0x0000..0x07FF | PROM0          | RAM        |
+| 0x0800..0x0FFF | **PROM0 mirror** (bank1h) | RAM |
+| 0x2000..0x27FF | PROM1          | RAM        |
+| 0x2800..0x2FFF | **PROM1 mirror** (bank2h) | RAM |
+
+The mirror regions appear writable from a CPU-visible point of view
+but writes are dropped; reads return PROM bytes (the same bytes you'd
+see at the original 0x0000 / 0x2000 address).  MAME's `rc702.cpp`
+implements this exactly: `bank1h` and `bank2h` are `bankr()`
+mappings until RAMEN flips all four banks to RAM at once.
+
+cpnos-in-c never hits this -- its BSS lives at 0xED00+ (well above
+the mirror region) and the relocator runs entirely from PROM until
+`OUT (0x18),A` fires.  cpnos-in-asm session 73e tripped on it:
+rx_frame_buf parked at 0x2800 made recv_cpnet_frame appear to
+receive PROM1's own first 7 bytes (`08 20 20 52 43 37 30` =
+`dw slave_entry; db " RC70"`) regardless of what arrived on SIO-A.
+See [feedback memory rule](../../tasks/timeline.md "Session 73e bug
+fix story").
+
+Safe RAM windows for asm BSS in the pre-RAMEN window:
+
+  - **0x1000..0x1FFF** -- between bank1h and bank2.
+  - **0x3000..0xF7FF** -- above bank2h, below the display memory
+    (0xF800..0xFFCF) and the dual-header IVT page.
+
 ```
 PROM0 (2 KB at 0x0000):
 0x0000 ┌────────────────────────────────────────┐

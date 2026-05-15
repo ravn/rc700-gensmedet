@@ -106,8 +106,38 @@ sio_b_tx_d helper.
 
 ### Memory rules added (this session)
 
-  - feedback_rc702_bank2h_mirror.md
-  - feedback_zmac_local_label_scope.md
+Two specific facts:
+  - `feedback_rc702_bank2h_mirror.md` -- 0x2800..0x2FFF is the
+    bank2h PROM1-extended mirror; bank1h (0x0800..0x0FFF) is the
+    paired bank for PROM0.  Writes vanish, reads return PROM bytes.
+  - `feedback_zmac_local_label_scope.md` -- zmac doesn't scope
+    dotted local labels per parent; `.wait:` in different
+    subroutines collide.  Prefix with subroutine initials
+    (`.a_wait`, `.b_wait`).
+
+Three disciplines that would have caught the class of bug
+prophylactically (the user prompted me to extract these after the
+rx_frame_buf episode -- pre-existing rule
+[[feedback-extract-rules-from-time-sinks]] in action):
+  - `feedback_grep_memmap_before_bss.md` -- before allocating BSS
+    at a literal address on an embedded target, grep the emulator
+    driver's mem_map first.  10 s saved several debug iterations.
+  - `feedback_verify_writes_before_chasing_reads.md` -- when a
+    buffer reads back wrong, the FIRST diagnostic is "did the
+    write succeed?" not "where are these bytes coming from?".
+    Inverting that order in session 73e cost ~4 iterations on
+    red-herring loopback / baud / echo hypotheses.
+  - `feedback_recognize_rom_shadow_patterns.md` -- when a buffer or
+    port read returns structured-looking "wrong" bytes,
+    `xxd build/prom*.bin | head` and grep for the sequence BEFORE
+    wire-level hypotheses.  Session 73e: `08 20 20 52 43 37 30`
+    was literally `prom1.bin[0..6]`; recognising that pattern
+    would have short-circuited the whole investigation.
+
+Project-side mirror: `cpnos-shared/docs/MEMORY_MAP.md` updated
+with a "Gotcha" subsection covering bank1h/bank2h so future asm
+work (and future maintainers) sees it without having to dig
+through MAME source or stumble on the same bug.
 
 ### Follow-on tasks filed
 
