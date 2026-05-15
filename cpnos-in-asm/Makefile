@@ -147,17 +147,15 @@ cpnos-siob-test: cpnos-mame-install
 	    && echo "PASS: banner present on SIO-B" \
 	    || { echo "FAIL: banner not on SIO-B"; xxd $(SIOB_RAW) | head -4; exit 1; }
 
-# SIO-A = CP/NET transport stream.  Verifies the full 12-byte CP/NET
-# INIT frame the slave emits at boot, with both checksums valid.
-# Expected raw bytes (no banner -- banner is SIO-B only):
-#   SOH FMT DID SID FNC SIZ HCS  STX DAT[0] ETX CKS EOT
-#   01  00  00  FF  FF  00  01   02  00     03  FB  04
-# HCS makes bytes [0..6] sum to 0 mod 256.
-# CKS makes bytes [7..10] (STX..CKS) sum to 0 mod 256.
-# EOT (byte 11) is a raw delimiter, not in any checksum.
+# SIO-A no-master check.  Since phase 3d-β, the slave waits for ACK
+# before emitting the rest of an INIT frame; with no master on the
+# other end of the null_modem (file-backed -bitb1 just captures TX,
+# never delivers RX), the slave should send exactly one byte
+# (ENQ = 0x05) and then time out / give up.
+# A real master + handshake is exercised by cpnos-cpnet-test.
 cpnos-sioa-test: cpnos-mame-install
 	@rm -f $(SIOA_RAW)
-	@echo "=== launching MAME for SIO-A (CP/NET) check (~$(BOOT_DEADLINE_S) s) ==="
+	@echo "=== launching MAME for SIO-A no-master check (~$(BOOT_DEADLINE_S) s) ==="
 	$(CURDIR)/../../mame/regnecentralend rc702 \
 	    -rompath $(CURDIR)/../../mame/roms \
 	    -nothrottle -window -skip_gameinfo \
@@ -169,17 +167,10 @@ cpnos-sioa-test: cpnos-mame-install
 	@xxd $(SIOA_RAW) | head -3
 	@python3 -c "import sys; \
 	    d = open('$(SIOA_RAW)', 'rb').read(); \
-	    i = d.find(b'\x01\x00\x00\xff\xff\x00'); \
-	    ok = (i >= 0 \
-	          and len(d) >= i + 12 \
-	          and sum(d[i:i+7]) % 256 == 0 \
-	          and d[i+7] == 0x02 \
-	          and d[i+9] == 0x03 \
-	          and sum(d[i+7:i+11]) % 256 == 0 \
-	          and d[i+11] == 0x04); \
-	    sys.exit(0 if ok else (print(f'FAIL frame at {i}: {d[max(0,i):i+12].hex() if i>=0 else \"-\"}') or 1))" \
-	    && echo "PASS: full CP/NET INIT frame on SIO-A with valid HCS + CKS" \
-	    || { echo "FAIL: CP/NET frame broken"; xxd $(SIOA_RAW); exit 1; }
+	    ok = (d == b'\x05'); \
+	    sys.exit(0 if ok else (print(f'FAIL: expected just ENQ (0x05), got {d.hex()}') or 1))" \
+	    && echo "PASS: slave sent ENQ only (no master to ACK)" \
+	    || { echo "FAIL"; exit 1; }
 
 # Phase 2b/integration: socket-backed SIO-B echo round-trip.
 # Starts a Python TCP server in the background, then launches MAME

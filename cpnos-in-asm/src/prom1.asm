@@ -211,21 +211,14 @@ sio_tx_wait:
 	inc	hl
 	djnz	sio_tx_loop
 
-	; Phase 3a/b: emit one full CP/NET INIT-request frame on SIO-B
-	; so the protocol-layer plumbing is exercised end-to-end (frame
-	; layout + runtime HCS + CKS computation).  No ENQ/ACK handshake
-	; yet -- this just shoves 12 bytes onto the wire.  A future phase
-	; will wrap the emission in the full CP/NET 1.2 send sequence
-	; (ENQ wait ACK, header + HCS wait ACK, data + CKS + EOT wait
-	; ACK).
-	;
-	; Sequence on the wire (per cpnos-shared/docs/CPNET_WIRE_PROTOCOL.md):
-	;   SOH FMT DID SID FNC SIZ HCS  STX DAT[0..SIZ] ETX CKS EOT
-	; HCS = -(SOH + FMT + DID + SID + FNC + SIZ) mod 256
-	; CKS = -(STX + DAT[0..SIZ] + ETX) mod 256
-	; EOT is a raw frame delimiter, NOT counted in CKS.
-	call	send_cpnet_init_header
-	call	send_cpnet_init_data
+	; Phase 3a/b/d-β: emit one CP/NET INIT request frame on SIO-A
+	; with the mandatory ENQ -> wait ACK -> header -> wait ACK ->
+	; data -> wait ACK handshake.  send_cpnet_init_frame returns
+	; CF = 0 on success, CF = 1 on any timeout / non-ACK; we ignore
+	; the result for now (no retry, no error reporting yet --
+	; that's phase 3d-γ).  Without a master to ACK, the slave
+	; lands one ENQ byte on the SIO-A wire and continues.
+	call	send_cpnet_init_frame
 
 	; Phase 2b + 3d-α: combined polled loop.
 	;   - SIO-B RX -> SIO-B TX   (operator console echo; phase 2b)
@@ -361,6 +354,9 @@ STX		equ	0x02		; Start of Data
 ETX		equ	0x03		; End of Data
 EOT		equ	0x04		; End Of Transmission (frame delimiter,
 					; NOT counted in CKS)
+ENQ		equ	0x05		; Enquire (slave -> master, request to send)
+ACK		equ	0x06		; Acknowledge (master -> slave)
+NAK		equ	0x15		; Negative Acknowledge
 
 ; INIT request body (5-byte CP/NET header, no data section yet).
 ;   FMT = 0     request from slave
@@ -474,6 +470,86 @@ sio_a_tx_d_accum:
 	add	a, d
 	ld	e, a
 	ret
+
+; sio_a_rx_with_timeout: poll SIO-A RX with a coarse 16-bit-counter
+; timeout.  ~50ms at 4 MHz with the ~25T inner loop (10000 iterations).
+; Returns:
+;   CF = 0, A = received byte  on success
+;   CF = 1, A undefined          on timeout
+; Clobbers: AF, BC.
+;
+; Coarse counter is intentional -- CP/NET TMRETRY is forgiving (the
+; spec lets the slave retry up to 10 whole frames per send), so a
+; precise CTC-driven timeout isn't load-bearing.  Tune the count
+; constant if a master needs longer to respond.
+sio_a_rx_with_timeout:
+	ld	bc, 10000
+.poll:
+	in	a, (PORT_SIO_A_CTRL)
+	and	SIO_RX_CHAR_AVAIL
+	jr	nz, .ready
+	dec	bc
+	ld	a, b
+	or	c
+	jr	nz, .poll
+	scf				; CF = 1 -> timeout
+	ret
+.ready:
+	in	a, (PORT_SIO_A_DATA)
+	or	a			; clear CF -> success
+	ret
+
+; cpnet_wait_ack: wait for an ACK byte on SIO-A (with timeout).
+; Per the CP/NET 1.2 spec the slave masks bit 7 before comparing.
+; Returns:
+;   CF = 0  on ACK received
+;   CF = 1  on timeout OR any non-ACK byte (caller treats both as
+;           "frame failed; abandon and possibly retry")
+; Clobbers: AF, BC.
+cpnet_wait_ack:
+	call	sio_a_rx_with_timeout
+	ret	c			; timeout -> CF=1
+	and	0x7F
+	cp	ACK
+	ret	z			; ACK -> Z=1 + CF=0
+	scf				; non-ACK -> CF=1
+	ret
+
+; send_cpnet_init_frame: emit one full CP/NET INIT request frame on
+; SIO-A with the mandatory ENQ/ACK handshake at each phase.
+;
+; Sequence on the wire:
+;   slave:  ENQ                                       (1 byte)
+;   master: ACK                                       (1 byte; wait + timeout)
+;   slave:  SOH FMT DID SID FNC SIZ HCS               (7 bytes)
+;   master: ACK                                       (1 byte; wait + timeout)
+;   slave:  STX DAT[0..SIZ] ETX CKS EOT               (5+SIZ+1 bytes)
+;   master: ACK                                       (1 byte; wait + timeout)
+;
+; On timeout or non-ACK at any step: returns CF = 1 (caller may retry
+; or give up).  Phase 3d-β does NOT yet implement the MAXRETRY = 10
+; whole-frame retry loop described by the spec; the caller in
+; slave_entry just abandons the frame for now and falls through to
+; the combined poll loop, so unattended-boot in MAME without a
+; master simply leaves ENQ on the wire and continues.
+;
+; Returns CF = 0 on success, CF = 1 on any handshake failure.
+; Clobbers: AF, BC, DE, HL.
+send_cpnet_init_frame:
+	; Phase 1: ENQ + wait ACK.
+	ld	d, ENQ
+	call	sio_a_tx_d
+	call	cpnet_wait_ack
+	ret	c
+
+	; Phase 2: header + HCS, wait ACK.
+	call	send_cpnet_init_header
+	call	cpnet_wait_ack
+	ret	c
+
+	; Phase 3: data + CKS + EOT, wait ACK.
+	call	send_cpnet_init_data
+	jp	cpnet_wait_ack		; tail-call: CF set by ACK wait
 
 banner:
 	db	"RC702 CP/NOS asm phase 2a alive"
