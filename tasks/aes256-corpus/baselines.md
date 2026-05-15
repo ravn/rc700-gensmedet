@@ -323,6 +323,78 @@ Net: −649 B summed (out of 4450 B function-level total — −14.6%).
 Tested all 4 corpus cells: PASS.  Gap vs zsdcc shrinks K&R +846 → +201,
 ANSI +637 → +4 (essentially tied).
 
+## llvm-z80 HEAD: `fix-165-icmp-and-mask-outside-user` merged (post-#165)
+
+Captured 2026-05-15 session 73.  Lands ravn/llvm-z80#165 in two parallel
+extensions to the TruncInstCombine outside-graph user allowlist:
+
+* **Icmp with non-constant Other operand** (companion of #160) — when
+  Other is provably narrow via KnownBits (e.g. `(and W, 2^M - 1)`),
+  the icmp narrows alongside the graph.  Cost-gate: `Other->hasOneUse()`.
+
+* **And-mask outside-user** (the dominant blocker in gf_log) — accept
+  `(and X, Const)` where X is in-graph and Const fits in the narrow
+  type.  Rewritten as `(zext (and Xnarrow, ConstTrunc) to OrigTy)` so
+  downstream consumers keep their original type.  InstCombine
+  canonicalises the zext-and-consumer chains afterward.
+
+Also fixes a latent ordering bug: phi-erase RAUW'd in-graph phis with
+poison BEFORE the rewrite loops, leaving outside-graph users with
+poison operands.  Pending* rewrites now run first, then phi-erase.
+
+### AES corpus
+
+| Config | bin B | vs post-#162-p2 | verify |
+|---|------:|---:|:------:|
+| `01_baseline_Oz` | 4205 | **−125** | PASS |
+| `02_Os` | 4480 | **−125** | PASS |
+| `03_O3` | 12559 | **−129** | PASS |
+| `04_O2` | 8529 | **−125** | PASS |
+| `05_Oz_static_stack` | 2855 | **−56** | PASS |
+| `06_Oz_no_licm_cse` | 3815 | **−52** | PASS |
+| `07_Oz_no_lsr` | 4571 | **−125** | PASS |
+| `08_Oz_gc_sections` | 4185 | **−125** | PASS |
+| `09_Oz_prod_like` | **2695** | **−26** | PASS |
+| `10_Oz_no_licm_cse_lsr` | 4171 | **−52** | PASS |
+| `11_Oz_no_licm_cse_gc` | 3795 | **−52** | PASS |
+| `12_Oz_no_omit_fp` | 3606 | **−85** | PASS |
+| `13_Oz_no_omit_fp_no_licm_cse_gc` | **3328** | **−45** | PASS |
+
+All 13 configs improved (−26 to −129 B).  Production knob
+`09_Oz_prod_like` moved from 2721 B to **2695 B**.
+
+Runtime tstates: dropped from 65M to 15M on baseline_Oz (4× speedup),
+22M → 15M on the production knob (30% speedup).  Cause: gf_log's
+16-bit phi loop became an 8-bit loop, AES-256 decryption inner loop
+~3× faster.
+
+### z80-utils test-runner
+
+| Total | PASS | FAIL | FATAL | SKIP |
+|------:|-----:|-----:|------:|-----:|
+| 990 | 685 | 42 | 56 | 207 |
+
+Identical to baseline (clang suite).  No regressions.
+
+### Per-function deltas (01_baseline_Oz)
+
+| Function | post-#162-p2 | post-#165 | Δ | notes |
+|---|---:|---:|---:|---|
+| `gf_log` | 153 | **28** | **−125** | 5.4×; chain narrowed end-to-end |
+| `gf_alog` | 27 | 27 | 0 | already small |
+| `gf_mulinv` | 21 | 21 | 0 | callee narrowing was already done |
+| `rj_sb_inv` | 36 | 36 | 0 | already at parity (session 72) |
+| `rj_sbox` | 22 | 22 | 0 | no new path fires |
+| `rj_xtime` | 20 | 20 | 0 | already narrowed (session 72) |
+| `aes_mc_inv` | 460 | 460 | 0 | BSS-spill cluster, separate work |
+| `aes_mixColumns` | 300 | 300 | 0 | similar |
+
+### Residual structural gap
+
+`aes_mc_inv` (460 B) and `aes_mixColumns` (300 B) remain the largest
+AES gap-vs-zsdcc functions, both BSS-spill heavy.  These are #89/#27
+regalloc cluster work, orthogonal to trunc-narrowing.
+
 ## How to re-capture if HEAD moves
 
 The two-step:

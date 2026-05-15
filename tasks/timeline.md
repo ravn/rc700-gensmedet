@@ -1,5 +1,47 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73: Outside-user allowlist extensions (#165) — gf_log 153 → 28 B (May 15, 2026) — Medium
+
+Extends `TruncInstCombine`'s outside-graph user allowlist with two
+parallel paths, both addressing residual blockers in the gf_log-shape
+phi loop in `aes256.c` (post-#162 path 2).
+
+**Path A (icmp non-const Other)** — companion of #160.  When the
+icmp's non-graph operand is provably narrow via `computeKnownBits`
+(e.g. `(and W, 2^M - 1)`), narrow alongside the graph.  Cost-gate:
+`Other->hasOneUse()`.
+
+**Path B (and-mask outside-user)** — dominant blocker for gf_log.
+Accept `(and X, Const)` where X is in-graph and Const fits in the
+narrow type.  Rewritten as `(zext (and Xnarrow, ConstTrunc) to OrigTy)`
+so downstream consumers keep their original type; InstCombine
+canonicalises the zext-and-consumer chains afterward.
+
+**Latent bug fixed**: phi-erase RAUW'd in-graph phis with poison
+BEFORE the rewrite loops, leaving outside-graph users (icmp or
+and-mask) holding poison operands.  `cast<ConstantInt>(poison)` →
+crash.  Fix: reorder so rewrite loops run first, phi-erase last.
+
+**Phase-2 (and-mask synthetic trunc root, #163) transient flag**:
+The parent And being narrowed gets erased by phase 2 itself.  Added
+`AndMaskParentSkip` transient member set by phase 2 so the outside-
+user check ignores the parent.
+
+**Results** (AES corpus, key functions):
+
+| Function | post-#162-p2 | post-#165 | Δ |
+|---|---:|---:|---:|
+| `gf_log` | 153 | **28** | **−125 (5.4×)** |
+| (rest of corpus stable) | | | |
+
+13/13 AES configs improved, range −26 to −129 B.  Production knob
+`09_Oz_prod_like` 2721 → **2695 B**.  Runtime tstates dropped 65M →
+15M on baseline_Oz (4× speedup); 22M → 15M on production knob (30%
+speedup).  Test-runner clean (685 / 42 / 56 / 207).  All 4 AES
+verifier cells PASS.
+
+Commit `c48824ce135f` merged --no-ff.
+
 ## Session 72: TruncInstCombine cost gate (#164) + per-callee body peek (#162 path 2) — closed #162 + #163 (May 15, 2026) — Medium
 
 Two AggressiveInstCombine extensions in llvm-z80, both driven by the
