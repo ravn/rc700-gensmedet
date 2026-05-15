@@ -241,6 +241,66 @@ Identical to session 71 baseline.  No regressions.
   synthetic root fires unconditionally.  Existing upstream lit test
   `trunc_multi_uses.ll` continues to PASS via the new path.
 
+## llvm-z80 HEAD: `519aaaec4817` (post-#162 path 2 callee-body peek)
+
+Captured 2026-05-15 session 72.  Lands ravn/llvm-z80#162 path 2:
+per-callee body peek for call-arg trunc-root injection.  When the
+callee's entry block begins with `trunc iW %arg to iM` or the
+canonical `and iW %arg, 2^M - 1`, the chain feeding the corresponding
+caller argument is narrowable via a synthetic trunc-zext bracket at
+the call site.
+
+### AES corpus
+
+| Config | bin B | vs post-#157 | verify |
+|---|------:|---:|:------:|
+| `01_baseline_Oz` | 4330 | **−120** | PASS |
+| `02_Os` | 4605 | **−120** | PASS |
+| `03_O3` | 12688 | 0 | PASS |
+| `04_O2` | 8654 | 0 | PASS |
+| `05_Oz_static_stack` | 2911 | **−84** | PASS |
+| `06_Oz_no_licm_cse` | 3867 | **−121** | PASS |
+| `07_Oz_no_lsr` | 4696 | **−120** | PASS |
+| `08_Oz_gc_sections` | 4310 | **−120** | PASS |
+| `09_Oz_prod_like` | **2721** | **−85** | PASS |
+| `10_Oz_no_licm_cse_lsr` | 4223 | **−121** | PASS |
+| `11_Oz_no_licm_cse_gc` | 3847 | **−121** | PASS |
+| `12_Oz_no_omit_fp` | 3691 | **−114** | PASS |
+| `13_Oz_no_omit_fp_no_licm_cse_gc` | **3373** | **−115** | PASS |
+
+11/13 configs improved by 84–121 B.  Production knob `09_Oz_prod_like`
+moved from 2806 B to **2721 B**.  Best non-static-stack
+`13_Oz_no_omit_fp_no_licm_cse_gc` from 3488 B to **3373 B**.
+
+### z80-utils test-runner
+
+| Total | PASS | FAIL | FATAL | SKIP |
+|------:|-----:|-----:|------:|-----:|
+| 990 | 685 | 42 | 56 | 207 |
+
+Identical to baseline.  No regressions.
+
+### Per-function deltas (01_baseline_Oz)
+
+| Function | post-#157 | post-#162-p2 | Δ | notes |
+|---|---:|---:|---:|---|
+| `rj_sb_inv` | 156 | **36** | **−120** | matches ANSI variant; `llvm.fshl.i8` ×3 recognised |
+| `rj_xtime` | ~51 | 20 | −31 | (estimate, was reported 51 B / 2.83× in ANALYSIS.md) |
+| `gf_log` | 153 | 153 | 0 | callee peek didn't match within 8-inst scan window |
+| `gf_alog` | 27 | 27 | 0 | (small; not a peek target) |
+| `gf_mulinv` | 21 | 21 | 0 | (callee, body simplifies away) |
+| `rj_sbox` | 22 | 22 | 0 | (no K&R-narrow path that fires) |
+| `aes_mc_inv` | 460 | 460 | 0 | BSS-spill cluster, not a call-arg problem |
+| `aes_mixColumns` | (FP-dep) | (FP-dep) | 0 | similar |
+
+### Residual structural gap
+
+`gf_log` and `gf_alog` still carry their K&R-narrow K&R-call shape but
+the callee body has more complex prologue (likely 16-bit table lookups
+or icmp-against-i16 patterns) that the peek doesn't recognise within
+the 8-instruction scan window.  Future work: widen the scan, or move
+the peek to a KnownBits-across-ABI analysis.
+
 ### Per-function (clang K&R) at default vs `-fno-omit-FP`
 
 | Function | default | `-fno-omit-FP` | Δ B |
