@@ -981,11 +981,11 @@ Disassembly of section .text:
     64c7: db 14        	in	a,($14)
 ;     memcpy(p, prefix, sizeof prefix - 1);
     64c9: 21 7f 66     	ld	hl,$667f
-    64cc: 11 50 7a     	ld	de,$7a50
+    64cc: 11 3a 7a     	ld	de,$7a3a
     64cf: 01 0e 00     	ld	bc,$e
     64d2: ed b0        	ldir
     64d4: 5f           	ld	e,a
-    64d5: 21 5e 7a     	ld	hl,$7a5e
+    64d5: 21 48 7a     	ld	hl,$7a48
     64d8: 16 00        	ld	d,$0
 ;     for (i = 0; i < 8; i++) {
     64da: 7a           	ld	a,d

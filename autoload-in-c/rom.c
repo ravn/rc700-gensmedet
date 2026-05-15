@@ -232,24 +232,26 @@ static void load_chargen(void)
 extern const char banner_string[];
 #define BANNER_PTR ((const byte *)banner_string)
 
-/* Stamp the SW1 DIP-switch byte on display row 1 so the operator can
- * see how the switches are set without having to lift the cover.
- * Format (22 chars, fits in 80):
+/* Stamp the SW1 DIP-switch byte on display row 0, right-justified so
+ * it shares the line with the boot banner.  Format (22 chars):
+ *
  *   "SW1 12345678: 01101000"
+ *
  * The "12345678" header lines up each bit with its switch number; the
  * 8 digits beneath show position per switch (S1=bit 0, S8=bit 7).
  * Switch On => bit reads 0 (the active convention used by autoload,
- * rcbios, and docs/SW1_BIT_MAP.md).
+ * rcbios, and docs/SW1_BIT_MAP.md).  Placed at columns 58..79 so the
+ * 31-char banner at columns 0..30 has clear breathing room.
  *
  * Reading happens once at boot; the field is informational only and
  * isn't re-read after this point.
  *
- * Compact form is chosen to keep PROM0 well under the 2048 B socket
- * limit -- a per-switch "S1:ON " form previously cost ~167 B compiled
- * for ~50 B of header + 8 B of dynamic bits here. */
+ * Compact form keeps PROM0 well under the 2048 B socket limit -- a
+ * per-switch "S1:ON " form previously cost ~167 B compiled for ~50 B
+ * of header + 8 B of dynamic bits here. */
 static void display_sw1_status(void) {
     byte sw = read_sw1();
-    char *p = (char *)dspstr + 80;     /* row 1, column 0 */
+    char *p = (char *)dspstr + 80 - 22; /* row 0, col 58 */
     static const char prefix[] = "SW1 12345678: ";
     byte i;
 

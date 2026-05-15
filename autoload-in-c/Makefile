@@ -105,9 +105,9 @@ sw1-test: prom
 	@if [ -f "$(SW1_PROM1_BACKUP)" ]; then cp "$(SW1_PROM1_BACKUP)" "$(SW1_PROM1)"; rm -f "$(SW1_PROM1_BACKUP)"; fi
 	@echo "--- display memory rows 0..2 (read from RAM at 0x7A00) ---"
 	@cat $(SW1_DUMP) 2>/dev/null || { echo "no dump produced"; exit 1; }
-	@grep -qE "^row01: SW1 12345678: [01]{8}" $(SW1_DUMP) \
-	    && echo "PASS: SW1 status present on row 1" \
-	    || { echo "FAIL: SW1 status not found on row 1"; exit 1; }
+	@grep -qE "^row00: .*SW1 12345678: [01]{8}" $(SW1_DUMP) \
+	    && echo "PASS: SW1 status present on row 0 (right side)" \
+	    || { echo "FAIL: SW1 status not found on row 0"; exit 1; }
 
 mame: prom mamesym
 	@awk '{printf "comadd %s,%s\n", $$1, $$2}' $(COMPILER)/prom0_mame.sym > $(COMPILER)/prom0_debug.cmd
