@@ -86,6 +86,14 @@ Two consequences for the asm slave:
 These details are deferred work for phase 4 (NDOS dispatch) or
 later -- nothing in phases 1..2b touches the TPA.
 
+**TODO when phase 4 lands:** later RC703 models had a more advanced
+PROM enable/disable scheme than the RC702 single-port RAMEN
+mechanism described above.  Before settling on the disabler-stub
+implementation, audit `../rc703-div-bios-typer/` (the original RC703
+BIOS sources extracted from disk) for the actual hardware contract
+on those later boards and make sure the asm slave's disable path
+works on both RC702 and RC703 hardware.  Track in task #55.
+
 ## Goal
 
 Implement a CP/NOS slave in pure Z80 assembly that fits in **PROM1
