@@ -416,7 +416,7 @@ mame-roms-rcbios: $(RC702_ROM_DIR)/roa375.ic66
 	@echo "Switched MAME into rcbios standalone mode (assembly autoload PROM)"
 	@echo "  $(RC702_ROM_DIR)/roa375.ic66 (roa375 hand-assembly)"
 	@echo "To switch into cpnos mode, run:"
-	@echo "  cd ../cpnos-rom && make mame-roms-cpnos"
+	@echo "  cd ../cpnos-in-c && make mame-roms-cpnos"
 
 $(RC702_ROM_DIR)/%.rom:
 	@mkdir -p $(RC702_ROM_DIR)

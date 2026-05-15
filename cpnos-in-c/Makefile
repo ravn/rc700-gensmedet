@@ -1,5 +1,20 @@
-# Makefile for cpnos-rom — combined CP/NOS autoloader+BIOS PROM
+# Makefile for cpnos-in-c — C-language CP/NOS slave (clang + SDCC dual-compile).
 #
+# Path layout (post-rename, session 73d):
+#   cpnos-shared/    protocol headers, linker scripts, MAME harness, docs
+#   cpnos-in-c/      this dir — C sources in src/, build outputs per compiler
+#   cpnos-in-asm/    sibling pure-asm slave, PROM1-fit target
+#
+# Path variables — every reference to a moved file goes through these.
+SHARED ?= ../cpnos-shared
+SRC     = src
+
+# vpath lets compile rules find sources in $(SRC) without rewriting every
+# dependency line.  Order matters: more specific patterns first.
+vpath %.c $(SRC)
+vpath %.s $(SRC)
+vpath %.h $(SRC) $(SHARED)/include
+
 # Usage:
 #   make cpnos                    Build NOS-only image (ENABLE_FDC=0)
 #   make cpnos ENABLE_FDC=1       Build NOS + 8" DSDD image
@@ -86,7 +101,7 @@ ifeq ($(COMPILER),clang)
            -DBOOT_MARK_ENABLED=$(BOOT_MARK_ENABLED) \
            -DRC702_SLAVEID=0x01 \
            $(SERVER_CFLAGS) \
-           -I$(BUILDDIR) -I. -Icompiler \
+           -I$(BUILDDIR) -I$(SRC) -I$(SHARED)/include -I. \
            -Weverything \
            -Wno-unsafe-buffer-usage \
            -Wno-reserved-macro-identifier \
@@ -164,7 +179,7 @@ else ifeq ($(COMPILER),sdcc)
            '-DBOOT_MARK_ENABLED=$(BOOT_MARK_ENABLED)' \
            '-DRC702_SLAVEID=0x01' \
            $(SERVER_CFLAGS) \
-           -I$(BUILDDIR) -I. -Icompiler
+           -I$(BUILDDIR) -I$(SRC) -I$(SHARED)/include -I.
 
   ASFLAGS =
 
@@ -250,7 +265,7 @@ PAYLOAD_LD = $(BUILDDIR)/payload.ld
 # Preprocess payload.ld through cpp so source-level comments and any
 # future build-time conditionals are flattened into a clean linker
 # script.  ld.lld doesn't run cpp on linker scripts itself.
-$(BUILDDIR)/payload.ld: payload.ld $(BUILDDIR)/transport_stamp
+$(BUILDDIR)/payload.ld: $(SHARED)/ld/payload.ld $(BUILDDIR)/transport_stamp
 	@mkdir -p $(BUILDDIR)
 	$(CC) --target=z80 -E -P -x c $(SERVER_CFLAGS) -o $@ $<
 
@@ -259,9 +274,9 @@ $(BUILDDIR)/payload.ld: payload.ld $(BUILDDIR)/transport_stamp
 # plus a generated payload_header_data.s that carries metadata the
 # relocator reads at boot (chunk sizes, BSS extents, cold entry, etc.)
 # in lieu of the previous --defsym injection.  See
-# tasks/scripts/gen_payload_header.py and payload_header.h.
+# $(SHARED)/scripts/gen_payload_header.py and payload_header.h.
 RELOC_OBJS = $(BUILDDIR)/reset.o $(BUILDDIR)/relocator.o $(BUILDDIR)/payload_header_data.o
-RELOC_LD = relocator.ld
+RELOC_LD = $(SHARED)/ld/relocator.ld
 
 ALL_OBJS = $(PAYLOAD_OBJS) $(RELOC_OBJS) $(SDCC_C_OBJS) $(SDCC_AUDIT_S)
 
@@ -392,7 +407,7 @@ $(BUILDDIR)/cpnos_addrs.h: cpnos-build/d/cpnos.com
 # .h file's mtime stay stable when content didn't change, so
 # dependents correctly skip rebuild.
 ifeq ($(filter clean cpnos-clean,$(MAKECMDGOALS)),)
-_DUMMY_BUILDINFO := $(shell tasks/scripts/regen_buildinfo.sh \
+_DUMMY_BUILDINFO := $(shell $(SHARED)/scripts/regen_buildinfo.sh \
     $(BUILDDIR)/cpnos_buildinfo.h)
 endif
 
@@ -407,13 +422,13 @@ $(BUILDDIR)/resident.o: resident.c hal.h $(BUILDDIR)/cpnos_addrs.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/snios_c.o: snios_c.c cfgtbl.h compiler/compat.h
+$(BUILDDIR)/snios_c.o: snios_c.c $(SHARED)/include/cfgtbl.h compiler/compat.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # init.c is the merged cold-boot TU: cfgtbl + hardware bring-up +
 # netboot_mpm + cold orchestrator.  See file header for source order.
-$(BUILDDIR)/init.o: init.c hal.h cfgtbl.h transport.h $(BUILDDIR)/cpnos_addrs.h $(BUILDDIR)/cpnos_buildinfo.h
+$(BUILDDIR)/init.o: init.c hal.h $(SHARED)/include/cfgtbl.h transport.h $(BUILDDIR)/cpnos_addrs.h $(BUILDDIR)/cpnos_buildinfo.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -427,7 +442,7 @@ $(BUILDDIR)/transport_pio.o: transport_pio.c transport.h hal.h compiler/compat.h
 
 # Relocator: includes init/payload byte arrays via `#include "*.inc"`.
 # Each .inc is a comma-separated byte stream generated from the
-# matching .bin by tasks/scripts/bin2inc.py.  The mechanism is
+# matching .bin by $(SHARED)/scripts/bin2inc.py.  The mechanism is
 # compiler-portable: clang and SDCC see the same C source, with the
 # .inc resolved via per-compiler -I.  C23 `#embed` would be cleaner
 # but SDCC doesn't implement it.  See tasks/sdcc-port.md.
@@ -449,10 +464,10 @@ ifeq ($(COMPILER),clang)
 
 # Generated .inc files — re-emitted whenever the .bin or the
 # converter script changes.
-$(BUILDDIR)/%.inc: $(BUILDDIR)/%.bin tasks/scripts/bin2inc.py
-	python3 tasks/scripts/bin2inc.py $< $@
+$(BUILDDIR)/%.inc: $(BUILDDIR)/%.bin $(SHARED)/scripts/bin2inc.py
+	python3 $(SHARED)/scripts/bin2inc.py $< $@
 
-$(BUILDDIR)/relocator.o: relocator.c payload_header.h \
+$(BUILDDIR)/relocator.o: relocator.c $(SHARED)/include/payload_header.h \
                    $(BUILDDIR)/init.inc $(BUILDDIR)/payload_a.inc $(BUILDDIR)/payload_b.inc
 	@mkdir -p $(BUILDDIR)
 	@# CPNOS_HAS_P1_HEADER: tells the relocator that
@@ -468,13 +483,13 @@ $(BUILDDIR)/relocator.o: relocator.c payload_header.h \
 # payload.elf or the generator script changes.
 $(BUILDDIR)/payload_header_data.s: $(BUILDDIR)/payload.elf $(BUILDDIR)/payload.bin \
                                    $(BUILDDIR)/cpnos_buildinfo.h \
-                                   tasks/scripts/gen_payload_header.py
+                                   $(SHARED)/scripts/gen_payload_header.py
 	@# Extract BUILD_DATE_STR from cpnos_buildinfo.h so the header's
 	@# build_date_str field carries the same string the resident
 	@# banner prints later.  Single source of truth, no drift.
 	@BUILD_DATE_STR=$$(awk -F'"' '/BUILD_DATE_STR/{print $$2; exit}' \
 	    $(BUILDDIR)/cpnos_buildinfo.h); \
-	 python3 tasks/scripts/gen_payload_header.py \
+	 python3 $(SHARED)/scripts/gen_payload_header.py \
 	    --syntax=clang \
 	    --payload-elf=$(BUILDDIR)/payload.elf \
 	    --payload-bin=$(BUILDDIR)/payload.bin \
@@ -538,7 +553,7 @@ $(BUILDDIR)/payload_a.bin $(BUILDDIR)/payload_b.bin: $(BUILDDIR)/payload.bin
 
 # ---- Link relocator ----------------------------------------------
 # The relocator reads its metadata from the payload header (emitted by
-# tasks/scripts/gen_payload_header.py into payload_header_data.s and
+# $(SHARED)/scripts/gen_payload_header.py into payload_header_data.s and
 # linked into RELOC_OBJS).  Only `__stack_top` still needs --defsym
 # injection — that one is consumed by reset.s, not by relocator.c, and
 # reset.s runs BEFORE the relocator could read the header.
@@ -609,8 +624,8 @@ cpnos-size: $(BUILDDIR)/cpnos.bin
 
 cpnos-loader: $(BUILDDIR)/cpnos.bin
 	python3 build_loader.py $(BUILDDIR)/prom0.bin $(BUILDDIR)/prom1.bin $(BUILDDIR)/cpnos_loader.com
-	cp $(BUILDDIR)/cpnos_loader.com testutil/cpnosldr.com
-	@echo "staged testutil/cpnosldr.com (run 'cpnosldr' from CP/M A>)"
+	cp $(BUILDDIR)/cpnos_loader.com $(SHARED)/testutil/cpnosldr.com
+	@echo "staged $(SHARED)/testutil/cpnosldr.com (run 'cpnosldr' from CP/M A>)"
 
 # ---- Split for burner --------------------------------------------
 
@@ -990,8 +1005,8 @@ cpnet-smoke: cpnos-install _check-tag-not-pio-irq
 sio-smoke:
 	$(MAKE) cpnet-smoke TRANSPORT=sio WORKLOAD=$(WORKLOAD)
 	@echo "=== 1/5 regenerating sumtest.asm + smoke disk ==="
-	python3 testutil/mksmokeasm.py
-	testutil/mksmokedisk.sh
+	python3 $(SHARED)/testutil/mksmokeasm.py
+	$(SHARED)/testutil/mksmokedisk.sh
 	@echo "=== 2/5 restarting MP/M with fresh drive D: ==="
 	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
@@ -1000,7 +1015,7 @@ sio-smoke:
 	@sleep 4
 	@echo "=== 4/5 launching MAME + smoke injector (workload: $(WORKLOAD)) ==="
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_smoke_inject.log /tmp/cpnos_boot_marks.txt
-	@python3 -u testutil/smoke_inject.py $(SMOKE_PORT) \
+	@python3 -u $(SHARED)/testutil/smoke_inject.py $(SMOKE_PORT) \
 	    --workload $(WORKLOAD) \
 	    --log /tmp/cpnos_siob.raw --timeout 240 \
 	    > /tmp/cpnos_smoke_inject.log 2>&1 & \
@@ -1011,7 +1026,7 @@ sio-smoke:
 	    -seconds_to_run 1200 \
 	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
 	    -rs232b null_modem -bitb2 socket.127.0.0.1:$(SMOKE_PORT) \
-	    -autoboot_script mame_porttap.lua
+	    -autoboot_script $(SHARED)/mame/porttap.lua
 	@kill $$(cat /tmp/cpnos_smoke_inject.pid) 2>/dev/null || true
 	-$(MAKE) _kill-mpm  # exit-side reap; best-effort so verify-bench still runs on cleanup error
 	@$(MAKE) _verify-bench WORKLOAD=$(WORKLOAD)
@@ -1051,7 +1066,7 @@ pio-irq-netboot: cpnos-install _check-tag-pio-irq _check-mame-irq
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
 	    -piob cpnet_bridge \
 	    -bitb3 socket.127.0.0.1:4002 \
-	    -autoboot_script mame_porttap.lua
+	    -autoboot_script $(SHARED)/mame/porttap.lua
 	-$(MAKE) _kill-mpm  # exit-side reap; best-effort
 	@echo "--- boot-marker strip ---"
 	@cat /tmp/cpnos_boot_marks.txt 2>/dev/null && echo
@@ -1078,8 +1093,8 @@ pio-irq-netboot: cpnos-install _check-tag-pio-irq _check-mame-irq
 # written >= 3 times (m80, l80, sumtest each warm-boot CCP).
 pio-irq-smoke: cpnos-install _check-tag-pio-irq _check-mame-irq
 	@echo "=== 1/5 regenerating sumtest.asm + smoke disk ==="
-	python3 testutil/mksmokeasm.py
-	testutil/mksmokedisk.sh
+	python3 $(SHARED)/testutil/mksmokeasm.py
+	$(SHARED)/testutil/mksmokedisk.sh
 	@echo "=== 2/5 restarting MP/M with fresh disks ==="
 	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
@@ -1091,7 +1106,7 @@ pio-irq-smoke: cpnos-install _check-tag-pio-irq _check-mame-irq
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_wboot.txt /tmp/cpnos_boot_result.txt \
 	    /tmp/cpnos_smoke_inject.log /tmp/cpnos_boot_marks.txt
 	@echo "=== 4/5 launching smoke_inject + MAME (workload: $(WORKLOAD)) ==="
-	@python3 -u testutil/smoke_inject.py $(SMOKE_PORT) \
+	@python3 -u $(SHARED)/testutil/smoke_inject.py $(SMOKE_PORT) \
 	    --workload $(WORKLOAD) \
 	    --log /tmp/cpnos_siob.raw --timeout 240 \
 	    > /tmp/cpnos_smoke_inject.log 2>&1 & \
@@ -1104,7 +1119,7 @@ pio-irq-smoke: cpnos-install _check-tag-pio-irq _check-mame-irq
 	    -rs232b null_modem -bitb2 socket.127.0.0.1:$(SMOKE_PORT) \
 	    -piob cpnet_bridge \
 	    -bitb3 socket.127.0.0.1:4002 \
-	    -autoboot_script mame_porttap.lua
+	    -autoboot_script $(SHARED)/mame/porttap.lua
 	@kill $$(cat /tmp/cpnos_smoke_inject.pid) 2>/dev/null || true
 	-$(MAKE) _kill-mpm  # exit-side reap; best-effort
 	@$(MAKE) _verify-bench WORKLOAD=$(WORKLOAD)
@@ -1174,7 +1189,7 @@ ifeq ($(TRANSPORT),sio)
 	    -seconds_to_run 240 \
 	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
-	    -autoboot_script mame_polypascal_test.lua
+	    -autoboot_script $(SHARED)/mame/polypascal_test.lua
 else
 	-COMPILER=$(COMPILER) $(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
 	    -nothrottle -window -skip_gameinfo \
@@ -1183,7 +1198,7 @@ else
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
 	    -piob cpnet_bridge \
 	    -bitb3 socket.127.0.0.1:4002 \
-	    -autoboot_script mame_polypascal_test.lua
+	    -autoboot_script $(SHARED)/mame/polypascal_test.lua
 endif
 	-$(MAKE) _kill-mpm  # exit-side reap; best-effort
 	@echo "--- polypascal-test log tail ---"
@@ -1230,7 +1245,7 @@ cpnos-bios-jt-trace:
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
 	    -piob cpnet_bridge \
 	    -bitb3 socket.127.0.0.1:4002 \
-	    -autoboot_script mame_bios_jt_trace.lua
+	    -autoboot_script $(SHARED)/mame/bios_jt_trace.lua
 	-$(MAKE) _kill-mpm  # exit-side reap; best-effort
 	@if [ ! -s /tmp/cpnos_bios_jt_trace.log ]; then \
 	    echo "FAIL: trace log empty or missing -- did the autoboot_script run?"; \
@@ -1255,7 +1270,7 @@ cpnos-bios-jt-trace:
 # cpnos-lis override at the bottom of this file that points at the
 # per-file .lst and the cpnos.map.
 ifeq ($(COMPILER),clang)
-cpnos-lis: $(BUILDDIR)/payload.elf tasks/scripts/check_no_helper_calls.py
+cpnos-lis: $(BUILDDIR)/payload.elf $(SHARED)/scripts/check_no_helper_calls.py
 	$(OBJDUMP) -d -S -r --symbolize-operands --triple=z80 $< > $(BUILDDIR)/cpnos.lis
 	@echo "wrote $(BUILDDIR)/cpnos.lis (with C source + symbol-resolved operands)"
 	@# Same helper-call gate as the SDCC build.  The clang build's
@@ -1263,7 +1278,7 @@ cpnos-lis: $(BUILDDIR)/payload.elf tasks/scripts/check_no_helper_calls.py
 	@# compiler-rt), so technically safe -- but cpnos-rom has tight PROM
 	@# budgets and a helper call costs ~10 B per site + 30+ B helper
 	@# body.  Keep the resident image helper-free.
-	python3 tasks/scripts/check_no_helper_calls.py $(BUILDDIR)/cpnos.lis
+	python3 $(SHARED)/scripts/check_no_helper_calls.py $(BUILDDIR)/cpnos.lis
 
 cpnos-map: $(BUILDDIR)/payload.elf
 	$(NM) --numeric-sort $<
@@ -1352,7 +1367,7 @@ $(BUILDDIR)/relocator.o:      CFLAGS := $(SDCC_INIT_CFLAGS) -DCPNOS_HAS_P1_HEADE
 # -DCPNOS_HAS_P1_HEADER turns on the cross-PROM mismatch memcmp gate
 # in relocator.c, parallel to the clang-side definition in the
 # clang relocator.o recipe (#62).
-$(BUILDDIR)/relocator.o: relocator.c payload_header.h compiler/compat.h
+$(BUILDDIR)/relocator.o: relocator.c $(SHARED)/include/payload_header.h compiler/compat.h
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -1360,8 +1375,8 @@ $(BUILDDIR)/relocator.o: relocator.c payload_header.h compiler/compat.h
 # references for everything resolvable by the linker (resident_dest,
 # cold_entry, scratch/pio_rx BSS extents, chunk_b_size).  Chunk LMAs
 # (0x0400 / 0x2000) are build-script constants matching build_prom_image.py.
-$(BUILDDIR)/payload_header_data.s: tasks/scripts/gen_payload_header.py \
-                                   payload_header.h Makefile \
+$(BUILDDIR)/payload_header_data.s: $(SHARED)/scripts/gen_payload_header.py \
+                                   $(SHARED)/include/payload_header.h Makefile \
                                    $(BUILDDIR)/cpnos_buildinfo.h
 	@mkdir -p $(BUILDDIR)
 	@# Dual-header at PROM1 byte 0 (#62): sdcc/sections.asm anchors
@@ -1374,7 +1389,7 @@ $(BUILDDIR)/payload_header_data.s: tasks/scripts/gen_payload_header.py \
 	@# follow -- check_sdcc_layout.py's PROM1 audit catches drift.)
 	@BUILD_DATE_STR=$$(awk -F'"' '/BUILD_DATE_STR/{print $$2; exit}' \
 	    $(BUILDDIR)/cpnos_buildinfo.h); \
-	 python3 tasks/scripts/gen_payload_header.py \
+	 python3 $(SHARED)/scripts/gen_payload_header.py \
 	    --syntax=sdcc --symbolic \
 	    --chunk-a-src=0x0520 --chunk-b-src=0x2032 \
 	    --include-ivt \
@@ -1470,7 +1485,7 @@ $(BUILDDIR)/cpnos_layout.asm: cpnos-build/d/cpnos.sym
 # the audit script can grep for IX+/IY+ stack-frame addressing (which
 # --fomit-frame-pointer is supposed to eliminate but in practice does
 # not, because SDCC spills to the stack when register pressure is
-# high).  See tasks/scripts/check_no_frame_ptr.py.
+# high).  See $(SHARED)/scripts/check_no_frame_ptr.py.
 SDCC_AUDIT_DIR = $(BUILDDIR)/audit
 SDCC_C_SRCS    = $(notdir $(SDCC_C_OBJS:.o=.c))
 SDCC_AUDIT_S   = $(addprefix $(SDCC_AUDIT_DIR)/,$(SDCC_C_SRCS:.c=.s))
@@ -1502,21 +1517,21 @@ $(BUILDDIR)/cpnos.cim: $(SDCC_C_OBJS) $(SDCC_ASM_SRCS) $(BUILDDIR)/xport_aliases
                        $(BUILDDIR)/cpnos_layout.asm \
                        $(BUILDDIR)/payload_header_data.s \
                        $(SDCC_AUDIT_S) \
-                       tasks/scripts/check_sdcc_layout.py \
-                       tasks/scripts/check_no_frame_ptr.py \
+                       $(SHARED)/scripts/check_sdcc_layout.py \
+                       $(SHARED)/scripts/check_no_frame_ptr.py \
                        tasks/check_no_frame_ptr_baseline.txt \
-                       tasks/scripts/check_no_helper_calls.py \
-                       tasks/scripts/check_unreferenced_publics.py \
+                       $(SHARED)/scripts/check_no_helper_calls.py \
+                       $(SHARED)/scripts/check_unreferenced_publics.py \
                        tasks/check_unreferenced_publics_allowlist.txt
 	@mkdir -p $(BUILDDIR)
 	@# Audit BEFORE the link so a regression fails fast.
-	python3 tasks/scripts/check_no_frame_ptr.py \
+	python3 $(SHARED)/scripts/check_no_frame_ptr.py \
 	    tasks/check_no_frame_ptr_baseline.txt $(SDCC_AUDIT_S)
 	@# HARD GATE: --sdcccall 1 + any arch-helper call = silent miscompile
 	@# under z88dk's stock sdcc stdlib (helpers are sdcccall-0 only).
 	@# Production survives by being helper-free; this gate enforces it.
-	@# See tasks/scripts/check_no_helper_calls.py for full background.
-	python3 tasks/scripts/check_no_helper_calls.py $(SDCC_AUDIT_S)
+	@# See $(SHARED)/scripts/check_no_helper_calls.py for full background.
+	python3 $(SHARED)/scripts/check_no_helper_calls.py $(SDCC_AUDIT_S)
 	@# zcc wants to write outputs alongside the named -o file.  Run
 	@# from $(BUILDDIR) so per-section .bin files land there.
 	cd $(BUILDDIR) && $(CC) $(ZFLAGS_BASE) $(SDCC_ZLFLAGS) \
@@ -1533,13 +1548,13 @@ $(BUILDDIR)/cpnos.cim: $(SDCC_C_OBJS) $(SDCC_ASM_SRCS) $(BUILDDIR)/xport_aliases
 	@# can land them outside the resident PROM-loaded range.  This
 	@# audit fires the moment any symbol is mis-placed (including
 	@# section overlaps).  It is a build-failure gate, not advisory.
-	python3 tasks/scripts/check_sdcc_layout.py $(BUILDDIR)/cpnos.map \
+	python3 $(SHARED)/scripts/check_sdcc_layout.py $(BUILDDIR)/cpnos.map \
 	    $(BUILDDIR)/cpnos_RESET.bin
 	@# HARD GATE: any user-tracked PUBLIC in sdcc/*.asm with zero
 	@# textual references in .s/.asm sources is dead and gets linked
 	@# in for free under z88dk (no function-level DCE).  Caught a 33 B
 	@# silent regression during #77 — see #79.
-	python3 tasks/scripts/check_unreferenced_publics.py \
+	python3 $(SHARED)/scripts/check_unreferenced_publics.py \
 	    tasks/check_unreferenced_publics_allowlist.txt \
 	    $(BUILDDIR)/cpnos.map \
 	    $(SDCC_AUDIT_S) $(BUILDDIR)/payload_header_data.s $(SDCC_ASM_SRCS)
@@ -1552,7 +1567,7 @@ $(BUILDDIR)/cpnos.cim: $(SDCC_C_OBJS) $(SDCC_ASM_SRCS) $(BUILDDIR)/xport_aliases
 # (cpnos_RESIDENT_JUMPTABLE.bin) that we dd-split: bytes 0..0x3FF →
 # PROM0 tail (RAM 0xED00..0xF0FF), bytes 0x400..0xAFF → PROM1
 # (RAM 0xF100..0xF7FF, capped at 1792 B to clear display memory).
-$(BUILDDIR)/cpnos.bin: $(BUILDDIR)/cpnos.cim tasks/scripts/build_prom_image.py \
+$(BUILDDIR)/cpnos.bin: $(BUILDDIR)/cpnos.cim $(SHARED)/scripts/build_prom_image.py \
                        cpnos-build/patch_payload_checksum.py
 	@# Patch the resident image so its 16-bit word-additive sum
 	@# equals PAYLOAD_CHECKSUM_MAGIC (0xCAFE).  The relocator
@@ -1586,13 +1601,13 @@ $(BUILDDIR)/cpnos.bin: $(BUILDDIR)/cpnos.cim tasks/scripts/build_prom_image.py \
 	    dd if=$(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin of=$(BUILDDIR)/resident_b.bin \
 	        bs=1 skip=$$RES_A count=$$RES_B status=none; \
 	 else : > $(BUILDDIR)/resident_b.bin; fi
-	python3 tasks/scripts/build_prom_image.py $(BUILDDIR)/prom0.bin 2048 \
+	python3 $(SHARED)/scripts/build_prom_image.py $(BUILDDIR)/prom0.bin 2048 \
 	    0x000:$(BUILDDIR)/cpnos_RESET.bin \
 	    0x520:$(BUILDDIR)/resident_a.bin
 	@# PROM1: PAYLOAD_HEADER_P1 (50 B) at byte 0, resident chunk B at
 	@# byte 0x32.  Header offset must match --chunk-b-src=0x2032 in
 	@# the gen_payload_header.py invocation (#62).
-	python3 tasks/scripts/build_prom_image.py $(BUILDDIR)/prom1.bin 2048 \
+	python3 $(SHARED)/scripts/build_prom_image.py $(BUILDDIR)/prom1.bin 2048 \
 	    0x000:$(BUILDDIR)/cpnos_PAYLOAD_HEADER_P1.bin \
 	    0x032:$(BUILDDIR)/resident_b.bin
 	cat $(BUILDDIR)/prom0.bin $(BUILDDIR)/prom1.bin > $@
