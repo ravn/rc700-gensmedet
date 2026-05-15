@@ -227,30 +227,43 @@ sio_tx_wait:
 	call	send_cpnet_init_header
 	call	send_cpnet_init_data
 
-	; Phase 2b: polled echo loop on SIO-B.  Waits for a byte to
-	; arrive on RX, echoes it back on TX, repeats.  Replaces the
-	; trailing `jr halt` -- the slave never returns once it enters
-	; this loop.
-	;
-	; Use case: with rcbios in the master and S01=Off (CON_JOINED),
-	; SIO-B becomes the duplex console; this loop is the baby step
-	; toward the full character console.  Full integration test
-	; deferred to phase 3 when we have a host-side driver pushing
-	; bytes into MAME's bitbanger via a socket null_modem.
-sio_echo_loop:
-sio_rx_wait:
-	in	a, (PORT_SIO_B_CTRL)
+	; Phase 2b + 3d-α: combined polled loop.
+	;   - SIO-B RX -> SIO-B TX   (operator console echo; phase 2b)
+	;   - SIO-A RX -> SIO-B TX   (CP/NET wire visibility; phase 3d-α)
+	;     forwards anything a CP/NET master sends back to the operator
+	;     console so we can see ENQs / ACKs / response frames during
+	;     bring-up.  Bytes are forwarded verbatim; framing visualisation
+	;     comes in a later phase.
+	; Round-robin: every iteration checks SIO-A first, then SIO-B.
+	; Whichever has a byte is serviced; loop continues.  Slave never
+	; returns from this loop.
+combined_io_loop:
+	in	a, (PORT_SIO_A_CTRL)
 	and	SIO_RX_CHAR_AVAIL
-	jr	z, sio_rx_wait
-	in	a, (PORT_SIO_B_DATA)
-	ld	c, a			; preserve byte across TX wait
-sio_echo_tx_wait:
+	jr	z, .check_sio_b
+	in	a, (PORT_SIO_A_DATA)
+	ld	c, a
+.sio_a_to_b_wait:
 	in	a, (PORT_SIO_B_CTRL)
 	and	SIO_TX_BUF_EMPTY
-	jr	z, sio_echo_tx_wait
+	jr	z, .sio_a_to_b_wait
 	ld	a, c
 	out	(PORT_SIO_B_DATA), a
-	jr	sio_echo_loop
+	jr	combined_io_loop
+
+.check_sio_b:
+	in	a, (PORT_SIO_B_CTRL)
+	and	SIO_RX_CHAR_AVAIL
+	jr	z, combined_io_loop
+	in	a, (PORT_SIO_B_DATA)
+	ld	c, a
+.sio_b_echo_wait:
+	in	a, (PORT_SIO_B_CTRL)
+	and	SIO_TX_BUF_EMPTY
+	jr	z, .sio_b_echo_wait
+	ld	a, c
+	out	(PORT_SIO_B_DATA), a
+	jr	combined_io_loop
 
 ; ---- Init port table ------------------------------------------------
 ; Display relocate (8275 stop + CTC ch2 quiet + DMA ch2 -> 0xF800
