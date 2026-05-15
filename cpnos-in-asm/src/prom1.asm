@@ -40,9 +40,41 @@ PORT_DMA_CLBP	equ	0xFC
 CRT_CMD_RESET	equ	0x00	; 000xxxxx: reset (expects 4 params)
 CRT_CMD_LOADCUR	equ	0x80	; 100xxxxx: load cursor (expects col, row)
 CRT_CMD_STOP	equ	0x40	; 010xxxxx: stop display
-CRT_CMD_PRESET	equ	0xE0	; 111xxxxx: preset counters (reset
-				; character counter + character row counter
-				; so the next start begins at row 0).
+CRT_CMD_PRESET	equ	0xE0	; 111xxxxx: PRESET COUNTERS.
+				;
+				; Per the i8275 datasheet (as quoted in
+				; MAME's i8275_device::write() at
+				; src/devices/video/i8275.cpp): "internal
+				; timing counters are preset, corresponding
+				; to a screen display position at the top
+				; left corner.  Two character clocks are
+				; required for this operation.  The
+				; counters will remain in this state until
+				; any other command is given."
+				;
+				; Concretely the 8275 has three internal
+				; counters that together describe "where on
+				; the screen is the beam right now":
+				;   - character counter  (column within a
+				;     scan line; 0..H)
+				;   - line counter       (scan line within
+				;     a character row; 0..L)
+				;   - character-row counter (row within a
+				;     frame; 0..R)
+				; STOP freezes scanning but does NOT touch
+				; these counters -- they hold whatever
+				; mid-frame value they had when the STOP
+				; command landed.  Without an explicit
+				; PRESET between STOP and START, the next
+				; START resumes scanning from that frozen
+				; position (e.g. row 12 mid-frame) instead
+				; of from top-left.  This was the original
+				; "banner at row 12" symptom in MAME before
+				; we added the PRESET step.
+				;
+				; PRESET makes the next START deterministic:
+				; counters go to 0/0/0 and remain there
+				; until the START releases them.
 CRT_CMD_START	equ	0x23	; 001xxxxx: start display.  bits 4..3
 				; = 00 = burst=0 (8 DMA cycles/burst),
 				; bits 2..0 = 011 = 24-clock spacing.
