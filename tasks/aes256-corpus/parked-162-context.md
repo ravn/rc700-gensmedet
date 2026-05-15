@@ -176,7 +176,67 @@ Remaining structural paths (same three as in #162 session 71 finding):
 None is a quick session.  The remaining `rj_sb_inv` +120-138 B K&R vs
 ANSI gap is now a documented structural item.
 
-## Status after session 72
+## Status after session 72 — #162 CLOSED via path 2
+
+**Final state**: #162 closed by `519aaaec4817` (per-callee body peek)
+on top of `3d296f439645` (#164 phase 1 + #163 infrastructure).
+
+Headline result: `rj_sb_inv` K&R **156 → 36 B (−120, 4.3×)**.  AES
+corpus 11/13 configs improved by 84–121 B.  Production knob
+`09_Oz_prod_like`: 2806 → 2721 B.  Test-runner unchanged.
+
+See [`llvm-z80/tasks/session72-truncinstcombine-cost-gate-and-callee-peek.md`](../../../llvm-z80/tasks/session72-truncinstcombine-cost-gate-and-callee-peek.md)
+for the full write-up.
+
+### Path 2 retrospective
+
+The empirical breakthrough was a 30-second manual-trunc-injection
+experiment that proved the existing TruncInstCombine engine narrows
+the entire `rj_sb_inv` chain (including 3× `llvm.fshl.i8` recognition)
+the moment a single trunc-zext bracket is injected at the call site.
+This contradicted session 71's stated recommendation that path 3
+(tighter KnownBits) was the most attractive remaining path.
+
+Lesson: **multi-path issue branches should be empirically re-evaluated
+with current state before re-engaging**, not just resumed from the
+prior session's recommendation.
+
+### Phase 2 plumbing details
+
+Critical ordering subtlety captured in the commit and code comments:
+the call's argument must be swapped to the synthetic `Zx` *before*
+probing, otherwise `getBestTruncatedType` sees the chain root as
+multi-use (call + Tr) and bails.
+
+Phase 2 also added an Argument short-circuit in `getMinBitWidth` to
+fix pre-existing UB (line 258's `cast<Instruction>(Src)` is wrong when
+`Src` is directly an `Argument`).  The #158 fix added Argument
+handling inside the walker loops but not in the initialisation.
+
+### What's NOT closed
+
+- **#164 phase 2** — byte-budget cost model replacing the boolean
+  `isZExtFree` gate.  Phase 1 (boolean gate) is inert-on-Z80 by
+  design; phase 2 would let multi-use Z80 ands fire when the byte
+  savings exceed the re-extension cost.
+- **#165 (NEW, session 72)** — extend `canNarrowIcmpThroughGraph`
+  to accept narrowable non-constant operands.  Would close `gf_log`
+  (153 → ~30 B) and similar phi-loop patterns in aes256.c.
+- **Path 1** (Clang frontend K&R-narrow tag) — not needed for
+  `rj_sb_inv` (path 2 handled it); may still be worth pursuing for
+  cases without a callee-body witness.
+- **Path 3** (tighter KnownBits for rotate idioms) — mostly moot
+  now that path 2 reaches the chain.  Remains useful for
+  hypothetical chains without a callee-body witness.
+
+### Branch / artifact retention
+
+Branch `path-a-knr-zeroext` at `298a4cbe63d0` retained for future
+path 1 work, if ever revived.  No active work.
+
+---
+
+## (Original session 71 entry below for history)
 
 ravn/llvm-z80#163 (and-mask synthetic trunc root) + #164 (TTI cost gate)
 LANDED in `3d296f439645`:

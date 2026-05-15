@@ -1,5 +1,47 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 72: TruncInstCombine cost gate (#164) + per-callee body peek (#162 path 2) — closed #162 + #163 (May 15, 2026) — Medium
+
+Two AggressiveInstCombine extensions in llvm-z80, both driven by the
+AES-256 corpus parity work.
+
+**#164 phase 1 (`d7c37aa6e928`)** — plumbed `TargetTransformInfo`
+through `TruncInstCombine` and added a phase 2 of `run()` that
+synthesises a trunc-rooted graph from `(and X, MASK)` patterns where
+`MASK = 2^M - 1`.  Cost gate `!hasOneUse && !isZExtFree(NarrowTy, OrigTy)`
+suppresses Z80 regressions; on x86 family the synthetic root fires
+unconditionally and upstream `trunc_multi_uses.ll` PASSes via the new
+path.  Z80 outcome: inert by design (AES corpus byte-identical).  Side
+fix: pre-existing UB in `getMinBitWidth` when trunc's direct operand
+is an Argument (`cast<Instruction>` without check).  Closes #163 as
+infrastructure-landed.
+
+**#162 path 2 (`86eded565de7`)** — phase 3 of `run()`: walk call sites,
+peek each callee's entry block for either `trunc iW %argN to iM` or
+`(and iW %argN, 2^M - 1)`, and on a match inject a synthetic
+`(zext (trunc V to iM) to iW)` bracket at the call boundary so the
+narrowing engine can shrink V's chain.  Critical ordering subtlety:
+swap the call's argument to the synthetic Zx **before** probing,
+otherwise multi-use guard bails.  Closes #162 (K&R u8 chain).
+
+**Results**:
+- `rj_sb_inv` K&R: 156 → **36 B** (−120, 4.3×, matches ANSI)
+- AES corpus: 11/13 configs improved 84–121 B
+- Production knob `09_Oz_prod_like`: 2806 → 2721 B (clang now beats
+  zsdcc by 883 B on AES-class C code)
+- Best non-static-stack `13_Oz_no_omit_fp_no_licm_cse_gc`: 3488 → 3373 B
+- z80-utils test-runner: 685/42/56/207 unchanged
+
+**Filed**: ravn/llvm-z80#165 (extend icmp outside-user to narrowable
+non-constant operands) for the remaining `gf_log` 153 B / 4.78× gap —
+phi-loop pattern with `icmp eq i16 %6, %2` where both operands are
+narrowable but neither is a `ConstantInt`.
+
+**Issues closed**: #162, #163.
+**Issues open**: #164 (phase 2 byte-budget), #165 (NEW).
+
+Detailed summary: [`llvm-z80/tasks/session72-truncinstcombine-cost-gate-and-callee-peek.md`](../../llvm-z80/tasks/session72-truncinstcombine-cost-gate-and-callee-peek.md).
+
 ## Session 71: HiTech V4.11 cross-compiler deep-dive — RE-PARKED (May 13, 2026) — Hard
 
 Followup to session 70's V3.09-only parking. Discovered the V4.11
