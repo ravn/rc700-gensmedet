@@ -1,8 +1,11 @@
 # cpnos-in-asm — pure Z80 assembly CP/NOS slave
 
-**Status: phase 2a alive — boots through autoload-in-c, satisfies the
-PROM1 " RC702" signature, stamps banner to CRT (DSPSTR_ADDR=0x7A00)
-and streams it on SIO-B.  Phase 2b+ pending.**
+**Status: phase 3d-γ done.  Slave boots through autoload-in-c, runs
+the full CP/NET 1.2 send + receive state machines on SIO-A (both
+directions exchange ENQ/ACK + header w/ HCS + data w/ CKS + EOT
+correctly with a fake master).  5 of 5 value oracles green.  PROM1
+at 550 / 2048 B.  Phase 4 (LOGIN frame for mpm-net2 + NDOS
+dispatch) pending.**
 
 ## Architecture
 
@@ -185,15 +188,28 @@ Everything in `../cpnos-shared/`:
      with runtime CKS.  Full 12-byte INIT frame now on the wire.
      `make cpnos-siob-test` asserts both checksums.
 
-3c. **(NEXT) Move CP/NET frame emission to SIO-A.**  Currently
-    phase 3a/3b put the INIT frame on SIO-B; that's the operator
-    console.  Per cpnos-in-c's TRANSPORT split, CP/NET frames
-    belong on SIO-A (TRANSPORT=sio) or PIO-B (TRANSPORT=pio-irq).
-    SIO-B keeps banner + control / console echo.
+3c. **(DONE)** CP/NET frame emission split: SIO-B = operator console
+    (banner + echo); SIO-A = CP/NET transport stream.  CTC ch0 +
+    SIO-A WR0..WR5 added; send_cpnet_init_* now drives SIO-A.
 
-3d. **CP/NET frame parser** — minimal RCVMSG state machine on the
-    chosen transport, with HCS / CKS verification and DID demux.
-    Echo received frames back to the master.
+3d. **(DONE)** CP/NET 1.2 receive state machine:
+    - 3d-α: SIO-A RX polled, forward non-ENQ bytes to SIO-B console.
+    - 3d-β: ENQ/ACK handshake on send (sio_a_rx_with_timeout +
+      cpnet_wait_ack + send_cpnet_init_frame wrapper).
+    - 3d-γ: master-to-slave receive (recv_cpnet_frame: SOH/HCS/STX/
+      ETX/EOT validation + CKS check + ACK or NAK per spec).
+      rx_frame_buf at 0x3000 (NOT 0x2800 -- the latter is mapped
+      as bank2h PROM mirror by MAME's rc702 driver; bytes written
+      there vanish and reads return PROM1's own contents).
+    - Integration test: tasks/sio_a_fake_master.py drives both
+      directions; `make cpnos-cpnet-test` PASS with 6 of 6 ACKs.
+
+3e. **(NEXT)** LOGIN frame so the real master (z80pack mpm-net2)
+    answers us.  Today's INIT (FNC=0xFF) is ignored; cpnos-in-c
+    sends a CP/NET LOGIN (FNC=64, password "PASSWORD") as the
+    first frame after boot.  See cpnos-in-c/src/init.c
+    netboot_mpm() for the canonical sequence; mpm-net2 wire-up
+    in cpnos-in-c/Makefile cpnos-polypascal-test.
 
 4. **NDOS dispatch** — implement BDOS function 105 (NDOS call entry)
    that hands off requested operations to the master.
