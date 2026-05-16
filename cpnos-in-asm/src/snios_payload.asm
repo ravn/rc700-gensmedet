@@ -370,18 +370,36 @@ snios_cnftbl:
 ; frame in cfgtbl.msgbuf -- already allocated, no extra BSS needed.
 ; RCVMSG writes inbound bytes through the caller's (BC) pointer.
 
+; NDOS calls SNDMSG / RCVMSG with msg ptr in BC and expects BC, DE,
+; HL preserved across the call (standard CP/M SNIOS register ABI;
+; cpnos-in-c's C bridges preserve them automatically via sdcccall(1)
+; callee-saves).  Earlier session debug pinned a `SrSrSr` retry loop
+; on corrupted BC between paired SNDMSG / RCVMSG calls: NDOS issued
+; `lxi b, msgtop; call sdmsge; <decide>; call rvmsge` and our body
+; clobbered BC before rvmsge ran, so the response was written to
+; junk memory and NDOS retried forever.  Outer wrapper push/pops fix.
 snios_sndmsg:
+	push	bc
+	push	de
+	push	hl
+	call	snios_sndmsg_body
+	pop	hl
+	pop	de
+	pop	bc
+	ret
+snios_sndmsg_body:
 	ld	a, 'S'
 	call	emit_a
-	; Save msg ptr; patch SID in caller's buffer to our slaveid.
-	push	bc
+	; Patch SID in caller's buffer to our slaveid.
 	ld	h, b
 	ld	l, c			; HL = msg ptr
 	inc	hl			; +1 = DID
 	inc	hl			; +2 = SID
 	ld	a, (cfgtbl + 1)		; cfgtbl.slaveid
 	ld	(hl), a
-	pop	bc
+	; Reset HL to msg ptr for the header send loop below.
+	ld	h, b
+	ld	l, c
 
 	; Phase 1: ENQ, wait for ACK.
 	ld	a, ENQ
@@ -451,6 +469,15 @@ snios_msg_ptr:
 	dw	0
 
 snios_rcvmsg:
+	push	bc
+	push	de
+	push	hl
+	call	snios_rcvmsg_body
+	pop	hl
+	pop	de
+	pop	bc
+	ret
+snios_rcvmsg_body:
 	ld	a, 'r'
 	call	emit_a
 	; Save caller msg ptr (BC) for both phases.
@@ -569,6 +596,16 @@ snios_rx_soh:
 ; Send A on SIO-A; preserves A, E, HL, BC.
 snios_sio_a_tx_a:
 	push	af
+	; DEBUG: dump tx byte to SIO-B as '<XX'.
+	push	af
+	push	bc
+	ld	c, a
+	ld	a, '<'
+	call	emit_a
+	ld	a, c
+	call	emit_hex_a
+	pop	bc
+	pop	af
 .satx_w:
 	in	a, (PORT_SIO_A_CTRL)
 	and	SIO_TX_BUF_EMPTY
@@ -577,6 +614,31 @@ snios_sio_a_tx_a:
 	out	(PORT_SIO_A_DATA), a
 	ret
 
+; Print A as 2 hex digits on SIO-B (debug).  Preserves A and BC.
+emit_hex_a:
+	push	af
+	push	bc
+	ld	c, a
+	rrca
+	rrca
+	rrca
+	rrca
+	and	0x0F
+	call	emit_hex_nyb
+	ld	a, c
+	and	0x0F
+	call	emit_hex_nyb
+	pop	bc
+	pop	af
+	ret
+emit_hex_nyb:
+	add	a, '0'
+	cp	'9' + 1
+	jr	c, .ehn_d
+	add	a, 7			; 'A' - ('9'+1) = 7
+.ehn_d:
+	jp	emit_a
+
 ; Send A on SIO-A and add A to E (HCS / CKS accumulator).
 snios_sio_a_tx_accum:
 	call	snios_sio_a_tx_a
@@ -584,11 +646,13 @@ snios_sio_a_tx_accum:
 	ld	e, a
 	ret
 
-; SIO-A polled RX with coarse timeout.  CF=0 + A=byte on success;
-; CF=1 on timeout.  Preserves DE, HL.
+; SIO-A polled RX with timeout (~400ms at 4MHz).  CF=0 + A=byte on
+; success; CF=1 on timeout.  Preserves DE, HL.  Generous timeout
+; covers MAME's serial-pipeline scheduling jitter (CP/NET TMRETRY
+; spec is forgiving).
 snios_sio_a_rx_to:
 	push	bc
-	ld	bc, 40000
+	ld	bc, 0xFFFF		; ~400ms at 4MHz, 25T per iter
 .srx_p:
 	in	a, (PORT_SIO_A_CTRL)
 	and	SIO_RX_CHAR_AVAIL
@@ -598,11 +662,26 @@ snios_sio_a_rx_to:
 	or	c
 	jr	nz, .srx_p
 	pop	bc
+	; DEBUG: mark rx timeout with 'T'.
+	push	af
+	ld	a, 'T'
+	call	emit_a
+	pop	af
 	scf
 	ret
 .srx_r:
 	in	a, (PORT_SIO_A_DATA)
 	pop	bc
+	; DEBUG: dump rx byte to SIO-B with '>' prefix.
+	push	af
+	push	bc
+	ld	c, a
+	ld	a, '>'
+	call	emit_a
+	ld	a, c
+	call	emit_hex_a
+	pop	bc
+	pop	af
 	or	a
 	ret
 
