@@ -72,7 +72,19 @@ $(AUTOLOAD_PROM0):
 	@cd $(AUTOLOAD) && $(MAKE) clang || true
 	@test -f $(AUTOLOAD_PROM0) || { echo "ERROR: $(AUTOLOAD_PROM0) not produced"; exit 1; }
 
-$(PROM1_BIN): $(SRC)/prom1.asm $(BUILDDIR)/buildinfo.inc
+SNIOS_PAYLOAD_BIN = $(BUILDDIR)/snios_payload.bin
+
+# SNIOS payload is assembled at org 0xED20 (trampoline + JT at 0xED33
+# + impls + CFGTBL).  zmac's .cim output is the raw bytes starting at
+# org -- no leading-zero pad -- which is exactly what we want for the
+# incbin in prom1.asm.
+$(SNIOS_PAYLOAD_BIN): $(SRC)/snios_payload.asm
+	@mkdir -p $(BUILDDIR)
+	$(ZMAC) -z -o $(BUILDDIR)/snios_payload.cim --oo cim $(SRC)/snios_payload.asm
+	@cp $(BUILDDIR)/snios_payload.cim $(SNIOS_PAYLOAD_BIN)
+	@echo "snios_payload.bin: $$(wc -c < $(SNIOS_PAYLOAD_BIN) | tr -d ' ') B"
+
+$(PROM1_BIN): $(SRC)/prom1.asm $(BUILDDIR)/buildinfo.inc $(SNIOS_PAYLOAD_BIN)
 	@mkdir -p $(BUILDDIR)
 	$(ZMAC) -z -I $(BUILDDIR) -o $(BUILDDIR)/prom1.cim --oo cim $(SRC)/prom1.asm
 	@cp $(BUILDDIR)/prom1.cim $(PROM1_BIN)

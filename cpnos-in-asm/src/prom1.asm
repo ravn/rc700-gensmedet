@@ -335,13 +335,30 @@ sio_tx_wait:
 	ld	b, msg_fetch_ok_len
 	call	sio_b_emit_string
 	; Advance the CRT cursor to a fresh line via CR + LF through
-	; conout, so whatever runs next (eventually NDOS) starts on a
-	; clean row instead of overwriting the dot row.
+	; conout, so whatever runs next (NDOS) starts on a clean row.
 	ld	d, 0x0D
 	call	conout
 	ld	d, 0x0A
 	call	conout
-	jr	.netboot_done
+
+	; Phase 4b handoff: copy the SNIOS payload (BIOS JT at
+	; 0xED00 + SNIOS JT at 0xED33 + trampoline at 0xED4B + impls
+	; + CFGTBL) from PROM1 to its runtime address, then JP into
+	; the trampoline.  Once the trampoline's OUT (0x18), A
+	; executes, PROM1 is unmapped -- which is fine because we're
+	; now running in RAM.
+	;
+	; handoff_entry address = 0xED4B = 0xED00 + sizeof(BIOS_JT
+	; = 51 B) + sizeof(SNIOS_JT = 24 B).  Kept in sync with
+	; snios_payload.asm's layout; if the JTs ever grow/shrink,
+	; this literal must move.  (Better: have prom1 read a fixed
+	; "entry vector" word at 0xED00 -- deferred.)
+	ld	hl, snios_payload_blob
+	ld	de, 0xED00
+	ld	bc, snios_payload_blob_end - snios_payload_blob
+	ldir
+	jp	0xED4B
+
 .netboot_fail:
 	ld	hl, msg_fetch_fail
 	ld	b, msg_fetch_fail_len
@@ -846,6 +863,14 @@ fcb_head:
 
 login_pwd:
 	db	"PASSWORD"
+
+; SNIOS payload blob.  Bytes produced by src/snios_payload.asm
+; (org 0xED20 -- raw bytes start with the trampoline at 0xED20 and
+; run through CFGTBL).  PROM1 carries them at this label; slave_entry
+; LDIRs them to 0xED20 just before the PROM-disable handoff.
+snios_payload_blob:
+	incbin	"snios_payload.bin"
+snios_payload_blob_end:
 
 ; LOGIN request body (5-byte CP/NET header + 8-byte password DAT).
 ; This is the FIRST CP/NET frame the slave sends at boot, mirroring
