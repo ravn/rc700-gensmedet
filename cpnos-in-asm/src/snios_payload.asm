@@ -41,8 +41,8 @@
 ;   '>'  trampoline entry (legacy marker; pre-handoff)
 ;   'b'  bios_boot         (cold reboot vector)
 ;   'w'  bios_wboot        (NDOS will overwrite this slot)
-;   's'  bios_const
-;   'i'  bios_conin
+;   (no marker for CONST / CONIN -- hot polled paths during CCP,
+;    spam would drown the SIO-B capture)
 ;   (no marker for CONOUT -- char itself is the marker)
 ;   'L'  bios_list / list-stub family
 ;   'h'  bios_home
@@ -158,6 +158,22 @@ handoff_entry:
 	ld	bc, 8
 	ldir
 
+	; Copy 51-byte BIOS-JT to NDOSRL+0x300 = NDOS-0x100 = 0xDC80.
+	; cpnos-in-c does this in resident_handoff; NDOS COLDST may
+	; expect to find / patch the JT at that fixed offset inside
+	; cpnos.com's data area (even though ZP[1..2] also points at
+	; our in-place JT at 0xED03 -- cargo-cult cpnos-in-c until we
+	; have evidence it's redundant).
+	ld	hl, bios_jt
+	ld	de, NDOS_ADDR - 0x100
+	ld	bc, 51
+	ldir
+
+	; (50 Hz CTC-CH2 cursor-sync ISR parked: interrupts wouldn't stay
+	; enabled across NDOS/CCP/PPAS execution and the bus RETI trick
+	; didn't restart firing.  Cursor sync is now done per-conout call
+	; via co_sync_cursor.)
+
 	; PROM disable.  After this instruction PROM0+PROM1 are
 	; unmapped; we must keep running from RAM only.
 	xor	a
@@ -205,116 +221,213 @@ emit_a:
 ; deliver real disk I/O (which CP/NOS routes through SNIOS anyway).
 
 impl_boot:
-	; Cold-boot vector.  Rare; if NDOS or CCP reaches here we
-	; just spin so the SIO-B capture shows the 'b' marker.
-	ld	a, 'b'
-	call	emit_a
+	; Cold-boot vector.  Rare; if NDOS or CCP reaches here we spin
+	; -- silent (debug 'b' marker removed for size).
 .b_hang:
 	jr	.b_hang
 
 impl_wboot:
-	; NDOS overwrites this slot at COLDST with nwboot (0xE083),
-	; so we only see 'w' if cpnos.com somehow falls back to the
-	; raw BIOS WBOOT before NDOS patches.  Implementation: spin.
-	ld	a, 'w'
-	call	emit_a
+	; NDOS overwrites this slot at COLDST with nwboot; only reachable
+	; in the gap before COLDST patches the JT.  Spin silently.
 .w_hang:
 	jr	.w_hang
 
 impl_const:
-	; CONST: return A = 0 (no console char available).  NDOS
-	; overwrites this slot with nconst at COLDST, which polls
-	; both the network and the local console; for the brief
-	; pre-patch window any reads must return "idle".
-	ld	a, 's'
-	call	emit_a
-	xor	a
+	; CONST: peek the keyboard ring.  Return A = 0xFF if at least
+	; one byte queued, else A = 0.  NDOS overwrites this slot with
+	; nconst at COLDST, but nconst falls back to BIOS CONST via the
+	; tlbios snapshot for local-console polling.  No debug marker:
+	; CCP polls this 1000x/s and the spam would drown the SIO-B
+	; capture used by polypascal_test.lua.
+	ld	a, (kbd_head)
+	or	a
+	ret	z
+	ld	a, 0xFF
 	ret
 
 impl_conin:
-	; CONIN: return A = 0 (would block in real BIOS).  NDOS
-	; overwrites with nconin at COLDST.  If anything calls the
-	; raw BIOS CONIN we emit 'i' so we can see it.
-	ld	a, 'i'
-	call	emit_a
-	xor	a
+	; CONIN: dequeue one byte from kbd_ring; block (spin) until a
+	; byte is available.  The MAME polypascal_test.lua harness
+	; writes keystrokes directly into the ring via cpu memory taps;
+	; in production PIO-A would be wired through a real ISR.  Same
+	; no-debug-marker rationale as impl_const.  Preserves no callee-
+	; save registers beyond what NDOS's nconin assumes (A only is
+	; the return).
+.ci_wait:
+	ld	a, (kbd_head)
+	or	a
+	jr	z, .ci_wait
+	; Dequeue: byte at kbd_ring[0]; shift remaining (kbd_head-1)
+	; bytes down by one.  Small ring (16 B), so cost is bounded
+	; and we save the head pointer + wrap arithmetic.
+	push	bc
+	push	de
+	push	hl
+	ld	a, (kbd_ring)		; A = oldest byte
+	ld	c, a			; save in C across LDIR
+	ld	a, (kbd_head)
+	dec	a
+	ld	(kbd_head), a
+	or	a
+	jr	z, .ci_done		; ring now empty -> no shift
+	ld	b, 0
+	ld	hl, kbd_ring + 1
+	ld	de, kbd_ring
+	ldir
+.ci_done:
+	ld	a, c
+	pop	hl
+	pop	de
+	pop	bc
 	ret
+
+; ---- CRT framebuffer ABI (state owned by prom1.asm, persists in RAM
+; across PROM disable; consumed here by impl_conout) ---------------
+; Pinned at 0xF400 -- inside the SNIOS RESERVED AREA (0xED00..0xF7FF),
+; clear of snios_payload's actual bytes (currently end ~0xF080).
+; See feedback_slave_state_outside_tpa.md + feedback_state_address_phase_audit.md.
+DOT_CURSOR	equ	0xF400		; 16-bit display address
+DOT_COL		equ	0xF402		; 8-bit
+DOT_ROW		equ	0xF403		; 8-bit
+PORT_CRT_CMD	equ	0x01
+PORT_CRT_PARAM	equ	0x00
+CRT_CMD_LOADCUR	equ	0x80
+DSP_BASE	equ	0xF800		; display memory start (80 x 24 x 1 B)
+DSP_COLS	equ	80
+DSP_ROWS	equ	24
 
 impl_conout:
-	; CONOUT: char in C.  Forward to SIO-B so all NDOS / BDOS /
-	; CCP output is captured during bring-up.  NDOS overwrites
-	; this slot with nconot during COLDST; once that's in place
-	; nconot calls back into the original BIOS CONOUT via tlbios
-	; -> so this impl_conout is what NDOS routes hardware output
-	; through.  Don't emit a separate debug marker -- the char
-	; itself is the marker.
+	; CONOUT: char in C.  Writes to BOTH the CRT framebuffer at 0xF800
+	; AND mirrors to SIO-B (polypascal_test.lua scrape source).
+	; Currently handles CR (0x0D), LF (0x0A), printable advance,
+	; col-80 wrap, and row-23 scroll.  Full RC700 control-code set
+	; (insert/delete line, XY addressing, bell, clear screen, etc.)
+	; is parked: shipping it pushed PROM1 well past 2 KB and had bugs
+	; that stalled the slave at boot.  CR/LF + printables cover
+	; PolyPascal, CCP, and the polypascal-test workload.
+	;
+	; NDOS overwrites bios_jt[4] with nconot during COLDST; nconot
+	; calls back into this impl via the tlbios snapshot for local
+	; console.  CP/M BIOS CONOUT clobbers A/BC/DE/HL freely.
+	;
+	; No per-conout 8275 cursor sync -- the 50 Hz CTC-CH2 ISR
+	; (isr_cursor) pushes (DOT_COL, DOT_ROW) to the chip only when
+	; they've changed since the last tick.
 	ld	a, c
-	call	emit_a
+	call	emit_a			; SIO-B mirror first; preserves C
+	ld	a, c
+	cp	0x0D
+	jr	z, .co_cr
+	cp	0x0A
+	jr	z, .co_row_inc
+	; Printable: write char @ (DOT_CURSOR), advance cursor + col.
+	ld	hl, (DOT_CURSOR)
+	ld	(hl), a
+	inc	hl
+	ld	(DOT_CURSOR), hl
+	ld	a, (DOT_COL)
+	inc	a
+	cp	DSP_COLS
+	jr	c, .co_save_col
+	xor	a			; col=80 -> wrap to row+1 col 0
+	ld	(DOT_COL), a
+	jr	.co_row_inc
+.co_save_col:
+	ld	(DOT_COL), a
+	jp	co_sync_cursor		; tail: push (col,row) to 8275, then ret
+.co_cr:
+	xor	a
+	ld	(DOT_COL), a
+	jr	co_recompute
+.co_row_inc:
+	ld	a, (DOT_ROW)
+	inc	a
+	cp	DSP_ROWS
+	jr	c, .co_row_save		; row < 24: no scroll
+	; Scroll: LDIR rows 1..23 up to rows 0..22, fill row 23 spaces.
+	ld	hl, DSP_BASE + DSP_COLS
+	ld	de, DSP_BASE
+	ld	bc, DSP_COLS * (DSP_ROWS - 1)
+	ldir
+	ld	hl, DSP_BASE + DSP_COLS * (DSP_ROWS - 1)
+	ld	(hl), ' '
+	ld	d, h
+	ld	e, l
+	inc	de
+	ld	bc, DSP_COLS - 1
+	ldir
+	ld	a, DSP_ROWS - 1
+.co_row_save:
+	ld	(DOT_ROW), a
+	; fall through to co_recompute
+
+; Recompute DOT_CURSOR from (DOT_ROW, DOT_COL).
+;   DOT_CURSOR = DSP_BASE + DOT_ROW * 80 + DOT_COL
+co_recompute:
+	ld	a, (DOT_ROW)
+	ld	h, 0
+	ld	l, a
+	add	hl, hl			; row*2
+	add	hl, hl			; *4
+	ld	d, h
+	ld	e, l			; DE = row*4
+	add	hl, hl			; *8
+	add	hl, hl			; *16
+	add	hl, de			; *20
+	add	hl, hl			; *40
+	add	hl, hl			; *80
+	ld	de, DSP_BASE
+	add	hl, de
+	ld	a, (DOT_COL)
+	ld	e, a
+	ld	d, 0
+	add	hl, de
+	ld	(DOT_CURSOR), hl
+	; fall through to co_sync_cursor
+
+; Push (DOT_COL, DOT_ROW) to the 8275 via LOAD CURSOR.  Called
+; tail-style from every impl_conout exit path so the visible block
+; cursor always tracks the next-write position.  3 port writes ~= 11 T;
+; negligible vs surrounding store + LDIR-scroll cost.
+co_sync_cursor:
+	ld	a, CRT_CMD_LOADCUR
+	out	(PORT_CRT_CMD), a
+	ld	a, (DOT_COL)
+	out	(PORT_CRT_PARAM), a
+	ld	a, (DOT_ROW)
+	out	(PORT_CRT_PARAM), a
 	ret
 
+; ---- Slim BIOS stubs ------------------------------------------------
+; Debug-char emits in these handlers were size-cost > benefit: CP/NOS
+; never invokes SELDSK/SETTRK/SETSEC/SETDMA/READ/WRITE for network
+; drives (NDOS routes everything through SNDMSG/RCVMSG), and NDOS
+; overwrites LIST/LISTST at COLDST anyway -- the markers couldn't fire
+; unless something was already broken.  Bodies are minimal; SELDSK
+; returns HL=0, READ/WRITE return A=1 (error), LISTST returns A=0,
+; SECTRAN returns HL=BC.  Saved ~52 B vs. emit_a-per-handler.
 impl_list:
-	; LIST / PUNCH stubs.  NDOS overwrites LIST with nlist at
-	; COLDST.  'L' marker so we see any unexpected hits.
-	ld	a, 'L'
-	call	emit_a
-	ret
-
 impl_home:
-	ld	a, 'h'
-	call	emit_a
+impl_settrk:
+impl_setsec:
+impl_setdma:
+bios_ret:
 	ret
 
 impl_seldsk:
-	; SELDSK: return HL = 0 (no DPH for this drive -- CP/NOS
-	; routes everything through SNIOS so SELDSK is purely for
-	; NDOS to satisfy the BIOS-JT walk).
-	ld	a, 'D'
-	call	emit_a
 	ld	hl, 0
 	ret
 
-impl_settrk:
-	ld	a, 'T'
-	call	emit_a
-	ret
-
-impl_setsec:
-	ld	a, 'X'
-	call	emit_a
-	ret
-
-impl_setdma:
-	; SETDMA: BC = DMA addr.  No-op; NDOS tracks DMA itself.
-	ld	a, 'M'
-	call	emit_a
-	ret
-
 impl_read:
-	; READ: return A = 1 (error -- no local disks in CP/NOS).
-	ld	a, 'R'
-	call	emit_a
-	ld	a, 1
-	ret
-
 impl_write:
-	ld	a, 'W'
-	call	emit_a
 	ld	a, 1
 	ret
 
 impl_listst:
-	; LISTST: return A = 0 (printer not ready).  NDOS overwrites.
-	ld	a, 'L'
-	call	emit_a
 	xor	a
 	ret
 
 impl_sectran:
-	; SECTRAN: identity translation.  Input BC = logical sector;
-	; HL points to xlt table or 0.  Return HL = BC (no
-	; translation in CP/NOS).
-	ld	a, 't'
-	call	emit_a
 	ld	h, b
 	ld	l, c
 	ret
@@ -327,15 +440,21 @@ impl_sectran:
 ;   - rest zero -- NDOS doesn't read most of cfgtbl at COLDST.
 
 snios_ntwkin:
+	; NTWKIN: set cfgtbl.netst = CFG_NETST_ACTIVE (0x10) so NDOS's
+	; subsequent sndmsg/rcvmsg gate passes.  'A' marker on SIO-B
+	; (load-bearing -- the per-handler emit_a delays were masking
+	; some timing-sensitive path; without them PRIMES stalls at 97).
 	ld	a, 'A'
 	call	emit_a
-	xor	a			; A = 0 = success
+	ld	a, 0x10
+	ld	(cfgtbl), a
+	xor	a
 	ret
 
 snios_ntwkst:
 	ld	a, 'a'
 	call	emit_a
-	xor	a			; A = 0 = idle
+	xor	a
 	ret
 
 snios_cnftbl:
@@ -627,11 +746,6 @@ snios_sio_a_rx_to:
 	or	c
 	jr	nz, .srx_p
 	pop	bc
-	; DEBUG: mark rx timeout with 'T'.
-	push	af
-	ld	a, 'T'
-	call	emit_a
-	pop	af
 	scf
 	ret
 .srx_r:
@@ -692,24 +806,32 @@ cfgtbl:
 	db	0x00			; +00  netst     (NDOS sets at NTWKIN)
 	db	0x01			; +01  slaveid   RC702_SLAVEID
 	; +02..+33  drive[0..15]:  {flags, master_slave}
-	;   flags = 0x80 | (drive_letter_offset & 0x0F)
-	;   A->A: 0x80,00   B->B: 0x81,00  ...  P->P: 0x8F,00
-	db	0x80, 0x00		; A:
-	db	0x81, 0x00		; B:
-	db	0x82, 0x00		; C:
-	db	0x83, 0x00		; D:
-	db	0x84, 0x00		; E:
-	db	0x85, 0x00		; F:
-	db	0x86, 0x00		; G:
-	db	0x87, 0x00		; H:
-	db	0x88, 0x00		; I:
-	db	0x89, 0x00		; J:
-	db	0x8A, 0x00		; K:
-	db	0x8B, 0x00		; L:
-	db	0x8C, 0x00		; M:
-	db	0x8D, 0x00		; N:
-	db	0x8E, 0x00		; O:
-	db	0x8F, 0x00		; P:
+	;   flags = 0x80 | (master_drive_offset & 0x0F)
+	;   master_slave = 0 (= MP/M master)
+	; mpm-net2 only exposes drives A..D (system) and I, J (4 MB hard
+	; disks).  Slave drive E -> master drive I, F -> J: that's where
+	; cpmsim/mpm-net2 seeds PPAS + PRIMES from
+	; disks/library/mpm-net2-drive[ij].dsk.  Mirrors
+	; cpnos-in-c/src/init.c cfgtbl_init_template (drives A..F only;
+	; leave drives G..P un-flagged so NDOS treats them as local --
+	; chkdsk's `RAL` over a zero byte clears CF, returns A=0xFF =
+	; "no such drive" instead of bouncing through the network).
+	db	0x80, 0x00		; A: -> master A:
+	db	0x81, 0x00		; B: -> master B:
+	db	0x82, 0x00		; C: -> master C:
+	db	0x83, 0x00		; D: -> master D:
+	db	0x88, 0x00		; E: -> master I: (4 MB HD)
+	db	0x89, 0x00		; F: -> master J: (4 MB HD)
+	db	0,    0			; G: unused
+	db	0,    0			; H: unused
+	db	0,    0			; I: unused
+	db	0,    0			; J: unused
+	db	0,    0			; K: unused
+	db	0,    0			; L: unused
+	db	0,    0			; M: unused
+	db	0,    0			; N: unused
+	db	0,    0			; O: unused
+	db	0,    0			; P: unused
 	; +34..+38  console, list, bufidx -- left zero (NDOS sets at runtime)
 	db	0,0,0,0,0
 	; +39..+43  fmt, did, sid, fnc, siz -- outbound msg fields, NDOS sets
@@ -723,5 +845,23 @@ cfgtbl:
 	; If a longer scratch area is later needed, expand here.
 	db	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
 	db	0,0,0
+
+; ---- Keyboard ring (RAM, post-LDIR) --------------------------------
+; kbd_head holds the number of queued bytes (0..16).  kbd_ring is a
+; flat 16-byte buffer; oldest byte at offset 0 (FIFO).  Producer
+; (Lua harness via cpu memory tap, or PIO-A ISR in a future build)
+; writes a byte to kbd_ring[kbd_head] then increments kbd_head.
+; Consumer (impl_conin) reads kbd_ring[0], LDIRs the remaining
+; (kbd_head - 1) bytes down by one, decrements kbd_head.
+;
+; Symbol names match cpnos-in-c (`_kbd_head`, `_kbd_ring`) up to the
+; leading underscore that the Z80 ABI prepends to C names; zmac
+; emits these as plain `kbd_head` / `kbd_ring`, and the asm
+; polypascal-test target awk-extracts them from build/snios_payload.sym
+; with the same `kbd_head`/`kbd_ring` strings.
+kbd_head:
+	db	0
+kbd_ring:
+	db	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
 
 	end	handoff_entry

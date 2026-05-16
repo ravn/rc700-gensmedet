@@ -28,6 +28,42 @@ local addrs = dofile(compiler .. "/cpnos_polypascal_addrs.lua")
 local KBD_HEAD = addrs.kbd_head
 local KBD_RING = addrs.kbd_ring
 
+-- Tap writes to ROW only (0x4003) so we can see the PC of every
+-- cursor-row bump after handoff.  In-memory buffer flushed once at
+-- PASS/FAIL — per-write file I/O slowed MAME down enough that the
+-- test timed out.
+local dot_watch_installed = false
+local dot_watch_buf = {}
+DOT_WATCH_ENABLED = true   -- always on; flush at stage 2 cutoff
+local DOT_LOG = "/tmp/cpnos_dot_watch.log"
+local function flush_dot_watch()
+    local f = io.open(DOT_LOG, "w")
+    if not f then return end
+    f:write("# row-state tap (PC, new ROW value)\n")
+    for _, line in ipairs(dot_watch_buf) do f:write(line) end
+    f:close()
+end
+local function maybe_install_dot_watch()
+    if dot_watch_installed then return end
+    local cpu = manager.machine.devices[":maincpu"]
+    if cpu == nil then return end
+    local prog = cpu.spaces["program"]
+    local cpu_state = cpu.state
+    if prog == nil or cpu_state == nil then return end
+    -- Wider tap covering DOT_CURSOR + DOT_COL + DOT_ROW (0x4000..0x4003).
+    -- Stays installed for whole boot; arm/disarm via DOT_WATCH_ENABLED.
+    prog:install_write_tap(0x4000, 0x4003, "dot_watch", function(offs, data)
+        if not DOT_WATCH_ENABLED then return end
+        if #dot_watch_buf > 5000 then return end
+        local pc = cpu_state["PC"].value
+        local name = ({ [0]="CURLO", [1]="CURHI", [2]="COL", [3]="ROW" })[offs - 0x4000] or "?"
+        dot_watch_buf[#dot_watch_buf+1] =
+            string.format("[%9.4fs] PC=%04x %s=%02x\n",
+                emu.time(), pc, name, data)
+    end)
+    dot_watch_installed = true
+end
+
 local SIOB_RAW = "/tmp/cpnos_siob.raw"
 local RESULT   = "/tmp/cpnos_polypascal_result.txt"
 local LOG      = "/tmp/cpnos_polypascal_log.txt"
@@ -115,6 +151,8 @@ emu.register_periodic(function()
         pace_at = t + 0.10
     end
 
+    -- (dot_watch disabled: tap callback overhead slowed MAME below
+    -- realtime and stalled the test.)
     -- Stage 0: wait for E> boot prompt.
     if stage == 0 then
         if t < 12.0 then return end
@@ -122,10 +160,33 @@ emu.register_periodic(function()
         return
     end
 
-    -- Stage 1: see "E>" on SIO-B, then launch PPAS (no args).
+    -- Stage 1: see "E>" on SIO-B, then snap the CRT (pre-PPAS-launch
+    -- visual state — checked for boot-residue / scroll-init bugs).
+    -- Snap landed at -snapname target path; rename out of the way so
+    -- the final-stage snap doesn't overwrite it.
     if stage == 1 then
         local raw = read_siob()
         if raw:find("E>", 1, true) then
+            -- Arm the row-watch from now on; pre-handoff banner/dots
+            -- are uninteresting and just fill the buffer.
+            DOT_WATCH_ENABLED = true
+            -- Dump DOT_* state at E>-seen moment.
+            pcall(function()
+                local cpu = manager.machine.devices[":maincpu"]
+                local prog = cpu.spaces["program"]
+                local f = io.open("/tmp/cpnos_dsp_at_eprompt.txt", "w")
+                f:write(string.format("DOT_COL=%02x DOT_ROW=%02x DOT_CURSOR=%04x\n",
+                    prog:read_u8(0x4002), prog:read_u8(0x4003),
+                    prog:read_u16(0x4000)))
+                f:close()
+            end)
+            pcall(function() manager.machine.video:snapshot() end)
+            -- best-effort rename so the pre-launch snap survives the
+            -- final-stage overwrite at stage 99.
+            pcall(function()
+                os.execute("for f in snap/cpnos_*_ppas.png; do " ..
+                    "[ -f \"$f\" ] && mv \"$f\" \"${f%.png}_preppas.png\"; done")
+            end)
             logln("E> seen; feeding PPAS<CR>")
             feed("PPAS\r")
             start_stage(2, 60, "wait for PPAS '>>' prompt (initial)")
@@ -142,6 +203,42 @@ emu.register_periodic(function()
     if stage == 2 then
         local raw = read_siob()
         if count(raw, ">>") >= 1 then
+            -- Disarm row-watch and flush; we have enough data now.
+            DOT_WATCH_ENABLED = false
+            flush_dot_watch()
+            -- Snap before feeding load command so the CRT state at the
+            -- moment PPAS just finished its banner output is captured
+            -- (debug: CP/NOS banner row 0 should still be visible).
+            pcall(function() manager.machine.video:snapshot() end)
+            pcall(function()
+                os.execute("for f in snap/cpnos_*_ppas.png; do " ..
+                    "[ -f \"$f\" ] && mv \"$f\" \"${f%.png}_ppasstart.png\"; done")
+            end)
+            -- Dump current DOT_COL/DOT_ROW + first 4 display rows so we
+            -- can see where the slave THINKS it's writing vs what the
+            -- chip's actually showing.
+            pcall(function()
+                local cpu = manager.machine.devices[":maincpu"]
+                local prog = cpu.spaces["program"]
+                local f = io.open("/tmp/cpnos_dsp_at_ppasstart.txt", "w")
+                f:write(string.format("DOT_COL=%02x DOT_ROW=%02x DOT_CURSOR=%04x\n",
+                    prog:read_u8(0x4002), prog:read_u8(0x4003),
+                    prog:read_u16(0x4000)))
+                for r = 0, 23 do
+                    local base = 0xF800 + r * 80
+                    local parts = {}
+                    for c = 0, 79 do
+                        local b = prog:read_u8(base + c)
+                        if b >= 0x20 and b < 0x7F then
+                            parts[#parts+1] = string.char(b)
+                        else
+                            parts[#parts+1] = "."
+                        end
+                    end
+                    f:write(string.format("row %02d: |%s|\n", r, table.concat(parts)))
+                end
+                f:close()
+            end)
             logln(">> seen; feeding L PRIMES<CR>")
             feed("L PRIMES\r")
             start_stage(25, 60, "wait for second '>>' (load complete)")
@@ -205,9 +302,37 @@ emu.register_periodic(function()
         return
     end
 
-    -- Stage 99: pause one second after PASS/FAIL so the result file
-    -- gets fully flushed, then exit.
+    -- Stage 99: snapshot the CRT for visual verification (HARD rule
+    -- feedback_screenshot_to_verify.md -- PASS log lines aren't enough),
+    -- pause one second so the result file fully flushes, then exit.
     if stage == 99 and t > stage_at + 1.0 then
+        pcall(function() manager.machine.video:snapshot() end)
+        -- Dump JIFFY (0xF406..0xF409) and LAST_CURSOR (0xF404..0xF405)
+        -- so we can see whether the 50 Hz CTC-CH2 ISR is firing and
+        -- whether the cursor-sync path ran.  Non-zero JIFFY == ISR live.
+        pcall(function()
+            local cpu = manager.machine.devices[":maincpu"]
+            local prog = cpu.spaces["program"]
+            local f = io.open("/tmp/cpnos_isr_check.txt", "w")
+            f:write(string.format("JIFFY = %02x %02x %02x %02x (LE)\n",
+                prog:read_u8(0xF406), prog:read_u8(0xF407),
+                prog:read_u8(0xF408), prog:read_u8(0xF409)))
+            f:write(string.format("LAST_CURSOR = col=%02x row=%02x\n",
+                prog:read_u8(0xF404), prog:read_u8(0xF405)))
+            f:write(string.format("DOT_COL = %02x DOT_ROW = %02x\n",
+                prog:read_u8(0xF402), prog:read_u8(0xF403)))
+            local s = cpu.state
+            f:write(string.format("Z80 I = %02x, IFF1 = %s, IM = %s\n",
+                s["I"].value,
+                tostring(s["IFF1"] and s["IFF1"].value),
+                tostring(s["IM"] and s["IM"].value)))
+            f:write("IVT bytes at 0xF500..0xF51F:\n  ")
+            for i = 0, 31 do
+                f:write(string.format("%02x ", prog:read_u8(0xF500 + i)))
+            end
+            f:write("\n")
+            f:close()
+        end)
         manager.machine:exit()
     end
 end)

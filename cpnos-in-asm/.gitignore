@@ -1,5 +1,6 @@
 build/
 snap/
 zout/
+asm/
 *.cim
 *.lst

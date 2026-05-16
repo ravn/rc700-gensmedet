@@ -29,6 +29,7 @@ PORT_SIO_B_CTRL	equ	0x0B
 PORT_CTC0	equ	0x0C
 PORT_CTC1	equ	0x0D
 PORT_CTC2	equ	0x0E
+PORT_CTC3	equ	0x0F
 SIO_RX_CHAR_AVAIL equ	0x01	; RR0 bit 0
 SIO_TX_BUF_EMPTY equ	0x04	; RR0 bit 2
 
@@ -105,9 +106,14 @@ cpnet_msg	equ	0x3300	; clear of rx_frame_buf 0x3000..0x310B
 ; block cursor visually follows the dot stream -- per user
 ; suggestion that the cursor track the output the way a BIOS conout
 ; would.
-dot_cursor	equ	0x4000	; 16-bit display address
-dot_col		equ	0x4002	; 8-bit
-dot_row		equ	0x4003	; 8-bit
+; Pinned at 0xF400 -- inside the SNIOS RESERVED AREA (0xED00..0xF7FF).
+; Earlier placements (0x4000 in TPA, 0xEC00 in BDOS region) BOTH
+; violated the "slave state lives inside the snios reserved area"
+; rule.  Stays consistent across the prom1 -> snios_payload handoff:
+; snios_payload.asm's DOT_* equs resolve to the same addresses.
+dot_cursor	equ	0xF400	; 16-bit display address
+dot_col		equ	0xF402	; 8-bit
+dot_row		equ	0xF403	; 8-bit
 MSG_FMT		equ	0
 MSG_DID		equ	1
 MSG_SID		equ	2
@@ -451,10 +457,12 @@ init_table:
 	db	PORT_CRT_PARAM, 0x00		; column = 0
 	db	PORT_CRT_PARAM, 0x00		; row = 0
 
-	; Disable CTC ch2 IRQ.  0x03 = control word + sw reset (autoload's
-	; rom.c uses this exact value to disable ch3 at boot finish).  Once
-	; CTC ch2 is silent, the VRTC ISR stops re-pointing DMA at 0x7A00.
+	; Disable CTC ch2 IRQ (was: re-points DMA to 0x7A00) and CTC ch3 IRQ
+	; (was: floppy completion -- never fires once slave_entry stops
+	; the floppy, but the daisy-chain IUS state from autoload's last
+	; service can otherwise block lower-priority channels like ch2).
 	db	PORT_CTC2, 0x03
+	db	PORT_CTC3, 0x03
 
 	; DMA ch2: mask, set autoinit mode + new base 0xF800 + WC, unmask.
 	; Writing to the address/wc registers loads BOTH base and current,
@@ -864,6 +872,25 @@ fcb_head:
 login_pwd:
 	db	"PASSWORD"
 
+; Banner data MUST stay in the first 2 KB of PROM1 (offsets 0..0x7FF
+; -- runtime addresses 0x2000..0x27FF).  RC702 / MAME PROM1 socket is
+; physically 2 KB; the chip-mirror trick at 0x2800..0x2FFF returns
+; PROM1[0..0x7FF] again (= bank2h mirror per
+; feedback_rc702_bank2h_mirror.md), not the second 2 KB of a 4 KB
+; image.  Keeping the banner BEFORE snios_payload_blob anchors it
+; below the 2 KB boundary regardless of how big the payload grows.
+banner:
+	db	"RC702 CP/NOS asm "
+	; build/buildinfo.inc holds one `db "YYYY-MM-DD HH:MM hash"`
+	; line, regenerated at parse-time by the Makefile via
+	; $(shell .../regen_buildinfo_asm.sh).  Pulled in here so the
+	; CRT row 0 + the SIO-B banner stream both carry build identity
+	; (matches cpnos-in-c's banner pattern).
+	include	"buildinfo.inc"
+banner_text_len	equ	$ - banner
+	db	0x0D, 0x0A		; CRLF for SIO-B only
+banner_len	equ	$ - banner
+
 ; SNIOS payload blob.  Bytes produced by src/snios_payload.asm
 ; (org 0xED20 -- raw bytes start with the trampoline at 0xED20 and
 ; run through CFGTBL).  PROM1 carries them at this label; slave_entry
@@ -872,106 +899,16 @@ snios_payload_blob:
 	incbin	"snios_payload.bin"
 snios_payload_blob_end:
 
-; LOGIN request body (5-byte CP/NET header + 8-byte password DAT).
-; This is the FIRST CP/NET frame the slave sends at boot, mirroring
-; cpnos-in-c's netboot_mpm() flow.  mpm-net2 (z80pack) doesn't
-; recognise FNC=0xFF as a "get-my-node-id" request -- it expects
-; LOGIN (FNC=64) as the first interaction from a slave, with the
-; slave's compiled-in SID (0x01 == RC702_SLAVEID convention).
+; (init_header / init_data tables removed -- send_cpnet_init_frame
+; and its retry wrapper at the tail of this file are dead code
+; superseded by snios_sndmsg in snios_payload.asm.  Phase 3g moved
+; the LOGIN frame onto do_netboot which builds the request from
+; the FCB / cfgtbl in the resident payload.)
+
+; (send_cpnet_init_header / send_cpnet_init_data removed -- LOGIN is
+; now sent via snios_sndmsg in the resident payload.  See do_netboot
+; below for the active path.)
 ;
-;   FMT = 0     request from slave
-;   DID = 0     destination = master
-;   SID = 0x01  RC702 slave ID (compile-time constant, matches
-;               cpnos-in-c's RC702_SLAVEID default).  SNIOS rewrites
-;               this from CFGTBL in cpnos-in-c -- we don't have a
-;               CFGTBL here yet, so the literal is the source of
-;               truth on cpnos-in-asm until phase 3g.
-;   FNC = 64    LOGIN (CP/NET protocol function code; see
-;               cpnos-in-c/src/init.c netboot_mpm())
-;   SIZ = 7     8 bytes of password follow (SIZ+1)
-;
-; Resulting wire frame, with checksums baked in by send subroutines:
-;     01 00 00 01 40 07 B7  02  50 41 53 53 57 4F 52 44  03 8A 04
-;     SOH FMT DID SID FNC SIZ HCS STX  P  A  S  S  W  O  R  D  ETX CKS EOT
-init_header:
-	db	0x00			; FMT
-	db	0x00			; DID
-	db	0x01			; SID -- RC702 slave 0x01
-	db	64			; FNC -- LOGIN
-	db	7			; SIZ -- 8 password bytes follow (SIZ+1)
-init_header_len equ $ - init_header	; = 5
-
-; LOGIN password.  mpm-net2's default password for slave 0x01 is the
-; ASCII string "PASSWORD" (8 chars).  cpnos-in-c overrides this at
-; build time via -DRC702_LOGIN_PWD='"OTHER   "' if needed; we hard-
-; code the default until cpnos-in-asm grows a build-time override.
-init_data:
-	db	"PASSWORD"		; 8 ASCII bytes; must match SIZ+1
-init_data_len equ $ - init_data		; = 8 (must == SIZ+1)
-
-; send_cpnet_init_header: emit SOH + 5 header bytes + HCS on SIO-A
-; (polled TX, CP/NET transport).  HCS is computed at runtime by
-; accumulating SOH+header into E and emitting NEG(E) so the seven
-; on-wire bytes sum to 0 mod 256, per
-; cpnos-shared/docs/CPNET_WIRE_PROTOCOL.md.
-;
-; Clobbers: AF, BC, DE, HL.
-send_cpnet_init_header:
-	; Send SOH first; seed the HCS accumulator with it.
-	ld	d, SOH			; D = byte to send + sum seed
-	ld	e, SOH			; E = running 8-bit sum
-	call	sio_a_tx_de_seed	; sends D, leaves E with sum
-
-	; Walk the 5 header bytes, sending each + updating E.
-	ld	hl, init_header
-	ld	b, init_header_len
-.hdr_loop:
-	ld	d, (hl)
-	call	sio_a_tx_d_accum	; send D, E += D
-	inc	hl
-	djnz	.hdr_loop
-
-	; HCS = NEG(E) so sum + HCS == 0 mod 256.
-	xor	a
-	sub	e			; A = 0 - E = -E
-	ld	d, a
-	jp	sio_a_tx_d		; tail-call: send HCS, return
-
-; send_cpnet_init_data: emit STX + DAT (init_data_len bytes) + ETX +
-; CKS + EOT on SIO-A.  CKS = NEG(STX + DAT[0..n-1] + ETX) so the
-; bracketed (STX .. CKS) bytes sum to 0 mod 256.  EOT follows raw
-; and is NOT included in CKS (it's a frame delimiter).
-;
-; Clobbers: AF, BC, DE, HL.
-send_cpnet_init_data:
-	; Send STX; seed CKS accumulator with it.
-	ld	d, STX
-	ld	e, STX
-	call	sio_a_tx_d		; sends D; E still holds STX
-
-	; Walk init_data, sending each + updating E.
-	ld	hl, init_data
-	ld	b, init_data_len
-.dat_loop:
-	ld	d, (hl)
-	call	sio_a_tx_d_accum
-	inc	hl
-	djnz	.dat_loop
-
-	; Send ETX and add it to the running sum.
-	ld	d, ETX
-	call	sio_a_tx_d_accum
-
-	; CKS = NEG(E).
-	xor	a
-	sub	e
-	ld	d, a
-	call	sio_a_tx_d
-
-	; Send EOT (raw; not in CKS).
-	ld	d, EOT
-	jp	sio_a_tx_d		; tail-call: send EOT, return
-
 ; sio_a_tx_de_seed: like sio_a_tx_d but assumes E already holds the
 ; seed sum and just sends D without re-adding (caller has already
 ; baked D into E).  Used for the very first byte (SOH).
@@ -1377,77 +1314,9 @@ dump_rx_to_siob:
 	ld	d, 0xAA
 	jp	sio_b_tx_d
 
-; send_cpnet_init_frame_retry: bounded retry wrapper around
-; send_cpnet_init_frame.  The CP/NET 1.2 spec phrases this as
-; "up to MAXRETRY = 10 whole-frame retries" -- an upper bound, not
-; a required floor.  We use 3 today: enough to mask transient flakes
-; on the wire, low enough that a "no master present" boot doesn't
-; burn 2.5 simulated seconds on the SIO-A retry loop (which the
-; cpnos-echo-test on SIO-B can't poll past while the slave is busy
-; here, because SIO-B's RX FIFO would overflow).  Bump back toward
-; 10 once phase 4 adds richer error reporting + alternative
-; recovery paths so the long burn buys something.
-;
-; Returns CF = 0 on success (some attempt succeeded), CF = 1 on
-; exhaustion.
-; Clobbers: AF, BC, DE, HL.
-send_cpnet_init_frame_retry:
-	ld	b, 3			; MAXRETRY (spec upper bound is 10)
-.retry:
-	push	bc
-	call	send_cpnet_init_frame
-	pop	bc
-	ret	nc			; success on this attempt
-	djnz	.retry
-	scf				; all attempts exhausted
-	ret
-
-; send_cpnet_init_frame: emit one full CP/NET INIT request frame on
-; SIO-A with the mandatory ENQ/ACK handshake at each phase.
-;
-; Sequence on the wire:
-;   slave:  ENQ                                       (1 byte)
-;   master: ACK                                       (1 byte; wait + timeout)
-;   slave:  SOH FMT DID SID FNC SIZ HCS               (7 bytes)
-;   master: ACK                                       (1 byte; wait + timeout)
-;   slave:  STX DAT[0..SIZ] ETX CKS EOT               (5+SIZ+1 bytes)
-;   master: ACK                                       (1 byte; wait + timeout)
-;
-; On timeout or non-ACK at any step: returns CF = 1 (caller may retry
-; or give up).  Phase 3d-β does NOT yet implement the MAXRETRY = 10
-; whole-frame retry loop described by the spec; the caller in
-; slave_entry just abandons the frame for now and falls through to
-; the combined poll loop, so unattended-boot in MAME without a
-; master simply leaves ENQ on the wire and continues.
-;
-; Returns CF = 0 on success, CF = 1 on any handshake failure.
-; Clobbers: AF, BC, DE, HL.
-send_cpnet_init_frame:
-	; Phase 1: ENQ + wait ACK.
-	ld	d, ENQ
-	call	sio_a_tx_d
-	call	cpnet_wait_ack
-	ret	c
-
-	; Phase 2: header + HCS, wait ACK.
-	call	send_cpnet_init_header
-	call	cpnet_wait_ack
-	ret	c
-
-	; Phase 3: data + CKS + EOT, wait ACK.
-	call	send_cpnet_init_data
-	jp	cpnet_wait_ack		; tail-call: CF set by ACK wait
-
-banner:
-	db	"RC702 CP/NOS asm "
-	; build/buildinfo.inc holds one `db "YYYY-MM-DD HH:MM hash"`
-	; line, regenerated at parse-time by the Makefile via
-	; $(shell .../regen_buildinfo_asm.sh).  Pulled in here so the
-	; CRT row 0 + the SIO-B banner stream both carry build identity
-	; (matches cpnos-in-c's banner pattern).
-	include	"buildinfo.inc"
-banner_text_len	equ	$ - banner
-	db	0x0D, 0x0A		; CRLF for SIO-B only
-banner_len	equ	$ - banner
+; (send_cpnet_init_frame_retry / send_cpnet_init_frame removed -- both
+; dead, see comment above where the init_header/init_data data tables
+; used to live.  LOGIN is now driven by snios_sndmsg in the resident
+; payload via do_netboot.)
 
 	end	prom1_header

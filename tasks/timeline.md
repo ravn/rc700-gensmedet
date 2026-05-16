@@ -1,5 +1,102 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73g: cpnos-in-asm reaches PolyPascal PRIMES end-to-end on CRT (May 16-17, 2026) — Hard
+
+End-to-end POlyPascal `R PRIMES.PAS` running on the pure-Z80-asm CP/NOS
+slave with full CRT visibility -- not just SIO-B mirror.  `make
+cpnos-polypascal-test` PASSes in ~58 s wall, primes-through-29989
+scrolling correctly across the screen, `>>Q` and post-Run `E>` prompt
+at the bottom, cursor block tracking CONOUT live.
+
+### Functional layers added
+
+  - `kbd_head` + `kbd_ring` BSS in `snios_payload`, with `impl_const`
+    (peek) + `impl_conin` (block-wait + LDIR-down-shift dequeue) wired
+    to it.  `cpnos-shared/mame/polypascal_test.lua` writes keystrokes
+    directly to the ring via a CPU memory tap.
+  - `impl_conout` drives the CRT framebuffer at 0xF800 directly:
+    write-at-cursor, col-80 wrap, row-23 LDIR scroll, AND mirrors to
+    SIO-B for the test harness.  CR and LF independent (no CRLF
+    folding, contrary to cpnos-in-c which treats LF as CR+LF).
+  - `co_recompute` computes DOT_CURSOR from (row, col); `co_sync_cursor`
+    pushes (col, row) to the 8275 via LOAD CURSOR; called tail-style
+    at every CONOUT exit so the chip cursor tracks output live.
+  - `snios_ntwkin` sets `cfgtbl.netst = CFG_NETST_ACTIVE` (0x10) so
+    NDOS's downstream sndmsg/rcvmsg gate passes; mirrors cpnos-in-c.
+  - `handoff_entry` copies the 51 B BIOS-JT to NDOSRL+0x300 = 0xDC80
+    (cpnos-in-c convention).
+  - Drive-table fix (the real-master gate): slave drive **E -> master
+    drive I** (0x88), F -> J.  mpm-net2 only exposes A..D and I, J
+    (4 MB hard disks); the earlier 1:1 slave-E -> master-E mapping
+    drew `NDOS Err 04 Func 0E` ("no such drive") from the master.
+    Verified by reading the master message format in `cpndos.asm`'s
+    `nderr` -- the 04 was the second DAT byte of the response (the
+    master's error subcode), not the BDOS return.
+
+### Memory-map fixes (HARD lessons logged)
+
+  - **`dot_*` state moved out of TPA.**  Originally at 0x4000..0x4003
+    (inherited from prom1.asm's netboot-progress state, where it's safe
+    pre-handoff).  Post-handoff `0x0100..0xE715 = TPA` -- any CP/M
+    program clobbers whatever lives there.  Caught when the cursor
+    jumped from row 3 to row 23 mid-PolyPascal-banner: PPAS's stack /
+    working memory was stomping on `dot_row`.  Diagnosed with an
+    instrumented `#NN` marker on every dot_row save plus a Lua memory
+    dump.  Pinned at 0xF400 inside the SNIOS reserved area
+    (0xED00..0xF7FF) per [[feedback-slave-state-outside-tpa]].
+  - **Banner moved BEFORE `snios_payload_blob` INCBIN** in prom1.asm
+    source order.  When snios_payload grew past ~700 B, banner's PROM
+    file offset crossed 0x800, mapping to memory address >= 0x2800.
+    The RC702 PROM1 socket is 2 KB; 0x2800..0x2FFF is the **bank2h
+    mirror** which returns PROM1[0..0x7FF] again -- `ld hl, banner`
+    fetched code bytes from PROM1[0x33] instead of banner text from
+    PROM1[0x833].  Mid-stream visual symptom: row 0 of the CRT showed
+    Z80 opcode bytes interpreted as glyphs.  See
+    [[feedback-rc702-bank2h-mirror]] + [[feedback-state-address-phase-audit]].
+  - **`feedback_no_taps_in_polled_rx`** from session 73f stayed clean
+    throughout the session -- the new debug instrumentation lives
+    inside per-frame markers, never inside polled RX/TX hot paths.
+
+### Cursor-sync ISR investigation (parked)
+
+Attempted a 50 Hz CTC-CH2 ISR that would push (DOT_COL, DOT_ROW) to
+the 8275 only when changed, plus a 32-bit JIFFY counter.  Setup
+verified end-to-end via Lua memory dump: `I = 0xF5`, `IFF1 = 1`,
+`IM = 2`, IVT at 0xF500 with slot 6 = `isr_cursor`, CTC CH2 control
+word `0xD7 + TC=1`.  Yet JIFFY stayed at 0 -- the ISR never fired
+in 60 s of test.  Hypotheses (in order of suspicion): CTC ch2 IUS
+bit stuck from autoload's last RETI'd-or-not ISR; cpnos.com/NDOS
+doing DI during the SrSr loop; MAME RC702 CTC trg2 plumbing not
+matching real-hardware semantics.  Manual `call isr_cursor` from
+handoff_entry (to emit RETI on bus and clear stuck IUS) ticked
+JIFFY exactly once but didn't unlock subsequent fires.  Parked;
+per-CONOUT-call cursor sync is the working alternative.
+
+### Code shape + budget
+
+`make cpnos`: PROM1 at 1937 / 2048 B (111 B free) AT the burn budget.
+Dead-code removal (`send_cpnet_init_*` chain, ~100 B unreachable since
+session 73e's snios_sndmsg refactor) plus most per-handler debug
+markers were the source of headroom.
+
+The full RC700 control-code set (BS / TAB / 0x0C clear / XY cursor
+addressing / insert-delete-line / bell / erase-to-EOL/EOS) was
+implemented as `do_*` handlers + `dispatch_control` switch but
+needed ~250 B more than current budget allows AND had bugs in the
+backward-LDDR / mul_a_80 helpers that stalled the slave at boot.
+Reverted to CR + LF + printables only -- covers PolyPascal, CCP,
+PRIMES.PAS, and likely the majority of CP/M apps.  Add-back work
+is queued for after a shrink pass on cfgtbl + emit_a helpers.
+
+### Difficulty marker
+
+Hard -- 3 separate memory-map traps (TPA / bank2h / IVT page), a
+"500x slowdown" regression that turned out to be the IVT/CTC re-init
+correlation with NDOS state, a "phantom" 20-row cursor jump that
+took dot_row write-tap + display-memory dump to root-cause as TPA
+stomping, plus a full ISR-vs-poll architectural pivot driven by
+the realization that interrupts don't survive NDOS/CCP/PPAS run.
+
 ## Session 73f: cpnos-in-asm #75 -- RCVMSG vs real-master + tap-induced FIFO overrun (May 16, 2026) — Medium
 
 Session 73e ended with phase 4c+ (real SNDMSG/RCVMSG) FAILing the

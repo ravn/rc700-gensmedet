@@ -80,13 +80,23 @@ SNIOS_PAYLOAD_BIN = $(BUILDDIR)/snios_payload.bin
 # incbin in prom1.asm.
 $(SNIOS_PAYLOAD_BIN): $(SRC)/snios_payload.asm
 	@mkdir -p $(BUILDDIR)
-	$(ZMAC) -z -o $(BUILDDIR)/snios_payload.cim --oo cim $(SRC)/snios_payload.asm
+	@# zmac quirk: --oo cim,lst with -o file doesn't refresh the .lst
+	@# (it generates only the named .cim and leaves zout/.lst stale).
+	@# Use --od to redirect ALL outputs to build/zout/, then cp the
+	@# .cim out -- this keeps the listing fresh for symbol extraction
+	@# (cpnos-polypascal-test awks kbd_head/kbd_ring out of it).
+	$(ZMAC) -z --od $(BUILDDIR)/zout $(SRC)/snios_payload.asm
+	@cp $(BUILDDIR)/zout/snios_payload.cim $(BUILDDIR)/snios_payload.cim
 	@cp $(BUILDDIR)/snios_payload.cim $(SNIOS_PAYLOAD_BIN)
 	@echo "snios_payload.bin: $$(wc -c < $(SNIOS_PAYLOAD_BIN) | tr -d ' ') B"
 
 $(PROM1_BIN): $(SRC)/prom1.asm $(BUILDDIR)/buildinfo.inc $(SNIOS_PAYLOAD_BIN)
 	@mkdir -p $(BUILDDIR)
-	$(ZMAC) -z -I $(BUILDDIR) -o $(BUILDDIR)/prom1.cim --oo cim $(SRC)/prom1.asm
+	@# Same --od trick as snios_payload: lets zmac emit the .lst so
+	@# downstream tools (and humans) can see fresh symbol addresses
+	@# without re-assembling.
+	$(ZMAC) -z -I $(BUILDDIR) --od $(BUILDDIR)/zout $(SRC)/prom1.asm
+	@cp $(BUILDDIR)/zout/prom1.cim $(BUILDDIR)/prom1.cim
 	@cp $(BUILDDIR)/prom1.cim $(PROM1_BIN)
 	@$(call PAD_TO_2048,$(PROM1_BIN))
 	@echo "prom1.bin: $$(wc -c < $(PROM1_BIN) | tr -d ' ') B"
@@ -373,6 +383,146 @@ cpnos-mpm-test: cpnos-mame-install _kill-mpm
 	@python3 tasks/verify_mpm_login_response.py $(MPM_SIOB) \
 	    && echo "PASS: real-master CP/NET LOGIN exchange verified" \
 	    || { echo "FAIL: mpm-net2 didn't reply correctly"; exit 1; }
+
+# PolyPascal end-to-end test (mirrors cpnos-in-c/cpnos-polypascal-test).
+# Drives the slave from boot prompt -> PPAS load -> R PRIMES.PAS -> Q,
+# checks /tmp/cpnos_asm_siob.raw for "29989" + two ">>" + two "E>"
+# markers.  Slave's impl_conin dequeues from kbd_ring (snios_payload),
+# the Lua harness writes keystrokes directly into ring via cpu memory
+# tap using addresses extracted at build time from the zmac listing
+# below.
+#
+# Long-running (~4 min wall-clock).  Hermetic: kills any stale cpmsim,
+# (re)starts mpm-net2 in screen, syncs ROMs to MAME_IRQ tree.
+MAME_IRQ      ?= $(CURDIR)/../../mame
+# Shared polypascal_test.lua hardcodes /tmp/cpnos_siob.raw and
+# /tmp/cpnos_polypascal_{result,log}.txt -- use the same paths.
+PPAS_SIOB     = /tmp/cpnos_siob.raw
+PPAS_RESULT   = /tmp/cpnos_polypascal_result.txt
+PPAS_LOG      = /tmp/cpnos_polypascal_log.txt
+# Lua does `dofile($COMPILER .. "/cpnos_polypascal_addrs.lua")` relative
+# to MAME's cwd, so the asm runner places its addrs file under asm/.
+PPAS_ADDRS    = $(CURDIR)/asm/cpnos_polypascal_addrs.lua
+
+.PHONY: cpnos-polypascal-test
+cpnos-polypascal-test: cpnos-mame-install _kill-mpm
+	@echo "=== 1/4 installing cpnos.com on mpm-net2 disks ==="
+	@$(MAKE) -C ../cpnos-in-c cpnos-disk-install \
+	    >/tmp/cpnos_asm_diskinstall.log 2>&1 \
+	    || { echo "ERROR: cpnos-disk-install failed; tail:"; \
+	         tail -20 /tmp/cpnos_asm_diskinstall.log; exit 1; }
+	@# cpnos-in-c's `cpnos-disk-install` (and its build chain) installs
+	@# cpnos-in-c's own roa375.ic66 + prom1.ic65 into $(MAME)/roms/rc702/,
+	@# clobbering the asm slave we just installed.  Force-restore ours.
+	@cp $(BUILDDIR)/prom0_padded.ic66 $(MAME)/roms/rc702/roa375.ic66
+	@cp $(PROM1_BIN) $(MAME)/roms/rc702/prom1.ic65
+	@echo "restored asm PROM0 + PROM1 after cpnos-in-c's install"
+	@# HARD rule: any PROM mismatch between $(BUILDDIR) and the MAME ROM
+	@# slot is an immediate build error -- a stale PROM in the slot means
+	@# we'd test the wrong build and the result would be misleading.
+	@cmp $(BUILDDIR)/prom0_padded.ic66 $(MAME)/roms/rc702/roa375.ic66 \
+	    || { echo "ERROR: $(MAME)/roms/rc702/roa375.ic66 differs from $(BUILDDIR)/prom0_padded.ic66"; \
+	         exit 1; }
+	@cmp $(PROM1_BIN) $(MAME)/roms/rc702/prom1.ic65 \
+	    || { echo "ERROR: $(MAME)/roms/rc702/prom1.ic65 differs from $(PROM1_BIN)"; \
+	         exit 1; }
+	@echo "=== 2/4 starting MP/M mpm-net2 in screen ==="
+	@if [ ! -x "$(MPM_DIR)/mpm-net2" ]; then \
+	    echo "ERROR: $(MPM_DIR)/mpm-net2 missing"; exit 1; \
+	 fi
+	@cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+	    if nc -z 127.0.0.1 4002 2>/dev/null; then break; fi; sleep 0.5; \
+	 done
+	@nc -z 127.0.0.1 4002 || { echo "ERROR: mpm-net2 didn't start"; exit 1; }
+	@sleep 2
+	@rm -f $(PPAS_SIOB) $(PPAS_RESULT) $(PPAS_LOG)
+	@echo "=== 3/4 generating $(PPAS_ADDRS) (kbd ring addrs from zmac listing) ==="
+	@mkdir -p $(dir $(PPAS_ADDRS))
+	@KH=$$(awk '/^kbd_head[ \t]+[0-9A-Fa-f]+/ {print $$2}' \
+	         $(BUILDDIR)/zout/snios_payload.lst); \
+	 KR=$$(awk '/^kbd_ring[ \t]+[0-9A-Fa-f]+/ {print $$2}' \
+	         $(BUILDDIR)/zout/snios_payload.lst); \
+	 [ -n "$$KH" ] && [ -n "$$KR" ] || { \
+	    echo "ERROR: kbd_head/kbd_ring missing from $(BUILDDIR)/zout/snios_payload.lst"; \
+	    exit 1; }; \
+	 printf 'return {\n  kbd_head = 0x%s,\n  kbd_ring = 0x%s,\n}\n' "$$KH" "$$KR" \
+	   > $(PPAS_ADDRS)
+	@cat $(PPAS_ADDRS)
+	@echo "=== 4/4 syncing ROMs to MAME_IRQ tree ==="
+	@if [ -d $(MAME_IRQ)/roms/rc702 ] && [ "$(MAME_IRQ)" != "$(MAME)" ]; then \
+	    cp $(MAME)/roms/rc702/roa375.ic66 $(MAME_IRQ)/roms/rc702/roa375.ic66; \
+	    cp $(MAME)/roms/rc702/prom1.ic65  $(MAME_IRQ)/roms/rc702/prom1.ic65; \
+	 fi
+	@echo "=== launching MAME with polypascal_test.lua (~240 s) ==="
+	-COMPILER=asm BUILDDIR=$(BUILDDIR) $(MAME_IRQ)/regnecentralend rc702 \
+	    -rompath $(MAME_IRQ)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run 240 \
+	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
+	    -rs232b null_modem -bitb2 $(PPAS_SIOB) \
+	    -snapname cpnos_asm_ppas \
+	    -autoboot_script $(SHARED)/mame/polypascal_test.lua \
+	    >/tmp/cpnos_asm_mame.log 2>&1
+	-@$(MAKE) _kill-mpm
+	@echo "--- polypascal-test log tail ---"
+	@tail -30 $(PPAS_LOG) 2>/dev/null || echo "(no log)"
+	@echo "--- SIO-B hex tail (last 256 B) ---"
+	@xxd $(PPAS_SIOB) 2>/dev/null | tail -16 || echo "(no SIO-B capture)"
+	@echo "--- result ---"
+	@cat $(PPAS_RESULT) 2>/dev/null || { echo "(no result file)"; exit 1; }
+	@grep -q '^PASS' $(PPAS_RESULT) 2>/dev/null
+
+# Diagnostic: run the slave against mpm-net2 (no keystrokes) and have
+# MAME's Lua dump CP/NOS memory structures at t=15/30/60 s.  Used to
+# diff the asm slave's runtime state against cpnos-in-c when SELDSK
+# errors out (NDOS Err 04, Func 0E).  Output: /tmp/cpnos_ndos_state.txt.
+.PHONY: cpnos-dsp-watch
+cpnos-dsp-watch: cpnos-mame-install _kill-mpm
+	@$(MAKE) -C ../cpnos-in-c cpnos-disk-install \
+	    >/tmp/cpnos_asm_diskinstall.log 2>&1 || true
+	@cp $(BUILDDIR)/prom0_padded.ic66 $(MAME)/roms/rc702/roa375.ic66
+	@cp $(PROM1_BIN) $(MAME)/roms/rc702/prom1.ic65
+	@cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+	    nc -z 127.0.0.1 4002 2>/dev/null && break; sleep 0.5; \
+	 done
+	@sleep 2
+	@rm -f /tmp/cpnos_dsp_watch.log /tmp/cpnos_siob.raw
+	-$(MAME_IRQ)/regnecentralend rc702 \
+	    -rompath $(MAME_IRQ)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run 20 \
+	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
+	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
+	    -autoboot_script $(SHARED)/mame/watch_dsp_corruption.lua \
+	    >/tmp/cpnos_asm_mame.log 2>&1
+	-@$(MAKE) _kill-mpm
+	@echo "--- dsp write-tap log (first 80 lines) ---"
+	@head -80 /tmp/cpnos_dsp_watch.log
+
+.PHONY: cpnos-ndos-dump
+cpnos-ndos-dump: cpnos-mame-install _kill-mpm
+	@$(MAKE) -C ../cpnos-in-c cpnos-disk-install \
+	    >/tmp/cpnos_asm_diskinstall.log 2>&1 || true
+	@cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+	    nc -z 127.0.0.1 4002 2>/dev/null && break; sleep 0.5; \
+	 done
+	@sleep 2
+	@rm -f /tmp/cpnos_ndos_state.txt /tmp/cpnos_siob.raw
+	-NDOS_CFGTBL=0xEF7E $(MAME_IRQ)/regnecentralend rc702 \
+	    -rompath $(MAME_IRQ)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run 65 \
+	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
+	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
+	    -autoboot_script $(SHARED)/mame/dump_ndos_state.lua \
+	    >/tmp/cpnos_asm_mame.log 2>&1
+	-@$(MAKE) _kill-mpm
+	@echo "--- ndos state dump ---"
+	@cat /tmp/cpnos_ndos_state.txt
+	@cp /tmp/cpnos_ndos_state.txt /tmp/cpnos_ndos_state.asm.txt
 
 cpnos-clean:
 	rm -rf $(BUILDDIR)
