@@ -47,3 +47,10 @@ print(
     f"master LOGIN response received: hdr={hdr.hex()} data={dat_section.hex()}; "
     f"DAT[0]=0x{dat_section[1]:02x} (0 = LOGIN OK)"
 )
+
+# Phase 3g: slave's decode_rx_frame should ALSO emit "LOGIN OK\r\n"
+# to SIO-B before the raw dump.  Verify it landed.
+if b"LOGIN OK\r\n" not in d[:i]:
+    print(f"FAIL: 'LOGIN OK\\r\\n' missing from SIO-B before the raw dump")
+    sys.exit(1)
+print("decoded 'LOGIN OK\\r\\n' present on SIO-B -- decode_rx_frame fired")

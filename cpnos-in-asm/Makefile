@@ -273,6 +273,15 @@ cpnos-cpnet-test: cpnos-mame-install
 	@echo "--- result ---"
 	@cat $(CPNET_RESULT) 2>/dev/null || { echo "no result file"; exit 1; }
 	@grep -q '^PASS' $(CPNET_RESULT)
+	@# Phase 3g: also verify the slave's decode_rx_frame emitted
+	@# "LOGIN OK\r\n" on SIO-B (the test captured SIO-B above).
+	@if grep -aq "LOGIN OK" /tmp/cpnos_asm_cpnet_siob.raw; then \
+	    echo "PASS: slave decoded LOGIN response and emitted 'LOGIN OK' on SIO-B"; \
+	 else \
+	    echo "FAIL: 'LOGIN OK' missing from SIO-B"; \
+	    xxd /tmp/cpnos_asm_cpnet_siob.raw | tail -3; \
+	    exit 1; \
+	 fi
 
 # End-to-end test against the real z80pack mpm-net2 master.
 # Slave's LOGIN frame (FNC=64, password "PASSWORD" for slave 0x01)

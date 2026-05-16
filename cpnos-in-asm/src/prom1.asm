@@ -277,7 +277,8 @@ combined_io_loop:
 	call	recv_cpnet_frame
 	or	a
 	jr	nz, combined_io_loop	; receive failed; back to idle
-	call	dump_rx_to_siob
+	call	decode_rx_frame		; phase 3g: emit decoded status on SIO-B
+	call	dump_rx_to_siob		; followed by raw 0xAA-bracketed dump
 	jr	combined_io_loop
 .sio_a_forward:
 	; Not an ENQ -- forward verbatim to SIO-B as before (phase 3d-α
@@ -716,6 +717,55 @@ recv_cpnet_frame:
 .recv_fail:
 	ld	a, 0xFF
 	ret
+
+; decode_rx_frame: phase 3g first slice -- after recv_cpnet_frame
+; succeeds, inspect rx_frame_buf and emit a human-readable status
+; line on SIO-B for recognised frames.  Currently handles ONE case:
+;
+;   FMT = 1 (response from master) AND FNC = 64 (LOGIN):
+;     DAT[0] = 0  -> emit "LOGIN OK\r\n"
+;     DAT[0] != 0 -> emit "LOGIN FAIL\r\n"
+;
+; Other frames: do nothing.  dump_rx_to_siob (called after this)
+; still prints the raw bytes wrapped in 0xAA markers, so unknown
+; frames remain visible for inspection.
+;
+; Clobbers: AF, BC, DE, HL.
+decode_rx_frame:
+	ld	a, (rx_frame_buf + 1)	; FMT
+	cp	1
+	ret	nz			; only handle responses
+	ld	a, (rx_frame_buf + 4)	; FNC
+	cp	64
+	ret	nz			; only handle LOGIN responses
+	ld	a, (rx_frame_buf + 8)	; DAT[0] = return code
+	or	a
+	jr	nz, .login_fail
+	ld	hl, msg_login_ok
+	ld	b, msg_login_ok_len
+	jp	sio_b_emit_string
+.login_fail:
+	ld	hl, msg_login_fail
+	ld	b, msg_login_fail_len
+	jp	sio_b_emit_string
+
+; sio_b_emit_string: HL = start of bytes, B = count.  Write each
+; byte to SIO-B polled.  Returns when count exhausted.
+sio_b_emit_string:
+.loop:
+	ld	d, (hl)
+	call	sio_b_tx_d
+	inc	hl
+	djnz	.loop
+	ret
+
+msg_login_ok:
+	db	"LOGIN OK", 0x0D, 0x0A
+msg_login_ok_len equ $ - msg_login_ok
+
+msg_login_fail:
+	db	"LOGIN FAIL", 0x0D, 0x0A
+msg_login_fail_len equ $ - msg_login_fail
 
 ; dump_rx_to_siob: write the most-recently-received frame to SIO-B
 ; for visibility.  Length = 12 + SIZ (header 7 + STX 1 + DAT SIZ+1
