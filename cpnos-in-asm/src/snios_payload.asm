@@ -70,10 +70,23 @@
 	.z80
 	org	0xED00
 
+PORT_SIO_A_DATA	equ	0x08
+PORT_SIO_A_CTRL	equ	0x0A
 PORT_SIO_B_DATA	equ	0x09
 PORT_SIO_B_CTRL	equ	0x0B
+SIO_RX_CHAR_AVAIL equ	0x01
 SIO_TX_BUF_EMPTY equ	0x04
 PORT_RAMEN	equ	0x18
+
+; CP/NET frame delimiter bytes (DRI CP/NET 1.2 / asynchronous wire
+; protocol, ASCII control codes).
+SOH		equ	0x01
+STX		equ	0x02
+ETX		equ	0x03
+EOT		equ	0x04
+ENQ		equ	0x05
+ACK		equ	0x06
+NAK		equ	0x15
 
 NDOS_ADDR	equ	0xDD80
 NDOS_COLDST	equ	0xDD83		; NDOS + 3 = `JMP COLDST` inside
@@ -331,19 +344,276 @@ snios_cnftbl:
 	ld	hl, cfgtbl
 	ret
 
+; ---- SNDMSG / RCVMSG (real) ----------------------------------------
+; NDOS calls these with BC = pointer to a 5-byte msg header followed
+; by SIZ+1 DAT bytes:
+;   BC+0: FMT    (0 = request, 1 = response)
+;   BC+1: DID    (destination -- 0 for master)
+;   BC+2: SID    (source -- our slaveid; we patch this in case NDOS
+;                 left it as 0xFF or a stale value)
+;   BC+3: FNC    (BDOS function code)
+;   BC+4: SIZ    (DAT length minus 1; range 0..0xFF -> 1..256 bytes)
+;   BC+5..      : DAT bytes
+;
+; DRI SNIOS return ABI (cpndos.prn line 0297-029B):
+;     sdmsge: call nios+9
+;             inr a            ; A++ -- if A was 0xFF, becomes 0 -> Z
+;             rnz              ; not-zero (= success or non-FF) returns
+;             jmp ndend        ; A was 0xFF -> transport error path
+; So return A = 0 for success, A = 0xFF for transport error (RCVMSG
+; identical convention).  Stub previously returned 0xFE which slipped
+; past `inr a` -> 0xFF -> rnz -> NDOS thought call succeeded but
+; msgbuf was unchanged, so the SrSr retry loop spun.
+
+; Working scratch RAM (post-PROM-disable, free area between cpnet_msg
+; buffer staging and display memory).  SNDMSG buffers the outbound
+; frame in cfgtbl.msgbuf -- already allocated, no extra BSS needed.
+; RCVMSG writes inbound bytes through the caller's (BC) pointer.
+
 snios_sndmsg:
-	; STUB: return transport error.  Phase 4c: wire real
-	; SIO-A send (HCS / STX / DAT / ETX / CKS / EOT framing)
-	; here, operating on msg pointer in BC.
 	ld	a, 'S'
 	call	emit_a
-	ld	a, 0xFE
+	; Save msg ptr; patch SID in caller's buffer to our slaveid.
+	push	bc
+	ld	h, b
+	ld	l, c			; HL = msg ptr
+	inc	hl			; +1 = DID
+	inc	hl			; +2 = SID
+	ld	a, (cfgtbl + 1)		; cfgtbl.slaveid
+	ld	(hl), a
+	pop	bc
+
+	; Phase 1: ENQ, wait for ACK.
+	ld	a, ENQ
+	call	snios_sio_a_tx_a
+	call	snios_wait_ack
+	jr	c, snios_sndmsg_fail
+
+	; Phase 2: SOH + 5-byte header + HCS.
+	ld	a, SOH
+	ld	e, a			; E = HCS accumulator (seeded with SOH)
+	call	snios_sio_a_tx_a
+	ld	h, b
+	ld	l, c			; HL = msg ptr (after pop)
+	ld	b, 5
+.sm_hdr:
+	ld	a, (hl)
+	call	snios_sio_a_tx_accum	; emit A, E += A
+	inc	hl
+	djnz	.sm_hdr
+	xor	a
+	sub	e
+	call	snios_sio_a_tx_a	; HCS = -sum (mod 256)
+	call	snios_wait_ack
+	jr	c, snios_sndmsg_fail
+
+	; Phase 3: STX + DAT[0..SIZ] + ETX + CKS + EOT.
+	; HL currently points at msg+5 (DAT[0]).  C = msg+5's low byte
+	; was lost; re-derive SIZ from msg+4.  Easier: backtrack HL by
+	; 1 to get SIZ at msg+4.
+	dec	hl			; -> SIZ
+	ld	a, (hl)			; A = SIZ
+	inc	hl			; -> DAT[0] again
+	ld	c, a
+	ld	b, 0
+	inc	bc			; BC = SIZ + 1 = DAT byte count
+	ld	a, STX
+	ld	e, a			; CKS seed
+	call	snios_sio_a_tx_a
+.sm_dat:
+	ld	a, (hl)
+	call	snios_sio_a_tx_accum
+	inc	hl
+	dec	bc
+	ld	a, b
+	or	c
+	jr	nz, .sm_dat
+	ld	a, ETX
+	call	snios_sio_a_tx_accum
+	xor	a
+	sub	e
+	call	snios_sio_a_tx_a	; CKS
+	ld	a, EOT
+	call	snios_sio_a_tx_a
+	call	snios_wait_ack
+	jr	c, snios_sndmsg_fail
+	xor	a			; A = 0 = success
 	ret
+
+snios_sndmsg_fail:
+	ld	a, 0xFF			; transport error
+	ret
+
+; Persistent slot for caller's msg pointer during RCVMSG.  Lives in
+; the snios_payload's RAM region after CFGTBL so the LDIR carries it
+; into RAM at handoff.  Initialized to 0 each call.
+snios_msg_ptr:
+	dw	0
 
 snios_rcvmsg:
 	ld	a, 'r'
 	call	emit_a
-	ld	a, 0xFE
+	; Save caller msg ptr (BC) for both phases.
+	ld	(snios_msg_ptr), bc
+
+	; Wait for master's ENQ.
+	call	snios_sio_a_rx_to
+	jp	c, snios_rcvmsg_fail
+	and	0x7F
+	cp	ENQ
+	jp	nz, snios_rcvmsg_fail
+	; ACK the ENQ.
+	ld	a, ACK
+	call	snios_sio_a_tx_a
+
+	; Phase 2: receive SOH + 5-byte header + HCS.  SOH goes into a
+	; 1-byte scratch slot (msg[-1] is reserved by NDOS as msgtop and
+	; we shouldn't write there).  Remaining 6 bytes (FMT, DID, SID,
+	; FNC, SIZ, HCS) land at msg[0..5] -- the HCS spills into msg[5]
+	; which gets overwritten by DAT[0] in Phase 3 (matches PROM1's
+	; original recv_cpnet_msg pattern).
+	call	snios_sio_a_rx_to
+	jp	c, snios_rcvmsg_fail
+	ld	(snios_rx_soh), a
+	ld	e, a			; HCS accumulator seeded with SOH
+	ld	hl, (snios_msg_ptr)
+	ld	b, 6
+.rm_hdr:
+	call	snios_sio_a_rx_to
+	jp	c, snios_rcvmsg_fail
+	ld	(hl), a
+	inc	hl
+	add	a, e
+	ld	e, a
+	djnz	.rm_hdr
+	; Validate SOH and HCS sum = 0 (mod 256).
+	ld	a, (snios_rx_soh)
+	cp	SOH
+	jp	nz, snios_rcvmsg_fail
+	ld	a, e
+	or	a
+	jp	nz, snios_rcvmsg_fail
+	; ACK the header.
+	ld	a, ACK
+	call	snios_sio_a_tx_a
+
+	; Phase 3: receive STX + DAT[0..SIZ] + ETX + CKS + EOT.  HL is
+	; at msg+6 now (one past HCS).  Re-derive msg ptr (msg + 5) =
+	; DAT[0] location.  SIZ lives at msg+4.
+	ld	hl, (snios_msg_ptr)
+	push	hl
+	inc	hl
+	inc	hl
+	inc	hl
+	inc	hl			; HL = msg + 4 = SIZ
+	ld	a, (hl)			; A = SIZ
+	inc	hl			; HL = msg + 5 = DAT[0]
+	ld	c, a
+	ld	b, 0
+	inc	bc			; BC = SIZ + 1 = DAT byte count
+
+	; Expect STX first.
+	call	snios_sio_a_rx_to
+	jp	c, snios_rcvmsg_fail_pop
+	cp	STX
+	jp	nz, snios_rcvmsg_fail_pop
+	ld	e, a			; CKS seed
+.rm_dat:
+	call	snios_sio_a_rx_to
+	jp	c, snios_rcvmsg_fail_pop
+	ld	(hl), a
+	inc	hl
+	add	a, e
+	ld	e, a
+	dec	bc
+	ld	a, b
+	or	c
+	jr	nz, .rm_dat
+	; ETX
+	call	snios_sio_a_rx_to
+	jp	c, snios_rcvmsg_fail_pop
+	cp	ETX
+	jp	nz, snios_rcvmsg_fail_pop
+	add	a, e
+	ld	e, a
+	; CKS
+	call	snios_sio_a_rx_to
+	jp	c, snios_rcvmsg_fail_pop
+	add	a, e
+	or	a
+	jp	nz, snios_rcvmsg_fail_pop
+	; EOT
+	call	snios_sio_a_rx_to
+	jp	c, snios_rcvmsg_fail_pop
+	cp	EOT
+	jp	nz, snios_rcvmsg_fail_pop
+	pop	hl
+	; Final ACK.
+	ld	a, ACK
+	call	snios_sio_a_tx_a
+	xor	a
+	ret
+
+snios_rcvmsg_fail_pop:
+	pop	hl
+snios_rcvmsg_fail:
+	ld	a, 0xFF
+	ret
+
+; Scratch slot for received SOH byte (one byte, persistent across
+; the RCVMSG header phase).
+snios_rx_soh:
+	db	0
+
+; SIO-A polled TX (RAM-resident equivalent of PROM1's sio_a_tx_d).
+; Send A on SIO-A; preserves A, E, HL, BC.
+snios_sio_a_tx_a:
+	push	af
+.satx_w:
+	in	a, (PORT_SIO_A_CTRL)
+	and	SIO_TX_BUF_EMPTY
+	jr	z, .satx_w
+	pop	af
+	out	(PORT_SIO_A_DATA), a
+	ret
+
+; Send A on SIO-A and add A to E (HCS / CKS accumulator).
+snios_sio_a_tx_accum:
+	call	snios_sio_a_tx_a
+	add	a, e
+	ld	e, a
+	ret
+
+; SIO-A polled RX with coarse timeout.  CF=0 + A=byte on success;
+; CF=1 on timeout.  Preserves DE, HL.
+snios_sio_a_rx_to:
+	push	bc
+	ld	bc, 40000
+.srx_p:
+	in	a, (PORT_SIO_A_CTRL)
+	and	SIO_RX_CHAR_AVAIL
+	jr	nz, .srx_r
+	dec	bc
+	ld	a, b
+	or	c
+	jr	nz, .srx_p
+	pop	bc
+	scf
+	ret
+.srx_r:
+	in	a, (PORT_SIO_A_DATA)
+	pop	bc
+	or	a
+	ret
+
+; Wait for ACK on SIO-A.  CF=0 on ACK; CF=1 on timeout or non-ACK.
+snios_wait_ack:
+	call	snios_sio_a_rx_to
+	ret	c
+	and	0x7F
+	cp	ACK
+	ret	z
+	scf
 	ret
 
 snios_ntwker:
@@ -361,21 +631,63 @@ snios_ntwkdn:
 	call	emit_a
 	ret
 
-; ---- CFGTBL (DRI CP/NET v1.2 minimal) ------------------------------
+; ---- CFGTBL (DRI CP/NET v1.2) --------------------------------------
+; Structure layout (cpnos-shared/include/cfgtbl.h):
+;   +0    netst     network status (set to ACTIVE at runtime)
+;   +1    slaveid   our slave ID (RC702 = 0x01)
+;   +2..  drive[16] 16x uint16: lo = flags, hi = master slave ID
+;          flag.bit7 = 1  -> network drive (vs local)
+;          flag.bit6 = 0  -> "valid"        (forall walks this)
+;          flag low nibble = master drive letter offset (A=0 .. P=15)
+;   +34   console
+;   +36   list
+;   ...
+;
+; CP/NOS has NO LOCAL DISKS (user clarification 2026-05-16): all
+; drives MUST be flagged network so NDOSE routes BDOS file calls
+; through SNDMSG/RCVMSG.  Map slave drives A:..P: 1:1 onto master
+; drives A:..P: with master slave ID = 0x00 (the MP/M master).
+;
 ; cpnos.com NDOS COLDST calls snios_cnftbl, gets HL = cfgtbl, does
-; `inx h; shld contad` -- so contad = cfgtbl + 1 = the SID slot
-; address.  NDOS uses contad later to read SLAVEID, ROUTE entries,
-; etc.  Only slaveid is set; everything else stays zero until NDOS
-; exercises it.
+; `inx h; shld contad` -- so contad = cfgtbl + 1 = the slaveid slot.
+; chkdsk(disk D) then reads byte at cfgtbl + 2 + 2*D.  With 0x80
+; the top bit signals "network" and the low nibble (0..15) maps
+; to master drive A..P.  Second byte (cfgtbl + 3 + 2*D) is master
+; slave ID (= 0 for the MP/M master).
 cfgtbl:
-	db	0x01			; +00  slaveid (RC702_SLAVEID)
-	; 63 zero bytes (pad to 64 B total).  zmac's `ds N, 0`
-	; raises a Value error here regardless of expression form;
-	; use explicit db list (same workaround as prom0.asm /
-	; prom1.asm).
+	db	0x00			; +00  netst     (NDOS sets at NTWKIN)
+	db	0x01			; +01  slaveid   RC702_SLAVEID
+	; +02..+33  drive[0..15]:  {flags, master_slave}
+	;   flags = 0x80 | (drive_letter_offset & 0x0F)
+	;   A->A: 0x80,00   B->B: 0x81,00  ...  P->P: 0x8F,00
+	db	0x80, 0x00		; A:
+	db	0x81, 0x00		; B:
+	db	0x82, 0x00		; C:
+	db	0x83, 0x00		; D:
+	db	0x84, 0x00		; E:
+	db	0x85, 0x00		; F:
+	db	0x86, 0x00		; G:
+	db	0x87, 0x00		; H:
+	db	0x88, 0x00		; I:
+	db	0x89, 0x00		; J:
+	db	0x8A, 0x00		; K:
+	db	0x8B, 0x00		; L:
+	db	0x8C, 0x00		; M:
+	db	0x8D, 0x00		; N:
+	db	0x8E, 0x00		; O:
+	db	0x8F, 0x00		; P:
+	; +34..+38  console, list, bufidx -- left zero (NDOS sets at runtime)
+	db	0,0,0,0,0
+	; +39..+43  fmt, did, sid, fnc, siz -- outbound msg fields, NDOS sets
+	db	0,0,0,0,0
+	; +44       msg0
+	db	0
+	; +45..+63 (msgbuf head, first 19 bytes only; NDOS uses up to
+	; +172).  Keep cfgtbl small enough that the whole snios_payload
+	; INCBIN fits in PROM1; NDOS won't read past +43 in COLDST
+	; before SNDMSG/RCVMSG actually do anything with msgbuf.
+	; If a longer scratch area is later needed, expand here.
 	db	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
-	db	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
-	db	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
-	db	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0
+	db	0,0,0
 
 	end	handoff_entry
