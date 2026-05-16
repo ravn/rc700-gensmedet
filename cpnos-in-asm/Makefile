@@ -439,9 +439,13 @@ cpnos-polypascal-test: cpnos-mame-install _kill-mpm
 	@rm -f $(PPAS_SIOB) $(PPAS_RESULT) $(PPAS_LOG)
 	@echo "=== 3/4 generating $(PPAS_ADDRS) (kbd ring addrs from zmac listing) ==="
 	@mkdir -p $(dir $(PPAS_ADDRS))
-	@KH=$$(awk '/^kbd_head[ \t]+[0-9A-Fa-f]+/ {print $$2}' \
+	@# zmac formats labels as `name<spaces>ADDR<spaces>DEC`; equ-defined
+	@# constants come out as `name<spaces>=ADDR<spaces>DEC` (= leading the
+	@# address).  Match either form so the bare-RAM kbd_head/kbd_ring
+	@# equs we now use still get picked up.
+	@KH=$$(awk '/^kbd_head[ \t]+=?[0-9A-Fa-f]+/ {sub(/=/,"",$$2); print $$2}' \
 	         $(BUILDDIR)/zout/snios_payload.lst); \
-	 KR=$$(awk '/^kbd_ring[ \t]+[0-9A-Fa-f]+/ {print $$2}' \
+	 KR=$$(awk '/^kbd_ring[ \t]+=?[0-9A-Fa-f]+/ {sub(/=/,"",$$2); print $$2}' \
 	         $(BUILDDIR)/zout/snios_payload.lst); \
 	 [ -n "$$KH" ] && [ -n "$$KR" ] || { \
 	    echo "ERROR: kbd_head/kbd_ring missing from $(BUILDDIR)/zout/snios_payload.lst"; \

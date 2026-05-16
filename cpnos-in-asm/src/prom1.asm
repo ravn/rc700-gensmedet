@@ -274,6 +274,20 @@ init_loop:
 	; framebuffer is no longer wired to the CRT; the TPA region from
 	; 0x7A00 upward is free for cpnos.com / NDOS / programs.
 
+	; LDIR snios_payload to RAM at 0xED00 EARLY -- before the netboot
+	; CP/NET transaction loop -- so do_netboot can call snios_sndmsg /
+	; snios_rcvmsg at their fixed entry points (0xED3C / 0xED3F)
+	; instead of carrying duplicate send_cpnet_msg / recv_cpnet_msg
+	; implementations here in PROM-only code.  Saves ~400 B by
+	; collapsing the two copies into one resident pair.  Safe at this
+	; point: RAM at 0xED00+ is plain RAM (PROM overlay only at PROM0 /
+	; PROM1 sockets), and the LDIR source bytes live in PROM1 at the
+	; snios_payload_blob INCBIN.
+	ld	hl, snios_payload_blob
+	ld	de, 0xED00
+	ld	bc, snios_payload_blob_end - snios_payload_blob
+	ldir
+
 	; Clear display memory to spaces.  LDIR-from-self idiom.
 	ld	hl, 0xF800
 	ld	(hl), 0x20
@@ -347,22 +361,12 @@ sio_tx_wait:
 	ld	d, 0x0A
 	call	conout
 
-	; Phase 4b handoff: copy the SNIOS payload (BIOS JT at
-	; 0xED00 + SNIOS JT at 0xED33 + trampoline at 0xED4B + impls
-	; + CFGTBL) from PROM1 to its runtime address, then JP into
-	; the trampoline.  Once the trampoline's OUT (0x18), A
-	; executes, PROM1 is unmapped -- which is fine because we're
-	; now running in RAM.
-	;
-	; handoff_entry address = 0xED4B = 0xED00 + sizeof(BIOS_JT
-	; = 51 B) + sizeof(SNIOS_JT = 24 B).  Kept in sync with
-	; snios_payload.asm's layout; if the JTs ever grow/shrink,
-	; this literal must move.  (Better: have prom1 read a fixed
-	; "entry vector" word at 0xED00 -- deferred.)
-	ld	hl, snios_payload_blob
-	ld	de, 0xED00
-	ld	bc, snios_payload_blob_end - snios_payload_blob
-	ldir
+	; Phase 4b handoff.  snios_payload is already in RAM at 0xED00
+	; (LDIR'd at the top of slave_entry so do_netboot could call
+	; snios_sndmsg / snios_rcvmsg in resident form).  Just jump to
+	; the trampoline.  handoff_entry @ 0xED4B = 0xED00 + 51 B
+	; BIOS-JT + 24 B SNIOS-JT.  Kept in sync with snios_payload.asm
+	; layout; if the JTs ever grow/shrink, this literal must move.
 	jp	0xED4B
 
 .netboot_fail:
@@ -382,47 +386,16 @@ sio_tx_wait:
 	; Whichever has a byte is serviced; loop continues.  Slave never
 	; returns from this loop.
 combined_io_loop:
-	in	a, (PORT_SIO_A_CTRL)
-	and	SIO_RX_CHAR_AVAIL
-	jr	z, .check_sio_b
-	in	a, (PORT_SIO_A_DATA)
-	ld	c, a
-	; ENQ (0x05) from the master kicks off the receive-direction
-	; state machine; mask bit 7 per spec (control bytes are
-	; compared 7-bit so parity-stripping transports survive).
-	and	0x7F
-	cp	ENQ
-	jr	nz, .sio_a_forward
-	call	recv_cpnet_frame
-	or	a
-	jr	nz, combined_io_loop	; receive failed; back to idle
-	call	decode_rx_frame		; phase 3g: emit decoded status on SIO-B
-	call	dump_rx_to_siob		; followed by raw 0xAA-bracketed dump
-	jr	combined_io_loop
-.sio_a_forward:
-	; Not an ENQ -- forward verbatim to SIO-B as before (phase 3d-α
-	; behavior).  Useful for catching stray bytes / late ACKs.
-.sio_a_to_b_wait:
-	in	a, (PORT_SIO_B_CTRL)
-	and	SIO_TX_BUF_EMPTY
-	jr	z, .sio_a_to_b_wait
-	ld	a, c
-	out	(PORT_SIO_B_DATA), a
-	jr	combined_io_loop
-
-.check_sio_b:
-	in	a, (PORT_SIO_B_CTRL)
-	and	SIO_RX_CHAR_AVAIL
-	jr	z, combined_io_loop
-	in	a, (PORT_SIO_B_DATA)
-	ld	c, a
-.sio_b_echo_wait:
-	in	a, (PORT_SIO_B_CTRL)
-	and	SIO_TX_BUF_EMPTY
-	jr	z, .sio_b_echo_wait
-	ld	a, c
-	out	(PORT_SIO_B_DATA), a
-	jr	combined_io_loop
+	; Netboot-fail fallback.  Originally a SIO-A-to-SIO-B forward +
+	; recv/decode/dump CP/NET frames for bring-up debugging
+	; (~200 B).  Replaced with halt: when netboot fails we have no
+	; useful state to maintain and PROM space is more valuable than
+	; the diagnostic loop.  Operator sees "FETCH FAIL" on SIO-B and
+	; the slave goes quiet.
+	di
+.cil_halt:
+	halt
+	jr	.cil_halt
 
 ; ---- Init port table ------------------------------------------------
 ; Display relocate (8275 stop + CTC ch2 quiet + DMA ch2 -> 0xF800
@@ -537,192 +510,42 @@ NAK		equ	0x15		; Negative Acknowledge
 ; cpnet_msg.  Returns A = response DAT[0] (BDOS return code) when
 ; CF = 0; CF = 1 indicates transport failure.
 
-; send_cpnet_msg: emit cpnet_msg as a single CP/NET frame on SIO-A
-; with full ENQ/ACK handshake.  No retry here -- caller (cpnet_xact)
-; can re-call up to MAXRETRY times if it wants.
-; Returns CF = 0 on success, CF = 1 on any timeout / non-ACK.
-; Clobbers: AF, BC, DE, HL.
-send_cpnet_msg:
-	; Phase 1: ENQ, wait for ACK
-	ld	d, ENQ
-	call	sio_a_tx_d
-	call	cpnet_wait_ack
-	ret	c
+; (send_cpnet_msg + recv_cpnet_msg removed -- snios_payload now sits
+; in RAM at 0xED00 before do_netboot runs, so the same primitives are
+; available at fixed entry points snios_sndmsg = 0xED3C and
+; snios_rcvmsg = 0xED3F.  Saved ~430 B vs carrying duplicate prom1
+; copies.  The remaining sio_a_tx_d / sio_a_rx_with_timeout / cpnet_
+; wait_ack helpers are still used by recv_cpnet_frame in the
+; combined_io_loop fallback below.)
 
-	; Phase 2: SOH + 5-byte header + HCS
-	ld	d, SOH
-	ld	e, SOH			; HCS accumulator seed
-	call	sio_a_tx_d
-	ld	hl, cpnet_msg
-	ld	b, 5
-.sm_hdr:
-	ld	d, (hl)
-	call	sio_a_tx_d_accum
-	inc	hl
-	djnz	.sm_hdr
-	xor	a
-	sub	e
-	ld	d, a
-	call	sio_a_tx_d		; HCS
-	call	cpnet_wait_ack
-	ret	c
+SNIOS_SNDMSG	equ	0xED3C		; resident SNIOS jt slot 3
+SNIOS_RCVMSG	equ	0xED3F		; resident SNIOS jt slot 4
 
-	; Phase 3: STX + DAT[0..SIZ] + ETX + CKS + EOT
-	ld	d, STX
-	ld	e, STX			; CKS accumulator seed
-	call	sio_a_tx_d
-	; BC = SIZ + 1 (data length, 1..256)
-	ld	a, (cpnet_msg + MSG_SIZ)
-	ld	c, a
-	ld	b, 0
-	inc	bc
-	ld	hl, cpnet_msg + MSG_DAT
-.sm_dat:
-	ld	d, (hl)
-	call	sio_a_tx_d_accum
-	inc	hl
-	dec	bc
-	ld	a, b
-	or	c
-	jr	nz, .sm_dat
-	ld	d, ETX
-	call	sio_a_tx_d_accum
-	xor	a
-	sub	e
-	ld	d, a
-	call	sio_a_tx_d		; CKS
-	ld	d, EOT
-	call	sio_a_tx_d		; EOT (raw, not in CKS)
-	jp	cpnet_wait_ack		; tail-call wait for final ACK
-
-; recv_cpnet_msg: receive a response from master into cpnet_msg.
-; Waits for master's ENQ on SIO-A (with timeout), runs the full
-; 3-step handshake mirroring recv_cpnet_frame but writing into the
-; cpnet_msg layout (SOH lands at cpnet_msg - 1, FMT at cpnet_msg + 0,
-; etc.).  After success cpnet_msg.SIZ tells the size of DAT.
-; Returns CF = 0 on success, CF = 1 on failure.
-; Clobbers: AF, BC, DE, HL.
-recv_cpnet_msg:
-	; Wait for the master's ENQ.  Per CP/NET 1.2 the slave waits
-	; with TMRETRY-bounded retry here; we use a single longer
-	; timeout (the rx primitive's default).
-	call	sio_a_rx_with_timeout
-	ret	c
-	and	0x7F
-	cp	ENQ
-	scf
-	ret	nz
-
-	; ACK the ENQ
-	ld	d, ACK
-	call	sio_a_tx_d
-
-	; Read 7 bytes (SOH + 5-byte header + HCS) into cpnet_msg-1
-	; .. cpnet_msg+5 so MSG_FMT/DID/SID/FNC/SIZ land at their named
-	; offsets and the trailing HCS spills into cpnet_msg + 5 (will
-	; be overwritten by DAT[0] in the next phase -- fine, SIZ has
-	; already been read).
-	ld	hl, cpnet_msg - 1
-	ld	b, 7
-	ld	e, 0
-.rm_hdr:
-	call	sio_a_rx_with_timeout
-	jp	c, .rm_fail
-	ld	(hl), a
-	inc	hl
-	add	a, e
-	ld	e, a
-	djnz	.rm_hdr
-
-	; Validate SOH at cpnet_msg-1 and HCS sum == 0 mod 256
-	ld	a, (cpnet_msg - 1)
-	cp	SOH
-	jr	nz, .rm_nak
-	ld	a, e
-	or	a
-	jr	nz, .rm_nak
-
-	; ACK the header
-	ld	d, ACK
-	call	sio_a_tx_d
-
-	; Compute data-section length = SIZ + 1 in BC
-	ld	a, (cpnet_msg + MSG_SIZ)
-	ld	c, a
-	ld	b, 0
-	inc	bc
-
-	; Read STX into cpnet_msg + 5 (overwriting the leftover HCS).
-	; This is the start of the DAT bytes: STX seeds CKS accumulator
-	; in E.
-	call	sio_a_rx_with_timeout
-	jp	c, .rm_fail
-	cp	STX
-	jr	nz, .rm_nak
-	ld	e, a
-
-	; Read SIZ+1 DAT bytes into cpnet_msg + 5..
-	ld	hl, cpnet_msg + MSG_DAT
-.rm_dat:
-	call	sio_a_rx_with_timeout
-	jp	c, .rm_fail
-	ld	(hl), a
-	inc	hl
-	add	a, e
-	ld	e, a
-	dec	bc
-	ld	a, b
-	or	c
-	jr	nz, .rm_dat
-
-	; Read ETX
-	call	sio_a_rx_with_timeout
-	jp	c, .rm_fail
-	cp	ETX
-	jr	nz, .rm_nak
-	add	a, e
-	ld	e, a
-
-	; Read CKS; sum + CKS must be 0
-	call	sio_a_rx_with_timeout
-	jp	c, .rm_fail
-	add	a, e
-	jr	nz, .rm_nak
-
-	; Read EOT
-	call	sio_a_rx_with_timeout
-	jp	c, .rm_fail
-	cp	EOT
-	jr	nz, .rm_nak
-
-	; Send final ACK
-	ld	d, ACK
-	call	sio_a_tx_d
-	or	a			; CF = 0
-	ret
-
-.rm_nak:
-	ld	d, NAK
-	call	sio_a_tx_d
-.rm_fail:
-	scf
-	ret
-
-; cpnet_xact: fill FMT/DID/SID, send, receive response.  Caller has
-; already set MSG_FNC + MSG_SIZ + MSG_DAT.  Returns A = response
-; DAT[0] when CF = 0; CF = 1 on transport failure.
+; cpnet_xact: fill FMT/DID, run sndmsg+rcvmsg through the resident
+; SNIOS routines.  Caller has already set MSG_FNC + MSG_SIZ + MSG_DAT.
+; Returns A = response DAT[0] (= BDOS retcode) with CF=0 on success;
+; CF=1 on transport failure.  Clobbers: AF, BC, DE, HL.
+;
+; snios_sndmsg / snios_rcvmsg own the SID rewrite (they patch from
+; cfgtbl.slaveid, which is already 0x01 in the resident cfgtbl image)
+; and return A=0 success, A=0xFF transport error -- mapped to CF here.
 cpnet_xact:
 	xor	a
 	ld	(cpnet_msg + MSG_FMT), a
 	ld	(cpnet_msg + MSG_DID), a
-	ld	a, 0x01			; RC702_SLAVEID
-	ld	(cpnet_msg + MSG_SID), a
-	call	send_cpnet_msg
-	ret	c
-	call	recv_cpnet_msg
-	ret	c
+	ld	bc, cpnet_msg
+	call	SNIOS_SNDMSG
+	inc	a			; 0xFF -> 0 (Z); 0 -> 1 (NZ)
+	jr	z, .cx_fail
+	ld	bc, cpnet_msg
+	call	SNIOS_RCVMSG
+	inc	a
+	jr	z, .cx_fail
 	ld	a, (cpnet_msg + MSG_DAT)
-	or	a			; CF = 0; Z based on A
+	or	a			; CF = 0; Z reflects A
+	ret
+.cx_fail:
+	scf
 	ret
 
 ; ============================================================
@@ -1093,165 +916,11 @@ sio_b_tx_d:
 	out	(PORT_SIO_B_DATA), a
 	ret
 
-; recv_cpnet_frame: caller has already consumed an ENQ on SIO-A.
-; Run the master-to-slave receive sequence per CP/NET 1.2:
-;
-;     master: ENQ                                    [already consumed]
-;     slave:  ACK
-;     master: SOH FMT DID SID FNC SIZ HCS            7 bytes
-;     slave:  ACK if HCS valid, NAK otherwise
-;     master: STX DAT[0..SIZ] ETX CKS EOT            5 + SIZ+1 bytes
-;     slave:  ACK if CKS valid + EOT correct
-;
-; Frame is written byte-by-byte into rx_frame_buf in on-wire order:
-;   off  0     SOH
-;   off  1..5  FMT DID SID FNC SIZ
-;   off  6     HCS
-;   off  7     STX
-;   off  8..   DAT
-;   off  8+SIZ ETX
-;   off  9+SIZ CKS
-;   off 10+SIZ EOT
-;
-; Returns:
-;   A = 0    success; rx_frame_buf holds a complete validated frame
-;   A = 0xFF failure at any step (timeout, bad SOH/STX/ETX/EOT, bad
-;            HCS, bad CKS).  Master may retry via another ENQ.
-; Clobbers: AF, BC, DE, HL.
-recv_cpnet_frame:
-	; Acknowledge the master's ENQ.
-	ld	d, ACK
-	call	sio_a_tx_d
+; (recv_cpnet_frame / decode_rx_frame / dump_rx_to_siob removed --
+; they were used only by combined_io_loop's CP/NET-bring-up fallback,
+; and that loop is now a `halt` on netboot failure.  Saved ~250 B.)
 
-	; Receive 7 bytes (SOH + 5 header + HCS) into rx_frame_buf[0..6].
-	; Accumulate the sum in E; on valid HCS the sum mod 256 is 0.
-	ld	hl, rx_frame_buf
-	ld	b, 7
-	ld	e, 0
-.hdr_rx:
-	call	sio_a_rx_with_timeout
-	jr	c, .recv_fail
-	ld	(hl), a
-	inc	hl
-	add	a, e
-	ld	e, a
-	djnz	.hdr_rx
-
-	; Validate SOH at offset 0.
-	ld	a, (rx_frame_buf)
-	cp	SOH
-	jr	nz, .recv_send_nak
-
-	; Validate HCS: sum must be 0 mod 256.
-	ld	a, e
-	or	a
-	jr	nz, .recv_send_nak
-
-	; Send ACK to the header.
-	ld	d, ACK
-	call	sio_a_tx_d
-
-	; Compute data-section length = SIZ + 1 in BC.  SIZ=255 -> 256.
-	ld	a, (rx_frame_buf + 5)
-	ld	c, a
-	ld	b, 0
-	inc	bc			; BC = SIZ + 1; for SIZ=0xFF, BC = 0x0100 = 256
-
-	; Receive STX into rx_frame_buf[7]; seed CKS accumulator with it.
-	; HL still points just past the HCS (rx_frame_buf + 7).
-	call	sio_a_rx_with_timeout
-	jr	c, .recv_fail
-	ld	(hl), a
-	cp	STX
-	jr	nz, .recv_send_nak
-	inc	hl
-	ld	e, a			; E = STX seed for CKS
-
-	; Read SIZ+1 DAT bytes; accumulate into E.
-.dat_rx:
-	call	sio_a_rx_with_timeout
-	jr	c, .recv_fail
-	ld	(hl), a
-	inc	hl
-	add	a, e
-	ld	e, a
-	dec	bc
-	ld	a, b
-	or	c
-	jr	nz, .dat_rx
-
-	; Read ETX; accumulate.
-	call	sio_a_rx_with_timeout
-	jr	c, .recv_fail
-	ld	(hl), a
-	cp	ETX
-	jr	nz, .recv_send_nak
-	inc	hl
-	add	a, e
-	ld	e, a
-
-	; Read CKS; on valid checksum the accumulator + CKS == 0 mod 256.
-	call	sio_a_rx_with_timeout
-	jr	c, .recv_fail
-	ld	(hl), a
-	add	a, e
-	jr	nz, .recv_send_nak	; CKS invalid
-	; Store CKS happened above already via ld (hl), a; advance HL.
-	inc	hl
-
-	; Read EOT.
-	call	sio_a_rx_with_timeout
-	jr	c, .recv_fail
-	ld	(hl), a
-	cp	EOT
-	jr	nz, .recv_send_nak
-
-	; Frame valid.  Send final ACK and return success.
-	ld	d, ACK
-	call	sio_a_tx_d
-	xor	a			; A = 0 -> success
-	ret
-
-.recv_send_nak:
-	ld	d, NAK
-	call	sio_a_tx_d
-.recv_fail:
-	ld	a, 0xFF
-	ret
-
-; decode_rx_frame: phase 3g first slice -- after recv_cpnet_frame
-; succeeds, inspect rx_frame_buf and emit a human-readable status
-; line on SIO-B for recognised frames.  Currently handles ONE case:
-;
-;   FMT = 1 (response from master) AND FNC = 64 (LOGIN):
-;     DAT[0] = 0  -> emit "LOGIN OK\r\n"
-;     DAT[0] != 0 -> emit "LOGIN FAIL\r\n"
-;
-; Other frames: do nothing.  dump_rx_to_siob (called after this)
-; still prints the raw bytes wrapped in 0xAA markers, so unknown
-; frames remain visible for inspection.
-;
-; Clobbers: AF, BC, DE, HL.
-decode_rx_frame:
-	ld	a, (rx_frame_buf + 1)	; FMT
-	cp	1
-	ret	nz			; only handle responses
-	ld	a, (rx_frame_buf + 4)	; FNC
-	cp	64
-	ret	nz			; only handle LOGIN responses
-	ld	a, (rx_frame_buf + 8)	; DAT[0] = return code
-	or	a
-	jr	nz, .login_fail
-	ld	hl, msg_login_ok
-	ld	b, msg_login_ok_len
-	jp	sio_b_emit_string
-.login_fail:
-	ld	hl, msg_login_fail
-	ld	b, msg_login_fail_len
-	jp	sio_b_emit_string
-
-; sio_b_emit_string: HL = start of bytes, B = count.  Write each
-; byte to SIO-B polled.  Returns when count exhausted.
+; sio_b_emit_string: HL = start of bytes, B = count.
 sio_b_emit_string:
 .loop:
 	ld	d, (hl)
@@ -1275,45 +944,6 @@ msg_fetch_ok_len equ $ - msg_fetch_ok
 msg_fetch_fail:
 	db	0x0D, 0x0A, "FETCH FAIL", 0x0D, 0x0A
 msg_fetch_fail_len equ $ - msg_fetch_fail
-
-; dump_rx_to_siob: write the most-recently-received frame to SIO-B
-; for visibility.  Length = 12 + SIZ (header 7 + STX 1 + DAT SIZ+1
-; + ETX 1 + CKS 1 + EOT 1).  Just streams the bytes raw -- the
-; operator hex-dumps the SIO-B capture file to inspect.  Wraps
-; the output in a 0xAA marker byte on each side so the dump is
-; distinguishable from forwarded raw bytes.
-dump_rx_to_siob:
-	ld	a, (rx_frame_buf + 5)	; SIZ
-	add	a, 12			; 12 + SIZ = total length (max 267)
-	jr	c, .dump_long		; SIZ = 0xF4..0xFF wraps
-	ld	c, a
-	jr	.dump_have_count
-.dump_long:
-	; SIZ + 12 >= 256.  Use 16-bit count.
-	; A holds the low byte (SIZ + 12 mod 256); B will be 1.
-	ld	c, a
-	ld	b, 1
-	jr	.dump_loop_16
-.dump_have_count:
-	ld	b, 0
-.dump_loop_16:
-	; Emit 0xAA framing marker.
-	ld	d, 0xAA
-	call	sio_b_tx_d
-	; Stream rx_frame_buf for BC bytes.
-	ld	hl, rx_frame_buf
-.dump_body:
-	ld	d, (hl)
-	call	sio_b_tx_d
-	inc	hl
-	dec	bc
-	ld	a, b
-	or	c
-	jr	nz, .dump_body
-	; Trailing 0xAA marker.
-	ld	d, 0xAA
-	jp	sio_b_tx_d
-
 ; (send_cpnet_init_frame_retry / send_cpnet_init_frame removed -- both
 ; dead, see comment above where the init_header/init_data data tables
 ; used to live.  LOGIN is now driven by snios_sndmsg in the resident

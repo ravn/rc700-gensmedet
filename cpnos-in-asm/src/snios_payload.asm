@@ -174,9 +174,15 @@ handoff_entry:
 	; didn't restart firing.  Cursor sync is now done per-conout call
 	; via co_sync_cursor.)
 
+	; Zero the keyboard ring head + XY state.  These BSS slots live
+	; in the bare-RAM 0xF400..0xF7FF reserve (no LDIR), so they're
+	; uninitialised after PROM disable.
+	xor	a
+	ld	(kbd_head), a
+	ld	(XY_STATE), a
+
 	; PROM disable.  After this instruction PROM0+PROM1 are
 	; unmapped; we must keep running from RAM only.
-	xor	a
 	out	(PORT_RAMEN), a
 
 	; Standard CP/M cold-boot housekeeping: SP at top of TPA
@@ -289,38 +295,77 @@ impl_conin:
 DOT_CURSOR	equ	0xF400		; 16-bit display address
 DOT_COL		equ	0xF402		; 8-bit
 DOT_ROW		equ	0xF403		; 8-bit
+XY_STATE	equ	0xF404		; 0 = normal, 2/1 = awaiting XY coord byte
+XY_FIRST	equ	0xF405		; first XY coord (col) saved between bytes
 PORT_CRT_CMD	equ	0x01
 PORT_CRT_PARAM	equ	0x00
+PORT_BIB	equ	0x05		; RC702 bell port (PIB)
 CRT_CMD_LOADCUR	equ	0x80
-DSP_BASE	equ	0xF800		; display memory start (80 x 24 x 1 B)
+DSP_BASE	equ	0xF800		; display memory (80 x 24 x 1 B)
 DSP_COLS	equ	80
 DSP_ROWS	equ	24
-
 impl_conout:
-	; CONOUT: char in C.  Writes to BOTH the CRT framebuffer at 0xF800
-	; AND mirrors to SIO-B (polypascal_test.lua scrape source).
-	; Currently handles CR (0x0D), LF (0x0A), printable advance,
-	; col-80 wrap, and row-23 scroll.  Full RC700 control-code set
-	; (insert/delete line, XY addressing, bell, clear screen, etc.)
-	; is parked: shipping it pushed PROM1 well past 2 KB and had bugs
-	; that stalled the slave at boot.  CR/LF + printables cover
-	; PolyPascal, CCP, and the polypascal-test workload.
+	; CONOUT: char in C.  Writes the CRT framebuffer at 0xF800 AND
+	; mirrors to SIO-B (polypascal_test.lua scrape).  Implements the
+	; full RC700 control-code set per cpnos-in-c's specc()
+	; (resident.c:322-340):
 	;
-	; NDOS overwrites bios_jt[4] with nconot during COLDST; nconot
-	; calls back into this impl via the tlbios snapshot for local
-	; console.  CP/M BIOS CONOUT clobbers A/BC/DE/HL freely.
+	;   0x01 insert line        0x0C clear screen
+	;   0x02 delete line        0x0D carriage return
+	;   0x05 cursor left (ENQ)  0x18 cursor right
+	;   0x06 XY cursor addr     0x1A cursor up
+	;   0x07 bell               0x1D home
+	;   0x08 backspace          0x1E erase to EOL
+	;   0x09 TAB (4 rights)     0x1F erase to EOS
+	;   0x0A LF (cursor down only -- NOT col reset)
 	;
-	; No per-conout 8275 cursor sync -- the 50 Hz CTC-CH2 ISR
-	; (isr_cursor) pushes (DOT_COL, DOT_ROW) to the chip only when
-	; they've changed since the last tick.
+	; CP/M BIOS CONOUT clobbers A/BC/DE/HL freely; nconot in NDOS
+	; push/pops B before calling tlbios.CONOUT.
+	;
+	; Per-conout 8275 cursor sync via co_sync_cursor at each exit.
 	ld	a, c
 	call	emit_a			; SIO-B mirror first; preserves C
+	; XY state machine: if mid-XY, consume coord byte.
+	ld	a, (XY_STATE)
+	or	a
+	jp	nz, do_xy_step
 	ld	a, c
+	cp	0x20
+	jr	nc, .co_printable
+	; Control char (<0x20): sparse cp/jr dispatch.
 	cp	0x0D
-	jr	z, .co_cr
+	jr	z, do_cr
 	cp	0x0A
-	jr	z, .co_row_inc
-	; Printable: write char @ (DOT_CURSOR), advance cursor + col.
+	jr	z, do_cursor_down
+	cp	0x08
+	jp	z, do_cursor_left	; BS
+	cp	0x05
+	jp	z, do_cursor_left	; ENQ alias
+	cp	0x18
+	jp	z, do_cursor_right
+	cp	0x1A
+	jp	z, do_cursor_up
+	cp	0x1D
+	jp	z, do_home
+	cp	0x0C
+	jp	z, do_clear_screen
+	cp	0x09
+	jp	z, do_tab
+	cp	0x07
+	jp	z, do_bell
+	cp	0x06
+	jp	z, do_start_xy
+	cp	0x1E
+	jp	z, do_erase_to_eol
+	cp	0x1F
+	jp	z, do_erase_to_eos
+	cp	0x01
+	jp	z, do_insert_line
+	cp	0x02
+	jp	z, do_delete_line
+	ret				; unhandled: drop
+
+.co_printable:
 	ld	hl, (DOT_CURSOR)
 	ld	(hl), a
 	inc	hl
@@ -329,37 +374,274 @@ impl_conout:
 	inc	a
 	cp	DSP_COLS
 	jr	c, .co_save_col
-	xor	a			; col=80 -> wrap to row+1 col 0
+	xor	a			; col == 80 -> wrap
 	ld	(DOT_COL), a
-	jr	.co_row_inc
+	jr	do_cursor_down
 .co_save_col:
 	ld	(DOT_COL), a
-	jp	co_sync_cursor		; tail: push (col,row) to 8275, then ret
-.co_cr:
+	jp	co_sync_cursor
+
+; ---- Cursor primitives -------------------------------------------
+
+do_cr:
 	xor	a
 	ld	(DOT_COL), a
-	jr	co_recompute
-.co_row_inc:
+	jp	co_recompute
+
+do_cursor_down:
 	ld	a, (DOT_ROW)
 	inc	a
 	cp	DSP_ROWS
-	jr	c, .co_row_save		; row < 24: no scroll
-	; Scroll: LDIR rows 1..23 up to rows 0..22, fill row 23 spaces.
+	jr	c, .cd_save
+	call	scroll_up
+	ld	a, DSP_ROWS - 1
+.cd_save:
+	ld	(DOT_ROW), a
+	jp	co_recompute
+
+do_cursor_up:
+	ld	a, (DOT_ROW)
+	or	a
+	jp	z, co_recompute
+	dec	a
+	ld	(DOT_ROW), a
+	jp	co_recompute
+
+do_cursor_right:
+	ld	a, (DOT_COL)
+	inc	a
+	cp	DSP_COLS
+	jr	c, .cr_save
+	xor	a
+	ld	(DOT_COL), a
+	jr	do_cursor_down
+.cr_save:
+	ld	(DOT_COL), a
+	jp	co_recompute
+
+do_cursor_left:
+	ld	a, (DOT_COL)
+	or	a
+	jp	z, co_recompute
+	dec	a
+	ld	(DOT_COL), a
+	jp	co_recompute
+
+do_home:
+	xor	a
+	ld	(DOT_COL), a
+	ld	(DOT_ROW), a
+	jp	co_recompute
+
+do_tab:
+	call	do_cursor_right
+	call	do_cursor_right
+	call	do_cursor_right
+	jp	do_cursor_right
+
+do_bell:
+	xor	a
+	out	(PORT_BIB), a
+	ret
+
+; ---- Screen ops --------------------------------------------------
+
+; scroll_up: LDIR rows 1..23 -> rows 0..22, then blank row 23.
+scroll_up:
 	ld	hl, DSP_BASE + DSP_COLS
 	ld	de, DSP_BASE
 	ld	bc, DSP_COLS * (DSP_ROWS - 1)
 	ldir
 	ld	hl, DSP_BASE + DSP_COLS * (DSP_ROWS - 1)
+	jp	fill_row_keep_cursor
+
+do_clear_screen:
+	ld	hl, DSP_BASE
+	ld	(hl), ' '
+	ld	d, h
+	ld	e, l
+	inc	de
+	ld	bc, DSP_COLS * DSP_ROWS - 1
+	ldir
+	jp	do_home
+
+do_erase_to_eol:
+	; Fill (col, row) .. (79, row) with spaces; cursor unchanged.
+	ld	a, DSP_COLS
+	ld	hl, DOT_COL
+	sub	(hl)			; A = 80 - col = count
+	ld	c, a
+	ld	b, 0
+	ld	hl, (DOT_CURSOR)
+.eel:
+	ld	(hl), ' '
+	inc	hl
+	dec	c
+	jr	nz, .eel
+	jp	co_sync_cursor
+
+do_erase_to_eos:
+	; Fill (col, row) .. (79, 23) with spaces.  count = end - cur.
+	ld	hl, (DOT_CURSOR)
+	push	hl
+	ex	de, hl			; DE = cursor
+	ld	hl, DSP_BASE + DSP_COLS * DSP_ROWS
+	or	a
+	sbc	hl, de			; HL = count
+	ld	c, l
+	ld	b, h
+	pop	hl
+.eeos:
+	ld	(hl), ' '
+	inc	hl
+	dec	bc
+	ld	a, b
+	or	c
+	jr	nz, .eeos
+	jp	co_sync_cursor
+
+; ---- Insert / delete line ----------------------------------------
+
+do_delete_line:
+	; Drop line at cury; rows cury+1..23 shift up; row 23 blanks.
+	ld	a, (DOT_ROW)
+	cp	DSP_ROWS - 1
+	jr	z, .dl_blank
+	; count = (23 - cury) * 80 -> BC
+	ld	b, a
+	ld	a, DSP_ROWS - 1
+	sub	b
+	call	mul_a_80
+	ld	b, h
+	ld	c, l
+	; HL = src = row(cury+1); DE = dst = row(cury).
+	ld	a, (DOT_ROW)
+	inc	a
+	call	mul_a_80
+	ld	de, DSP_BASE
+	add	hl, de
+	ld	d, h
+	ld	e, l
+	ld	a, e
+	sub	DSP_COLS
+	ld	e, a
+	jr	nc, .dl_no_borrow
+	dec	d
+.dl_no_borrow:
+	ldir
+.dl_blank:
+	ld	hl, DSP_BASE + DSP_COLS * (DSP_ROWS - 1)
+	jp	fill_row
+
+do_insert_line:
+	; Rows cury..22 shift down; row cury blanks.  LDDR backwards.
+	ld	a, (DOT_ROW)
+	cp	DSP_ROWS - 1
+	jr	z, .il_blank
+	ld	b, a
+	ld	a, DSP_ROWS - 1
+	sub	b
+	call	mul_a_80
+	ld	b, h
+	ld	c, l			; BC = count
+	push	bc
+	call	row_addr		; HL = row(cury)
+	pop	bc
+	push	bc
+	add	hl, bc			; HL = row(cury) + count = row(23)
+	dec	hl			; HL = src_end (last byte of source)
+	ld	d, h
+	ld	e, l
+	ld	a, e
+	add	a, DSP_COLS
+	ld	e, a
+	jr	nc, .il_no_carry
+	inc	d
+.il_no_carry:
+	pop	bc
+	lddr
+.il_blank:
+	call	row_addr
+	jp	fill_row
+
+; HL := A * 80
+mul_a_80:
+	ld	h, 0
+	ld	l, a
+	add	hl, hl			; *2
+	add	hl, hl			; *4
+	ld	d, h
+	ld	e, l			; DE = A * 4
+	add	hl, hl			; *8
+	add	hl, hl			; *16
+	add	hl, de			; *20
+	add	hl, hl			; *40
+	add	hl, hl			; *80
+	ret
+
+; HL := DSP_BASE + DOT_ROW * 80 (clobbers DE).
+row_addr:
+	ld	a, (DOT_ROW)
+	call	mul_a_80
+	ld	de, DSP_BASE
+	add	hl, de
+	ret
+
+; Fill 80 bytes starting at HL with spaces and sync cursor.
+fill_row:
 	ld	(hl), ' '
 	ld	d, h
 	ld	e, l
 	inc	de
 	ld	bc, DSP_COLS - 1
 	ldir
-	ld	a, DSP_ROWS - 1
-.co_row_save:
+	jp	co_sync_cursor
+
+; Like fill_row but does not touch the 8275 cursor afterwards.  Used
+; by scroll_up so the caller (do_cursor_down) keeps control of the
+; final co_recompute / co_sync_cursor that happens at row_save.
+fill_row_keep_cursor:
+	ld	(hl), ' '
+	ld	d, h
+	ld	e, l
+	inc	de
+	ld	bc, DSP_COLS - 1
+	ldir
+	ret
+
+; ---- XY cursor addressing (0x06 + 2 coord bytes) -----------------
+
+do_start_xy:
+	ld	a, 2
+	ld	(XY_STATE), a
+	jp	do_home
+
+do_xy_step:
+	ld	a, c
+	and	0x7F
+	sub	0x20
+	ld	b, a			; B = coord value
+	ld	a, (XY_STATE)
+	dec	a
+	ld	(XY_STATE), a
+	jr	z, .xy_second
+	ld	a, b
+	ld	(XY_FIRST), a
+	ret
+.xy_second:
+	ld	a, b
+	cp	DSP_ROWS
+	jr	c, .xy_row_ok
+	xor	a
+.xy_row_ok:
 	ld	(DOT_ROW), a
-	; fall through to co_recompute
+	ld	a, (XY_FIRST)
+	cp	DSP_COLS
+	jr	c, .xy_col_ok
+	xor	a
+.xy_col_ok:
+	ld	(DOT_COL), a
+	jp	co_recompute
 
 ; Recompute DOT_CURSOR from (DOT_ROW, DOT_COL).
 ;   DOT_CURSOR = DSP_BASE + DOT_ROW * 80 + DOT_COL
@@ -444,22 +726,16 @@ snios_ntwkin:
 	; subsequent sndmsg/rcvmsg gate passes.  'A' marker on SIO-B
 	; (load-bearing -- the per-handler emit_a delays were masking
 	; some timing-sensitive path; without them PRIMES stalls at 97).
-	ld	a, 'A'
-	call	emit_a
 	ld	a, 0x10
 	ld	(cfgtbl), a
 	xor	a
 	ret
 
 snios_ntwkst:
-	ld	a, 'a'
-	call	emit_a
 	xor	a
 	ret
 
 snios_cnftbl:
-	ld	a, 'c'
-	call	emit_a
 	ld	hl, cfgtbl
 	ret
 
@@ -507,8 +783,6 @@ snios_sndmsg:
 	pop	bc
 	ret
 snios_sndmsg_body:
-	ld	a, 'S'
-	call	emit_a
 	; Patch SID in caller's buffer to our slaveid.
 	ld	h, b
 	ld	l, c			; HL = msg ptr
@@ -581,11 +855,10 @@ snios_sndmsg_fail:
 	ld	a, 0xFF			; transport error
 	ret
 
-; Persistent slot for caller's msg pointer during RCVMSG.  Lives in
-; the snios_payload's RAM region after CFGTBL so the LDIR carries it
-; into RAM at handoff.  Initialized to 0 each call.
-snios_msg_ptr:
-	dw	0
+; Persistent slots for RCVMSG state.  Pure RAM via equ -- no PROM
+; cost; each call writes them fresh, no zero-init needed.
+snios_msg_ptr	equ	0xF406		; word: caller msg ptr saved by RCVMSG
+snios_rx_soh	equ	0xF408		; byte: SOH scratch for HCS check
 
 snios_rcvmsg:
 	push	bc
@@ -597,8 +870,6 @@ snios_rcvmsg:
 	pop	bc
 	ret
 snios_rcvmsg_body:
-	ld	a, 'r'
-	call	emit_a
 	; Save caller msg ptr (BC) for both phases.
 	ld	(snios_msg_ptr), bc
 
@@ -706,10 +977,7 @@ snios_rcvmsg_fail:
 	ld	a, 0xFF
 	ret
 
-; Scratch slot for received SOH byte (one byte, persistent across
-; the RCVMSG header phase).
-snios_rx_soh:
-	db	0
+; (snios_rx_soh moved to equ above; no PROM cost.)
 
 ; SIO-A polled TX (RAM-resident equivalent of PROM1's sio_a_tx_d).
 ; Send A on SIO-A; preserves A, E, HL, BC.
@@ -765,18 +1033,11 @@ snios_wait_ack:
 	ret
 
 snios_ntwker:
-	ld	a, 'e'
-	call	emit_a
 	ret
 
 snios_ntwkbt:
-	ld	a, 'B'
-	call	emit_a
-	ret
-
 snios_ntwkdn:
-	ld	a, 'd'
-	call	emit_a
+	xor	a			; A=0 success per cpnos-in-c snios_ntwkbt_impl
 	ret
 
 ; ---- CFGTBL (DRI CP/NET v1.2) --------------------------------------
@@ -855,13 +1116,12 @@ cfgtbl:
 ; (kbd_head - 1) bytes down by one, decrements kbd_head.
 ;
 ; Symbol names match cpnos-in-c (`_kbd_head`, `_kbd_ring`) up to the
-; leading underscore that the Z80 ABI prepends to C names; zmac
-; emits these as plain `kbd_head` / `kbd_ring`, and the asm
-; polypascal-test target awk-extracts them from build/snios_payload.sym
-; with the same `kbd_head`/`kbd_ring` strings.
-kbd_head:
-	db	0
-kbd_ring:
-	db	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
+; leading underscore that the Z80 ABI prepends to C names; the asm
+; polypascal-test target awk-extracts them from build/zout/
+; snios_payload.lst with the same `kbd_head`/`kbd_ring` strings.
+; Bare RAM addresses -- no PROM cost; handoff_entry zeroes kbd_head
+; at boot (kbd_ring contents don't matter, head=0 means empty).
+kbd_head	equ	0xF409
+kbd_ring	equ	0xF40A		; 16 bytes through 0xF419
 
 	end	handoff_entry

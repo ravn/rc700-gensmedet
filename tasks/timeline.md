@@ -1,5 +1,70 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73h: cpnos-in-asm shrink + full RC700 control-code set (May 17, 2026) — Medium
+
+Started at 1937 / 2048 B PROM1 (post-session-73g) and ended at 1844 /
+2048 B (204 B free) WITH the full RC700 console control-code set
+implemented inline -- where session 73g had only CR + LF + printables.
+
+### Shrink wins (cumulative ~290 B before adding the new code)
+
+  - **Resident SNIOS dedup (~430 B):**  Moved the snios_payload LDIR
+    to the top of slave_entry so do_netboot / cpnet_xact can call
+    `snios_sndmsg` (0xED3C) and `snios_rcvmsg` (0xED3F) at their
+    fixed resident entries instead of carrying the duplicate
+    `send_cpnet_msg` / `recv_cpnet_msg` in prom1.asm.  Same wire
+    protocol, half the code.
+  - **Dead-code removal (~250 B):**  Reduced `combined_io_loop`
+    (netboot-fail fallback) from a SIO-A→SIO-B forward + raw
+    CP/NET frame recv/decode/dump diagnostic to just `di; halt`.
+    Took out `recv_cpnet_frame` + `decode_rx_frame` +
+    `dump_rx_to_siob` as orphans.  Operator sees "FETCH FAIL" on
+    SIO-B and the slave goes quiet -- no useful state to maintain
+    on a netboot failure anyway.
+  - **Marker stripping (~40 B):**  The eight SNIOS per-call markers
+    ('A'/'a'/'c'/'S'/'r'/'e'/'B'/'d') that were diagnostic during
+    bring-up no longer fire useful info now that the SrSr loop is
+    well-understood.  Kept the per-frame markers in cpnet_xact /
+    NTWKIN/NTWKBT path indirectly through their behavior.
+  - **BSS out of PROM (~20 B):**  `kbd_head` / `kbd_ring` /
+    `snios_msg_ptr` / `snios_rx_soh` were zero-initialized `db`
+    declarations inside the snios_payload binary -- moving them to
+    bare-RAM `equ` addresses in the 0xF400 reserved range drops
+    their 20 B from the PROM image.  `kbd_head` + `XY_STATE` are
+    explicitly zeroed at handoff_entry; the rest get rewritten on
+    every use so initial value doesn't matter.
+
+### Full RC700 control-code set (cpnos-in-c parity)
+
+Implemented per cpnos-in-c's `specc()` (resident.c:322-340):
+
+  - 0x01 insert line / 0x02 delete line  (LDIR up / LDDR down)
+  - 0x05 cursor left (ENQ) / 0x08 backspace
+  - 0x06 XY cursor address (2-byte state machine via XY_STATE +
+    XY_FIRST in the 0xF400 reserve)
+  - 0x07 bell (PIB port 0x05 out)
+  - 0x09 TAB (4× cursor right)
+  - 0x0C clear screen + home (LDIR-fill 1920 B with spaces)
+  - 0x18 cursor right / 0x1A cursor up / 0x1D home
+  - 0x1E erase-to-EOL / 0x1F erase-to-EOS
+
+Per user direction CR (0x0D) and LF (0x0A) remain INDEPENDENT --
+CR sets col=0 only, LF advances row only with scroll on overflow.
+cpnos-in-c folded LF -> CR+LF; we don't.
+
+### Lesson logged
+
+PolyPascal-test runtime is the proof the dedup is wire-equivalent --
+sndmsg/rcvmsg go through the same resident path before and after,
+they just consume one copy of the wire-protocol implementation
+instead of two.
+
+### Difficulty marker
+
+Medium -- shrink + extend on a known-good baseline; one stumble when
+the awk pattern in `cpnos-polypascal-test` didn't match the `equ`
+form of kbd_head / kbd_ring (zmac formats them with a leading `=`).
+
 ## Session 73g: cpnos-in-asm reaches PolyPascal PRIMES end-to-end on CRT (May 16-17, 2026) — Hard
 
 End-to-end POlyPascal `R PRIMES.PAS` running on the pure-Z80-asm CP/NOS
