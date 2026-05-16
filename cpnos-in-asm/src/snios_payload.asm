@@ -596,16 +596,6 @@ snios_rx_soh:
 ; Send A on SIO-A; preserves A, E, HL, BC.
 snios_sio_a_tx_a:
 	push	af
-	; DEBUG: dump tx byte to SIO-B as '<XX'.
-	push	af
-	push	bc
-	ld	c, a
-	ld	a, '<'
-	call	emit_a
-	ld	a, c
-	call	emit_hex_a
-	pop	bc
-	pop	af
 .satx_w:
 	in	a, (PORT_SIO_A_CTRL)
 	and	SIO_TX_BUF_EMPTY
@@ -613,31 +603,6 @@ snios_sio_a_tx_a:
 	pop	af
 	out	(PORT_SIO_A_DATA), a
 	ret
-
-; Print A as 2 hex digits on SIO-B (debug).  Preserves A and BC.
-emit_hex_a:
-	push	af
-	push	bc
-	ld	c, a
-	rrca
-	rrca
-	rrca
-	rrca
-	and	0x0F
-	call	emit_hex_nyb
-	ld	a, c
-	and	0x0F
-	call	emit_hex_nyb
-	pop	bc
-	pop	af
-	ret
-emit_hex_nyb:
-	add	a, '0'
-	cp	'9' + 1
-	jr	c, .ehn_d
-	add	a, 7			; 'A' - ('9'+1) = 7
-.ehn_d:
-	jp	emit_a
 
 ; Send A on SIO-A and add A to E (HCS / CKS accumulator).
 snios_sio_a_tx_accum:
@@ -672,16 +637,6 @@ snios_sio_a_rx_to:
 .srx_r:
 	in	a, (PORT_SIO_A_DATA)
 	pop	bc
-	; DEBUG: dump rx byte to SIO-B with '>' prefix.
-	push	af
-	push	bc
-	ld	c, a
-	ld	a, '>'
-	call	emit_a
-	ld	a, c
-	call	emit_hex_a
-	pop	bc
-	pop	af
 	or	a
 	ret
 

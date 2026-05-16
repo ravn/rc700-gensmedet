@@ -1,5 +1,70 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73f: cpnos-in-asm #75 -- RCVMSG vs real-master + tap-induced FIFO overrun (May 16, 2026) — Medium
+
+Session 73e ended with phase 4c+ (real SNDMSG/RCVMSG) FAILing the
+`cpnos-mpm-test` oracle: NDOS-driven SELDSK against z80pack mpm-net2
+timed out on the 7th header byte (SOH + 5 received, HCS missing).
+Phase 4c+ commit (`8d75986`) added per-byte `>XX` / `<XX` wire taps
+to `snios_sio_a_rx_to` / `snios_sio_a_tx_a` to localise the loss.
+
+### Diagnosis via cpnos-in-c comparison
+
+Per user "investigate cpnos-in-c where this worked": the C and asm
+slaves are identical on the protocol-byte count (1 SOH + 6 more —
+whether organised 5+1 or 6+0 is checksum-equivalent), both run with
+WR1 polled / no SIO RX interrupts, and the master in
+`netwrkif-0.asm:929-935` sends a textbook 7-byte header.  The only
+substantive divergence: cpnos-in-c never inlines blocking debug-emit
+between successive `recv_byte_t` calls; cpnos-in-asm's phase-4c+
+taps do — 3 SIO-B chars per RX byte = ~1.9 ms of blocking poll-and-out
+at the shared CTC TC=1 + clk/16 baud (~640 µs / byte).  Z80 SIO RX
+FIFO is 3-deep, so a sustained per-byte service time longer than the
+master's byte time guarantees overrun within a handful of bytes —
+matches the "first 6 OK, 7th lost" trace pattern exactly.
+
+### Fix
+
+Strip per-byte `>XX` / `<XX` and the now-orphaned `emit_hex_a` /
+`emit_hex_nyb` helpers from `snios_payload.asm`.  Keep per-frame
+markers ('r' / 'S' / 'B' / 'c' / 'T') — those fire once per
+handler, never inside the rx hot path.
+
+### Result
+
+6/6 oracles PASS on the same boot path that was 1 FAIL/5 PASS:
+
+  - `cpnos-banner-test`     PASS  banner in display memory
+  - `cpnos-siob-test`       PASS  banner on SIO-B
+  - `cpnos-sioa-test`       PASS  ENQ on SIO-A (no master)
+  - `cpnos-echo-test`       PASS  PING/PONG via Python echo
+  - `cpnos-cpnet-test`      PASS  6/6 ACKs + LOGIN OK on SIO-B
+  - `cpnos-mpm-test`        PASS  real mpm-net2: LOGIN OK -> 25 dots
+                                  -> FETCH OK on SIO-B
+
+PROM1 1950 / 2048 B non-padding (was ~2110 B with taps; ripping
+the now-dead `emit_hex_a` cluster recovered ~160 B).
+
+### Followups
+
+  - #76 (`ustack` uninit on `nerror`) becomes inert with #75 fixed —
+    NDOS now reaches NTWKBT/FETCH cleanly without entering the
+    error path.  Keep the issue open in case a future failure mode
+    re-exposes it, but no patch needed today.
+  - New memory rule: `feedback_no_taps_in_polled_rx.md` —
+    per-byte blocking instrumentation inside polled-RX overruns
+    Z80 SIO's 3-deep FIFO.  Generalises the
+    "instrumentation introduces the bug it's diagnosing" pattern.
+
+### Difficulty marker
+
+Medium — symptom was easy to misread as a master / wire / timeout
+issue (the commit msg author explicitly listed those three as
+candidates).  cpnos-in-c side-by-side made the divergence obvious
+once the byte-count contracts were confirmed identical: same protocol,
+same FIFO, only the asm version inlines blocking debug work between
+recv polls.
+
 ## Session 73e: cpnos-in-asm bring-up phase 1..3d-γ + autoload polish (May 15-16, 2026) — Hard
 
 End-to-end CP/NET 1.2 slave in pure Z80 assembly, fitting in PROM1
