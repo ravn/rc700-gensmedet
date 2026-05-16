@@ -23,6 +23,16 @@ AUTOLOAD_PROM0 = $(AUTOLOAD)/clang/prom0.ic66
 # /Users/ravn/git/mame which is a different tree on this machine.
 MAME ?= $(CURDIR)/../../mame
 
+# Regenerate build/buildinfo.inc with local-time date + short git
+# hash at every make invocation.  $(shell ...) at parse time -- the
+# .inc's mtime only changes when content differs, so dependent .o /
+# .cim rebuild precisely when the build-info string differs from
+# what's already on disk.  See cpnos-shared/scripts/regen_buildinfo_asm.sh.
+ifeq ($(filter clean cpnos-clean,$(MAKECMDGOALS)),)
+_DUMMY_BUILDINFO := $(shell mkdir -p build && \
+    $(SHARED)/scripts/regen_buildinfo_asm.sh build/buildinfo.inc)
+endif
+
 PROM1_BIN     = $(BUILDDIR)/prom1.bin
 CPNOS_BIN     = $(BUILDDIR)/cpnos.bin
 PROM0_PADDED  = $(BUILDDIR)/prom0_padded.ic66
@@ -62,9 +72,18 @@ $(AUTOLOAD_PROM0):
 	@cd $(AUTOLOAD) && $(MAKE) clang || true
 	@test -f $(AUTOLOAD_PROM0) || { echo "ERROR: $(AUTOLOAD_PROM0) not produced"; exit 1; }
 
-$(PROM1_BIN): $(SRC)/prom1.asm
+$(PROM1_BIN): $(SRC)/prom1.asm $(BUILDDIR)/buildinfo.inc
 	@mkdir -p $(BUILDDIR)
-	$(ZMAC) -z -o $(BUILDDIR)/prom1.cim --oo cim $(SRC)/prom1.asm
+	$(ZMAC) -z -I $(BUILDDIR) -o $(BUILDDIR)/prom1.cim --oo cim $(SRC)/prom1.asm
+	@cp $(BUILDDIR)/prom1.cim $(PROM1_BIN)
+	@$(call PAD_TO_2048,$(PROM1_BIN))
+	@echo "prom1.bin: $$(wc -c < $(PROM1_BIN) | tr -d ' ') B"
+
+# buildinfo.inc is regenerated at parse time by $(shell ...) above;
+# this declares it as an explicit prereq so make's dep graph still
+# knows about it.  The recipe is empty -- the shell invocation
+# already did the work.
+$(BUILDDIR)/buildinfo.inc: ;
 	@cp $(BUILDDIR)/prom1.cim $(PROM1_BIN)
 	@$(call PAD_TO_2048,$(PROM1_BIN))
 	@echo "prom1.bin: $$(wc -c < $(PROM1_BIN) | tr -d ' ') B"
@@ -105,7 +124,7 @@ cpnos-size: $(CPNOS_BIN)
 # sig match -> jump_to(slave_entry).  Boot deadline 6 s (autoload's
 # floppy-fail path is slower than my old PROM0 stub).
 
-EXPECTED_BANNER     = RC702 CP/NOS asm phase
+EXPECTED_BANNER     = RC702 CP/NOS asm
 SIOA_RAW            = /tmp/cpnos_asm_sioa.raw
 SIOB_RAW            = /tmp/cpnos_asm_siob.raw
 BOOT_DEADLINE_S     = 8

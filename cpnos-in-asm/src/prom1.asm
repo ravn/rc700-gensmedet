@@ -842,7 +842,13 @@ send_cpnet_init_frame:
 	jp	cpnet_wait_ack		; tail-call: CF set by ACK wait
 
 banner:
-	db	"RC702 CP/NOS asm phase 2a alive"
+	db	"RC702 CP/NOS asm "
+	; build/buildinfo.inc holds one `db "YYYY-MM-DD HH:MM hash"`
+	; line, regenerated at parse-time by the Makefile via
+	; $(shell .../regen_buildinfo_asm.sh).  Pulled in here so the
+	; CRT row 0 + the SIO-B banner stream both carry build identity
+	; (matches cpnos-in-c's banner pattern).
+	include	"buildinfo.inc"
 banner_text_len	equ	$ - banner
 	db	0x0D, 0x0A		; CRLF for SIO-B only
 banner_len	equ	$ - banner

@@ -26,7 +26,7 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 4445
 RESULT_PATH = sys.argv[2] if len(sys.argv) > 2 else "/tmp/cpnos_asm_echo_result.txt"
 
 PROBE = b"PING\r\n"
-BANNER_MATCH = b"RC702 CP/NOS asm phase"
+BANNER_MATCH = b"RC702 CP/NOS asm"
 BANNER_TAIL  = b"\r\n"             # banner is terminated with CRLF;
                                    # CP/NET frame (formerly here) now
                                    # lives on SIO-A.
