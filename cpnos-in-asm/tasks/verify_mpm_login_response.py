@@ -1,56 +1,40 @@
 #!/usr/bin/env python3
-"""Verify that the slave's SIO-B capture contains a valid CP/NET LOGIN
-response frame from z80pack mpm-net2 (cpnos-mpm-test).
+"""Verify that cpnos-in-asm's netboot against z80pack mpm-net2 completes.
 
-Look for the 0xAA framing marker emitted by dump_rx_to_siob (only
-written on a successfully validated received frame), followed by the
-LOGIN-response header (FMT=1, DID=1, SID=0, FNC=0x40, SIZ=0).
-Re-validate HCS and CKS independently of the slave's own check.
+Looks at the SIO-B capture for the LOGIN OK + 25 dots + FETCH OK
+sequence emitted by do_netboot in prom1.asm.  Phases:
+
+  1. Banner line ends with CRLF.
+  2. "LOGIN OK\r\n" -- LOGIN cpnet_xact returned rc = 0.
+  3. >=1 '.' chars -- one per READ-SEQ sector loaded.
+  4. "FETCH OK\r\n" -- whole netboot loop reached CLOSE successfully.
+
+PASS if all four signals appear in order.
 """
 import sys
 
 path = sys.argv[1] if len(sys.argv) > 1 else "/tmp/cpnos_asm_mpm_siob.raw"
 d = open(path, "rb").read()
+text = d.decode("latin-1", errors="replace")
 
-# 0xAA marker + the LOGIN-response header prefix (SOH + FMT + DID + SID
-# + FNC + SIZ).  Last byte is HCS, included in the sum check below.
-PREFIX = b"\xaa\x01\x01\x01\x00\x40\x00"
+def need(marker, after=0):
+    idx = text.find(marker, after)
+    if idx < 0:
+        print(f"FAIL: '{marker!r}' not found in SIO-B capture after offset {after}")
+        sys.exit(1)
+    return idx + len(marker)
 
-i = d.find(PREFIX)
-if i < 0:
-    print(f"FAIL: 0xAA + LOGIN response header not found in {path}")
+i = need("RC702 CP/NOS asm")
+i = need("\r\n", i)
+i = need("LOGIN OK\r\n", i)
+# Find at least one '.' between LOGIN OK and FETCH OK.
+fetch = text.find("FETCH OK", i)
+if fetch < 0:
+    print("FAIL: 'FETCH OK' not found after LOGIN OK")
     sys.exit(1)
-
-hdr = d[i + 1 : i + 8]
-if sum(hdr) % 256 != 0:
-    print(f"FAIL: response HCS invalid; bytes={hdr.hex()} sum={sum(hdr) % 256}")
+dots = text[i:fetch].count(".")
+if dots < 1:
+    print(f"FAIL: no '.' progress markers between LOGIN OK and FETCH OK (got {dots})")
     sys.exit(1)
-
-dat_section = d[i + 8 : i + 13]
-if len(dat_section) < 5:
-    print(f"FAIL: data section truncated; got {dat_section.hex()}")
-    sys.exit(1)
-if dat_section[0] != 0x02:
-    print(f"FAIL: STX missing at +8; got 0x{dat_section[0]:02x}")
-    sys.exit(1)
-if dat_section[2] != 0x03:
-    print(f"FAIL: ETX missing at +10; got 0x{dat_section[2]:02x}")
-    sys.exit(1)
-if dat_section[4] != 0x04:
-    print(f"FAIL: EOT missing at +12; got 0x{dat_section[4]:02x}")
-    sys.exit(1)
-if sum(dat_section[:4]) % 256 != 0:
-    print(f"FAIL: response CKS invalid; bracket={dat_section[:4].hex()}")
-    sys.exit(1)
-
-print(
-    f"master LOGIN response received: hdr={hdr.hex()} data={dat_section.hex()}; "
-    f"DAT[0]=0x{dat_section[1]:02x} (0 = LOGIN OK)"
-)
-
-# Phase 3g: slave's decode_rx_frame should ALSO emit "LOGIN OK\r\n"
-# to SIO-B before the raw dump.  Verify it landed.
-if b"LOGIN OK\r\n" not in d[:i]:
-    print(f"FAIL: 'LOGIN OK\\r\\n' missing from SIO-B before the raw dump")
-    sys.exit(1)
-print("decoded 'LOGIN OK\\r\\n' present on SIO-B -- decode_rx_frame fired")
+print(f"PASS: banner -> LOGIN OK -> {dots} dots -> FETCH OK on SIO-B "
+      f"({len(d)} B capture)")

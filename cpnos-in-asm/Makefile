@@ -185,11 +185,14 @@ cpnos-sioa-test: cpnos-mame-install
 	    || { echo "MAME exited non-zero; log tail:"; tail -10 /tmp/cpnos_asm_mame.log; exit 1; }
 	@echo "--- $(SIOA_RAW) hex ---"
 	@xxd $(SIOA_RAW) | head -3
+	@# Phase 4a: cpnet_xact (no retries in inner-loop) -- slave
+	@# sends one ENQ for LOGIN, times out, gives up, falls through
+	@# to FETCH FAIL.  Exactly one 0x05 on SIO-A.
 	@python3 -c "import sys; \
 	    d = open('$(SIOA_RAW)', 'rb').read(); \
-	    ok = (d == b'\x05' * 3); \
-	    sys.exit(0 if ok else (print(f'FAIL: expected 3 ENQs (0x05*3), got {d.hex()}') or 1))" \
-	    && echo "PASS: slave sent 3 ENQs (MAXRETRY=3, no master to ACK)" \
+	    ok = (d == b'\x05'); \
+	    sys.exit(0 if ok else (print(f'FAIL: expected 1 ENQ (0x05), got {d.hex()}') or 1))" \
+	    && echo "PASS: slave sent 1 ENQ (no master to ACK)" \
 	    || { echo "FAIL"; exit 1; }
 
 # Phase 2b/integration: socket-backed SIO-B echo round-trip.
@@ -326,12 +329,19 @@ _kill-mpm:
 
 cpnos-mpm-test: cpnos-mame-install _kill-mpm
 	@rm -f $(MPM_SIOB)
-	@echo "=== starting z80pack mpm-net2 in background ==="
+	@# Install cpnos.com onto mpm-net2's library disks via cpnos-in-c's
+	@# disk-install pipeline.  Slave's OPEN A:CPNOS.IMG would otherwise
+	@# get rc=0xFF and netboot would FAIL.
+	@echo "=== installing cpnos.com on mpm-net2 disks (via cpnos-in-c) ==="
+	@$(MAKE) -C ../cpnos-in-c cpnos-disk-install >/tmp/cpnos_asm_diskinstall.log 2>&1 \
+	    || { echo "ERROR: cpnos-disk-install failed; tail of log:"; \
+	         tail -20 /tmp/cpnos_asm_diskinstall.log; exit 1; }
+	@echo "=== starting z80pack mpm-net2 in background (screen) ==="
 	@if [ ! -x "$(MPM_DIR)/mpm-net2" ]; then \
 	    echo "ERROR: $(MPM_DIR)/mpm-net2 missing -- build z80pack first"; \
 	    exit 1; \
 	 fi
-	@cd $(MPM_DIR) && (./mpm-net2 >/tmp/mpm_net2.log 2>&1 &)
+	@cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
 	@echo "=== waiting for :4002 to listen (up to 5 s) ==="
 	@for i in 1 2 3 4 5 6 7 8 9 10; do \
 	    if nc -z 127.0.0.1 4002 2>/dev/null; then break; fi; sleep 0.5; \

@@ -13,7 +13,11 @@ local RESULT_PATH = "/tmp/cpnos_asm_banner.txt"
 -- 0xF800.  See project_rc702_ivt_page_constraint memory.
 local DISPLAY_ADDR = 0xF800
 local ROW_BYTES    = 80
-local DEADLINE_S   = 3.0
+local DEADLINE_S   = 4.0   -- banner appears within 1s; allow some
+                           -- slack for slow MAME hosts.  Tests that
+                           -- need to capture post-netboot state must
+                           -- use a different harness OR rely on the
+                           -- SIO-B capture rather than this dump.
 
 local installed = false
 local fired = false

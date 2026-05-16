@@ -77,6 +77,57 @@ PORT_DMA_CLBP	equ	0xFC
 ; Max frame (SIZ = 255 -> 256 DAT bytes): 12 + 255 = 267 bytes.
 rx_frame_buf	equ	0x3000
 
+; ---- CP/NET msg buffer (generic frame send/receive) -----------------
+; Layout matches cpnos-in-c's `msg[]` -- a 5-byte header followed by
+; DAT bytes.  The on-wire framing (SOH/HCS/STX/ETX/CKS/EOT) is
+; added/stripped by send_cpnet_msg / recv_cpnet_msg; callers see only
+; the bare fields.
+;
+;   MSG_FMT = msg + 0  request (0) vs response (1)
+;   MSG_DID = msg + 1  destination ID
+;   MSG_SID = msg + 2  source ID
+;   MSG_FNC = msg + 3  function code (BDOS fn or CP/NET special)
+;   MSG_SIZ = msg + 4  SIZ; data length is SIZ + 1
+;   MSG_DAT = msg + 5  first DAT byte
+;
+; Max DAT = 256 bytes (SIZ = 0xFF).  Plus the on-wire SOH byte we
+; receive into msg-1 to keep checksum accumulation simple in the
+; receive path.  Reserve 264 bytes from msg-1 .. msg-1+263.
+cpnet_msg	equ	0x3300	; clear of rx_frame_buf 0x3000..0x310B
+; Visual netboot-progress state.  At 0x4000 -- clear of any CP/NET
+; buffers.  An earlier attempt at 0x32FE collided with recv_cpnet_msg
+; writing the received SOH byte to `cpnet_msg - 1` (= 0x32FF),
+; corrupting the cursor on first read.
+;
+; dot_cursor (16-bit) is the next display-memory write position.
+; dot_col / dot_row mirror it as col + row so emit_progress_dot can
+; issue the 8275 LOAD CURSOR command (cmd 0x80 + col + row) and the
+; block cursor visually follows the dot stream -- per user
+; suggestion that the cursor track the output the way a BIOS conout
+; would.
+dot_cursor	equ	0x4000	; 16-bit display address
+dot_col		equ	0x4002	; 8-bit
+dot_row		equ	0x4003	; 8-bit
+MSG_FMT		equ	0
+MSG_DID		equ	1
+MSG_SID		equ	2
+MSG_FNC		equ	3
+MSG_SIZ		equ	4
+MSG_DAT		equ	5
+
+; CP/NET function codes the slave issues in netboot.
+FNC_LOGIN	equ	64
+FNC_OPEN	equ	15
+FNC_CLOSE	equ	16
+FNC_READ_SEQ	equ	20
+
+; cpnos.com lands at CPNOS_NDOS_ADDR = 0xDD80 in RAM (matches
+; cpnos-in-c's cpnos_addrs.h).  We load up to bios_boot - 1; today
+; bios_boot = 0xED00 (we'll later relocate SNIOS to 0xED33+).
+NDOS_ADDR	equ	0xDD80
+NDOSE_ADDR	equ	0xDD83
+BIOS_BOOT	equ	0xED00
+
 ; 8275 commands.  Bits 7..5 select the command; remaining bits carry
 ; parameters baked into the byte for cmd-with-immediate-params.
 CRT_CMD_RESET	equ	0x00	; 000xxxxx: reset (expects 4 params)
@@ -224,11 +275,39 @@ init_loop:
 	ld	bc, 1999
 	ldir
 
-	; Stamp the banner on CRT row 0 (LDIR, no CRLF on screen).
+	; Initialize the conout cursor state at display row 0 col 0
+	; (the 8275's block cursor is already there from init_table's
+	; LOAD CURSOR sequence).  Emit the banner one char at a time
+	; through conout so the block cursor visibly walks across row
+	; 0 as each char appears.
+	ld	hl, 0xF800
+	ld	(dot_cursor), hl
+	xor	a
+	ld	(dot_col), a
+	ld	(dot_row), a
+
 	ld	hl, banner
-	ld	de, 0xF800
-	ld	bc, banner_text_len
-	ldir
+	ld	b, banner_text_len
+.banner_loop:
+	ld	d, (hl)
+	call	conout
+	inc	hl
+	djnz	.banner_loop
+
+	; After banner, force cursor to row 1 col 0 ready for the
+	; netboot progress dots.
+	ld	hl, 0xF850
+	ld	(dot_cursor), hl
+	xor	a
+	ld	(dot_col), a
+	ld	a, 1
+	ld	(dot_row), a
+	ld	a, CRT_CMD_LOADCUR
+	out	(PORT_CRT_CMD), a
+	xor	a
+	out	(PORT_CRT_PARAM), a
+	ld	a, 1
+	out	(PORT_CRT_PARAM), a
 
 	; Stream banner (with CRLF) via SIO-B polled TX.
 	ld	hl, banner
@@ -243,14 +322,31 @@ sio_tx_wait:
 	inc	hl
 	djnz	sio_tx_loop
 
-	; Phase 3a/b/d-β/3f: emit one CP/NET LOGIN request frame on
-	; SIO-A with the mandatory ENQ -> wait ACK -> header -> wait
-	; ACK -> data -> wait ACK handshake.  Phase 3f wraps the call
-	; in MAXRETRY = 10 whole-frame retries per spec.  Result still
-	; ignored at this layer (caller falls through to combined poll
-	; loop on either success or exhaustion; phase 4 will add
-	; explicit error reporting).
-	call	send_cpnet_init_frame_retry
+	; Phase 4a: full netboot.  LOGIN -> OPEN A:CPNOS.IMG -> READ-SEQ
+	; loop -> CLOSE.  cpnos.com bytes land at NDOS_ADDR = 0xDD80 on
+	; success.  Failure modes ignored at this layer for now -- next
+	; phase will report via SIO-B / dispatch error response decode.
+	; The "FETCH OK\r\n" / "FETCH FAIL\r\n" status line goes on SIO-B
+	; so the operator (and integration tests) can see whether
+	; netboot completed.
+	call	do_netboot
+	jr	c, .netboot_fail
+	ld	hl, msg_fetch_ok
+	ld	b, msg_fetch_ok_len
+	call	sio_b_emit_string
+	; Advance the CRT cursor to a fresh line via CR + LF through
+	; conout, so whatever runs next (eventually NDOS) starts on a
+	; clean row instead of overwriting the dot row.
+	ld	d, 0x0D
+	call	conout
+	ld	d, 0x0A
+	call	conout
+	jr	.netboot_done
+.netboot_fail:
+	ld	hl, msg_fetch_fail
+	ld	b, msg_fetch_fail_len
+	call	sio_b_emit_string
+.netboot_done:
 
 	; Phase 2b + 3d-α: combined polled loop.
 	;   - SIO-B RX -> SIO-B TX   (operator console echo; phase 2b)
@@ -404,6 +500,352 @@ EOT		equ	0x04		; End Of Transmission (frame delimiter,
 ENQ		equ	0x05		; Enquire (slave -> master, request to send)
 ACK		equ	0x06		; Acknowledge (master -> slave)
 NAK		equ	0x15		; Negative Acknowledge
+
+; ============================================================
+;  Generic CP/NET msg send / receive
+; ============================================================
+;
+; Caller populates cpnet_msg fields (FNC, SIZ, DAT[]) and calls
+; cpnet_xact.  The helper fills FMT=0, DID=0, SID=0x01, sends the
+; full frame on SIO-A with the three-phase ENQ/ACK handshake, then
+; waits for the master's response frame and parses it back into
+; cpnet_msg.  Returns A = response DAT[0] (BDOS return code) when
+; CF = 0; CF = 1 indicates transport failure.
+
+; send_cpnet_msg: emit cpnet_msg as a single CP/NET frame on SIO-A
+; with full ENQ/ACK handshake.  No retry here -- caller (cpnet_xact)
+; can re-call up to MAXRETRY times if it wants.
+; Returns CF = 0 on success, CF = 1 on any timeout / non-ACK.
+; Clobbers: AF, BC, DE, HL.
+send_cpnet_msg:
+	; Phase 1: ENQ, wait for ACK
+	ld	d, ENQ
+	call	sio_a_tx_d
+	call	cpnet_wait_ack
+	ret	c
+
+	; Phase 2: SOH + 5-byte header + HCS
+	ld	d, SOH
+	ld	e, SOH			; HCS accumulator seed
+	call	sio_a_tx_d
+	ld	hl, cpnet_msg
+	ld	b, 5
+.sm_hdr:
+	ld	d, (hl)
+	call	sio_a_tx_d_accum
+	inc	hl
+	djnz	.sm_hdr
+	xor	a
+	sub	e
+	ld	d, a
+	call	sio_a_tx_d		; HCS
+	call	cpnet_wait_ack
+	ret	c
+
+	; Phase 3: STX + DAT[0..SIZ] + ETX + CKS + EOT
+	ld	d, STX
+	ld	e, STX			; CKS accumulator seed
+	call	sio_a_tx_d
+	; BC = SIZ + 1 (data length, 1..256)
+	ld	a, (cpnet_msg + MSG_SIZ)
+	ld	c, a
+	ld	b, 0
+	inc	bc
+	ld	hl, cpnet_msg + MSG_DAT
+.sm_dat:
+	ld	d, (hl)
+	call	sio_a_tx_d_accum
+	inc	hl
+	dec	bc
+	ld	a, b
+	or	c
+	jr	nz, .sm_dat
+	ld	d, ETX
+	call	sio_a_tx_d_accum
+	xor	a
+	sub	e
+	ld	d, a
+	call	sio_a_tx_d		; CKS
+	ld	d, EOT
+	call	sio_a_tx_d		; EOT (raw, not in CKS)
+	jp	cpnet_wait_ack		; tail-call wait for final ACK
+
+; recv_cpnet_msg: receive a response from master into cpnet_msg.
+; Waits for master's ENQ on SIO-A (with timeout), runs the full
+; 3-step handshake mirroring recv_cpnet_frame but writing into the
+; cpnet_msg layout (SOH lands at cpnet_msg - 1, FMT at cpnet_msg + 0,
+; etc.).  After success cpnet_msg.SIZ tells the size of DAT.
+; Returns CF = 0 on success, CF = 1 on failure.
+; Clobbers: AF, BC, DE, HL.
+recv_cpnet_msg:
+	; Wait for the master's ENQ.  Per CP/NET 1.2 the slave waits
+	; with TMRETRY-bounded retry here; we use a single longer
+	; timeout (the rx primitive's default).
+	call	sio_a_rx_with_timeout
+	ret	c
+	and	0x7F
+	cp	ENQ
+	scf
+	ret	nz
+
+	; ACK the ENQ
+	ld	d, ACK
+	call	sio_a_tx_d
+
+	; Read 7 bytes (SOH + 5-byte header + HCS) into cpnet_msg-1
+	; .. cpnet_msg+5 so MSG_FMT/DID/SID/FNC/SIZ land at their named
+	; offsets and the trailing HCS spills into cpnet_msg + 5 (will
+	; be overwritten by DAT[0] in the next phase -- fine, SIZ has
+	; already been read).
+	ld	hl, cpnet_msg - 1
+	ld	b, 7
+	ld	e, 0
+.rm_hdr:
+	call	sio_a_rx_with_timeout
+	jp	c, .rm_fail
+	ld	(hl), a
+	inc	hl
+	add	a, e
+	ld	e, a
+	djnz	.rm_hdr
+
+	; Validate SOH at cpnet_msg-1 and HCS sum == 0 mod 256
+	ld	a, (cpnet_msg - 1)
+	cp	SOH
+	jr	nz, .rm_nak
+	ld	a, e
+	or	a
+	jr	nz, .rm_nak
+
+	; ACK the header
+	ld	d, ACK
+	call	sio_a_tx_d
+
+	; Compute data-section length = SIZ + 1 in BC
+	ld	a, (cpnet_msg + MSG_SIZ)
+	ld	c, a
+	ld	b, 0
+	inc	bc
+
+	; Read STX into cpnet_msg + 5 (overwriting the leftover HCS).
+	; This is the start of the DAT bytes: STX seeds CKS accumulator
+	; in E.
+	call	sio_a_rx_with_timeout
+	jp	c, .rm_fail
+	cp	STX
+	jr	nz, .rm_nak
+	ld	e, a
+
+	; Read SIZ+1 DAT bytes into cpnet_msg + 5..
+	ld	hl, cpnet_msg + MSG_DAT
+.rm_dat:
+	call	sio_a_rx_with_timeout
+	jp	c, .rm_fail
+	ld	(hl), a
+	inc	hl
+	add	a, e
+	ld	e, a
+	dec	bc
+	ld	a, b
+	or	c
+	jr	nz, .rm_dat
+
+	; Read ETX
+	call	sio_a_rx_with_timeout
+	jp	c, .rm_fail
+	cp	ETX
+	jr	nz, .rm_nak
+	add	a, e
+	ld	e, a
+
+	; Read CKS; sum + CKS must be 0
+	call	sio_a_rx_with_timeout
+	jp	c, .rm_fail
+	add	a, e
+	jr	nz, .rm_nak
+
+	; Read EOT
+	call	sio_a_rx_with_timeout
+	jp	c, .rm_fail
+	cp	EOT
+	jr	nz, .rm_nak
+
+	; Send final ACK
+	ld	d, ACK
+	call	sio_a_tx_d
+	or	a			; CF = 0
+	ret
+
+.rm_nak:
+	ld	d, NAK
+	call	sio_a_tx_d
+.rm_fail:
+	scf
+	ret
+
+; cpnet_xact: fill FMT/DID/SID, send, receive response.  Caller has
+; already set MSG_FNC + MSG_SIZ + MSG_DAT.  Returns A = response
+; DAT[0] when CF = 0; CF = 1 on transport failure.
+cpnet_xact:
+	xor	a
+	ld	(cpnet_msg + MSG_FMT), a
+	ld	(cpnet_msg + MSG_DID), a
+	ld	a, 0x01			; RC702_SLAVEID
+	ld	(cpnet_msg + MSG_SID), a
+	call	send_cpnet_msg
+	ret	c
+	call	recv_cpnet_msg
+	ret	c
+	ld	a, (cpnet_msg + MSG_DAT)
+	or	a			; CF = 0; Z based on A
+	ret
+
+; ============================================================
+;  netboot sequence (LOGIN -> OPEN -> READ x N -> CLOSE)
+; ============================================================
+;
+; Mirrors cpnos-in-c/src/init.c netboot_mpm() byte-for-byte.  At
+; end, cpnos.com bytes occupy NDOS_ADDR .. NDOS_ADDR + (sectors *
+; 128) - 1.  Slave can then JP NDOSE_ADDR after SNIOS-RAM
+; relocation + PROM-disable (deferred to next phase).
+;
+; Returns CF = 0 with HL pointing one past the last loaded byte
+; on success; CF = 1 on any BDOS failure.
+;
+; Side effects: emits dots ('.') on SIO-B per loaded sector.
+do_netboot:
+	; --- LOGIN ---
+	ld	hl, login_pwd
+	ld	de, cpnet_msg + MSG_DAT
+	ld	bc, 8
+	ldir
+	ld	a, FNC_LOGIN
+	ld	(cpnet_msg + MSG_FNC), a
+	ld	a, 7			; SIZ = 8 - 1
+	ld	(cpnet_msg + MSG_SIZ), a
+	call	cpnet_xact
+	ret	c
+	or	a
+	scf
+	ret	nz			; non-zero return code -> fail
+
+	; LOGIN succeeded; emit status line on SIO-B for visibility.
+	push	hl
+	ld	hl, msg_login_ok
+	ld	b, msg_login_ok_len
+	call	sio_b_emit_string
+	pop	hl
+
+	; --- OPEN A:CPNOS.IMG ---
+	call	install_fcb
+	ld	a, FNC_OPEN
+	ld	(cpnet_msg + MSG_FNC), a
+	ld	a, 36			; SIZ = 37 - 1
+	ld	(cpnet_msg + MSG_SIZ), a
+	call	cpnet_xact
+	ret	c
+	cp	4
+	ccf				; CF = 1 if A >= 4 (not 0..3)
+	ret	c
+
+	; --- READ-SEQ loop ---
+	ld	hl, NDOS_ADDR		; load pointer
+.nb_read:
+	push	hl
+	; cpnos-in-c's reuse_fcb: rewrite only DAT[0]=user (0).  The FCB
+	; body at DAT[1..36] stays from the previous response (which the
+	; master populated on OPEN, and which subsequent READ-SEQ
+	; responses also update).  Reinstalling the FCB_HEAD here would
+	; lose the master-filled fields and break the sequential-read
+	; state machine -- the master returns rc=10 "media changed"
+	; (which sent us down the FAIL path before this fix).
+	xor	a
+	ld	(cpnet_msg + MSG_DAT), a
+	ld	a, FNC_READ_SEQ
+	ld	(cpnet_msg + MSG_FNC), a
+	ld	a, 36
+	ld	(cpnet_msg + MSG_SIZ), a
+	call	cpnet_xact
+	pop	hl
+	ret	c
+	cp	1
+	jr	z, .nb_eof		; rc=1 -> EOF
+	or	a
+	scf
+	ret	nz			; rc>1 -> error
+
+	; Response DAT layout: [0]=rc, [1..36]=FCB, [37..164]=128-byte sector
+	push	hl
+	ld	de, cpnet_msg + MSG_DAT + 37
+	ex	de, hl
+	pop	de			; DE = load pointer
+	ld	bc, 128
+	ldir				; copy 128 B sector into RAM
+	ex	de, hl			; HL = updated load pointer
+
+	; Emit one '.' on both SIO-B (mirror) and the CRT via conout
+	; (cursor follows on display).
+	push	hl
+	push	de
+	push	bc
+	ld	d, '.'
+	call	sio_b_tx_d
+	ld	d, '.'
+	call	conout
+	pop	bc
+	pop	de
+	pop	hl
+
+	; Sanity bound: HL must not pass BIOS_BOOT
+	ld	a, h
+	cp	BIOS_BOOT >> 8
+	jr	c, .nb_read
+	; H >= 0xED -> at or past BIOS_BOOT; bail.
+	scf
+	ret
+
+.nb_eof:
+	push	hl
+
+	; --- CLOSE ---
+	; reuse master-filled FCB (only reset user byte)
+	xor	a
+	ld	(cpnet_msg + MSG_DAT), a
+	ld	a, FNC_CLOSE
+	ld	(cpnet_msg + MSG_FNC), a
+	ld	a, 36
+	ld	(cpnet_msg + MSG_SIZ), a
+	call	cpnet_xact		; ignore return (close errors not fatal)
+
+	pop	hl
+	or	a			; CF = 0
+	ret
+
+; install_fcb: copy 13-byte FCB_HEAD into cpnet_msg + MSG_DAT and
+; zero-fill the remaining 24 bytes (DAT[13..36]) so the FCB body
+; matches DRI BDOS expectations for OPEN/READ/CLOSE.
+install_fcb:
+	ld	hl, fcb_head
+	ld	de, cpnet_msg + MSG_DAT
+	ld	bc, 13
+	ldir
+	; DE now at cpnet_msg + MSG_DAT + 13.  Zero 24 bytes.
+	xor	a
+	ld	b, 24
+.fz:
+	ld	(de), a
+	inc	de
+	djnz	.fz
+	ret
+
+fcb_head:
+	db	0			; user number = 0
+	db	1			; drive A
+	db	"CPNOS   "		; 8-byte filename, space-padded
+	db	"IMG"			; 3-byte extension
+
+login_pwd:
+	db	"PASSWORD"
 
 ; LOGIN request body (5-byte CP/NET header + 8-byte password DAT).
 ; This is the FIRST CP/NET frame the slave sends at boot, mirroring
@@ -578,6 +1020,103 @@ cpnet_wait_ack:
 	cp	ACK
 	ret	z			; ACK -> Z=1 + CF=0
 	scf				; non-ACK -> CF=1
+	ret
+
+; conout: emit byte D to the CRT and update the cursor.  Recognises
+; CR (0x0D) and LF (0x0A) as control characters:
+;   CR -> reset col to 0 (carriage return; no row change, no glyph)
+;   LF -> increment row    (line feed; no col change, no glyph)
+;   other -> write char at current (col, row), advance col, wrap to
+;            next row at 80.
+; In all cases the 8275 LOAD CURSOR command is re-issued so the
+; visible block cursor tracks output.  Mirror of a BIOS conout.
+;
+; Clobbers: AF only.  Preserves HL, DE, BC (HL load-bearing for the
+; banner loop / status-string emitter that hold a source pointer
+; there).
+conout:
+	ld	a, d
+	cp	0x0D			; CR?
+	jr	z, .co_cr
+	cp	0x0A			; LF?
+	jr	z, .co_lf
+	; Regular printable byte: write to display + advance col.
+	push	hl
+	ld	hl, (dot_cursor)
+	ld	(hl), d
+	inc	hl
+	ld	(dot_cursor), hl
+	pop	hl
+	ld	a, (dot_col)
+	inc	a
+	cp	80
+	jr	c, .co_no_wrap
+	; Wrap: col = 0, row += 1, advance dot_cursor unchanged (it
+	; was already incremented past the just-written byte so it's
+	; sitting on the new row's column 0 in display memory).
+	xor	a
+	ld	(dot_col), a
+	push	hl
+	ld	a, (dot_row)
+	inc	a
+	ld	(dot_row), a
+	pop	hl
+	jr	.co_cursor
+.co_no_wrap:
+	ld	(dot_col), a
+	jr	.co_cursor
+
+.co_cr:
+	; Carriage return: col = 0, recompute dot_cursor for new col.
+	xor	a
+	ld	(dot_col), a
+	call	.co_recompute_ptr
+	jr	.co_cursor
+
+.co_lf:
+	; Line feed: row += 1, recompute dot_cursor for new row.
+	ld	a, (dot_row)
+	inc	a
+	ld	(dot_row), a
+	call	.co_recompute_ptr
+	jr	.co_cursor
+
+.co_recompute_ptr:
+	; dot_cursor = 0xF800 + dot_row * 80 + dot_col
+	push	bc
+	push	de
+	push	hl
+	ld	a, (dot_row)
+	ld	h, 0
+	ld	l, a
+	add	hl, hl			; row * 2
+	add	hl, hl			; * 4
+	ld	d, h
+	ld	e, l			; DE = row * 4
+	add	hl, hl			; * 8
+	add	hl, hl			; * 16
+	add	hl, de			; * 20
+	add	hl, hl			; * 40
+	add	hl, hl			; * 80 = row * 80
+	ld	de, 0xF800
+	add	hl, de			; HL = 0xF800 + row * 80
+	ld	a, (dot_col)
+	ld	e, a
+	ld	d, 0
+	add	hl, de			; HL += col
+	ld	(dot_cursor), hl
+	pop	hl
+	pop	de
+	pop	bc
+	ret
+
+.co_cursor:
+	ld	a, CRT_CMD_LOADCUR
+	out	(PORT_CRT_CMD), a
+	ld	a, (dot_col)
+	out	(PORT_CRT_PARAM), a
+	ld	a, (dot_row)
+	out	(PORT_CRT_PARAM), a
 	ret
 
 ; sio_b_tx_d: send the byte in D on SIO-B (polled TX).  Mirror of
@@ -766,6 +1305,14 @@ msg_login_ok_len equ $ - msg_login_ok
 msg_login_fail:
 	db	"LOGIN FAIL", 0x0D, 0x0A
 msg_login_fail_len equ $ - msg_login_fail
+
+msg_fetch_ok:
+	db	0x0D, 0x0A, "FETCH OK", 0x0D, 0x0A
+msg_fetch_ok_len equ $ - msg_fetch_ok
+
+msg_fetch_fail:
+	db	0x0D, 0x0A, "FETCH FAIL", 0x0D, 0x0A
+msg_fetch_fail_len equ $ - msg_fetch_fail
 
 ; dump_rx_to_siob: write the most-recently-received frame to SIO-B
 ; for visibility.  Length = 12 + SIZ (header 7 + STX 1 + DAT SIZ+1
