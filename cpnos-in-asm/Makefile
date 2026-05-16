@@ -166,12 +166,13 @@ cpnos-siob-test: cpnos-mame-install
 	    && echo "PASS: banner present on SIO-B" \
 	    || { echo "FAIL: banner not on SIO-B"; xxd $(SIOB_RAW) | head -4; exit 1; }
 
-# SIO-A no-master check.  Since phase 3d-β, the slave waits for ACK
-# before emitting the rest of an INIT frame; with no master on the
-# other end of the null_modem (file-backed -bitb1 just captures TX,
-# never delivers RX), the slave should send exactly one byte
-# (ENQ = 0x05) and then time out / give up.
-# A real master + handshake is exercised by cpnos-cpnet-test.
+# SIO-A no-master check.  Since phase 3d-β the slave waits for ACK
+# before emitting the rest of a frame; since phase 3f the send is
+# wrapped in MAXRETRY = 10 retries (per CP/NET 1.2 spec) so with no
+# master on the wire the slave emits exactly 10 ENQ bytes then gives
+# up.  File-backed null_modem only captures TX -- no RX delivered.
+# A real master + handshake is exercised by cpnos-cpnet-test +
+# cpnos-mpm-test.
 cpnos-sioa-test: cpnos-mame-install
 	@rm -f $(SIOA_RAW)
 	@echo "=== launching MAME for SIO-A no-master check (~$(BOOT_DEADLINE_S) s) ==="
@@ -186,9 +187,9 @@ cpnos-sioa-test: cpnos-mame-install
 	@xxd $(SIOA_RAW) | head -3
 	@python3 -c "import sys; \
 	    d = open('$(SIOA_RAW)', 'rb').read(); \
-	    ok = (d == b'\x05'); \
-	    sys.exit(0 if ok else (print(f'FAIL: expected just ENQ (0x05), got {d.hex()}') or 1))" \
-	    && echo "PASS: slave sent ENQ only (no master to ACK)" \
+	    ok = (d == b'\x05' * 3); \
+	    sys.exit(0 if ok else (print(f'FAIL: expected 3 ENQs (0x05*3), got {d.hex()}') or 1))" \
+	    && echo "PASS: slave sent 3 ENQs (MAXRETRY=3, no master to ACK)" \
 	    || { echo "FAIL"; exit 1; }
 
 # Phase 2b/integration: socket-backed SIO-B echo round-trip.

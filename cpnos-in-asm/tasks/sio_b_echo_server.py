@@ -75,6 +75,16 @@ if BANNER_MATCH not in buf:
     _result("FAIL", f"banner not seen.  received {len(buf)} B: {buf[:60]!r}")
 _log(f"banner received on SIO-B ({len(buf)} B)")
 
+# Phase 3f delay: slave's send_cpnet_init_frame_retry burns
+# ~3 * 250 ms = 750 ms simulated on SIO-A with no master present
+# (MAXRETRY = 3 today; see prom1.asm comment).  At MAME's
+# -nothrottle ~5x speed that's ~150 ms wall.  During this window
+# the slave's combined_io_loop isn't running, so SIO-B RX bytes
+# arrive at the SIO chip's tiny FIFO and get dropped on overrun.
+# Sleep covers the burn with plenty of margin.
+_log("waiting 0.5 s wall for slave to finish phase-3f SIO-A retry burn...")
+time.sleep(0.5)
+
 # 2. Send probe.
 conn.sendall(PROBE)
 _log(f"sent probe {PROBE!r}")
