@@ -477,6 +477,72 @@ cpnos-polypascal-test: cpnos-mame-install _kill-mpm
 	@cat $(PPAS_RESULT) 2>/dev/null || { echo "(no result file)"; exit 1; }
 	@grep -q '^PASS' $(PPAS_RESULT) 2>/dev/null
 
+# CONOTEST.COM stress-test for display control codes (0x01 insert
+# line, 0x02 delete line, 0x06 XY addressing, 0x0A LF scroll, 0x0C
+# clear screen).  CONOTEST.COM lives on the master's drive I (slave
+# drive E:) and writes its PASS:/FAIL: verdict to BIOS CONOUT, which
+# our impl_conout mirrors to SIO-B for the harness to scrape.
+.PHONY: cpnos-conout-test
+cpnos-conout-test: cpnos-mame-install _kill-mpm
+	@echo "=== 1/4 installing cpnos.com + CONOTEST.COM ==="
+	@$(MAKE) -C ../cpnos-in-c cpnos-disk-install \
+	    >/tmp/cpnos_asm_diskinstall.log 2>&1 \
+	    || { echo "ERROR: cpnos-disk-install failed"; \
+	         tail -20 /tmp/cpnos_asm_diskinstall.log; exit 1; }
+	@# cpmcp segfaults at exit on z80pack-hd format BUT the file is
+	@# actually written to disk before the crash.  Tolerate exit code
+	@# and verify via grep afterwards.  cpmtools bug (both ~/.local
+	@# and cpmtools3 affected); written up in
+	@# https://github.com/cpmtools/cpmtools/issues/N (TBD).
+	-@cpmcp -f z80pack-hd \
+	    $(MPM_DIR)/disks/library/mpm-net2-drivei.dsk \
+	    ../rcbios-in-c/conotest.com 0:CONOTEST.COM \
+	    >/dev/null 2>&1
+	@grep -aq "CONOTEST" $(MPM_DIR)/disks/library/mpm-net2-drivei.dsk \
+	    || { echo "ERROR: CONOTEST.COM not on drive I disk"; exit 1; }
+	@cp $(BUILDDIR)/prom0_padded.ic66 $(MAME)/roms/rc702/roa375.ic66
+	@cp $(PROM1_BIN) $(MAME)/roms/rc702/prom1.ic65
+	@cmp $(BUILDDIR)/prom0_padded.ic66 $(MAME)/roms/rc702/roa375.ic66 \
+	    || { echo "ERROR: PROM0 mismatch"; exit 1; }
+	@cmp $(PROM1_BIN) $(MAME)/roms/rc702/prom1.ic65 \
+	    || { echo "ERROR: PROM1 mismatch"; exit 1; }
+	@echo "=== 2/4 starting MP/M mpm-net2 in screen ==="
+	@cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+	    if nc -z 127.0.0.1 4002 2>/dev/null; then break; fi; sleep 0.5; \
+	 done
+	@nc -z 127.0.0.1 4002 || { echo "ERROR: mpm-net2 didn't start"; exit 1; }
+	@sleep 2
+	@rm -f $(PPAS_SIOB) $(PPAS_RESULT) $(PPAS_LOG)
+	@echo "=== 3/4 generating $(PPAS_ADDRS) ==="
+	@mkdir -p $(dir $(PPAS_ADDRS))
+	@KH=$$(awk '/^kbd_head[ \t]+=?[0-9A-Fa-f]+/ {sub(/=/,"",$$2); print $$2}' \
+	         $(BUILDDIR)/zout/snios_payload.lst); \
+	 KR=$$(awk '/^kbd_ring[ \t]+=?[0-9A-Fa-f]+/ {sub(/=/,"",$$2); print $$2}' \
+	         $(BUILDDIR)/zout/snios_payload.lst); \
+	 printf 'return {\n  kbd_head = 0x%s,\n  kbd_ring = 0x%s,\n}\n' "$$KH" "$$KR" \
+	   > $(PPAS_ADDRS)
+	@cat $(PPAS_ADDRS)
+	@echo "=== 4/4 launching MAME with conotest_test.lua (max 120 s) ==="
+	-COMPILER=asm BUILDDIR=$(BUILDDIR) $(MAME_IRQ)/regnecentralend rc702 \
+	    -rompath $(MAME_IRQ)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run 120 \
+	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
+	    -rs232b null_modem -bitb2 $(PPAS_SIOB) \
+	    -snapname cpnos_asm_conout \
+	    -autoboot_script $(SHARED)/mame/conotest_test.lua \
+	    >/tmp/cpnos_asm_mame.log 2>&1
+	-@$(MAKE) _kill-mpm
+	@echo "--- conout-test log ---"
+	@cat $(PPAS_LOG) 2>/dev/null
+	@echo "--- SIO-B output (printable filter) ---"
+	@tr -cd '\11\12\15\40-\176' < $(PPAS_SIOB) 2>/dev/null | tail -c 600 || true
+	@echo
+	@echo "--- result ---"
+	@cat $(PPAS_RESULT) 2>/dev/null || { echo "(no result file)"; exit 1; }
+	@grep -q '^PASS' $(PPAS_RESULT) 2>/dev/null
+
 # Diagnostic: run the slave against mpm-net2 (no keystrokes) and have
 # MAME's Lua dump CP/NOS memory structures at t=15/30/60 s.  Used to
 # diff the asm slave's runtime state against cpnos-in-c when SELDSK

@@ -301,9 +301,12 @@ PORT_CRT_CMD	equ	0x01
 PORT_CRT_PARAM	equ	0x00
 PORT_BIB	equ	0x05		; RC702 bell port (PIB)
 CRT_CMD_LOADCUR	equ	0x80
-DSP_BASE	equ	0xF800		; display memory (80 x 24 x 1 B)
+DSP_BASE	equ	0xF800		; display memory (80 x 25 x 1 B = 2000 B)
 DSP_COLS	equ	80
-DSP_ROWS	equ	24
+DSP_ROWS	equ	25		; 8275 CRT_P2 R=24 means rows-1; cpnos-in-c
+					; uses SCRN_ROWS=25 too.  conout_test.c
+					; goto_xy(0,24) expects row 24 to be the
+					; LAST visible row, not out-of-range.
 impl_conout:
 	; CONOUT: char in C.  Writes the CRT framebuffer at 0xF800 AND
 	; mirrors to SIO-B (polypascal_test.lua scrape).  Implements the
