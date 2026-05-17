@@ -537,12 +537,15 @@ extern uint16_t transport_recv_byte(uint16_t);
 SECTION_RESIDENT
 static void install_transport(void) {
     if (_port_in(PORT_SW1) & 0x04) {
-        uint16_t snd = (uint16_t)&transport_send_byte;
-        uint16_t rcv = (uint16_t)&transport_recv_byte;
-        xport_send_byte[1] = (uint8_t)snd;
-        xport_send_byte[2] = (uint8_t)(snd >> 8);
-        xport_recv_byte[1] = (uint8_t)rcv;
-        xport_recv_byte[2] = (uint8_t)(rcv >> 8);
+        /* Write the JP-NN target as a single 16-bit store per slot.
+         * Pointer-aliasing through uint16_t* lets clang -Oz emit
+         * Z80's `LD (nn),HL` (3 B) instead of two `LD (nn),A` (6 B).
+         * Z80 has no alignment requirements; the volatile cast keeps
+         * the optimiser from rewriting the store back to two bytes. */
+        *(volatile uint16_t *)&xport_send_byte[1] =
+            (uint16_t)&transport_send_byte;
+        *(volatile uint16_t *)&xport_recv_byte[1] =
+            (uint16_t)&transport_recv_byte;
     }
 }
 

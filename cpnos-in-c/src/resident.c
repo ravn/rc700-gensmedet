@@ -137,15 +137,9 @@ USED uint8_t pio_par_count;
 RESIDENT
 uint8_t impl_const(void) {
     if (_port_in(PORT_SIO_B_CTRL) & SIO_RR0_RX_CHAR_AVAIL) {
-#if 0  /* #72 bisect: was MIRROR_SIOB && defined(__SDCC) — boot_probe('S') call */
-        if (!(probe_once & 0x01)) { probe_once |= 0x01; boot_probe('S'); }
-#endif
         return 0xFF;
     }
     if (kbd_head != kbd_tail) {
-#if 0  /* #72 bisect: was MIRROR_SIOB && defined(__SDCC) — boot_probe('K') call */
-        if (!(probe_once & 0x02)) { probe_once |= 0x02; boot_probe('K'); }
-#endif
         return 0xFF;
     }
     return 0x00;
