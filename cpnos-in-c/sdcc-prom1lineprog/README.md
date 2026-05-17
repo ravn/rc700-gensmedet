@@ -62,7 +62,26 @@ Image contents (LMA 0x2000):
     + init.zx0 (562 B INCBIN)
     + payload.zx0 (1552 B INCBIN)
 
-## Stage 4 (NEXT): MAME boot verification
+## Stage 4 (PARTIAL): MAME boot verification
+
+Boot reaches cpnos banner + netboot dots; stalls before stamp print.
+
+Companion MAME changes (ravn/mame@d0a7dcd81f2):
+  * ROM_LOAD_OPTIONAL prom1.ic65 size 0x0800 -> 0x1000.
+  * PORT_CONFNAME PROM1 default 0x00 -> 0x02 (4 KB / 2732 mode).
+This gives MAME a 4 KB PROM1 region with bank2h exposing the upper
+half at 0x2800..0x2FFF.  Earlier the loader was truncating my 4 KB
+file to its first 2 KB.
+
+SDCC PROM1-only verified output (SIO-B raw, this session):
+    RC702 CP/NOS 55K PIO sdcc 2026-05-17 21:07 00791ce+
+    ............................   (28 netboot dots = full cpnos.img)
+
+Stall: stamp line ("2026-05-17 ... da_US") + E> never appear.
+See tasks/todo-sdcc-prom1lineprog-netboot-stall-2026-05-17.md for
+hypotheses + diagnostic plan.
+
+## Stage 5 (NEXT): close the netboot stall
 
   * Makefile target: `COMPILER=sdcc make sdcc-prom1lineprog-try`
   * Current state: gets past the relocator.c (excluded via
