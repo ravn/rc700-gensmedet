@@ -58,16 +58,23 @@ all: prom
 
 prom:
 	$(MAKE) $(PROM_TARGET)
+	@# Per-compiler size policy:
+	@#   clang: 2 KB hard cap (production binary -- user's physical
+	@#          RC702 has 2716 sockets, no A11 bridge for 2732).
+	@#   sdcc:  4 KB hard cap (MAME-only parity testing; MAME's
+	@#          roa375.ic66 slot is a 4 KB file format).
 	@PROM=$$(wc -c < $(PROM_BIN) | tr -d ' '); \
-	 echo "$(COMPILER) PROM: $$PROM / 2048 bytes (PROM0 socket)"; \
+	 if [ "$(COMPILER)" = "sdcc" ]; then CEIL=4096; CLABEL="MAME 4 KB"; \
+	 else CEIL=2048; CLABEL="PROM0 2 KB hard"; fi; \
+	 echo "$(COMPILER) PROM: $$PROM / $$CEIL bytes ($$CLABEL)"; \
 	 if [ $$PROM -gt 4096 ]; then \
 	   echo "ERROR: exceeds 4096-byte file-format limit by $$((PROM - 4096)) bytes"; \
 	   exit 1; \
-	 elif [ $$PROM -gt 2048 ]; then \
-	   echo "WARNING: exceeds 2048-byte PROM0 socket by $$((PROM - 2048)) bytes"; \
-	   echo "  -- OK for development per user policy; must shrink before burning EPROM."; \
+	 elif [ $$PROM -gt $$CEIL ]; then \
+	   echo "ERROR: $(COMPILER) build exceeds $$CEIL-byte ceiling by $$((PROM - CEIL)) bytes"; \
+	   exit 1; \
 	 else \
-	   echo "OK: $$((2048 - PROM)) bytes free in PROM0"; \
+	   echo "OK: $$((CEIL - PROM)) bytes free in $$CLABEL"; \
 	 fi
 	@# Pad to 4096 for MAME's roa375.ic66 slot (the file format is
 	@# 4 KB; high 2 KB is unused / 0xFF in autoload mode, holds the
@@ -287,10 +294,15 @@ ZFLAGS = +z80 -clib=sdcc_iy --no-crt --opt-code-size -SO3 \
          -Cs"--fomit-frame-pointer" \
          -Cs"--allow-unsafe-read" \
          -Cs"--sdcccall 1" -Cs"--disable-warning 296" \
-         -custom-copt-rules=sdcc/peephole.def \
+         -custom-copt-rules=/src/sdcc/peephole.def \
          -pragma-define:CRT_ORG_CODE=0x0000 \
          -pragma-define:CRT_ORG_BSS=0x8200 \
          -pragma-define:CRT_CPU_CLOCK_HZ=4000000
+# /src is the Docker mount point for $(CURDIR) -- absolute container
+# path so the copt-rules lookup works in all three zcc invocations
+# below (the third one runs from /src/sdcc after `cd sdcc`, where the
+# previous relative path `sdcc/peephole.def` resolved to a non-existent
+# /src/sdcc/sdcc/peephole.def).
 
 ZLIB = -lz80
 ZLFLAGS = -m --list -create-app -Cz"--org 0" $(ZLIB)
