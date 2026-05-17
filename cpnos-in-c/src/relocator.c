@@ -321,6 +321,34 @@ NORETURN void relocate(void) {
         for (;;) { }
     }
 
+    /* Pre-fill outcon at 0xF680..0xF6FF with byte-identity (0..0x7F)
+     * and arm the locale-tables sentinel before jumping to cold_entry.
+     * Matches PROM1-only's bootstrap.s: the resident payload itself is
+     * identical between the two cold paths (cpnos-shared/ld/payload.ld
+     * == clang-prom1lineprog/payload.ld in layout), only the pre-init
+     * differs.  install_locale_tables() in resident_handoff overlays
+     * the real US-ASCII outcon + Danish inconv from cpnos.img once
+     * netboot lands them at 0xDC00.
+     *
+     * Inline asm because the relocator's .text/.rodata region is
+     * capped at 672 B and clang's loop lowering pushes it over -- the
+     * hand-rolled 10-byte loop matches bootstrap.s and is essentially
+     * free against that budget.  Sentinel address comes in via
+     * --defsym=_prom1_only_sentinel=... in the Makefile relocator-link
+     * step. */
+    __asm__ volatile (
+        "ld   hl, 0xF680\n\t"
+        "xor  a\n\t"
+        "1:\n\t"
+        "ld   (hl), a\n\t"
+        "inc  l\n\t"
+        "inc  a\n\t"
+        "jp   p, 1b\n\t"
+        "ld   a, 0x5A\n\t"
+        "ld   (_prom1_only_sentinel), a\n\t"
+        : : : "a", "h", "l", "memory"
+    );
+
     /* JP cold entry.
      *
      * Clang Z80: an ordinary function-pointer call lowers to the

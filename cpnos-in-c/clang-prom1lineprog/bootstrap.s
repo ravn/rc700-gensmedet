@@ -53,12 +53,16 @@ bootstrap_entry:
 	inc	l
 	inc	a
 	jp	p, .fill_outcon
-	; Sentinel is NOT written here.  init.c arms it between
-	; print_banner() and netboot_mpm(); writing it in bootstrap
-	; made impl_conout index a still-empty outcon at 0xF680 during
-	; the banner and silently zero-out every character (caught
-	; session 73j-locale by the TYPE ASCII.TXT run -- top of
-	; display showed only NULs).
+	; Stamp the PROM1-only sentinel into resident BSS.  The outcon
+	; pre-fill above means impl_conout's sentinel-gated table lookup
+	; sees identity bytes (banner + netboot dots both render through
+	; the table as their literal byte), so it's now safe to arm here
+	; rather than between print_banner() and netboot_mpm() in init.c.
+	; Two-PROM cold-init never writes this byte -- it has no bootstrap.s
+	; -- so install_locale_tables() is a no-op there, leaving the
+	; pio_rx_buf at 0xF700 intact for the IRQ ring.
+	ld	a, 0x5A
+	ld	(_prom1_only_sentinel), a
 	; Tail-call into init.  cpnos_cold_entry is NORETURN; it ends
 	; with resident_handoff which RAMENs and JPs to NDOS at 0xDD80.
 	jp	0xC000

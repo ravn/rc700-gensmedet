@@ -76,18 +76,22 @@ MEMORY {
    * static-stack frames all live here.  The two `.scratch_bss*` input
    * sections are kept distinct (legacy section attrs in source) but
    * mapped to one SCRATCH region. */
-  /* SCRATCH temporarily relocated to the 0xEB00 gap (above IVT, below
-   * resident) for #75 Phase 5+6 test config -- frees 0xF500..0xF6FF for
-   * payload-region growth so the plain-C SNDMSG/RCVMSG state machines
-   * fit.  Branch `phase-5-6-test-config` only; main-line uses 0xF500. */
-  SCRATCH (rwx) : ORIGIN = 0xEB00, LENGTH = 0x200  /* in cpnos.com gap */
-
-  /* PIO-B receive ring buffer (.pio_rx_buf section).  Page-aligned
-   * 256-byte buffer at 0xF700 — the head/tail are 8-bit so wrap is
-   * free (uint8_t arithmetic).  Sits in the unused tail of the
-   * payload memory region (0xED00..0xF800).  Hard-asserted to not
-   * overlap actual payload code below. */
-  PIO_RX (rwx) : ORIGIN = 0xF700, LENGTH = 0x100
+  /* locale_tables_v3 layout (2026-05-17): match PROM1-only so resident
+   * payload + BSS regions are identical between the two cold-boot
+   * paths -- only the relocator/bootstrap differs.
+   *   SCRATCH 0xEB00..0xEBFF (256 B; shrunk from 0x200 by moving
+   *                            cfgtbl out into CFGTBL_RAM below)
+   *   PIO_RX  0xEC00..0xECFF (256 B; moved from 0xF700, still
+   *                            page-aligned for the ISR LD H,page trick)
+   *   CFGTBL  0xF53C..0xF60D (210 B; pinned just above resident so
+   *                            scratch fits in one page)
+   *   stack workspace 0xF60E..0xF67F (~114 B; was 0xF621..0xF6FF)
+   *   FREE    0xF680..0xF7FF (384 B for outcon[128] + inconv[256]
+   *                            installed by install_locale_tables at
+   *                            cold boot from the cpnos.img prefix) */
+  SCRATCH    (rwx) : ORIGIN = 0xEB00, LENGTH = 0x100
+  PIO_RX     (rwx) : ORIGIN = 0xEC00, LENGTH = 0x100
+  CFGTBL_RAM (rw)  : ORIGIN = 0xF53C, LENGTH = 0xD2
 }
 
 /* IVT symbols `__ivt_start` / `__ivt_end` are emitted by the .ivt output
@@ -205,12 +209,12 @@ SECTIONS {
    * (stack-vs-loaded-image collision -- exactly what bit us during
    * Option β bring-up).  __stack_top mirrors the SP value reset.s
    * loads.  Reset.s should reference these symbols to stay in sync. */
-  /* Stack moved to top of free RAM (was 0xF500 pre-Path-3) so resident
-   * can rise from 0xED00 to 0xED00 (+256 B TPA via raised CODE_BASE).
-   * SP top = 0xF700 (just below PIO_RX); stack growth area =
-   * 0xF621..0xF6FF (~223 B; max observed depth ~50 B during init). */
-  __stack_top = 0xF700;
-  __stack_low = 0xF621;
+  /* Stack lives just below the locale region at 0xF680.  Growth area
+   * is 0xF60E..0xF67F (~114 B; cfgtbl ends at 0xF60D).  Max observed
+   * depth ~50 B during init.  See PROM1-only's identical layout in
+   * clang-prom1lineprog/payload.ld. */
+  __stack_top = 0xF680;
+  __stack_low = 0xF53C;
 
   __payload_size = __payload_end - __payload_start;
 
@@ -231,6 +235,16 @@ SECTIONS {
   ASSERT(__payload_end <= 0xF800,
          "payload overflows into display memory at 0xF800 — shrink it")
 
+  /* cfgtbl moved OUT of scratch_bss into its own pinned region at
+   * 0xF53C (just above the stack workspace).  Saves 210 B in scratch,
+   * which now fits in a single 256 B page.  Placed BEFORE the
+   * .scratch_bss rule so .bss.cfgtbl is matched here and not by the
+   * `*(.bss*)` wildcard below. */
+  .cfgtbl_bss 0xF53C (NOLOAD) : {
+    KEEP(*(.bss.cfgtbl))
+    KEEP(*(.bss._cfgtbl))
+  } > CFGTBL_RAM
+
   .scratch_bss (NOLOAD) : {
     __scratch_bss_start = .;
     /* Force-keep harness-observed symbols even though their writers
@@ -245,10 +259,11 @@ SECTIONS {
     __scratch_bss_end = .;
   } > SCRATCH
 
-  /* SCRATCH at 0xEB00 must not overflow into resident at 0xED00.
-   * Capacity = 0x200 (512 B); current scratch_bss usage ~0x113 (275 B). */
-  ASSERT(__scratch_bss_end <= 0xED00,
-         "scratch_bss at 0xEB00 overflowed into resident at 0xED00!")
+  /* SCRATCH at 0xEB00 must not overflow into pio_rx_buf at 0xEC00.
+   * Capacity = 0x100 (256 B); current scratch_bss usage ~63 B with
+   * cfgtbl moved out. */
+  ASSERT(__scratch_bss_end <= 0xEC00,
+         "scratch_bss at 0xEB00 overflowed into pio_rx_buf at 0xEC00!")
 
   /* Stack-vs-cpnos.com / stack-vs-resident / stack-vs-scratch ASSERTs.
    * `__cpnos_load_end` comes via --defsym from the Makefile (=
@@ -285,8 +300,11 @@ SECTIONS {
   ASSERT(_zp_init_data >= 0xED00 && _zp_init_data < 0xF800,
          "zp_init_data must be resident (read after PROM disable)")
 
-  /* PIO-B receive ring (page-aligned at 0xF700). */
-  .pio_rx_bss 0xF700 (NOLOAD) : {
+  /* PIO-B receive ring (page-aligned at 0xEC00 in locale_tables_v3
+   * layout; was 0xF700 pre-v3).  Page boundary kept so the ISR's
+   * `ld h, _pio_rx_buf_page; ld l, head/tail` trick still works
+   * without a 16-bit add. */
+  .pio_rx_bss 0xEC00 (NOLOAD) : {
     __pio_rx_bss_start = .;
     *(.pio_rx_bss)
     __pio_rx_bss_end = .;
@@ -301,8 +319,8 @@ SECTIONS {
   ASSERT((__pio_rx_bss_start & 0xFF) == 0,
          "pio_rx_buf must be page-aligned for ISR's `ld h, page; ld l, head` trick")
 
-  ASSERT(__payload_end <= 0xF700,
-         "payload grew into pio_rx_bss region — shrink payload or move buffer")
+  ASSERT(__payload_end <= 0xF53C,
+         "payload grew into cfgtbl/stack workspace at 0xF53C")
 
   /* Issue #35: IVT must not overlap payload or BSS (memcpy / BSS
    * clear would stomp the vector table).  Post-2026-05-08 the IVT

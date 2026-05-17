@@ -596,9 +596,12 @@ $(BUILDDIR)/payload_a.bin $(BUILDDIR)/payload_b.bin: $(BUILDDIR)/payload.bin
 $(BUILDDIR)/relocator.elf: $(RELOC_OBJS) $(RELOC_LD) $(BUILDDIR)/payload.elf
 	@stack=$$($(NM) $(BUILDDIR)/payload.elf | awk '/ __stack_top$$/ {print "0x"$$1}'); \
 	 test -n "$$stack" || { echo "ERROR: __stack_top not found in payload"; exit 1; }; \
-	 echo "relocator: __stack_top=$$stack (other metadata via payload_header)"; \
+	 sentinel=$$($(NM) $(BUILDDIR)/payload.elf | awk '/ _prom1_only_sentinel$$/ {print "0x"$$1}'); \
+	 test -n "$$sentinel" || { echo "ERROR: _prom1_only_sentinel not found"; exit 1; }; \
+	 echo "relocator: __stack_top=$$stack _prom1_only_sentinel=$$sentinel"; \
 	 $(LD) --gc-sections -T $(RELOC_LD) \
 	       --defsym=__stack_top=$$stack \
+	       --defsym=_prom1_only_sentinel=$$sentinel \
 	       $(RELOC_OBJS) -o $@
 
 # ---- Produce prom0.bin / prom1.bin (clang only) -------------------
@@ -712,19 +715,22 @@ cpnos-disasm: $(BUILDDIR)/payload.elf $(BUILDDIR)/relocator.elf
 # fails to take effect — both must be refreshed.
 MPM_DISK_LIB = ../z80pack/cpmsim/disks/library
 cpnos-disk-install: cpnos-build/d/cpnos.com
-	@echo "=== stamping cpnos.com with build timestamp ==="
-	@python3 cpnos-build/stamp_cpnos.py cpnos-build/d/cpnos.com $(BUILDDIR)/cpnos_stamped.com
-	@echo "=== installing stamped cpnos.com onto MP/M library disks ==="
+	@echo "=== stamping cpnos.com + prepending 384 B locale prefix ==="
+	@python3 cpnos-build/stamp_cpnos.py cpnos-build/d/cpnos.com $(BUILDDIR)/cpnos_stamped.com \
+	    --locale $(CPNOS_LOCALE_TAG)
+	@python3 cpnos-build/gen_locale_prefix.py $(BUILDDIR)/locale_prefix.bin
+	@cat $(BUILDDIR)/locale_prefix.bin $(BUILDDIR)/cpnos_stamped.com > $(BUILDDIR)/cpnos_with_locale.img
+	@echo "  cpnos.img = 384 B prefix + $$(wc -c < $(BUILDDIR)/cpnos_stamped.com) B stamped cpnos.com = $$(wc -c < $(BUILDDIR)/cpnos_with_locale.img) B"
 	@cpmrm -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk 0:cpnos.img 2>/dev/null || true
 	cpmcp -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk \
-	    $(BUILDDIR)/cpnos_stamped.com 0:cpnos.img
+	    $(BUILDDIR)/cpnos_with_locale.img 0:cpnos.img
 	@if [ -f $(MPM_DISK_LIB)/cpnetsmk-1.dsk ]; then \
 	    cpmrm -f ibm-3740 $(MPM_DISK_LIB)/cpnetsmk-1.dsk 0:cpnos.img 2>/dev/null || true; \
 	    cpmcp -f ibm-3740 $(MPM_DISK_LIB)/cpnetsmk-1.dsk \
-	        $(BUILDDIR)/cpnos_stamped.com 0:cpnos.img; \
-	    echo "  refreshed cpnos.img on cpnetsmk-1.dsk"; \
+	        $(BUILDDIR)/cpnos_with_locale.img 0:cpnos.img; \
+	    echo "  refreshed (locale) cpnos.img on cpnetsmk-1.dsk"; \
 	 fi
-	@echo "  refreshed cpnos.img on mpm-net2-1.dsk"
+	@echo "  refreshed (locale) cpnos.img on mpm-net2-1.dsk"
 
 # Variant: prepend 384 B locale prefix (US-ASCII outcon + Danish
 # inconv) before installing.  The PROM1-only cpnos slave (v3 layout)
@@ -1121,6 +1127,49 @@ pio-irq-smoke: cpnos-install _check-tag-pio-irq _check-mame-irq
 # the CCP E> prompt.  Forces MIRROR_SIOB=1 so the Lua script can
 # scrape /tmp/cpnos_siob.raw for completion markers.  MP/M is
 # restarted from scratch so the run is hermetic.
+cpnos-polypascal-test-no-mirror:
+	@# Variant of polypascal-test with MIRROR_SIOB=0 -- the slave's
+	@# impl_conout doesn't busy-wait on SIO-B TX after every console
+	@# byte.  Comparison probe: does removing the per-char ~1 ms SIO-B
+	@# transmit wait speed up the PPAS PRIMES test wall-clock?  Lua
+	@# variant polls 25x80 display RAM at 0xF800 instead of SIO-B raw
+	@# for the stage markers.
+	@echo "=== 1/4 building cpnos-rom with MIRROR_SIOB=0 + installing ==="
+	$(MAKE) MIRROR_SIOB=0 cpnos-install
+	@echo "=== 2/4 (re)starting MP/M with fresh disks ==="
+	$(MAKE) _kill-mpm
+	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	@echo "=== 3/4 waiting for MP/M CP/NET server on :4002 ==="
+	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
+	@sleep 2
+	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
+	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt
+	@echo "=== 4/4 syncing ROMs to IRQ-fix MAME tree ==="
+	cp $(MAME)/roms/rc702/roa375.ic66 $(MAME_IRQ)/roms/rc702/roa375.ic66
+	cp $(MAME)/roms/rc702/prom1.ic65  $(MAME_IRQ)/roms/rc702/prom1.ic65
+	@KH=$$($(NM) $(BUILDDIR)/payload.elf | awk '/_kbd_head$$/{print $$1}'); \
+	 KR=$$($(NM) $(BUILDDIR)/payload.elf | awk '/_kbd_ring$$/{print $$1}'); \
+	 printf 'return {\n  kbd_head = 0x%s,\n  kbd_ring = 0x%s,\n}\n' "$$KH" "$$KR" \
+	   > $(BUILDDIR)/cpnos_polypascal_addrs.lua
+	@cat $(BUILDDIR)/cpnos_polypascal_addrs.lua
+	@echo "=== launching MAME with no-mirror PolyPascal test driver ==="
+	-COMPILER=$(COMPILER) \
+	MAME_BIN=$(MAME_IRQ)/regnecentralend \
+	$(CURDIR)/../scripts/mame_capture.sh polypascal_no_mirror_$(COMPILER)_$(TRANSPORT) -- \
+	    rc702 -rompath $(MAME_IRQ)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run 240 \
+	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
+	    -piob cpnet_bridge \
+	    -bitb3 socket.127.0.0.1:4002 \
+	    -autoboot_script $(SHARED)/mame/polypascal_test_no_mirror.lua
+	-$(MAKE) _kill-mpm  # exit-side reap; best-effort
+	@echo "--- polypascal-test (no-mirror) log tail ---"
+	@tail -30 /tmp/cpnos_polypascal_log.txt 2>/dev/null
+	@echo "--- result ---"
+	@cat /tmp/cpnos_polypascal_result.txt 2>/dev/null || echo '(no result file)'
+	@grep -q '^PASS' /tmp/cpnos_polypascal_result.txt 2>/dev/null
+
 cpnos-polypascal-test:
 	@# Build + install cpnos.com onto the mpm-net2 library disk BEFORE
 	@# starting cpmsim.  cpmsim opens the disk image at startup and
@@ -1175,14 +1224,20 @@ ifeq ($(TRANSPORT),sio)
 	@# user-console mirror; PIO-B is unused.  mpm-net2's :4002 is a
 	@# raw TCP console socket (z80pack cpmsim net_server.conf), which
 	@# accepts byte pass-through identically to the PIO cpnet_bridge.
-	-COMPILER=$(COMPILER) $(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
+	-COMPILER=$(COMPILER) \
+	MAME_BIN=$(MAME_IRQ)/regnecentralend \
+	$(CURDIR)/../scripts/mame_capture.sh polypascal_$(COMPILER)_$(TRANSPORT) -- \
+	    rc702 -rompath $(MAME_IRQ)/roms \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 240 \
 	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
 	    -autoboot_script $(SHARED)/mame/polypascal_test.lua
 else
-	-COMPILER=$(COMPILER) $(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
+	-COMPILER=$(COMPILER) \
+	MAME_BIN=$(MAME_IRQ)/regnecentralend \
+	$(CURDIR)/../scripts/mame_capture.sh polypascal_$(COMPILER)_$(TRANSPORT) -- \
+	    rc702 -rompath $(MAME_IRQ)/roms \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 240 \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \

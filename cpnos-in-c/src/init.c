@@ -604,20 +604,12 @@ NORETURN void cpnos_cold_entry(void) {
 
     /* Banner BEFORE netboot so it appears on row 0; netboot dots
      * flow on row 1 (operator's "OS identity at top, progress
-     * below" expectation).  The sentinel stays 0 across the banner
-     * so impl_conout passes chars through identity -- the locale
-     * table at 0xF680 isn't populated until install_locale_tables
-     * runs in resident_handoff (after netboot drops the prefix at
-     * 0xDC00). */
+     * below" expectation).  In PROM1-only, bootstrap.s has both
+     * pre-filled outcon with byte-identity AND armed the sentinel
+     * before this point, so impl_conout indexes a valid identity
+     * table.  In two-PROM, the sentinel stays 0 (no bootstrap.s on
+     * that path) and impl_conout bypasses the table entirely. */
     print_banner();
-
-    /* Arm the PROM1-only path now: get_img_base() picks the shifted
-     * IMG_BASE so netboot lands the locale prefix at 0xDC00 + the
-     * cpnos.com body at 0xDD80.  Bootstrap.s used to write this byte
-     * but did so before print_banner, which made impl_conout index
-     * an empty outcon and silently zero-out the banner. */
-    extern uint8_t prom1_only_sentinel;
-    prom1_only_sentinel = 0x5A;
 
     uint16_t entry = netboot_mpm();
     BOOT_MARK(15, entry ? '+' : '-');
