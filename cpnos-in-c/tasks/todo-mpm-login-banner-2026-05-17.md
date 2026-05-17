@@ -60,6 +60,23 @@ Pros: dynamic, server-aware.
 Cons: protocol extension breaks compatibility with stock MP/M
 masters; only works against our patched cpmsim.
 
+## Related question: can the slave ASK the master for a MOTD?
+
+Yes -- via plain BDOS file I/O over CP/NET.  CP/NET 1.2 has no
+dedicated "MOTD" function code, but every BDOS call passes
+transparently from slave to master, so the slave can `OPEN` /
+`SEQ_READ` / `CLOSE` `A:MOTD.TXT` exactly as if A: were local.
+That's what Option A above relies on under the hood -- the
+`TYPE A:MOTD.TXT` command in `$$$.SUB` becomes a chain of
+BDOS_OPEN_FILE (15), BDOS_READ_SEQ (20), BDOS_CLOSE_FILE (16)
+calls transported over CP/NET to the master.
+
+For a *dedicated* CP/NET MOTD opcode, that would be an Option D
+extension (custom function code 0x80..0xFF in the DRI-reserved
+range).  Only worthwhile if MOTD has runtime content the master
+needs to compute per slave (server uptime, slave count, etc.) --
+otherwise A:MOTD.TXT served as a regular file is cheaper.
+
 ## Recommendation
 
 Start with **Option A**.  It's a 30-second experiment: drop a
