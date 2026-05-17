@@ -120,6 +120,43 @@ view delay.  Verified end-to-end via MAME snapshot.
    build of `rc702.cpp`; not our doing, but worth tracking for the
    day MAME removes it.
 
+### Addenda (after the session-73j commits)
+
+  - **`autoload-in-c/BOOT_SEQUENCE.md` TL;DR table.**  Added a 6-row
+    outcome table at the top of the doc covering the floppy-vs-PROM1
+    priority -- the three gates inside `boot_from_floppy_or_jump_prom1`
+    (drive ready / format detected / Track 0 signature).  Phase 5/6
+    detail below the table unchanged.  Commit `654e3f0`, workspace
+    bump `f8baacf`.
+
+### Follow-ups discovered while documenting boot priority
+
+8. **`** NO KATALOG **` halt path doesn't try PROM1**  (rom.c:704).
+   When the floppy is readable but Track 0 has no recognised signature
+   (neither ` RC702` CP/M nor ` RC700` ID-COMAL), autoload halts
+   instead of falling back to `prom1_if_present()`.  All four other
+   floppy-failure paths *do* try PROM1.  Could be intentional (defend
+   against accidental boot of a stranger's lineprog into a corrupt-disk
+   workflow) or a missed branch.  Decide and either change behaviour
+   or add a code comment locking the policy in.
+
+9. **No MAME test covers the readable-disk-no-signature path.**  We
+   have oracles for "bootable CP/M floppy" (qrtest_run.lua) and "no
+   floppy at all" (sw1-test target); none for a disk that is readable
+   but unrecognised.  Add a fixture (e.g. an IMD file containing a
+   single Track 0 of garbage) and a lua test asserting the "NO
+   KATALOG" string appears in display memory.  Pairs with #8 to make
+   the decision testable.
+
+10. **MAME's `rc702_maxi` / `rc702_mini` DIP label "S02 PROM1=lineprog
+    (skip chargen)" is partially stale.**  After session 73j the
+    "skip chargen" half of the label is meaningless -- `define_sextants`
+    runs unconditionally.  The "PROM1=lineprog" half is still
+    accurate (S02 selects the signature autoload looks for at PROM1).
+    Rename to "S02 PROM1=lineprog" for clarity.  Lives in
+    `mame/src/mame/regnecentralen/rc702.cpp` `rc702_maxi` +
+    `rc702_mini` PORT_DIPNAME labels.
+
 ## Session 73i: ZX0 on autoload + cpnos-in-c PROM1-only, park cpnos-in-asm (May 17, 2026) — Medium
 
 End state: autoload-in-c ZX0-compressed (1846 -> 1509 B, +337 B free),
