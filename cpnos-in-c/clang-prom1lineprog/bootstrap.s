@@ -37,12 +37,12 @@ bootstrap_entry:
 	ld	hl, __init_zx0_start
 	ld	de, 0xC000
 	call	dzx0_standard
-	; Stamp the PROM1-only sentinel into resident BSS so shared
-	; init.c / resident.c code knows to apply the IMG_BASE shift +
-	; locale-table install path.  Two-PROM cold-init never writes
-	; this byte, so it stays 0 there and the locale code is a no-op.
-	ld	a, 0x5A
-	ld	(_prom1_only_sentinel), a
+	; Sentinel is NOT written here.  init.c arms it between
+	; print_banner() and netboot_mpm(); writing it in bootstrap
+	; made impl_conout index a still-empty outcon at 0xF680 during
+	; the banner and silently zero-out every character (caught
+	; session 73j-locale by the TYPE ASCII.TXT run -- top of
+	; display showed only NULs).
 	; Tail-call into init.  cpnos_cold_entry is NORETURN; it ends
 	; with resident_handoff which RAMENs and JPs to NDOS at 0xDD80.
 	jp	0xC000

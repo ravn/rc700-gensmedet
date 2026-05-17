@@ -316,6 +316,68 @@ view delay.  Verified end-to-end via MAME snapshot.
     Planning note:
     `cpnos-in-c/tasks/todo-dma-dual-buffer-2026-05-17.md`.
 
+## Session 73j-locale: cpnos-in-c PROM1-only locale tables + banner sentinel fix (May 17, 2026) — Medium
+
+End state: PROM1-only cpnos-in-c boots with locale tables (US-ASCII
+outcon + Danish inconv) installed from a 384 B prefix prepended to
+cpnos.img by `cpnos-disk-install-with-locale`.  Layout v3 freed
+0xF680..0xF7FF for the tables (moved scratch_bss, pinned cfgtbl to
+0xF53C, dropped BOOT_MARK_ENABLED for 67 B headroom).  PROM1 fit:
+2011 / 2048 B (37 B free).  Verified end-to-end by running
+`TYPE A:ASCII.TXT` against a 95-byte file containing the printable
+ASCII range; rows 7-12 of the slave's 0xF800 display rendered
+` !"#$%&'()*+,-./` through `pqrstuvwxyz{|}~` byte-exact, with the
+RC702 character ROM applying the expected Danish-variant glyphs
+to 0x5B..0x5E and 0x7B..0x7E (Æ/Ø/Å/Ü ... æ/ø/å/ü).
+
+### The banner-NUL bug (caught during this session's verification)
+
+Initial PROM1 build with locale tables produced a banner row 0 of
+all NULs even though the tables were correctly installed.  Cause:
+bootstrap.s set `_prom1_only_sentinel = 0x5A` BEFORE the C `init.c`
+called `print_banner()`.  `impl_conout` keyed its outcon lookup on
+the sentinel, so the banner indexed into a still-zero outcon at
+0xF680 (install_locale_tables doesn't run until `resident_handoff`
+after netboot).  Fix: removed the sentinel write from bootstrap.s
+and added it in `init.c::cpnos_cold_entry` between `print_banner()`
+and `netboot_mpm()`, so banner output passes through identity, then
+the sentinel arms `get_img_base()` for the shifted netboot, then
+`install_locale_tables` LDIRs the prefix to 0xF680.
+
+### Verification harness
+
+`/tmp/ascii_test/ASCII.TXT` (95 B file, chars 0x20..0x7E in 16-char
+lines + CR/LF + CP/M ^Z terminator) installed on master library
+disks `cpnetsmk-1.dsk` + `mpm-net2-1.dsk`, then MAME rc702 launched
+with PIO/cpnet_bridge + `ascii_run.lua` autoboot script that waits
+for the slave's `E>` prompt, sends `TYPE A:ASCII.TXT\r`, snapshots
+rc702 display + dumps 0xF800 rows 0..15 to /tmp.  Two pre-test CRs
+flushed three stale bytes ("RC>" garbage) that surfaced from an
+uninitialised kbd_ring at cold boot (separate issue, filed below).
+
+### Followup TODOs (filed)
+
+  - `cpnos-in-c/tasks/todo-prom1-compression-to-restore-bootmark-2026-05-17.md`
+    — find 67 B of PROM1 compression so BOOT_MARK can return.
+  - Zero kbd_ring head/tail in port_init (3 stale bytes consumed
+    by leading CR on cold boot); cheap and removes a latent class
+    of "first keystroke disappears" symptoms.
+
+### Lessons
+
+  - **Stamp sentinels at the latest safe moment.**  Setting a flag
+    that gates table lookups before the tables exist is a class of
+    bug that can mask itself in development (when the only output
+    happens after install) and surface only when boot-time output
+    is added.
+
+  - **Hardware-rendered Danish chars look like a bug from the
+    outside.**  A row of `PQRSTUVWXYZÆØÅ?_` next to test-expected
+    `PQRSTUVWXYZ[\]^_` initially reads as a translation-table error;
+    confirming the 0xF800 byte was 0x5B (`[`) and the glyph ROM
+    mapped it to Æ closed the loop.  Identity outcon + Danish
+    glyph ROM is the correct combination on physical RC702.
+
 ## Session 73i: ZX0 on autoload + cpnos-in-c PROM1-only, park cpnos-in-asm (May 17, 2026) — Medium
 
 ## Session 73i: ZX0 on autoload + cpnos-in-c PROM1-only, park cpnos-in-asm (May 17, 2026) — Medium
