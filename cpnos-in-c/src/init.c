@@ -34,6 +34,12 @@
 extern void *memcpy(void *dest, const void *src, unsigned int n);
 #endif
 
+/* Resident helper from resident.c.  File-scope declaration so SDCC
+ * z88dk emits the matching EXTERN _get_img_base directive in the
+ * generated .asm -- function-scope `extern` is silently dropped.
+ * Caught session 73j-late during SDCC PROM1-only diagnosis. */
+extern uint8_t *get_img_base(void);
+
 /* ---- ISRs + helpers from isr.s. ----------------------------------- */
 extern void isr_crt(void);
 extern void isr_noop(void);
@@ -442,9 +448,9 @@ static uint16_t netboot_mpm(void) {
     /* Runtime IMG_BASE: PROM1-only build shifts down by 384 B for
      * the locale prefix; two-PROM does too once both relocators
      * set the sentinel.  Branch lives in get_img_base() (.resident)
-     * to keep this .init function under the 640 B cap.  Both
-     * compilers export the symbol (sdcc/cpnos.map confirmed). */
-    extern uint8_t *get_img_base(void);
+     * to keep this .init function under the 640 B cap.  File-scope
+     * extern (top of init.c) so SDCC's z88dk back-end emits the
+     * EXTERN _get_img_base directive in the generated .asm. */
     uint8_t *dma = get_img_base();
     for (;;) {
         reuse_fcb();

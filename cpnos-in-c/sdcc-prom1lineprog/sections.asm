@@ -53,6 +53,13 @@
     SECTION RESIDENT_DATA
 
     SECTION RESIDENT_CHECKSUM
+    ; Mirrors sdcc/sections.asm: 2-byte slot at the very end of the
+    ; resident chain; patch_payload_checksum.py overwrites these
+    ; bytes post-link so word-additive sum of the resident = 0xCAFE.
+    align 2
+    PUBLIC __payload_checksum
+__payload_checksum:
+    defw 0xFFFF
 
     ; SCRATCH_BSS layout matches clang-prom1lineprog/payload.ld v3:
     ;   0xEA00 .. 0xEA23  bss_ivt (36 B IM2 vector table, page-aligned)
