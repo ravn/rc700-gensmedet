@@ -66,8 +66,13 @@ diagnostic).  On a successfully booting slave they're decoration.
 
 **Recommendation:** leave default 1.  Document the flag as a known
 shrink lever (this file) and as a Makefile knob already exposed
-(line 49: `BOOT_MARK_ENABLED ?= 1`).  Flip to 0 explicitly when
-PROM1 budget pressure becomes load-bearing on a feature work.
+(line 49: `BOOT_MARK_ENABLED ?= 1`).
+
+**User policy (2026-05-17):** keep `BOOT_MARK_ENABLED=1` while memory
+pressure is OK; do NOT flip to 0 unilaterally.  Ask the user first
+before disabling -- the markers have diagnostic value when something
+fails mid-boot, and the 67 B savings should be spent intentionally
+on a specific feature that needs them.
 
 ### Larger functions worth deeper review (if more shrink needed)
 
