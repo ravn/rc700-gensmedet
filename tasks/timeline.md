@@ -1,5 +1,125 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73j: SEM702 RAM chargen in MAME + autoload sextants + QR test (May 17, 2026) — Medium
+
+End state: MAME `rc702sem702` machine variant models the SEM702
+programmable character generator (replaces ROA327 ROM in IC82).
+autoload-in-c calls `define_sextants()` unconditionally on every boot
+to populate SEM702 RAM with the 64 ROA327-codepoint sextant glyphs
+(0x20-0x3F, 0x60-0x7F).  New `sem702-qr-test/` subproject builds a
+small CP/M .COM that paints two side-by-side QR codes (1x + 2x scale)
+of `https://github.com/ravn` and warm-boots back to CCP after a 10 s
+view delay.  Verified end-to-end via MAME snapshot.
+
+### What landed
+
+  - **MAME `rc702sem702` machine variant**
+    (`mame/src/mame/regnecentralen/rc702.cpp` + `mame.lst`).  Clone of
+    `rc702` 8" with `roa327.rom` dropped from the chargen region;
+    upper 2 KB backed by a 2 KB `m_sem702_ram` array (init 0xFF =
+    visibly "unprogrammed").  Ports 0xD1/0xD2/0xD3 wired as pure
+    latches (ACHAR/ALINE/AWR) with no side effects -- matching the
+    two software sources we have (autoload's `define_sextants` and
+    the COMAL80 example in `docs/RC702tech.txt:17191+`).
+    `display_pixels` reads from `m_sem702_ram[(charcode << 4) | line]`
+    when `GPA0=1` on this variant; ROA296 (lower half of "chargen")
+    still serves `GPA0=0` text mode.  Handlers no-op when
+    `m_has_sem702==false` so wiring them in `io_map` for all rc702
+    variants is safe.  Save-state plumbing added for ram + latches.
+
+  - **autoload-in-c: `load_chargen` -> `define_sextants`**
+    (`rc700-gensmedet/autoload-in-c/rom.c`).  Removed the
+    PROM1->SEM702 font-copy path (uninteresting now).  New
+    `define_sextants()` runs unconditionally in `main_relocated()`
+    before `init_fdc()`; programs 64 sextant glyphs at the same
+    codepoints they occupy in ROA327 (`0x20-0x3F` patterns 0..31,
+    `0x60-0x7F` patterns 32..63), blanks every other codepoint.  A
+    real ROA327 ROM in IC82 silently ignores the OUT writes, so the
+    call is a safe no-op on baseline hardware -- no SW1 gating.
+    Half-byte LUT `{0x00, 0x0F, 0x70, 0x7F}` matches MAME's
+    bit-0-leftmost `display_pixels` convention; bit layout per
+    `ROA327_CHARACTER_ROM.md:155-194` (bit 0 = top-left).  Clang PROM
+    1509 -> 1656 B (+147 B; 392 B free in 2048 B socket).
+    `docs/SW1_BIT_MAP.md` updated; SW1 bit 1 is no longer overloaded
+    as a chargen-load gate (label retained for historical clarity).
+
+  - **`sem702-qr-test/` CP/M test program**
+    (`rc700-gensmedet/sem702-qr-test/`).  Python `gen_qrtest.py`
+    renders `https://github.com/ravn` as a v2 QR at both 1x (15x10
+    cells) and 2x (29x20 cells) scale, emits a single 811 B
+    `qrtest.asm` paint program with both QRs side-by-side starting at
+    (row 1, col 0) + col 18.  Paint code: `LDIR`-clears display to
+    sextant blanks, writes 0x84 field-attribute byte at 0xF800 to
+    flip `GPA0=1` for the rest of the screen, copies both data blocks
+    row-by-row, busy-waits ~10 s at 4 MHz (24 outer x 65536 inner x
+    26 T = 40.9 M T), then `JP 0` for CP/M warm boot.  Floppy
+    injection via `cpmcp -f rc702-8dd` into a /tmp copy of
+    SW1711-I8.imd (original never modified); MAME autoboot lua waits
+    for `A>` prompt, posts `QRTEST\r` via natkeyboard, snapshots when
+    the 0x84 sentinel lands at 0xF800.  Snapshot at
+    `sem702-qr-test/snap/qrtest.png` shows both QRs with clear finder
+    patterns and proper 2x3 sextant sub-cells (gitignored; rebuild
+    via `make run`).
+
+### Cost-of-error: bit encoding rediscovered the hard way
+
+  - **First `define_sextants()` attempt was wrong twice over** -- bit
+    direction (claimed bit 0 = top-right; actual is top-left) AND
+    byte format (claimed SEM702 wanted bit-reversed bytes vs ROA327;
+    actual is no reversal, both LSB-first / bit-0-leftmost).  First
+    QR snapshot showed visibly-broken thin vertical stripes inside
+    each cell -- not 2x3 blocks.  `ROA327_CHARACTER_ROM.md:155-194`
+    already documented the correct convention exactly; I didn't read
+    it before writing the code.  Cost: 2 screenshot iterations + 1
+    autoload rebuild.  New memory rule
+    [[feedback-grep-repo-docs-before-deriving]] filed.
+
+### Issues raised / follow-ups
+
+1. **SDCC autoload build broken (pre-existing).**  `copt: can't open
+   patterns file` from `Makefile`'s `cd sdcc && zcc
+   -custom-copt-rules=sdcc/peephole.def` -- after `cd sdcc`, the path
+   becomes `sdcc/sdcc/peephole.def`.  Confirmed identical failure on
+   stashed-tree (not caused by this session).  Blocks SDCC-side
+   verification of `define_sextants()`.  TODO: fix path or move
+   peephole.def.
+
+2. **Real-hardware SEM702 verification needed.**  User has a physical
+   RC702 with SEM702 fitted in IC82.  Untested: (a) does the chip
+   accept our byte format end-to-end, (b) does it auto-increment
+   ALINE on AWR write (both software paths set ALINE explicitly so
+   it's invisible), (c) does the screen render the expected QR.
+   Plan: burn the freshly built autoload + boot, photograph
+   `QRTEST.COM` output, scan QRs with a phone.
+
+3. **SDCC variant of autoload doesn't exercise define_sextants.**
+   Only clang autoload built and verified in MAME (per #1).  Need
+   parity check once SDCC build is fixed -- SDCC may produce
+   different OUT-sequence timing that hits an undocumented chip
+   constraint we don't see in MAME's strict-latch model.
+
+4. **MAME SEM702 model is conservative; real chip may auto-increment.**
+   If physical-hardware testing confirms ALINE auto-advances on AWR
+   write, the explicit `port_out(chargen_dot, ...)` inside
+   `define_sextants()`'s inner loop becomes redundant -- ~32 B
+   savings.  Worth a follow-up once we have hardware data.
+
+5. **Lua A> prompt detection is loose.**  `qrtest_run.lua` scans
+   every screen row for "A>" anywhere, could false-positive on user
+   text containing the sequence.  Tighten to (cursor_y, col 0) like
+   `rcbios-in-c/mame_boot_screenshot.lua` does.  Minor; only affects
+   test harness.
+
+6. **`gen_qr.py` in autoload-in-c and `gen_qrtest.py` in
+   sem702-qr-test duplicate sextant rendering.**  Different
+   deployment targets (boot-time autoload PROM display vs CP/M .COM)
+   but the `pattern_to_charcode()` + sextant-packing loop is
+   identical.  If a third user appears, factor into a shared module.
+
+7. **MAME ROM_LOAD_OPTIONAL deprecated.**  Compile warning on every
+   build of `rc702.cpp`; not our doing, but worth tracking for the
+   day MAME removes it.
+
 ## Session 73i: ZX0 on autoload + cpnos-in-c PROM1-only, park cpnos-in-asm (May 17, 2026) — Medium
 
 End state: autoload-in-c ZX0-compressed (1846 -> 1509 B, +337 B free),

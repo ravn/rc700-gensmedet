@@ -169,56 +169,75 @@ static void init_crt(void) {
     crt_command(0xE0); /* preset counters */
 }
 
-/* SEM 702 character generator loader.
+/* SEM702 character generator: define a 64-glyph 2x3-block subset.
  *
  * The SEM702 ("Semigrafik Memory") is a RAM-based character generator
- * that replaces the standard ROA327 ROM character generator in IC82.
- * It must be initialized from a font bitmap before the display shows
- * meaningful characters.  See docs/RC702tech.pdf for the product
- * documentation and Comal80 programming examples.
+ * board that replaces the standard ROA327 ROM character generator in
+ * socket IC82 -- see docs/RC702tech.pdf and the Comal80 example at
+ * approx. line 17191 of docs/RC702tech.txt.  Ports:
+ *   0xD1 (chargen_char) -- character number 0..127
+ *   0xD2 (chargen_dot)  -- dot line 0..15
+ *   0xD3 (chargen_data) -- pixel byte (LSB-first; dot 0 on the left)
  *
- * The font data is read from PROM1 (0x2000–0x27FF): 128 characters ×
- * 16 dot lines × 8 pixels = 2048 bytes.
+ * This function defines 64 sextant (2x3) block glyphs at the same
+ * codepoints they occupy in ROA327, so a SEM702-equipped machine
+ * renders identically to a ROA327 machine in that range:
  *
- * A character generator ROM must be installed in the PROM1 socket
- * for this to work.  Without it, the display will show garbage.
+ *   0x20..0x3F -- patterns  0..31
+ *   0x60..0x7F -- patterns 32..63
  *
- * PHE358A.MAC bit-reverses each byte when loading, implying that
- * the PROM1 font data is in MSB-first order (like the ROA327 ROM)
- * while the SEM702 hardware expects LSB-first.  However, we don't
- * know for certain that the PROM1 content is an ROA327 image — it
- * could be a custom font ROM in a different bit order.  If the
- * display shows mirrored characters, try removing the bit-reversal.
+ * All other codepoints are blanked.  A machine with the original ROA327
+ * ROM still installed in IC82 silently ignores the OUT writes (the
+ * ports go nowhere on that variant), so this is safe to run always --
+ * no SW1 gating needed.
  *
- * From PHE358A.MAC (RC702E autoload PROM source, LDGEN routine).
- * Ports: 0xD1 = character number (0-127),
- *        0xD2 = dot line (0-15),
- *        0xD3 = pixel data byte.
+ * Encoding (verified by xxd against ROA327 bytes at offsets 0x200..,
+ * and against MAME's display_pixels which treats bit 0 of a chargen
+ * byte as the LEFTMOST pixel):
+ *   - 7-dot-wide cell.  Left half = 4 dots (byte mask 0x0F, bits 0..3);
+ *     right half = 3 dots (mask 0x70, bits 4..6).  Both = 0x7F.
+ *   - 16 line slots per char; active zones top=0..2, mid=3..6, bot=7..10.
+ *   - Pattern N bit layout (matches ROA327; bit 0 = top-LEFT, the cell
+ *     filled by ROA327 char 0x21 = pattern 1 = bytes 0x0F on lines 0..2):
+ *       bit 0 top-left    bit 1 top-right
+ *       bit 2 mid-left    bit 3 mid-right
+ *       bit 4 bot-left    bit 5 bot-right
  */
-static void load_chargen(void)
+static void define_sextants(void)
 {
-    const byte *font = (const byte *)PROM1_ADDR;
-    byte ch, line;
-
-    port_out(chargen_char, 0);
-    port_out(chargen_dot, 0);
-
+    /* half[(R<<1)|L] where L = pattern bit covering left half (bit 0/2/4),
+     * R = bit covering right half (bit 1/3/5). */
+    static const byte half[4] = { 0x00, 0x0F, 0x70, 0x7F };
+    byte ch;
     for (ch = 0; ch < 128; ch++) {
-        for (line = 0; line < 16; line++) {
-            /* Bit-reverse: font ROM is MSB-first, SEM 702 wants LSB-first */
-            byte src = *font++;
-            byte reversed = 0;
-            byte i;
-            for (i = 0; i < 8; i++) {
-                reversed >>= 1;
-                if (src & 0x80)
-                    reversed |= 0x80;
-                src <<= 1;
-            }
-            port_out(chargen_data, reversed);
-            port_out(chargen_dot, (line + 1) & 0x0F);
+        byte pattern, top = 0, mid = 0, bot = 0;
+        byte line;
+        if (ch >= 0x20 && ch <= 0x3F)
+            pattern = ch - 0x20;
+        else if (ch >= 0x60 && ch <= 0x7F)
+            pattern = (byte)(ch - 0x60 + 32);
+        else
+            pattern = 0xFF;  /* blank: leave top/mid/bot = 0 */
+        if (pattern != 0xFF) {
+            top = half[pattern & 0x03];
+            mid = half[(pattern >> 2) & 0x03];
+            bot = half[(pattern >> 4) & 0x03];
         }
-        port_out(chargen_char, ch + 1);
+        port_out(chargen_char, ch);
+        port_out(chargen_dot, 0);
+        for (line = 0; line < 16; line++) {
+            port_out(chargen_data,
+                     line < 3 ? top
+                   : line < 7 ? mid
+                   : line < 11 ? bot
+                   : (byte)0);
+            /* ALINE must be set explicitly before each AWR write -- both
+             * software sources we have (this routine, ultimately from
+             * PHE358A.MAC's LDGEN, and the Comal80 example in
+             * docs/RC702tech.txt) do so; no evidence the chip
+             * auto-increments. */
+            port_out(chargen_dot, (byte)((line + 1) & 0x0F));
+        }
     }
 }
 
@@ -939,36 +958,10 @@ void main_relocated(void) __naked
     init_ctc();
     init_dma();
     init_crt();
-    /* PROM1 socket content is selected by DIP switch SW1 bit 1
-     * (port 0x14):
-     *   bit 1 clear (default) -> chargen-ROM-in-PROM1 mode.  When a
-     *                            SEM702 RAM-based character generator
-     *                            board is fitted in IC82, autoload
-     *                            loads its font from PROM1 bytes.
-     *   bit 1 set             -> lineprog PROM (e.g. cpnos-in-asm
-     *                            slave): code/data, NOT a font.
-     *                            Skip the font-load step.
-     *
-     * BASELINE (no SEM702 fitted): our current target machines have
-     * a ROA327 font ROM in IC82, not a SEM702 RAM board.  The 8275
-     * CRT reads the font directly from IC82 -- nothing in PROM1 is
-     * consulted to render text.  load_chargen()'s writes to ports
-     * 0xD1/0xD2/0xD3 land nowhere observable in that configuration.
-     * SW1 bit 1 is therefore informational on the baseline; the gate
-     * matters only when a SEM702 is actually fitted in IC82.
-     *
-     * SW1 bit 0 is already taken by rcbios for SIO-B console mode
-     * (see rcbios-in-c/tasks/siob-console-dipswitch.md).  Bit 7 is
-     * documented hardware (mini/maxi floppy).  Bit 1 is the lowest
-     * undocumented bit; chosen here as the lineprog selector. */
-    if ((read_sw1() & 0x02) == 0) {
-        /* load_chargen();  -- disabled 2026-05-15 because the no-
-         * SEM702 baseline makes the call a runtime no-op anyway.
-         * Re-enable when (a) a SEM702 board is fitted in IC82,
-         * (b) a known-good ROA327 font ROM image is in PROM1, and
-         * (c) we want SEM702 RAM populated at boot.  Gate structure
-         * preserved so re-enabling is a one-line uncomment. */
-    }
+    /* Always program the SEM702 sextant subset.  Real ROA327 ROM
+     * silently ignores writes to ports 0xD1/0xD2/0xD3, so the call is
+     * a safe no-op on baseline hardware. */
+    define_sextants();
     init_fdc();
     memset(dspstr, ' ', 80 * 25);   /* clear screen */
     display_banner_and_start_crt();

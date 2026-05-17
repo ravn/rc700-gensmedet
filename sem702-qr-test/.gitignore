@@ -1,0 +1,7 @@
+qrtest.asm
+qrtest1.asm
+qrtest2.asm
+zout/
+snap/
+cfg/
+.DS_Store

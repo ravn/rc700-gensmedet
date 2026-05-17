@@ -22,32 +22,28 @@ behavior wherever a switch hasn't been wired up.
 
 ## How autoload picks the PROM1 path
 
-`autoload-in-c/rom.c` calls `load_chargen()` only when SW1 bit 1 is 0:
+`autoload-in-c/rom.c` calls `define_sextants()` unconditionally on
+every boot.  The function programs a 64-glyph 2x3-block subset into
+the SEM702 RAM at the same codepoints they occupy in ROA327
+(0x20..0x3F + 0x60..0x7F); non-sextant codepoints are blanked.  No
+SW1 gate -- a real ROA327 ROM in IC82 simply ignores the writes to
+ports 0xD1/0xD2/0xD3, so the call is a safe no-op on baseline
+hardware.  The PROM1->SEM702 font-loading path (formerly
+`load_chargen()`) has been removed.
 
-    if ((read_sw1() & 0x02) == 0) {
-        load_chargen();
-    }
+S02 is therefore no longer overloaded with a chargen meaning.  It
+remains the PROM1-content selector for autoload's signature check:
+when PROM1 holds a lineprog (e.g. cpnos-in-asm slave), set S02 to
+the corresponding side; when PROM1 is empty / a chargen ROA327
+image, leave it on the no-lineprog side.  The label in MAME's
+`rc702_maxi` / `rc702_mini` input ports still reads
+`"S02 PROM1=lineprog (skip chargen)"` for historical clarity.
 
-**Important hardware-baseline note.**  Our current RC702 has NO
-SEM702 RAM-based character generator board.  The font is in IC82
-(a ROA327 ROM in the character-generator chip socket), which the
-CRT reads directly.  `load_chargen()` only does anything meaningful
-when a SEM702 is installed in IC82 -- on the no-SEM702 baseline its
-writes to ports 0xD1/0xD2/0xD3 land nowhere observable.  So in
-practice on the baseline machine SW1 bit 1 is informational only.
-
-For the day a SEM702 is fitted: leave S02 **On** when PROM1 holds a
-ROA327 font ROM image so autoload loads it into SEM702 RAM at boot.
-Flip S02 to **Off** when PROM1 holds the cpnos-in-asm lineprog (or
-any other code/data PROM) so autoload skips the now-misdirected
-font load.
-
-In MAME's `rc702` driver, S02 is labelled
-`"S02 PROM1=lineprog (skip chargen)"` to remind the operator which
-bit controls this.  MAME does not currently model the SEM702 (it
-uses a built-in font), so the switch is also a no-op in the
-emulator.  The gate matters only when both (a) a real SEM702 board
-is fitted and (b) we choose to use it -- neither is true today.
+MAME models the SEM702 in machine `rc702sem702` (see
+`mame/src/mame/regnecentralen/rc702.cpp`).  Boot that variant when
+you want to exercise the same display path as the user's physical
+SEM702-equipped RC702.  Baseline `rc702` still uses the ROA327 ROM
+at IC82 and is unaffected by this change.
 
 ## Adding new bits
 
