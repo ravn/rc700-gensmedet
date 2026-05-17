@@ -352,23 +352,19 @@ static void specc(uint8_t c) {
  * twice.  Same bytes as the ISR's cursor block, factored out so a
  * future refactor can have isr_crt CALL this too.
  *
- * __naked + ret avoids the prologue/epilogue.  Clobbers A. */
+ * Was hand-written in `__naked` asm to avoid clang's prologue/epilogue
+ * cost.  Post-compiler-fixes (session 73j-late) the C form generates
+ * identical or better code -- recent peepholes (#148 dec/inc-a for
+ * equality, #144 i1 width, #142 high-byte zero) cover the patterns
+ * this function uses.  Kept as plain C for source clarity. */
 RESIDENT
-static void sync_cursor_if_dirty(void) __naked {
-    __asm__(
-        "ld   a, (_cur_dirty)\n\t"
-        "or   a\n\t"
-        "ret  z\n\t"
-        "xor  a\n\t"
-        "ld   (_cur_dirty), a\n\t"
-        "ld   a, 0x80\n\t"          /* 8275 'load cursor position' */
-        "out  (0x01), a\n\t"
-        "ld   a, (_curx)\n\t"
-        "out  (0x00), a\n\t"
-        "ld   a, (_cury)\n\t"
-        "out  (0x00), a\n\t"
-        "ret\n\t"
-    );
+static void sync_cursor_if_dirty(void) {
+    if (cur_dirty) {
+        cur_dirty = 0;
+        _port_out(PORT_CRT_CMD, 0x80);     /* 8275 'load cursor position' */
+        _port_out(PORT_CRT_PARAM, curx);
+        _port_out(PORT_CRT_PARAM, cury);
+    }
 }
 
 RESIDENT
