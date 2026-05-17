@@ -43,31 +43,55 @@ width, pack only the active columns. Significant complexity for ~15% gain.
 - **Not recommended** — complicates the bit-reversal logic and the
   decompressor needs shift operations per line.
 
-## Fit analysis
+## Status (2026-05-17): obsoleted by `define_sextants()` + 2 KB hard limit
 
-| Approach | Font size | Boot code | Total | Fits 2KB? | Fits 4KB? |
-|----------|-----------|-----------|-------|-----------|-----------|
+This document was written under two assumptions that no longer hold for
+the current target hardware:
+
+1. **A full ROA327 font replica was the goal.**  Superseded -- the
+   autoload PROM now calls `define_sextants()` (rom.c) which
+   programmatically generates the 64 2x3 sextant glyphs at boot,
+   blanking other codepoints.  ROA296 (in IC81) still provides the
+   alpha font.  See session 73j in `tasks/timeline.md`.
+
+2. **4 KB PROMs (2732) were a real escape hatch.**  Not on the user's
+   physical RC702 -- the A11 solder bridge that the schematic shows is
+   a **later-model** feature and is **not present** on this machine.
+   Both PROM0 and PROM1 are therefore hard-capped at 2048 B each.
+   Any "fits 4 KB" row in the table below is theoretical for the
+   broader RC702 family; for current hardware it's "no fit".
+
+The original analysis is preserved below for historical interest /
+applicability to later-model RC702 machines that did get the A11 bridge.
+
+## Fit analysis (historical)
+
+| Approach | Font size | Boot code | Total | Fits 2KB? | Fits 4KB (later-model only)? |
+|----------|-----------|-----------|-------|-----------|-------|
 | Uncompressed | 2048 | 1829 | 3877 | No | Yes |
 | Skip scan lines | 1408 | ~1850 | ~3258 | No | Yes |
 | + Skip blanks | ~1072 | ~1880 | ~2952 | No | Yes |
 | Per-line mask | ~960 | ~1920 | ~2880 | No | Yes |
 
 Boot code size increases slightly due to the decompressor (~20–60 bytes).
+None of these approaches fit in 2 KB.  For the user's hardware that
+means a full ROA327 replica is not on the table at all without
+adopting one of the routes below.
 
-All compressed approaches fit comfortably in 4KB but none fit in 2KB.
-The simplest practical option is approach 2 (skip scan lines + skip
-blanks) at ~1072 bytes with minimal decompressor complexity.
-
-## Prerequisite
+## Prerequisite (historical, applies to later-model RC702 only)
 
 The 4KB PROM solder bridge on the PCB must be closed (connecting A11 to
 the PROM sockets). See docs/PROM_SCHEMATICS.PNG and the hardware
-technical reference for details. This is unconfirmed on actual hardware.
+technical reference for details.  **User's machine does not have this
+bridge**; treat 4 KB PROMs as unavailable in any planning.
 
-## Current implementation
+## Current implementation (2026-05-17 onward)
 
-The current `load_chargen()` in rom.c reads an uncompressed font from
-PROM1 (0x2000) with bit-reversal. To use a compressed embedded font,
-the function would read from a const array in the PROM code section
-instead, with no bit-reversal needed (data stored in SEM702-native
-LSB-first order).
+`autoload-in-c/rom.c:define_sextants()` runs unconditionally and
+programs the 64 sextant glyphs (codes 0x20-0x3F + 0x60-0x7F) into
+SEM702 RAM with the bit layout documented in
+`ROA327_CHARACTER_ROM.md:155-194` -- no PROM1 font load, no font
+table embedded in the PROM, and no bit-reversal needed (data is in
+8275-native bit-0-leftmost format).  Cost: ~147 B of code, no data.
+Non-sextant codepoints are blanked; line-drawing characters
+(ROA327 0x00-0x1F) are not currently provided in the SEM702 path.
