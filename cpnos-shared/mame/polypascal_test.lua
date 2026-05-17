@@ -319,8 +319,14 @@ emu.register_periodic(function()
                 prog:read_u8(0xF408), prog:read_u8(0xF409)))
             f:write(string.format("LAST_CURSOR = col=%02x row=%02x\n",
                 prog:read_u8(0xF404), prog:read_u8(0xF405)))
-            f:write(string.format("DOT_COL = %02x DOT_ROW = %02x\n",
-                prog:read_u8(0xF402), prog:read_u8(0xF403)))
+            f:write(string.format("DOT_COL = %02x DOT_ROW = %02x DOT_CURSOR = %04x\n",
+                prog:read_u8(0xF402), prog:read_u8(0xF403),
+                prog:read_u16(0xF400)))
+            f:write("0xED00..0xED10:\n  ")
+            for i = 0, 15 do
+                f:write(string.format("%02x ", prog:read_u8(0xED00 + i)))
+            end
+            f:write("\n")
             local s = cpu.state
             f:write(string.format("Z80 I = %02x, IFF1 = %s, IM = %s\n",
                 s["I"].value,

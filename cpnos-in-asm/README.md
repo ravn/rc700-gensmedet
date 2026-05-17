@@ -1,5 +1,19 @@
 # cpnos-in-asm — pure Z80 assembly CP/NOS slave
 
+> **PARKED 2026-05-17 — see [PARKED.md](PARKED.md) for full status,
+> what landed, and what is missing.**  Superseded by cpnos-in-c's
+> PROM1-only line-program build, which now satisfies the original
+> "CP/NOS slave fits in PROM1 alongside autoload-in-c in PROM0"
+> goal.  The source tree below is preserved for reference + byte-exact
+> reproduction of the 2026-05-17 PolyPascal PASS; the historical
+> README that follows describes the project as of phase 3d-γ.  Later
+> phases (3e/3f/3g/4a, full netboot, NDOS handoff, PolyPascal +
+> CONOTEST PASS, full text-mode RC700 control-code set) all landed
+> in subsequent sessions and are summarised in PARKED.md's
+> capability table.
+
+## Original status (frozen for history)
+
 **Status: phase 3d-γ done.  Slave boots through autoload-in-c, runs
 the full CP/NET 1.2 send + receive state machines on SIO-A (both
 directions exchange ENQ/ACK + header w/ HCS + data w/ CKS + EOT

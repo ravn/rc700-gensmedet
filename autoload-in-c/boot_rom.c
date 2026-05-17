@@ -25,6 +25,12 @@ extern void main_relocated(void);
 extern char _code_load[], _code_start[], _code_size[];
 extern char _bss_start[], _bss_size[];
 
+/* ZX0 decompressor + wrapper in clang/dzx0_standard.s.  reloc_zx0()
+ * loads HL=__text_zx0_start, DE=__code_start and falls through to
+ * dzx0_standard, replacing the prior raw LDIR-via-memcpy copy step
+ * with a ZX0 decompression. */
+extern void reloc_zx0(void);
+
 /* Banner string — NUL-terminated, referenced by display_banner in CODE.
  * memcpy copies exactly BUILD_BANNER_LENGTH bytes; the NUL is not transferred. */
 #include "clang/banner.h"
@@ -88,7 +94,11 @@ void start(void) {  /* not marked noreturn: allows tail-call JP to main_relocate
     // Executing at 0x0000 - be very careful about library routines
     intrinsic_di();
     SET_SP(ROM_STACK);
+#if defined(__ELF__)
+    reloc_zx0();
+#else
     memcpy(RELOC_DST, RELOC_SRC, RELOC_SIZE);
+#endif
     // Now code is in its intended locaiton.
     if (BSS_SIZE)
         memset(BSS_DST, 0, BSS_SIZE);
