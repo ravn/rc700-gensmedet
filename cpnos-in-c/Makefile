@@ -263,6 +263,22 @@ else
 SERVER_CFLAGS += -DTRANSPORT_NAME='"$(TRANSPORT_NAME)"'
 endif
 
+# Locale tag printed in the boot banner.  Format: <kbd>_<charset>.
+#   da_US  Danish keyboard inconv + US-ASCII outcon (current default)
+#   da_DK  Danish keyboard + Danish-national outcon
+# Must stay in sync with the inconv/outcon choice in
+# cpnos-build/gen_locale_prefix.py -- if you change that script's
+# table selection, set CPNOS_LOCALE_TAG accordingly here so the
+# banner doesn't lie.  Pre-flight check in
+# cpnos-disk-install-with-locale verifies the prefix carries an
+# outcon that matches the tag.
+CPNOS_LOCALE_TAG ?= da_US
+ifeq ($(COMPILER),sdcc)
+SERVER_CFLAGS += -DCPNOS_LOCALE_TAG='\"$(CPNOS_LOCALE_TAG)\"'
+else
+SERVER_CFLAGS += -DCPNOS_LOCALE_TAG='"$(CPNOS_LOCALE_TAG)"'
+endif
+
 # ---- Payload (linked at 0xED00, no PROM knowledge) ----------------
 # The payload is the single contiguous blob of everything that runs
 # at runtime.  The payload linker doesn't know about the two EPROMs;

@@ -508,12 +508,18 @@ static void print_banner(void) {
     /* NNK = TPA size (CPNOS_TPA_KB, build-time from cpnos.sym).
      * WWW-MMM = TRANSPORT_NAME literal (Makefile -DTRANSPORT_NAME='"PIO"'/"SIO").
      * cc = CPNOS_COMPILER_NAME ("clang"/"sdcc"/"hitech"), picked at preprocess time
-     * so the banner unambiguously identifies which build is running. */
+     * so the banner unambiguously identifies which build is running.
+     * LL_RR = CPNOS_LOCALE_TAG describing the active locale tables:
+     *   da_US -- Danish keyboard inconv + US-ASCII outcon (current default)
+     *   da_DK -- Danish keyboard + Danish character set
+     * Must stay in sync with the table choice in
+     * cpnos-build/gen_locale_prefix.py. */
 #define _STR(x) #x
 #define STR(x) _STR(x)
     static const SECTION_INIT_RODATA char banner[] =
         "RC702 CP/NOS " STR(CPNOS_TPA_KB) "K "
-        TRANSPORT_NAME " " CPNOS_COMPILER_NAME " " BUILD_INFO_STR "\r\n";
+        TRANSPORT_NAME " " CPNOS_COMPILER_NAME " "
+        CPNOS_LOCALE_TAG " " BUILD_INFO_STR "\r\n";
     for (const char *p = banner; *p; ++p) impl_conout((uint8_t)*p);
 #undef STR
 #undef _STR
