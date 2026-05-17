@@ -1,5 +1,70 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73i: ZX0 on autoload + cpnos-in-c PROM1-only, park cpnos-in-asm (May 17, 2026) — Medium
+
+End state: autoload-in-c ZX0-compressed (1846 -> 1509 B, +337 B free),
+cpnos-in-c builds as a 2 KB PROM1 line program (1922 / 2048 B, 126 B
+free) that pairs with autoload-in-c in PROM0.  cpnos-in-asm parked --
+its original "fit CP/NOS in PROM1 alongside autoload" goal now
+satisfied by cpnos-in-c without needing the asm variant.
+
+### What landed
+
+  - **autoload-in-c ZX0 compression** (clang only).  `.text` section
+    (1742 B) ZX0-compresses to 1330 B, decompressed at boot by 68 B
+    `dzx0_standard` into RAM at 0x6000.  Two-pass build with
+    host-side `z88dk-dzx0` roundtrip verification refusing any
+    non-exact unpack.  PROM0 free space 202 B -> 539 B (2.7x more
+    headroom).  Boot to CP/M `A>` PASS, no behavioural change.
+    Files: `autoload-in-c/clang/{dzx0_standard.s,text_compressed.s,
+    rc700_prom.ld}` + boot_rom.c reloc_zx0 swap + Makefile two-pass.
+
+  - **cpnos-in-c PROM1-only line program build** (clang × PIO).
+    `clang-prom1lineprog/` subdir with `bootstrap.s` (header +
+    signature + entry that calls `dzx0_standard` twice), shared
+    decoder, separate `payload.ld` variant relinking init at VMA
+    0xC000 (RAM, decompressed at boot).  init.bin 627 -> 545 B ZX0,
+    payload.bin 1858 -> 1275 B ZX0, both roundtrip-verified.  Final
+    PROM1 image 1922 / 2048 B fits in a single socket and satisfies
+    autoload-in-c's `prom1_if_present` contract (` RC702` signature
+    at 0x2002 + jump target at 0x2000).  PolyPascal end-to-end
+    PASS (PPAS PRIMES -> 29989 -> Q -> E> at 49s).  Plan:
+    `cpnos-in-c/tasks/zx0-prom1-only-plan-2026-05-17.md`.
+
+  - **cpnos-in-asm PARKED.**  New `cpnos-in-asm/PARKED.md`
+    documents capability state (PolyPascal + CONOTEST PASS, 15 of 18
+    RC700 text-mode CONOUT codes, full netboot via mpm-net2, NDOS
+    handoff), gaps (graphics-mode 0x14/0x15/0x16 -- also gap in
+    cpnos-in-c, RC703 hardware unaudited, less-exercised CP/NOS
+    functions not stress-tested), and rationale (cpnos-in-c
+    PROM1-only supersedes).  README.md gains a parking banner.
+    Source tree preserved for historical reproduction and as
+    reference implementation of the autoload->PROM1 contract.
+
+### What's still missing (carried over from this session)
+
+  - **cpnos-in-c PROM1-only: 3 of 4 value-oracle cells remaining.**
+    Verified: clang × PIO.  Pending: clang × SIO, SDCC × PIO, SDCC
+    × SIO.  Memory rule `feedback_value_oracle_all_transport_cells`
+    requires all 4 before commit.
+  - **Graphics-mode CONOUT codes 0x14/0x15/0x16.**  Missing on BOTH
+    cpnos-in-c and cpnos-in-asm.  Standard CP/M utilities don't
+    touch them; gap only matters for RC702 graphics-overlay
+    workloads.  README/commit-message claim "full RC700 control-code
+    set" was overstated -- it's the text-mode set only.
+  - **autoload-in-c SDCC variant unchanged.**  ZX0 build path only
+    on clang side; SDCC PROM still 1910 B raw.
+
+### Follow-ups filed
+
+  - `autoload-in-c/tasks/todo-later.md` gained two entries: ZX0
+    decoder split around the NMI vector to reclaim ~35 B of pre-NMI
+    PROM padding; ID Comal compatibility (decompress above sector-
+    read area + relocated display base).
+  - `cpnos-in-c/tasks/zx0-prom1-only-plan-2026-05-17.md` -- the
+    full plan that drove this session, including the SDCC + SIO
+    cells that remain.
+
 ## Session 73h: cpnos-in-asm shrink + full RC700 control-code set (May 17, 2026) — Medium
 
 Started at 1937 / 2048 B PROM1 (post-session-73g) and ended at 1844 /
