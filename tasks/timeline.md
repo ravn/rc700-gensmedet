@@ -316,6 +316,96 @@ view delay.  Verified end-to-end via MAME snapshot.
     Planning note:
     `cpnos-in-c/tasks/todo-dma-dual-buffer-2026-05-17.md`.
 
+## Session 73j-end: SDCC PROM1-only end-to-end + ravn/z88dk#7 block-scope-extern bug (May 17-18, 2026 night) — Hard
+
+End state: both clang and SDCC PROM1-only line programs build, boot,
+and pass `cpnos-polypascal-test` PRIMES to completion.  SDCC reached
+functional parity with clang for the autoload + cpnos-PROM1-only
+topology -- the only supported slave architecture going forward
+(two-PROM parked).
+
+### Concrete deliverables
+
+  * **SDCC PROM1-only line-program pipeline** (
+    `cpnos-in-c/sdcc-prom1lineprog/`).  Mirror of clang's
+    `clang-prom1lineprog/` two-pass ZX0 build using z88dk-zcc +
+    z80asm rather than ld.lld + objcopy.  Image 2246 B (4 KB
+    padded); init 689 -> 585 B ZX0, payload 2192 -> 1559 B ZX0.
+
+  * **Unified Makefile target.**  `make prom1-lineprog
+    COMPILER={clang,sdcc}` dispatches to the right pipeline; legacy
+    `sdcc-prom1lineprog{,-try}` aliases preserved.
+
+  * **MAME companion changes** (ravn/mame@d0a7dcd81f2 + earlier):
+    * `ROM_LOAD_OPTIONAL prom1.ic65` size 0x800 -> 0x1000 so 4 KB
+      cpnos PROM1 images load completely.
+    * `PORT_CONFNAME` PROM1 default = 0x02 (2732 4KB) so bank2h
+      maps the upper PROM1 half by default.
+
+  * **Block-scope `extern` SDCC bug** (filed
+    https://github.com/ravn/z88dk/issues/7).  Root cause of the
+    "SDCC netboot stalls at 28 dots" symptom -- SDCC's z88dk
+    back-end silently drops function-scope `extern` declarations
+    from its .asm GLOBAL symbol list, producing undefined-symbol
+    errors when z80asm assembles the file.  The error masked
+    itself because make didn't rebuild stale .o files from a prior
+    commit that pre-dated the gate-removal; tested slave was
+    running pre-locale-machinery code that wedged in netboot for
+    unrelated reasons.  Fix: file-scope extern (one-line move in
+    init.c and cpnos_main.c).
+
+  * **SDCC polypascal-test PASS** (49.81 s) -- matches clang's
+    50.99 s for the same workload; both routes through the same
+    init.c / resident.c source with compiler-specific cold-init
+    paths (bootstrap.s vs bootstrap.asm + relocator.c shared as
+    portable C between them).
+
+### Diagnostic story (worth a memory rule)
+
+The "SDCC netboot stalls at 28 dots" was investigated for several
+hours with the wrong hypothesis (SNIOS protocol bug).  The
+diagnostic chain that found the real cause:
+
+  1. **dzx0 verified correct** via lua dump_resident.lua of slave
+    RAM 0xED00..0xF58D + cmp against host-side z88dk-dzx0 of
+    payload.zx0.  Byte-identical.  Rules out ZX0 stream / decoder
+    bug.
+  2. **SNIOS jumptable at 0xED33** verified consistent across all
+    three builds (SDCC PROM1-only, SDCC two-PROM, clang PROM1-only)
+    via cpnos.map grep.  Rules out cross-build address drift.
+  3. **PC probe** identified stall at `_transport_pio_recv_byte`
+    (0xEDEF+).  Hypothesised SNIOS 29th-frame issue.
+  4. **Banner timestamp** said `2026-05-17 21:07 00791ce+` -- an
+    OLDER commit than HEAD.  This was the actual smoking gun: the
+    slave wasn't running fresh code.  `make` had skipped the
+    rebuild because the stale .o was newer than the .c (which I
+    had since edited but make couldn't tell why the .o was wrong).
+  5. **Deleted sdcc/init.o** + retry: rebuild now FAILS with
+    `undefined symbol: _install_locale_tables`.
+  6. **Inspected SDCC -S asm output** -- block-scope extern emits
+    `call _install_locale_tables` with no matching `GLOBAL
+    _install_locale_tables` line; file-scope extern emits both.
+  7. **Move declarations to file scope** -> SDCC build clean,
+    slave boots to E>, polypascal PASSes.
+
+Lesson: when an old build artifact shows older provenance than
+expected (banner timestamp / build hash / image checksum), trust
+that signal IMMEDIATELY.  Don't waste cycles assuming the slave is
+running the source you just edited; verify.
+
+### Followups filed / closed this session
+
+  * todo-sdcc-prom1lineprog-netboot-stall-2026-05-17.md -- CLOSED.
+  * todo-sdcc-locale-impl-2026-05-17.md -- CLOSED.
+  * todo-sdcc-zx0-2026-05-17.md -- CLOSED.
+  * todo-cpnos-prom1lineprog-single-chunk-2026-05-17.md -- open.
+  * todo-mame-build-binary-name-2026-05-17.md -- open.
+  * todo-polypascal-no-mirror-stage4-2026-05-17.md -- open.
+  * todo-56k-tpa-2026-05-17.md -- open.
+  * todo-cpnos-img-zx0-compression-2026-05-17.md -- open.
+  * todo-cpnos-relocatable-2026-05-17.md -- open.
+  * todo-prom1-compression-to-restore-bootmark-2026-05-17.md -- open.
+
 ## Session 73j-late: locale-tag in stamp, two-PROM parked, video pipeline, MAME col-80, autoload polish (May 17, 2026 evening) — Hard
 
 End state: production slave topology firmly = autoload-in-c (ROA375)

@@ -28,3 +28,13 @@ cpnos-in-c/sdcc-prom1lineprog/init.bin
 cpnos-in-c/sdcc-prom1lineprog/payload.bin
 cpnos-in-c/sdcc-prom1lineprog/init.zx0
 cpnos-in-c/sdcc-prom1lineprog/payload.zx0
+
+# SDCC PROM1-only line program intermediate artifacts
+cpnos-in-c/sdcc/cpnos_lp
+cpnos-in-c/sdcc/cpnos_lp_*.bin
+cpnos-in-c/sdcc/cpnos_lp.rom
+cpnos-in-c/sdcc/cpnos_lp.map
+cpnos-in-c/sdcc/cpnos_lp.def
+cpnos-in-c/sdcc/cpnos_lp.lis
+cpnos-in-c/sdcc/cpnos_lp.sym
+cpnos-in-c/sdcc/cpnos_with_locale.img
