@@ -170,11 +170,91 @@ view delay.  Verified end-to-end via MAME snapshot.
     no equivalent today, so programs assuming the BIOS layout render
     wrong glyphs against the slave.  Reserve byte-compatible slots in
     the slave image and bundle a default table set.  PROM1 budget is
-    tight (118 B free); likely needs ZX0 compression or RAM-decompressed
-    placement.  Planning note:
+    now critical (30 B free post-#16); needs ZX0 compression or
+    RAM-decompressed placement.  Planning note:
     `cpnos-in-c/tasks/todo-translation-tables-2026-05-17.md`.  Cost
     class: Medium.  Deferred -- not blocking anything live, pick up
     next time the slave is touched.
+
+### Addenda (SW1 wiring + dual-transport cpnos, late session 73j)
+
+  - **SW1 bit 0 + bit 1 wired across autoload / rcbios / cpnos**
+    (commit `14846e3`).  Final semantics per user spec:
+      - bit 0 (S01): On = joined console (SIO-B + kbd in, SIO-B + CRT
+        out); Off = local-only.  rcbios + cpnos both honour.
+        rcbios's previous condition was *inverted* from this spec;
+        fixed.  cpnos's compile-time `MIRROR_SIOB` flag still strips
+        SIO-B output entirely for size-constrained builds; runtime
+        flag gates the joined behaviour inside `MIRROR_SIOB=1`.
+      - bit 1 (S02): On = autoload checks PROM1 signature on
+        floppy-boot failure and jumps if present; Off = halt with
+        NO DISKETTE NOR LINEPROG (operator-side lockout without
+        pulling the EPROM).  Was unused before this commit.
+    Doc updates: top-level `README.md` "DIP switch SW1" section,
+    `docs/SW1_BIT_MAP.md` rewrite, MAME prose comment.
+
+  - **cpnos PROM1-only is now dual-transport, SW1 bit 2 selects**
+    (commit `ab606b0`).  Both `transport_pio.o` and `transport_sio.o`
+    linked in.  3-byte JP-NN trampolines for `_xport_send_byte` /
+    `_xport_recv_byte` in `.resident` (NOT `.resident.jumptable` --
+    that would push `_snios_jt` past the linker ASSERT at 0xED33).
+    `install_transport()` in `.resident` (because `.init` was at its
+    640 B cap) patches the trampolines at cold-init based on PORT_SW1
+    bit 2.  Cost +69 B; PROM1 2018 / 2048 B (30 B free).
+    Buffer-sharing was trivial: SIO uses no RX buffer (polls SIO-A
+    directly).  SIO-A vs SIO-B independent chip channels => no
+    conflict with bit-0 joined console.
+
+### Follow-ups discovered while wiring SW1 bits + dual-transport
+
+12. **PROM1 budget critical -- 30 B free.**  Down from 99 B before
+    dual-transport.  Any further cpnos growth (e.g. follow-up #11
+    translation tables) must be paired with an equal-or-larger shrink
+    elsewhere in the slave.  Memory rule
+    `project_rc702_2kb_prom_hard_limit` covers the underlying hard
+    constraint (no A11 bridge on user's hardware).  Active monitoring
+    -- worth checking PROM1 size after every cpnos-touching commit.
+
+13. **rcbios SW1 bit-0 inversion fix untested under MAME.**  The
+    inversion was a correctness fix (was bit=1 → JOINED, now
+    bit=0 → JOINED matching MAME's "On" = bit-clear convention).
+    Existing `mame_siob_*` tests in `rcbios-in-c/` predate the fix
+    and may be asserting the old behaviour; run them and update
+    expectations if they fail.  Particularly: confirm that with
+    default SW1 (bit 0 = 0), CON: comes out as UC1 (joined) not
+    CRT-only.
+
+14. **SIO-mode cpnos PROM1-only runtime untested.**  Default-PIO
+    smoke-tested (banner appears via JP trampoline); SIO-mode (SW1
+    bit 2 set) is link-clean and the patcher logic is correct by
+    code inspection, but no MAME run with bit 2 = Off + SIO-A wired
+    to mpm-net2 has been executed.  Add a dedicated test target
+    (something like `cpnos-prom1-sio-smoke`) that boots
+    rc702/rc702sem702 with the PROM1-only image + DSW bit 2 set +
+    SIO-A wired to a fake-master end, asserts a known SNDMSG/RCVMSG
+    pair round-trips.
+
+15. **`transport_sio.c` naming asymmetry.**  PIO transport exports
+    `transport_pio_send_byte` / `transport_pio_recv_byte`; SIO
+    transport exports the bare `transport_send_byte` /
+    `transport_recv_byte`.  Rename the SIO pair to
+    `transport_sio_send_byte` / `transport_sio_recv_byte` for
+    symmetry; cascades into `Makefile` TRANSPORT_DEFSYMS aliases
+    + init.c install_transport() references.  Cosmetic / readability.
+
+16. **Two-PROM cpnos builds still single-transport at compile time.**
+    `make cpnos-burn` picks TRANSPORT=pio-irq or TRANSPORT=sio.
+    Could be extended to dual-transport too (same JT + install_transport
+    machinery), but no concrete user benefit while two-PROM is the
+    legacy path.  Low priority.
+
+17. **`install_transport()` lives in `.resident` not `.init`.**
+    .init was at its 640 B cap.  Cost: ~30 B of RAM stays resident
+    after cold-init although the function is never called again.
+    Reclaimable if .init slack appears (e.g. some cold-init code
+    moves into bootstrap or is removed).  Low priority.
+
+## Session 73i: ZX0 on autoload + cpnos-in-c PROM1-only, park cpnos-in-asm (May 17, 2026) — Medium
 
 ## Session 73i: ZX0 on autoload + cpnos-in-c PROM1-only, park cpnos-in-asm (May 17, 2026) — Medium
 
