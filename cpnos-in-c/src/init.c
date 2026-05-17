@@ -467,13 +467,18 @@ static uint16_t netboot_mpm(void) {
     BOOT_MARK(13, 'E');              /* EOF reached */
     crlf();
 
-    /* --- print build stamp from last 24 B of payload --------------
-     * stamp_cpnos.py wrote 23 ASCII bytes + 0x00 sentinel into the
-     * trailing 0x1A padding of cpnos.com.  dma now points one past
-     * the last loaded byte, so the stamp lives at dma-24..dma-1. */
+    /* --- print build stamp from last 32 B of payload --------------
+     * stamp_cpnos.py writes 31 ASCII bytes + 0x00 sentinel into the
+     * trailing 0x1A padding of cpnos.com.  The text is the build
+     * timestamp + git hash + optional locale tag (e.g.
+     * "2026-05-17 19:14 0aa5e7e da_US").  The locale tag rides here
+     * rather than on print_banner's row 0 because the slave PROM
+     * doesn't know which locale tables the master's cpnos.img
+     * carries until netboot completes.  dma now points one past the
+     * last loaded byte, so the stamp lives at dma-32..dma-1. */
     {
-        const uint8_t *s = dma - 24;
-        for (uint8_t i = 0; i < 23 && s[i] != 0; ++i) impl_conout(s[i]);
+        const uint8_t *s = dma - 32;
+        for (uint8_t i = 0; i < 31 && s[i] != 0; ++i) impl_conout(s[i]);
         crlf();
     }
 
@@ -509,17 +514,18 @@ static void print_banner(void) {
      * WWW-MMM = TRANSPORT_NAME literal (Makefile -DTRANSPORT_NAME='"PIO"'/"SIO").
      * cc = CPNOS_COMPILER_NAME ("clang"/"sdcc"/"hitech"), picked at preprocess time
      * so the banner unambiguously identifies which build is running.
-     * LL_RR = CPNOS_LOCALE_TAG describing the active locale tables:
-     *   da_US -- Danish keyboard inconv + US-ASCII outcon (current default)
-     *   da_DK -- Danish keyboard + Danish character set
-     * Must stay in sync with the table choice in
-     * cpnos-build/gen_locale_prefix.py. */
+     *
+     * The locale tag (da_US / da_DK / ...) intentionally does NOT
+     * appear on this banner -- print_banner runs BEFORE netboot, so
+     * cpnos.img hasn't been loaded yet and the slave PROM1 has no
+     * idea which locale tables the master's cpnos.img is carrying.
+     * The locale tag rides on the cpnos.img stamp line instead
+     * (printed on row 2 by netboot_mpm's stamp reader). */
 #define _STR(x) #x
 #define STR(x) _STR(x)
     static const SECTION_INIT_RODATA char banner[] =
         "RC702 CP/NOS " STR(CPNOS_TPA_KB) "K "
-        TRANSPORT_NAME " " CPNOS_COMPILER_NAME " "
-        CPNOS_LOCALE_TAG " " BUILD_INFO_STR "\r\n";
+        TRANSPORT_NAME " " CPNOS_COMPILER_NAME " " BUILD_INFO_STR "\r\n";
     for (const char *p = banner; *p; ++p) impl_conout((uint8_t)*p);
 #undef STR
 #undef _STR

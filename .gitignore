@@ -12,3 +12,8 @@ autoload-in-c/cmake-build-*/
 # MAME runtime files
 snap/
 cfg/
+
+# MAME run captures (kept by scripts/mame_capture.sh, pruned to MAX_KEEP)
+scratch/mame-videos/*.mp4
+scratch/mame-videos/*.avi
+scratch/mame-videos/*.mng

@@ -263,21 +263,17 @@ else
 SERVER_CFLAGS += -DTRANSPORT_NAME='"$(TRANSPORT_NAME)"'
 endif
 
-# Locale tag printed in the boot banner.  Format: <kbd>_<charset>.
+# Locale tag stamped into cpnos.img (NOT into PROM1).  Format:
+# <kbd>_<charset>.
 #   da_US  Danish keyboard inconv + US-ASCII outcon (current default)
 #   da_DK  Danish keyboard + Danish-national outcon
-# Must stay in sync with the inconv/outcon choice in
-# cpnos-build/gen_locale_prefix.py -- if you change that script's
-# table selection, set CPNOS_LOCALE_TAG accordingly here so the
-# banner doesn't lie.  Pre-flight check in
-# cpnos-disk-install-with-locale verifies the prefix carries an
-# outcon that matches the tag.
+# Passed to stamp_cpnos.py as --locale, ends up in the last 32 B of
+# cpnos.com so the slave prints it on row 2 after netboot completes.
+# Doesn't go through -D because print_banner runs BEFORE netboot
+# (the slave PROM doesn't know which locale tables the master's
+# cpnos.img carries until READ-SEQ finishes).  Must stay in sync
+# with the inconv/outcon choice in cpnos-build/gen_locale_prefix.py.
 CPNOS_LOCALE_TAG ?= da_US
-ifeq ($(COMPILER),sdcc)
-SERVER_CFLAGS += -DCPNOS_LOCALE_TAG='\"$(CPNOS_LOCALE_TAG)\"'
-else
-SERVER_CFLAGS += -DCPNOS_LOCALE_TAG='"$(CPNOS_LOCALE_TAG)"'
-endif
 
 # ---- Payload (linked at 0xED00, no PROM knowledge) ----------------
 # The payload is the single contiguous blob of everything that runs
@@ -739,7 +735,8 @@ cpnos-disk-install: cpnos-build/d/cpnos.com
 # -- they must use plain `cpnos-disk-install` instead.
 cpnos-disk-install-with-locale: cpnos-build/d/cpnos.com
 	@echo "=== stamping cpnos.com + prepending 384 B locale prefix ==="
-	@python3 cpnos-build/stamp_cpnos.py cpnos-build/d/cpnos.com $(BUILDDIR)/cpnos_stamped.com
+	@python3 cpnos-build/stamp_cpnos.py cpnos-build/d/cpnos.com $(BUILDDIR)/cpnos_stamped.com \
+	    --locale $(CPNOS_LOCALE_TAG)
 	@python3 cpnos-build/gen_locale_prefix.py $(BUILDDIR)/locale_prefix.bin
 	@cat $(BUILDDIR)/locale_prefix.bin $(BUILDDIR)/cpnos_stamped.com > $(BUILDDIR)/cpnos_with_locale.img
 	@echo "  cpnos.img = 384 B prefix + $$(wc -c < $(BUILDDIR)/cpnos_stamped.com) B stamped cpnos.com = $$(wc -c < $(BUILDDIR)/cpnos_with_locale.img) B"
