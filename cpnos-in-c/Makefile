@@ -1747,18 +1747,20 @@ $(BUILDDIR)/cpnos_layout.asm: cpnos-build/d/cpnos.sym
 	   echo "    PUBLIC CPNOS_NDOSRL"; \
 	   echo "    PUBLIC CPNOS_NDOS"; \
 	   echo "    PUBLIC CPNOS_BDOS"; \
-	   echo "    PUBLIC __stack_top"; \
 	   echo ""; \
 	   echo "defc CPNOS_NDOSRL = 0x$$NDOSRL    ; cpnos.com DATA region base"; \
 	   echo "defc CPNOS_NDOS   = 0x$$NDOS    ; cpnos.com CODE region base (loaded by netboot)"; \
 	   echo "defc CPNOS_BDOS   = 0x$$BDOS    ; BDOS dispatch (programs CALL ZP[5..7] -> jp here)"; \
 	   echo ""; \
-	   echo "; Stack top = NDOSRL.  First push lands at NDOSRL-1, in TPA proper"; \
-	   echo "; (0x0100..NDOSRL-1) which is genuinely unused at boot.  Stack at"; \
-	   echo "; or above NDOSRL would stomp NDOS's variable storage -- bug fixed"; \
-	   echo "; by Path 6.1.  Symbol is referenced via EXTERN __stack_top in"; \
-	   echo "; sdcc/reset.asm; if cpnos-build's DATA_BASE shifts, SP follows."; \
-	   echo "defc __stack_top = CPNOS_NDOSRL"; \
+	   echo "; __stack_top is NOT emitted from this file.  Two callers:"; \
+	   echo ";   - PROM1-only (sdcc-prom1lineprog/bootstrap.asm): hardcodes"; \
+	   echo ";     SP=0xF680 directly; ignores this file entirely.  Runtime SP"; \
+	   echo ";     observed 0xF65A..0xF668, plenty of slack vs resident."; \
+	   echo ";   - Two-PROM (sdcc/reset.asm): historical EXTERN __stack_top"; \
+	   echo ";     pointing at NDOSRL.  Two-PROM is PARKED (see tasks/"; \
+	   echo ";     TWO_PROM_PARKED.md); breaking that symbol is acceptable."; \
+	   echo ";   If two-PROM SDCC is ever revived, re-emit __stack_top here"; \
+	   echo ";   or move the SP literal into reset.asm directly."; \
 	} > $@
 
 # Frame-pointer audit: produce a .s for every C source we compile so
