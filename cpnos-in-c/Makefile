@@ -709,6 +709,31 @@ cpnos-disk-install: cpnos-build/d/cpnos.com
 	 fi
 	@echo "  refreshed cpnos.img on mpm-net2-1.dsk"
 
+# Variant: prepend 384 B locale prefix (US-ASCII outcon + Danish
+# inconv) before installing.  The PROM1-only cpnos slave (v3 layout)
+# loads this prefix-prepended cpnos.img, LDIRs the prefix to its
+# runtime home at 0xF680..0xF7FF, and runs impl_conout/impl_conin
+# through the tables.  Two-PROM slaves cannot consume this image
+# (their pio_rx_buf is at 0xF700; LDIR would corrupt the IRQ ring)
+# -- they must use plain `cpnos-disk-install` instead.
+cpnos-disk-install-with-locale: cpnos-build/d/cpnos.com
+	@echo "=== stamping cpnos.com + prepending 384 B locale prefix ==="
+	@python3 cpnos-build/stamp_cpnos.py cpnos-build/d/cpnos.com $(BUILDDIR)/cpnos_stamped.com
+	@python3 cpnos-build/gen_locale_prefix.py $(BUILDDIR)/locale_prefix.bin
+	@cat $(BUILDDIR)/locale_prefix.bin $(BUILDDIR)/cpnos_stamped.com > $(BUILDDIR)/cpnos_with_locale.img
+	@echo "  cpnos.img = 384 B prefix + $$(wc -c < $(BUILDDIR)/cpnos_stamped.com) B stamped cpnos.com = $$(wc -c < $(BUILDDIR)/cpnos_with_locale.img) B"
+	@cpmrm -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk 0:cpnos.img 2>/dev/null || true
+	cpmcp -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk \
+	    $(BUILDDIR)/cpnos_with_locale.img 0:cpnos.img
+	@if [ -f $(MPM_DISK_LIB)/cpnetsmk-1.dsk ]; then \
+	    cpmrm -f ibm-3740 $(MPM_DISK_LIB)/cpnetsmk-1.dsk 0:cpnos.img 2>/dev/null || true; \
+	    cpmcp -f ibm-3740 $(MPM_DISK_LIB)/cpnetsmk-1.dsk \
+	        $(BUILDDIR)/cpnos_with_locale.img 0:cpnos.img; \
+	    echo "  refreshed (locale) cpnos.img on cpnetsmk-1.dsk"; \
+	 fi
+	@echo "  refreshed (locale) cpnos.img on mpm-net2-1.dsk"
+.PHONY: cpnos-disk-install-with-locale
+
 # Force cpnos.com to rebuild whenever any of its sources change.
 .PHONY: cpnos-disk-install
 cpnos-build/d/cpnos.com: $(wildcard cpnos-build/src/*.asm cpnos-build/src/*.s) cpnos-build/Makefile
@@ -1329,8 +1354,17 @@ $(PROM1ONLY_DIR)/payload_zx0.o: $(PROM1ONLY_DIR)/payload_zx0.s $(PROM1ONLY_PAYLO
 PROM1ONLY_OBJS = $(PROM1ONLY_DIR)/bootstrap.o $(PROM1ONLY_DIR)/dzx0_standard.o \
                  $(PROM1ONLY_DIR)/init_zx0.o $(PROM1ONLY_DIR)/payload_zx0.o
 
-$(PROM1ONLY_BIN): $(PROM1ONLY_OBJS) $(PROM1ONLY_DIR)/prom1.ld
-	$(LD) -T $(PROM1ONLY_DIR)/prom1.ld $(PROM1ONLY_OBJS) \
+$(PROM1ONLY_BIN): $(PROM1ONLY_OBJS) $(PROM1ONLY_DIR)/prom1.ld $(PROM1ONLY_PAYLOAD_ELF)
+	@# Extract the sentinel byte's address from the payload ELF so
+	@# bootstrap.s's `ld (_prom1_only_sentinel), a` resolves at the
+	@# final PROM1 link.  payload.elf is the resident's ELF (BSS lives
+	@# there); the final link here only sees bootstrap.o + decoder +
+	@# the compressed payload/init blobs, so the symbol has to be
+	@# injected via --defsym.
+	@S=$$(/Users/ravn/z80/llvm-z80/build-macos/bin/llvm-nm $(PROM1ONLY_PAYLOAD_ELF) | awk '/ _prom1_only_sentinel$$/ {print "0x"$$1; exit}'); \
+	 [ -n "$$S" ] || { echo "ERROR: _prom1_only_sentinel not found in payload.elf"; exit 1; }; \
+	 echo "PROM1-only link: _prom1_only_sentinel = $$S"; \
+	 $(LD) -T $(PROM1ONLY_DIR)/prom1.ld --defsym=_prom1_only_sentinel=$$S $(PROM1ONLY_OBJS) \
 	    -o $(PROM1ONLY_DIR)/prom1-lineprog.elf
 	$(OBJCOPY) -O binary $(PROM1ONLY_DIR)/prom1-lineprog.elf $@
 	@SZ=$$(wc -c < $@ | tr -d ' '); \

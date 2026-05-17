@@ -342,8 +342,18 @@ static void init_hardware(void) {
  * The .COM file is the CODE section -- linked at CODE_BASE and
  * record-padded to 0xC80 on disk; file offset 0 = memory
  * CPNOS_NDOS_ADDR.  Source of truth is cpnos.sym (extracted into
- * clang/cpnos_addrs.h as CPNOS_NDOS_ADDR). */
-#define IMG_BASE   ((uint8_t *)CPNOS_NDOS_ADDR)
+ * clang/cpnos_addrs.h as CPNOS_NDOS_ADDR).
+ *
+ * IMG_BASE is decided at runtime via prom1_only_sentinel: PROM1-only
+ * builds expect cpnos.img to start with a 384 B locale prefix
+ * (outcon[128]+inconv[256]) prepended by cpnos-disk-install-with-locale;
+ * the slave loads at CPNOS_NDOS_ADDR - 384 so the prefix lands in TPA
+ * scratch just below NDOS and the rest of cpnos.com lands at NDOS_ADDR
+ * as usual.  resident_handoff's install_locale_tables() then LDIRs
+ * the prefix to its runtime home at 0xF680.  Two-PROM cold-init never
+ * sets the sentinel, so IMG_BASE stays at CPNOS_NDOS_ADDR and the
+ * netboot reads a normal (un-prefixed) cpnos.img. */
+#define LOCALE_PREFIX_SIZE 384
 #define ENTRY_ADDR (CPNOS_NDOS_ADDR)
 
 /* MP/M II default password on mpm-net2-1.dsk.  Override at build time
@@ -429,7 +439,11 @@ static uint16_t netboot_mpm(void) {
     BOOT_MARK(11, 'O');              /* OPEN ok */
 
     /* --- READ-SEQ loop -------------------------------------------- */
-    uint8_t *dma = IMG_BASE;
+    /* Runtime IMG_BASE: PROM1-only build shifts down by 384 B for the
+     * locale prefix; two-PROM doesn't.  Branch lives in get_img_base()
+     * (.resident) to keep this .init function under the 640 B cap. */
+    extern uint8_t *get_img_base(void);
+    uint8_t *dma = get_img_base();
     for (;;) {
         reuse_fcb();
         uint8_t rc = cpnet_xact(20, 36);

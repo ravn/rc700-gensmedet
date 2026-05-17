@@ -134,6 +134,35 @@ USED uint8_t pio_par_count;
  * the linker layout fix that this removal also required (RESIDENT_
  * CHECKSUM section in sdcc/sections.asm). */
 
+/* Install locale tables from the cpnos.img prefix.  Runs in
+ * resident_handoff (cpnos_main.c) right after PROM disable.
+ * Source = IMG_BASE (CPNOS_NDOS_ADDR - 384 when sentinel set, else
+ * CPNOS_NDOS_ADDR -- in the unset case the source bytes are random
+ * RAM and we MUST NOT copy them, hence the sentinel guard).
+ * Destination = 0xF680..0xF7FF (outcon[128] + inconv[256], rcbios-
+ * compatible layout, freed by clang-prom1lineprog/payload.ld v3). */
+RESIDENT
+void install_locale_tables(void) {
+    extern uint8_t prom1_only_sentinel;
+    if (prom1_only_sentinel != 0x5A) return;
+    __builtin_memcpy((void *)0xF680,
+                     (const void *)(CPNOS_NDOS_ADDR - 384),
+                     384);
+}
+
+/* Resident helper that returns the netboot LDIR destination -- shifted
+ * by 384 B on PROM1-only (sentinel set, cpnos.img has locale prefix),
+ * unchanged on two-PROM (sentinel zero).  Called from init.c::netboot_mpm
+ * so the branch logic lives in .resident, NOT in .init (which is at its
+ * 640 B cap). */
+RESIDENT
+uint8_t *get_img_base(void) {
+    extern uint8_t prom1_only_sentinel;
+    return (uint8_t *)(prom1_only_sentinel == 0x5A
+                       ? CPNOS_NDOS_ADDR - 384
+                       : CPNOS_NDOS_ADDR);
+}
+
 RESIDENT
 uint8_t impl_const(void) {
     if (_port_in(PORT_SIO_B_CTRL) & SIO_RR0_RX_CHAR_AVAIL) {
@@ -179,6 +208,22 @@ uint8_t cur_dirty;            /* set by impl_conout, cleared by _isr_crt */
  *   0 = local-only: keyboard input + CRT output, SIO-B ignored.
  * Read once because impl_conin / impl_conout are hot. */
 uint8_t console_joined;
+
+/* PROM1-only build sentinel.  PROM1-only's bootstrap.s writes 0x5A
+ * here right after ZX0-decompressing the resident, before jp to
+ * cpnos_cold_entry.  Shared init.c / resident.c code reads this to
+ * decide whether to apply the locale-table install path (IMG_BASE
+ * shifted by 384 B so cpnos.img can prepend an outcon[128]+inconv[256]
+ * locale prefix; install_locale_tables LDIRs the prefix to its runtime
+ * home at 0xF680..0xF7FF; impl_conout/conin use the tables).
+ *
+ * Two-PROM cold-init never writes this byte (BSS stays zero), so all
+ * locale paths short-circuit to a no-op on two-PROM.  The PROM1-only
+ * RAM layout (clang-prom1lineprog/payload.ld) is the one that puts
+ * the freed 0xF680..0xF7FF region above pio_rx_buf at 0xEC00 -- on
+ * two-PROM 0xF700..0xF7FF is still pio_rx_buf and writes there would
+ * corrupt the IRQ ring. */
+uint8_t prom1_only_sentinel;
 static uint8_t xflg;          /* 0 = normal; 2/1 = awaiting XY coord bytes */
 static uint8_t xy_first;      /* first coord saved between XY calls */
 
@@ -374,15 +419,21 @@ uint8_t impl_conin(void) {
      * immediately, not on the next VRTC. */
     sync_cursor_if_dirty();
 
+    /* inconv[256] at 0xF700: Danish-keyboard input table.  Only
+     * referenced when prom1_only_sentinel == 0x5A (PROM1-only build
+     * with locale prefix installed).  Pass-through otherwise. */
+    const uint8_t *inconv = (const uint8_t *)0xF700;
+    uint8_t use_inconv = (prom1_only_sentinel == 0x5A);
     for (;;) {
         if (console_joined &&
             (_port_in(PORT_SIO_B_CTRL) & SIO_RR0_RX_CHAR_AVAIL)) {
-            return _port_in(PORT_SIO_B_DATA);
+            uint8_t c = _port_in(PORT_SIO_B_DATA);
+            return use_inconv ? inconv[c] : c;
         }
         if (kbd_head != kbd_tail) {
             uint8_t c = kbd_ring[kbd_tail];
             kbd_tail = (kbd_tail + 1) & (KBD_RING_SIZE - 1);
-            return c;
+            return use_inconv ? inconv[c] : c;
         }
     }
 }
@@ -419,6 +470,14 @@ void impl_conout(uint8_t c) {
     if (xflg) {
         xy_step(c);
     } else if (c >= 0x20) {
+        /* outcon[128] at 0xF680: output conversion table.  Only
+         * looked up when prom1_only_sentinel == 0x5A and c < 0x80.
+         * On two-PROM (sentinel == 0) the lookup is skipped entirely
+         * (pass-through), so we never read from 0xF680 there (where
+         * the data is stack workspace, not a locale table). */
+        if (prom1_only_sentinel == 0x5A && !(c & 0x80)) {
+            c = ((const uint8_t *)0xF680)[c];
+        }
         *CELL(curx, cury) = c;
         cursor_right();
     } else if (c == '\r') {

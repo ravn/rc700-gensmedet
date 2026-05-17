@@ -375,6 +375,13 @@ void resident_handoff(uint16_t entry) {
     _port_out(PORT_RAMEN, 0x00);
     BOOT_MARK(16, 'P');                /* PROMs disabled */
 
+    /* Install locale tables from cpnos.img prefix.  PROM1-only-only:
+     * the function checks prom1_only_sentinel and is a no-op on
+     * two-PROM (where the LDIR destination 0xF680..0xF7FF is stack
+     * workspace + pio_rx_buf, not free RAM). */
+    extern void install_locale_tables(void);
+    install_locale_tables();
+
     /* Restore cfgtbl.fnc to LIST (0x05) -- netboot's cpnet_xact left
      * it at the last function code (16 = CLOSE).  cfgtbl shares its
      * outbound message-frame area with netboot's msg[] (saves 163 B
