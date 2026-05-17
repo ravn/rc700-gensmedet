@@ -342,8 +342,42 @@ static void specc(uint8_t c) {
 
 /* --- public CONIN / CONOUT ---------------------------------------- */
 
+/* Deferred-cursor flush helper.  Mirrors the tail of _isr_crt: if
+ * cur_dirty is set, push curx/cury into the 8275 cursor registers
+ * and clear the flag.  Called from impl_conin so that whoever is
+ * about to wait for keystrokes sees the block cursor at the actual
+ * logical position immediately, not one VRTC frame (~20ms) later
+ * once isr_crt happens to fire.  Race vs isr_crt is benign: at
+ * worst both paths sync to the same curx/cury and clear the flag
+ * twice.  Same bytes as the ISR's cursor block, factored out so a
+ * future refactor can have isr_crt CALL this too.
+ *
+ * __naked + ret avoids the prologue/epilogue.  Clobbers A. */
+RESIDENT
+static void sync_cursor_if_dirty(void) __naked {
+    __asm__(
+        "ld   a, (_cur_dirty)\n\t"
+        "or   a\n\t"
+        "ret  z\n\t"
+        "xor  a\n\t"
+        "ld   (_cur_dirty), a\n\t"
+        "ld   a, 0x80\n\t"          /* 8275 'load cursor position' */
+        "out  (0x01), a\n\t"
+        "ld   a, (_curx)\n\t"
+        "out  (0x00), a\n\t"
+        "ld   a, (_cury)\n\t"
+        "out  (0x00), a\n\t"
+        "ret\n\t"
+    );
+}
+
 RESIDENT
 uint8_t impl_conin(void) {
+    /* Flush any deferred cursor update before blocking — at a prompt
+     * the operator expects the block cursor at the typing position
+     * immediately, not on the next VRTC. */
+    sync_cursor_if_dirty();
+
     for (;;) {
         if (_port_in(PORT_SIO_B_CTRL) & SIO_RR0_RX_CHAR_AVAIL) {
             return _port_in(PORT_SIO_B_DATA);
