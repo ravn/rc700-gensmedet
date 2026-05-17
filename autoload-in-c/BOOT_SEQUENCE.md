@@ -2,6 +2,28 @@
 
 Order of invocation from power-on to CP/M `A>` prompt.
 
+## Boot priority (TL;DR)
+
+The floppy is tried first; PROM1 (cpnos-in-asm / lineprog) is the
+fallback when the floppy path can't proceed.  Three gates inside
+`boot_from_floppy_or_jump_prom1` decide the outcome:
+
+| Floppy state                                  | Outcome                                  |
+|-----------------------------------------------|------------------------------------------|
+| Bootable CP/M disk in drive (Track 0 sig)     | **CP/M boots**; PROM1 ignored            |
+| ID-COMAL disk in drive (` RC700` at 0x0002)   | **COMAL boots** from 0x1000; PROM1 ignored |
+| No disk / drive not ready                     | **PROM1 lineprog runs** (e.g. cpnos-in-asm) |
+| Disk present, format not detectable           | **PROM1 lineprog runs**                  |
+| Disk present, readable, no recognised sig     | Halt `** NO KATALOG **` (PROM1 **not** consulted) |
+| PROM1 also absent / no ` RC702` signature     | Halt `** NO DISKETTE NOR LINEPROG **`    |
+
+The first three rows are the common cases.  The fifth row (readable
+disk with no signature) is a gap: autoload halts rather than falling
+back to PROM1.  Don't insert a non-CP/M readable disk if you want the
+PROM1 path to run -- eject the disk instead.
+
+Detail of each gate is in Phases 5 and 6 below.
+
 ## Phase 1: ROM self-relocation (BOOT section, 0x0000)
 
 ```
