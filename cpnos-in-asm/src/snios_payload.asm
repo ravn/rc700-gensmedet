@@ -449,14 +449,16 @@ do_bell:
 
 ; ---- Screen ops --------------------------------------------------
 
-; scroll_up: LDIR rows 1..23 -> rows 0..22, then blank row 23.
+; scroll_up: LDIR rows 1..(R-1) -> rows 0..(R-2), then blank last row.
 scroll_up:
 	ld	hl, DSP_BASE + DSP_COLS
 	ld	de, DSP_BASE
 	ld	bc, DSP_COLS * (DSP_ROWS - 1)
 	ldir
 	ld	hl, DSP_BASE + DSP_COLS * (DSP_ROWS - 1)
-	jp	fill_row_keep_cursor
+	; fall through to fill_row -- the trailing co_sync_cursor is OK
+	; because the caller (do_cursor_down) does its own co_recompute
+	; right after; sync twice is harmless and worth ~7 B.
 
 do_clear_screen:
 	ld	hl, DSP_BASE
@@ -590,7 +592,8 @@ row_addr:
 	add	hl, de
 	ret
 
-; Fill 80 bytes starting at HL with spaces and sync cursor.
+; Fill 80 bytes starting at HL with spaces and sync cursor.  Shared
+; tail of scroll_up + erase_to_eol + insert_line / delete_line blank.
 fill_row:
 	ld	(hl), ' '
 	ld	d, h
@@ -599,18 +602,6 @@ fill_row:
 	ld	bc, DSP_COLS - 1
 	ldir
 	jp	co_sync_cursor
-
-; Like fill_row but does not touch the 8275 cursor afterwards.  Used
-; by scroll_up so the caller (do_cursor_down) keeps control of the
-; final co_recompute / co_sync_cursor that happens at row_save.
-fill_row_keep_cursor:
-	ld	(hl), ' '
-	ld	d, h
-	ld	e, l
-	inc	de
-	ld	bc, DSP_COLS - 1
-	ldir
-	ret
 
 ; ---- XY cursor addressing (0x06 + 2 coord bytes) -----------------
 
@@ -1096,19 +1087,16 @@ cfgtbl:
 	db	0,    0			; N: unused
 	db	0,    0			; O: unused
 	db	0,    0			; P: unused
-	; +34..+38  console, list, bufidx -- left zero (NDOS sets at runtime)
-	db	0,0,0,0,0
-	; +39..+43  fmt, did, sid, fnc, siz -- outbound msg fields, NDOS sets
-	db	0,0,0,0,0
-	; +44       msg0
-	db	0
-	; +45..+63 (msgbuf head, first 19 bytes only; NDOS uses up to
-	; +172).  Keep cfgtbl small enough that the whole snios_payload
-	; INCBIN fits in PROM1; NDOS won't read past +43 in COLDST
-	; before SNDMSG/RCVMSG actually do anything with msgbuf.
-	; If a longer scratch area is later needed, expand here.
-	db	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
-	db	0,0,0
+	; +34..+38  console, list, bufidx (NDOS sets at runtime).
+	; +39..+43  fmt, did, sid, fnc, siz (NDOS sets per call).
+	; cfgtbl-internal padding stops here -- NDOS extends msg writes
+	; past +43 into 0xF128+44.. which is plain RAM in our resident
+	; reserve (0xED00..0xF400-cursor area); the previous 20-B "msg0
+	; + msgbuf head" zero-fill inside snios_payload was PROM bytes
+	; we don't need to ship, NDOS just writes into whatever follows
+	; cfgtbl in RAM.  Save 20 B.
+	db	0,0,0,0,0			; +34..+38
+	db	0,0,0,0,0			; +39..+43
 
 ; ---- Keyboard ring (RAM, post-LDIR) --------------------------------
 ; kbd_head holds the number of queued bytes (0..16).  kbd_ring is a

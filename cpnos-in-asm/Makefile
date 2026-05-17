@@ -73,6 +73,8 @@ $(AUTOLOAD_PROM0):
 	@test -f $(AUTOLOAD_PROM0) || { echo "ERROR: $(AUTOLOAD_PROM0) not produced"; exit 1; }
 
 SNIOS_PAYLOAD_BIN = $(BUILDDIR)/snios_payload.bin
+SNIOS_PAYLOAD_ZX0 = $(BUILDDIR)/snios_payload.zx0
+ZX0              = $(CURDIR)/../../z88dk/bin/z88dk-zx0
 
 # SNIOS payload is assembled at org 0xED20 (trampoline + JT at 0xED33
 # + impls + CFGTBL).  zmac's .cim output is the raw bytes starting at
@@ -90,7 +92,15 @@ $(SNIOS_PAYLOAD_BIN): $(SRC)/snios_payload.asm
 	@cp $(BUILDDIR)/snios_payload.cim $(SNIOS_PAYLOAD_BIN)
 	@echo "snios_payload.bin: $$(wc -c < $(SNIOS_PAYLOAD_BIN) | tr -d ' ') B"
 
-$(PROM1_BIN): $(SRC)/prom1.asm $(BUILDDIR)/buildinfo.inc $(SNIOS_PAYLOAD_BIN)
+# ZX0-compress snios_payload.bin into the form prom1.asm INCBINs.
+# Standard ZX0 decompressor (z88dk libsrc/compress/zx0/z80/dzx0_standard.asm)
+# is 69 B; payload compresses from ~1.1 KB to ~750 B, net saving ~260 B
+# in PROM1.
+$(SNIOS_PAYLOAD_ZX0): $(SNIOS_PAYLOAD_BIN)
+	@$(ZX0) -f $(SNIOS_PAYLOAD_BIN) $(SNIOS_PAYLOAD_ZX0) 2>&1 | tail -1
+	@echo "snios_payload.zx0: $$(wc -c < $(SNIOS_PAYLOAD_ZX0) | tr -d ' ') B (was $$(wc -c < $(SNIOS_PAYLOAD_BIN) | tr -d ' ') B raw)"
+
+$(PROM1_BIN): $(SRC)/prom1.asm $(BUILDDIR)/buildinfo.inc $(SNIOS_PAYLOAD_ZX0)
 	@mkdir -p $(BUILDDIR)
 	@# Same --od trick as snios_payload: lets zmac emit the .lst so
 	@# downstream tools (and humans) can see fresh symbol addresses
