@@ -23,6 +23,7 @@
     EXTERN _dzx0_standard
     EXTERN __payload_zx0_start
     EXTERN __init_zx0_start
+    EXTERN _cpnos_cold_entry
 
     PUBLIC bootstrap_entry
 
@@ -54,4 +55,10 @@ bootstrap_entry:
     ; fills outcon + arms the sentinel itself (init.c session
     ; 73j-late consolidation), runs hw bring-up + netboot, ending
     ; in resident_handoff which RAMENs and JPs to NDOS at 0xDD80.
-    jp   0xC000
+    ;
+    ; Use the linker-resolved symbol rather than literal 0xC000:
+    ; SDCC's z88dk linker does not guarantee cpnos_cold_entry is
+    ; the first symbol in INIT_CODE.  In this build it lands at
+    ; ~0xC1A1; clang's link orders sections so that the symbol is
+    ; at 0xC000, but we should not rely on link-order coincidence.
+    jp   _cpnos_cold_entry

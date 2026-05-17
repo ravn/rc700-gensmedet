@@ -1491,6 +1491,15 @@ sdcc-prom1lineprog: $(SDCC_LP_C_OBJS) $(BUILDDIR)/cpnos_layout.asm $(BUILDDIR)/x
 	    $(notdir $(SDCC_LP_C_OBJS)) \
 	    -o cpnos_lp > /tmp/sdcc_lp_pass1.log 2>&1 || { \
 	      tail -30 /tmp/sdcc_lp_pass1.log; exit 1; }
+	@echo "=== sdcc-prom1lineprog patch resident checksum BEFORE ZX0 ==="
+	@# User direction (session 73j-late): "i still want the payload
+	@# checksum before the xz0 unpacking starts".  Patches the last 2
+	@# bytes of the resident bin so word-additive sum = 0xCAFE; the
+	@# magic ends up INSIDE the ZX0-compressed blob and decompresses
+	@# faithfully, so the relocator/bootstrap can verify the resident
+	@# image is intact after dzx0.  Without this, post-decompress
+	@# checksum would be undefined.
+	python3 cpnos-build/patch_payload_checksum.py $(BUILDDIR)/cpnos_lp_RESIDENT_JUMPTABLE.bin
 	@echo "=== sdcc-prom1lineprog ZX0 compress + roundtrip ==="
 	$(ZX0_BIN) -f $(BUILDDIR)/cpnos_lp_INIT_CODE.bin $(SDCC_LP_DIR)/init.zx0
 	@rm -f /tmp/sdcc_lp_init_rt.bin
