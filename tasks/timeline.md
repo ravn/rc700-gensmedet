@@ -316,6 +316,276 @@ view delay.  Verified end-to-end via MAME snapshot.
     Planning note:
     `cpnos-in-c/tasks/todo-dma-dual-buffer-2026-05-17.md`.
 
+## Session 73j-end: SDCC PROM1-only end-to-end + ravn/z88dk#7 block-scope-extern bug (May 17-18, 2026 night) — Hard
+
+End state: both clang and SDCC PROM1-only line programs build, boot,
+and pass `cpnos-polypascal-test` PRIMES to completion.  SDCC reached
+functional parity with clang for the autoload + cpnos-PROM1-only
+topology -- the only supported slave architecture going forward
+(two-PROM parked).
+
+### Concrete deliverables
+
+  * **SDCC PROM1-only line-program pipeline** (
+    `cpnos-in-c/sdcc-prom1lineprog/`).  Mirror of clang's
+    `clang-prom1lineprog/` two-pass ZX0 build using z88dk-zcc +
+    z80asm rather than ld.lld + objcopy.  Image 2246 B (4 KB
+    padded); init 689 -> 585 B ZX0, payload 2192 -> 1559 B ZX0.
+
+  * **Unified Makefile target.**  `make prom1-lineprog
+    COMPILER={clang,sdcc}` dispatches to the right pipeline; legacy
+    `sdcc-prom1lineprog{,-try}` aliases preserved.
+
+  * **MAME companion changes** (ravn/mame@d0a7dcd81f2 + earlier):
+    * `ROM_LOAD_OPTIONAL prom1.ic65` size 0x800 -> 0x1000 so 4 KB
+      cpnos PROM1 images load completely.
+    * `PORT_CONFNAME` PROM1 default = 0x02 (2732 4KB) so bank2h
+      maps the upper PROM1 half by default.
+
+  * **Block-scope `extern` SDCC bug** (filed
+    https://github.com/ravn/z88dk/issues/7).  Root cause of the
+    "SDCC netboot stalls at 28 dots" symptom -- SDCC's z88dk
+    back-end silently drops function-scope `extern` declarations
+    from its .asm GLOBAL symbol list, producing undefined-symbol
+    errors when z80asm assembles the file.  The error masked
+    itself because make didn't rebuild stale .o files from a prior
+    commit that pre-dated the gate-removal; tested slave was
+    running pre-locale-machinery code that wedged in netboot for
+    unrelated reasons.  Fix: file-scope extern (one-line move in
+    init.c and cpnos_main.c).
+
+  * **SDCC polypascal-test PASS** (49.81 s) -- matches clang's
+    50.99 s for the same workload; both routes through the same
+    init.c / resident.c source with compiler-specific cold-init
+    paths (bootstrap.s vs bootstrap.asm + relocator.c shared as
+    portable C between them).
+
+### Diagnostic story (worth a memory rule)
+
+The "SDCC netboot stalls at 28 dots" was investigated for several
+hours with the wrong hypothesis (SNIOS protocol bug).  The
+diagnostic chain that found the real cause:
+
+  1. **dzx0 verified correct** via lua dump_resident.lua of slave
+    RAM 0xED00..0xF58D + cmp against host-side z88dk-dzx0 of
+    payload.zx0.  Byte-identical.  Rules out ZX0 stream / decoder
+    bug.
+  2. **SNIOS jumptable at 0xED33** verified consistent across all
+    three builds (SDCC PROM1-only, SDCC two-PROM, clang PROM1-only)
+    via cpnos.map grep.  Rules out cross-build address drift.
+  3. **PC probe** identified stall at `_transport_pio_recv_byte`
+    (0xEDEF+).  Hypothesised SNIOS 29th-frame issue.
+  4. **Banner timestamp** said `2026-05-17 21:07 00791ce+` -- an
+    OLDER commit than HEAD.  This was the actual smoking gun: the
+    slave wasn't running fresh code.  `make` had skipped the
+    rebuild because the stale .o was newer than the .c (which I
+    had since edited but make couldn't tell why the .o was wrong).
+  5. **Deleted sdcc/init.o** + retry: rebuild now FAILS with
+    `undefined symbol: _install_locale_tables`.
+  6. **Inspected SDCC -S asm output** -- block-scope extern emits
+    `call _install_locale_tables` with no matching `GLOBAL
+    _install_locale_tables` line; file-scope extern emits both.
+  7. **Move declarations to file scope** -> SDCC build clean,
+    slave boots to E>, polypascal PASSes.
+
+Lesson: when an old build artifact shows older provenance than
+expected (banner timestamp / build hash / image checksum), trust
+that signal IMMEDIATELY.  Don't waste cycles assuming the slave is
+running the source you just edited; verify.
+
+### Followups filed / closed this session
+
+  * todo-sdcc-prom1lineprog-netboot-stall-2026-05-17.md -- CLOSED.
+  * todo-sdcc-locale-impl-2026-05-17.md -- CLOSED.
+  * todo-sdcc-zx0-2026-05-17.md -- CLOSED.
+  * todo-cpnos-prom1lineprog-single-chunk-2026-05-17.md -- open.
+  * todo-mame-build-binary-name-2026-05-17.md -- open.
+  * todo-polypascal-no-mirror-stage4-2026-05-17.md -- open.
+  * todo-56k-tpa-2026-05-17.md -- open.
+  * todo-cpnos-img-zx0-compression-2026-05-17.md -- open.
+  * todo-cpnos-relocatable-2026-05-17.md -- open.
+  * todo-prom1-compression-to-restore-bootmark-2026-05-17.md -- open.
+
+## Session 73j-late: locale-tag in stamp, two-PROM parked, video pipeline, MAME col-80, autoload polish (May 17, 2026 evening) — Hard
+
+End state: production slave topology firmly = autoload-in-c (ROA375)
+in PROM 0 + cpnos-in-c PROM1-only line program (prom1-lineprog) in
+PROM 1.  Two-PROM build PARKED.  Locale machinery (outcon pre-fill +
+sentinel write) consolidated into one C site (init.c::cpnos_cold_
+entry), shared by clang/SDCC × PROM1-only/two-PROM cold paths.
+
+### Concrete deliverables
+
+  * **Locale tag moved off the PROM1 banner** onto the cpnos.img
+    build stamp (row 2 of the display).  User pointed out PROM1
+    cannot truthfully name the locale until netboot has loaded the
+    prefix.  stamp_cpnos.py grew from 24 → 32 bytes, accepts
+    `--locale TAG`, cpnos-disk-install-with-locale passes
+    `--locale $(CPNOS_LOCALE_TAG)` (default `da_US`).  Banner row 2
+    now reads e.g. `2026-05-17 19:14 0aa5e7e da_US`.
+  * **MAME video-capture pipeline.**  `scripts/mame_capture.sh`
+    wraps MAME with `-aviwrite`, transcodes to H.264 MP4 via
+    dockerised ffmpeg (`jrottenberg/ffmpeg:7-alpine`), pads to the
+    rc702.lay layout view (904×590 with rgb(0xC0,0x60,0x00) bezel
+    around 864×550 screen), prunes scratch/mame-videos/ to last 50
+    captures.  Typical cpnos boot+CCP-idle 50-s run = ~160 KB MP4.
+    `.gitignore` excludes the MP4/MNG/AVI outputs.
+  * **cpnos-polypascal-test wired through mame_capture.sh** so the
+    test leaves a video on every run.  PASS in ~50 s (clang).
+  * **MAME rc702 driver col-80 fix.**  Edited
+    `mame/src/mame/regnecentralen/rc702.cpp`: `set_size` 544 → 560,
+    `set_visarea(0, 559)`.  i8275 is configured at 7 px/char so 80
+    cols need exactly 560 px; previous value clipped the rightmost
+    ~2 chars on every row.  Verified: autoload's "SW1 12345678:
+    00000000" right-justified line now shows all 8 zeros with
+    breathing room.  Committed to ravn/mame@035d29086bf.
+  * **Autoload cold-boot screen-clear** (`autoload-in-c/rom.c::
+    display_banner_and_start_crt`): added `memset(dspstr, 0x20,
+    80*25)` before the banner memcpy so display RAM doesn't show
+    the 0x00 Danish-accent glyph during the autoload-to-cpnos
+    handoff window (~250 ms emulated, visible frame-by-frame in
+    MP4 captures).  PROM0 cost: +6 B (still 1667/2048).
+  * **Autoload banner restored to descriptive form**:
+    `RC700 ROA375 CL 2026-05-17 20.34 bcd1a80/ravn` (46 chars,
+    matches the SDCC variant's "ROA375" identifier; adds a git
+    hash mirroring cpnos's stamp format).  PROM0 unchanged (ZX0
+    absorbs the +15 chars).
+  * **Two-PROM build PARKED.**
+    `cpnos-in-c/tasks/TWO_PROM_PARKED.md`.  User clarified:
+    "please park the two-prom scenario.  it is only the autoload+
+    cpnos scenario that interests e".  Two-PROM was rebuilt for
+    locale parity earlier in session (cpnos-shared/ld/payload.ld
+    layout surgery: SCRATCH 0xEB00/256, PIO_RX 0xEC00, CFGTBL_RAM
+    0xF53C, stack 0xF680) -- still works under clang, but no
+    further investment.
+  * **Locale pre-init consolidated into init.c.**  Was duplicated
+    in clang-only inline asm (relocator.c) + asm (bootstrap.s).
+    Single 25-byte for-loop + sentinel store at the top of
+    cpnos_cold_entry() now serves clang/SDCC × PROM1-only/two-PROM.
+  * **SDCC ZX0 measurement.**  z88dk-zx0 on the 2192 B SDCC
+    resident → 1554 B (-29%).  Estimated SDCC PROM1-only total
+    ~2080 B, ~32 B over the 2 KB cap; tractable with init-region
+    shrinking.  Recorded in TWO_PROM_PARKED.md.
+  * **SDCC build compiles** (was broken from session 73j-locale's
+    `__asm__ volatile` push); two-PROM SDCC image is link-broken
+    now (`_get_img_base` undefined in sdcc/init.o), but that's
+    acceptable since two-PROM is parked.
+  * **ROA296 glyph-bitmap doc** (`docs/ROA296_GLYPH_BITMAPS.md`)
+    auto-generated from `mame/roms/rc702/roa296.rom` via
+    `docs/render_rc702_charrom.py`.  Confirmed (after correcting
+    my LSB-vs-MSB pixel-order mistake) that ROA296 places
+    0x05=`@`, 0x0B/0x0C/0x0D=`[\]`, 0x1B/0x1C/0x1D=`{|}`,
+    0x0F=`~`, 0x16=acute, which is what `us_ascii_tables.h`
+    (from CONFI.COM) remaps the standard-ASCII bracket positions
+    into.
+  * **us_ascii_tables.h wired into gen_locale_prefix.py.**  Was
+    byte-identity outcon (rendered Danish glyphs at [\]{|}~
+    because that's where ROA296 has the Æ/Ø/Å/æ/ø/å variants);
+    now uses CONFI.COM's canonical US-ASCII outcon table so the
+    screen renders proper bracket / brace glyphs.
+
+### Followup TODOs filed this session
+
+  * todo-56k-tpa-2026-05-17.md
+  * todo-cpnos-img-zx0-compression-2026-05-17.md
+  * todo-cpnos-relocatable-2026-05-17.md
+  * todo-polypascal-no-mirror-stage4-2026-05-17.md
+  * todo-sdcc-zx0-2026-05-17.md (extant; folded user direction in)
+  * todo-sdcc-locale-impl-2026-05-17.md
+  * todo-mame-build-binary-name-2026-05-17.md
+  * todo-prom1-compression-to-restore-bootmark-2026-05-17.md
+
+### Lessons
+
+  * **PROM-knowing should rarely live in pre-resident code.**  The
+    locale pre-init initially landed in bootstrap.s (PROM1-only's
+    asm) + relocator.c (two-PROM's clang-only asm).  Same logic in
+    two places, two compilers, one of them with #ifdef branches.
+    Consolidating into init.c made the duplication go away.
+    Generalises: any "after the resident bytes are live but before
+    init runs" hook is better as a C function at the top of
+    cpnos_cold_entry than as compiler-specific pre-init bytes.
+  * **Banner that PROM cannot truthfully fill should not lie.**
+    PROM1's banner can't include the locale tag because the locale
+    tables aren't loaded yet; putting "da_US" there is a fabrication.
+    Moving the tag to cpnos.img's stamp (row 2) corrected the
+    architecture in one stroke.
+  * **MAME source build artifacts drift.**  `regnecentralend` is a
+    legacy custom-named binary used by every recipe; a fresh MAME
+    build emits `mame`.  Without a top-level alias the new binary
+    sits next to a stale `regnecentralend` and tests run the old
+    code.  Memory rule `feedback_mame_osd_sdl` covers the OSD=sdl-
+    not-sdl3 gotcha; the binary-name drift is the next-class issue.
+  * **Cold-boot RAM = 0x00 = "Danish ü-ish glyph" on RC702.**  The
+    autoload PROM's dspstr buffer at 0x7A00 is power-on RAM; without
+    a memset, every cell renders as the ROA296 0x00 glyph (accented
+    char), producing a screen-wide "dot pattern" flicker during the
+    ~250 ms autoload-to-cpnos handoff.  Invisible to a live
+    operator; obvious in frame-by-frame video captures.  Fix is a
+    single memset to 0x20 (space).
+
+## Session 73j-locale: cpnos-in-c PROM1-only locale tables + banner sentinel fix (May 17, 2026) — Medium
+
+End state: PROM1-only cpnos-in-c boots with locale tables (US-ASCII
+outcon + Danish inconv) installed from a 384 B prefix prepended to
+cpnos.img by `cpnos-disk-install-with-locale`.  Layout v3 freed
+0xF680..0xF7FF for the tables (moved scratch_bss, pinned cfgtbl to
+0xF53C, dropped BOOT_MARK_ENABLED for 67 B headroom).  PROM1 fit:
+2011 / 2048 B (37 B free).  Verified end-to-end by running
+`TYPE A:ASCII.TXT` against a 95-byte file containing the printable
+ASCII range; rows 7-12 of the slave's 0xF800 display rendered
+` !"#$%&'()*+,-./` through `pqrstuvwxyz{|}~` byte-exact, with the
+RC702 character ROM applying the expected Danish-variant glyphs
+to 0x5B..0x5E and 0x7B..0x7E (Æ/Ø/Å/Ü ... æ/ø/å/ü).
+
+### The banner-NUL bug (caught during this session's verification)
+
+Initial PROM1 build with locale tables produced a banner row 0 of
+all NULs even though the tables were correctly installed.  Cause:
+bootstrap.s set `_prom1_only_sentinel = 0x5A` BEFORE the C `init.c`
+called `print_banner()`.  `impl_conout` keyed its outcon lookup on
+the sentinel, so the banner indexed into a still-zero outcon at
+0xF680 (install_locale_tables doesn't run until `resident_handoff`
+after netboot).  Fix: removed the sentinel write from bootstrap.s
+and added it in `init.c::cpnos_cold_entry` between `print_banner()`
+and `netboot_mpm()`, so banner output passes through identity, then
+the sentinel arms `get_img_base()` for the shifted netboot, then
+`install_locale_tables` LDIRs the prefix to 0xF680.
+
+### Verification harness
+
+`/tmp/ascii_test/ASCII.TXT` (95 B file, chars 0x20..0x7E in 16-char
+lines + CR/LF + CP/M ^Z terminator) installed on master library
+disks `cpnetsmk-1.dsk` + `mpm-net2-1.dsk`, then MAME rc702 launched
+with PIO/cpnet_bridge + `ascii_run.lua` autoboot script that waits
+for the slave's `E>` prompt, sends `TYPE A:ASCII.TXT\r`, snapshots
+rc702 display + dumps 0xF800 rows 0..15 to /tmp.  Two pre-test CRs
+flushed three stale bytes ("RC>" garbage) that surfaced from an
+uninitialised kbd_ring at cold boot (separate issue, filed below).
+
+### Followup TODOs (filed)
+
+  - `cpnos-in-c/tasks/todo-prom1-compression-to-restore-bootmark-2026-05-17.md`
+    — find 67 B of PROM1 compression so BOOT_MARK can return.
+  - Zero kbd_ring head/tail in port_init (3 stale bytes consumed
+    by leading CR on cold boot); cheap and removes a latent class
+    of "first keystroke disappears" symptoms.
+
+### Lessons
+
+  - **Stamp sentinels at the latest safe moment.**  Setting a flag
+    that gates table lookups before the tables exist is a class of
+    bug that can mask itself in development (when the only output
+    happens after install) and surface only when boot-time output
+    is added.
+
+  - **Hardware-rendered Danish chars look like a bug from the
+    outside.**  A row of `PQRSTUVWXYZÆØÅ?_` next to test-expected
+    `PQRSTUVWXYZ[\]^_` initially reads as a translation-table error;
+    confirming the 0xF800 byte was 0x5B (`[`) and the glyph ROM
+    mapped it to Æ closed the loop.  Identity outcon + Danish
+    glyph ROM is the correct combination on physical RC702.
+
 ## Session 73i: ZX0 on autoload + cpnos-in-c PROM1-only, park cpnos-in-asm (May 17, 2026) — Medium
 
 ## Session 73i: ZX0 on autoload + cpnos-in-c PROM1-only, park cpnos-in-asm (May 17, 2026) — Medium

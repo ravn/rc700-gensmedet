@@ -46,7 +46,12 @@ MIRROR_SIOB ?= 1
 # keeps the marker on for bring-up / debugging.  Set to 0 for the
 # tightest production PROM -- saves ~30-50 B by collapsing every
 # BOOT_MARK() call site to a no-op.  See hal.h for placement.
-BOOT_MARK_ENABLED ?= 1
+BOOT_MARK_ENABLED ?= 0    # disabled 2026-05-17 to fit the locale-table
+                          # feature into PROM1 (cpnos-in-c PROM1-only at
+                          # 2 KB cap).  Was default 1; cost was 67 B for
+                          # cold-boot visual progress markers in row 0
+                          # cols 60..78 ('I N I L O R E + P J' etc.).
+                          # Re-enable explicitly for cold-init debugging.
 
 # Bring-up scaffolding: enables the PIO-B 10-byte CP/NET frame loopback
 # test in cpnos_main (Z80 sends -> harness mirrors -> Z80 validates).
@@ -257,6 +262,18 @@ SERVER_CFLAGS += -DTRANSPORT_NAME='\"$(TRANSPORT_NAME)\"'
 else
 SERVER_CFLAGS += -DTRANSPORT_NAME='"$(TRANSPORT_NAME)"'
 endif
+
+# Locale tag stamped into cpnos.img (NOT into PROM1).  Format:
+# <kbd>_<charset>.
+#   da_US  Danish keyboard inconv + US-ASCII outcon (current default)
+#   da_DK  Danish keyboard + Danish-national outcon
+# Passed to stamp_cpnos.py as --locale, ends up in the last 32 B of
+# cpnos.com so the slave prints it on row 2 after netboot completes.
+# Doesn't go through -D because print_banner runs BEFORE netboot
+# (the slave PROM doesn't know which locale tables the master's
+# cpnos.img carries until READ-SEQ finishes).  Must stay in sync
+# with the inconv/outcon choice in cpnos-build/gen_locale_prefix.py.
+CPNOS_LOCALE_TAG ?= da_US
 
 # ---- Payload (linked at 0xED00, no PROM knowledge) ----------------
 # The payload is the single contiguous blob of everything that runs
@@ -695,19 +712,48 @@ cpnos-disasm: $(BUILDDIR)/payload.elf $(BUILDDIR)/relocator.elf
 # fails to take effect — both must be refreshed.
 MPM_DISK_LIB = ../z80pack/cpmsim/disks/library
 cpnos-disk-install: cpnos-build/d/cpnos.com
-	@echo "=== stamping cpnos.com with build timestamp ==="
-	@python3 cpnos-build/stamp_cpnos.py cpnos-build/d/cpnos.com $(BUILDDIR)/cpnos_stamped.com
-	@echo "=== installing stamped cpnos.com onto MP/M library disks ==="
+	@echo "=== stamping cpnos.com + prepending 384 B locale prefix ==="
+	@python3 cpnos-build/stamp_cpnos.py cpnos-build/d/cpnos.com $(BUILDDIR)/cpnos_stamped.com \
+	    --locale $(CPNOS_LOCALE_TAG)
+	@python3 cpnos-build/gen_locale_prefix.py $(BUILDDIR)/locale_prefix.bin
+	@cat $(BUILDDIR)/locale_prefix.bin $(BUILDDIR)/cpnos_stamped.com > $(BUILDDIR)/cpnos_with_locale.img
+	@echo "  cpnos.img = 384 B prefix + $$(wc -c < $(BUILDDIR)/cpnos_stamped.com) B stamped cpnos.com = $$(wc -c < $(BUILDDIR)/cpnos_with_locale.img) B"
 	@cpmrm -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk 0:cpnos.img 2>/dev/null || true
 	cpmcp -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk \
-	    $(BUILDDIR)/cpnos_stamped.com 0:cpnos.img
+	    $(BUILDDIR)/cpnos_with_locale.img 0:cpnos.img
 	@if [ -f $(MPM_DISK_LIB)/cpnetsmk-1.dsk ]; then \
 	    cpmrm -f ibm-3740 $(MPM_DISK_LIB)/cpnetsmk-1.dsk 0:cpnos.img 2>/dev/null || true; \
 	    cpmcp -f ibm-3740 $(MPM_DISK_LIB)/cpnetsmk-1.dsk \
-	        $(BUILDDIR)/cpnos_stamped.com 0:cpnos.img; \
-	    echo "  refreshed cpnos.img on cpnetsmk-1.dsk"; \
+	        $(BUILDDIR)/cpnos_with_locale.img 0:cpnos.img; \
+	    echo "  refreshed (locale) cpnos.img on cpnetsmk-1.dsk"; \
 	 fi
-	@echo "  refreshed cpnos.img on mpm-net2-1.dsk"
+	@echo "  refreshed (locale) cpnos.img on mpm-net2-1.dsk"
+
+# Variant: prepend 384 B locale prefix (US-ASCII outcon + Danish
+# inconv) before installing.  The PROM1-only cpnos slave (v3 layout)
+# loads this prefix-prepended cpnos.img, LDIRs the prefix to its
+# runtime home at 0xF680..0xF7FF, and runs impl_conout/impl_conin
+# through the tables.  Two-PROM slaves cannot consume this image
+# (their pio_rx_buf is at 0xF700; LDIR would corrupt the IRQ ring)
+# -- they must use plain `cpnos-disk-install` instead.
+cpnos-disk-install-with-locale: cpnos-build/d/cpnos.com
+	@echo "=== stamping cpnos.com + prepending 384 B locale prefix ==="
+	@python3 cpnos-build/stamp_cpnos.py cpnos-build/d/cpnos.com $(BUILDDIR)/cpnos_stamped.com \
+	    --locale $(CPNOS_LOCALE_TAG)
+	@python3 cpnos-build/gen_locale_prefix.py $(BUILDDIR)/locale_prefix.bin
+	@cat $(BUILDDIR)/locale_prefix.bin $(BUILDDIR)/cpnos_stamped.com > $(BUILDDIR)/cpnos_with_locale.img
+	@echo "  cpnos.img = 384 B prefix + $$(wc -c < $(BUILDDIR)/cpnos_stamped.com) B stamped cpnos.com = $$(wc -c < $(BUILDDIR)/cpnos_with_locale.img) B"
+	@cpmrm -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk 0:cpnos.img 2>/dev/null || true
+	cpmcp -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk \
+	    $(BUILDDIR)/cpnos_with_locale.img 0:cpnos.img
+	@if [ -f $(MPM_DISK_LIB)/cpnetsmk-1.dsk ]; then \
+	    cpmrm -f ibm-3740 $(MPM_DISK_LIB)/cpnetsmk-1.dsk 0:cpnos.img 2>/dev/null || true; \
+	    cpmcp -f ibm-3740 $(MPM_DISK_LIB)/cpnetsmk-1.dsk \
+	        $(BUILDDIR)/cpnos_with_locale.img 0:cpnos.img; \
+	    echo "  refreshed (locale) cpnos.img on cpnetsmk-1.dsk"; \
+	 fi
+	@echo "  refreshed (locale) cpnos.img on mpm-net2-1.dsk"
+.PHONY: cpnos-disk-install-with-locale
 
 # Force cpnos.com to rebuild whenever any of its sources change.
 .PHONY: cpnos-disk-install
@@ -1078,6 +1124,49 @@ pio-irq-smoke: cpnos-install _check-tag-pio-irq _check-mame-irq
 # the CCP E> prompt.  Forces MIRROR_SIOB=1 so the Lua script can
 # scrape /tmp/cpnos_siob.raw for completion markers.  MP/M is
 # restarted from scratch so the run is hermetic.
+cpnos-polypascal-test-no-mirror:
+	@# Variant of polypascal-test with MIRROR_SIOB=0 -- the slave's
+	@# impl_conout doesn't busy-wait on SIO-B TX after every console
+	@# byte.  Comparison probe: does removing the per-char ~1 ms SIO-B
+	@# transmit wait speed up the PPAS PRIMES test wall-clock?  Lua
+	@# variant polls 25x80 display RAM at 0xF800 instead of SIO-B raw
+	@# for the stage markers.
+	@echo "=== 1/4 building cpnos-rom with MIRROR_SIOB=0 + installing ==="
+	$(MAKE) MIRROR_SIOB=0 cpnos-install
+	@echo "=== 2/4 (re)starting MP/M with fresh disks ==="
+	$(MAKE) _kill-mpm
+	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	@echo "=== 3/4 waiting for MP/M CP/NET server on :4002 ==="
+	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
+	@sleep 2
+	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
+	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt
+	@echo "=== 4/4 syncing ROMs to IRQ-fix MAME tree ==="
+	cp $(MAME)/roms/rc702/roa375.ic66 $(MAME_IRQ)/roms/rc702/roa375.ic66
+	cp $(MAME)/roms/rc702/prom1.ic65  $(MAME_IRQ)/roms/rc702/prom1.ic65
+	@KH=$$($(NM) $(BUILDDIR)/payload.elf | awk '/_kbd_head$$/{print $$1}'); \
+	 KR=$$($(NM) $(BUILDDIR)/payload.elf | awk '/_kbd_ring$$/{print $$1}'); \
+	 printf 'return {\n  kbd_head = 0x%s,\n  kbd_ring = 0x%s,\n}\n' "$$KH" "$$KR" \
+	   > $(BUILDDIR)/cpnos_polypascal_addrs.lua
+	@cat $(BUILDDIR)/cpnos_polypascal_addrs.lua
+	@echo "=== launching MAME with no-mirror PolyPascal test driver ==="
+	-COMPILER=$(COMPILER) \
+	MAME_BIN=$(MAME_IRQ)/regnecentralend \
+	$(CURDIR)/../scripts/mame_capture.sh polypascal_no_mirror_$(COMPILER)_$(TRANSPORT) -- \
+	    rc702 -rompath $(MAME_IRQ)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run 240 \
+	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
+	    -piob cpnet_bridge \
+	    -bitb3 socket.127.0.0.1:4002 \
+	    -autoboot_script $(SHARED)/mame/polypascal_test_no_mirror.lua
+	-$(MAKE) _kill-mpm  # exit-side reap; best-effort
+	@echo "--- polypascal-test (no-mirror) log tail ---"
+	@tail -30 /tmp/cpnos_polypascal_log.txt 2>/dev/null
+	@echo "--- result ---"
+	@cat /tmp/cpnos_polypascal_result.txt 2>/dev/null || echo '(no result file)'
+	@grep -q '^PASS' /tmp/cpnos_polypascal_result.txt 2>/dev/null
+
 cpnos-polypascal-test:
 	@# Build + install cpnos.com onto the mpm-net2 library disk BEFORE
 	@# starting cpmsim.  cpmsim opens the disk image at startup and
@@ -1132,14 +1221,20 @@ ifeq ($(TRANSPORT),sio)
 	@# user-console mirror; PIO-B is unused.  mpm-net2's :4002 is a
 	@# raw TCP console socket (z80pack cpmsim net_server.conf), which
 	@# accepts byte pass-through identically to the PIO cpnet_bridge.
-	-COMPILER=$(COMPILER) $(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
+	-COMPILER=$(COMPILER) \
+	MAME_BIN=$(MAME_IRQ)/regnecentralend \
+	$(CURDIR)/../scripts/mame_capture.sh polypascal_$(COMPILER)_$(TRANSPORT) -- \
+	    rc702 -rompath $(MAME_IRQ)/roms \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 240 \
 	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
 	    -autoboot_script $(SHARED)/mame/polypascal_test.lua
 else
-	-COMPILER=$(COMPILER) $(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
+	-COMPILER=$(COMPILER) \
+	MAME_BIN=$(MAME_IRQ)/regnecentralend \
+	$(CURDIR)/../scripts/mame_capture.sh polypascal_$(COMPILER)_$(TRANSPORT) -- \
+	    rc702 -rompath $(MAME_IRQ)/roms \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 240 \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
@@ -1269,7 +1364,11 @@ ZX0_BIN  = $(CURDIR)/../../z88dk/src/zx0/z88dk-zx0
 DZX0_BIN = $(CURDIR)/../../z88dk/src/zx0/z88dk-dzx0
 
 .PHONY: prom1-lineprog
+ifeq ($(COMPILER),clang)
 prom1-lineprog: $(PROM1ONLY_BIN)
+endif
+# COMPILER=sdcc binding is defined further down (next to the SDCC
+# pipeline rule) so the SDCC variables it references are in scope.
 
 # Re-link the payload objects with init relocated to VMA 0xC000.
 # PROM1-only is dual-transport: both transport_pio.o and transport_sio.o
@@ -1329,8 +1428,17 @@ $(PROM1ONLY_DIR)/payload_zx0.o: $(PROM1ONLY_DIR)/payload_zx0.s $(PROM1ONLY_PAYLO
 PROM1ONLY_OBJS = $(PROM1ONLY_DIR)/bootstrap.o $(PROM1ONLY_DIR)/dzx0_standard.o \
                  $(PROM1ONLY_DIR)/init_zx0.o $(PROM1ONLY_DIR)/payload_zx0.o
 
-$(PROM1ONLY_BIN): $(PROM1ONLY_OBJS) $(PROM1ONLY_DIR)/prom1.ld
-	$(LD) -T $(PROM1ONLY_DIR)/prom1.ld $(PROM1ONLY_OBJS) \
+$(PROM1ONLY_BIN): $(PROM1ONLY_OBJS) $(PROM1ONLY_DIR)/prom1.ld $(PROM1ONLY_PAYLOAD_ELF)
+	@# Extract the sentinel byte's address from the payload ELF so
+	@# bootstrap.s's `ld (_prom1_only_sentinel), a` resolves at the
+	@# final PROM1 link.  payload.elf is the resident's ELF (BSS lives
+	@# there); the final link here only sees bootstrap.o + decoder +
+	@# the compressed payload/init blobs, so the symbol has to be
+	@# injected via --defsym.
+	@S=$$(/Users/ravn/z80/llvm-z80/build-macos/bin/llvm-nm $(PROM1ONLY_PAYLOAD_ELF) | awk '/ _prom1_only_sentinel$$/ {print "0x"$$1; exit}'); \
+	 [ -n "$$S" ] || { echo "ERROR: _prom1_only_sentinel not found in payload.elf"; exit 1; }; \
+	 echo "PROM1-only link: _prom1_only_sentinel = $$S"; \
+	 $(LD) -T $(PROM1ONLY_DIR)/prom1.ld --defsym=_prom1_only_sentinel=$$S $(PROM1ONLY_OBJS) \
 	    -o $(PROM1ONLY_DIR)/prom1-lineprog.elf
 	$(OBJCOPY) -O binary $(PROM1ONLY_DIR)/prom1-lineprog.elf $@
 	@SZ=$$(wc -c < $@ | tr -d ' '); \
@@ -1342,6 +1450,133 @@ $(PROM1ONLY_BIN): $(PROM1ONLY_OBJS) $(PROM1ONLY_DIR)/prom1.ld
 	 { cat $@; perl -e "print \"\\xff\" x (2048 - $$SZ)"; } > $@.padded; \
 	 mv $@.padded $@
 	@echo "wrote $@ ($$(wc -c < $@) B padded)"
+
+# ---- SDCC PROM1-only line program: stage 2 try ---------------------
+#
+# Relink SDCC objects using sdcc-prom1lineprog/sections.asm (INIT_CODE
+# at 0xC000, no RESET / PAYLOAD_HEADER) plus bootstrap.asm + dzx0.
+# Emits per-section .bin via z88dk-zcc -create-app.  Stage 2.
+#
+# Status: experimental.  Expected to surface link errors -- iterate.
+ifeq ($(COMPILER),sdcc)
+SDCC_LP_DIR = sdcc-prom1lineprog
+SDCC_LP_ASM_SRCS = $(SDCC_LP_DIR)/sections.asm \
+                   $(SDCC_LP_DIR)/bootstrap.asm \
+                   $(SDCC_LP_DIR)/dzx0_standard.asm \
+                   $(SDCC_LP_DIR)/init_zx0.asm \
+                   $(SDCC_LP_DIR)/payload_zx0.asm \
+                   sdcc/bios_jt.asm sdcc/snios.asm sdcc/hal.asm \
+                   sdcc/runtime.asm
+
+# Exclude relocator.o -- bootstrap.asm replaces it for PROM1-only.
+# relocator.c references _payload_header which we drop.
+SDCC_LP_C_OBJS = $(filter-out $(BUILDDIR)/relocator.o,$(SDCC_C_OBJS))
+
+# prom1-lineprog binding for COMPILER=sdcc: same target name as the
+# clang path above; SDCC pipeline is below.  Two legacy aliases kept
+# so previous-session invocations don't break: `sdcc-prom1lineprog`
+# and `sdcc-prom1lineprog-try` both resolve to the same target.
+.PHONY: prom1-lineprog sdcc-prom1lineprog sdcc-prom1lineprog-try
+sdcc-prom1lineprog-try: prom1-lineprog
+sdcc-prom1lineprog: prom1-lineprog
+
+# Two-pass build (mirrors clang's clang-prom1lineprog two-pass):
+#   pass 1: link with empty init.zx0 / payload.zx0 -> extract real
+#           init_code.bin + resident.bin from per-section .bin output
+#   ZX0:    compress + roundtrip verify
+#   pass 2: relink -- INCBIN now picks up real ZX0 blobs
+#   pad:    output the final 4 KB sdcc-prom1lineprog/prom1-lineprog.bin
+prom1-lineprog: $(SDCC_LP_C_OBJS) $(BUILDDIR)/cpnos_layout.asm $(BUILDDIR)/xport_aliases.asm \
+                    $(SDCC_LP_DIR)/sections.asm $(SDCC_LP_DIR)/bootstrap.asm \
+                    $(SDCC_LP_DIR)/dzx0_standard.asm \
+                    $(SDCC_LP_DIR)/init_zx0.asm $(SDCC_LP_DIR)/payload_zx0.asm
+	@mkdir -p $(SDCC_LP_DIR)
+	@# Ensure ZX0 placeholders exist before pass 1
+	@touch $(SDCC_LP_DIR)/init.zx0 $(SDCC_LP_DIR)/payload.zx0
+	@echo "=== sdcc-prom1lineprog pass 1: link with empty ZX0 ==="
+	@cd $(BUILDDIR) && $(CC) $(ZFLAGS_BASE) $(SDCC_ZLFLAGS) \
+	    $(addprefix ../,$(SDCC_LP_ASM_SRCS)) \
+	    xport_aliases.asm cpnos_layout.asm \
+	    $(notdir $(SDCC_LP_C_OBJS)) \
+	    -o cpnos_lp > /tmp/sdcc_lp_pass1.log 2>&1 || { \
+	      tail -30 /tmp/sdcc_lp_pass1.log; exit 1; }
+	@echo "=== sdcc-prom1lineprog patch resident checksum BEFORE ZX0 ==="
+	@# User direction (session 73j-late): "i still want the payload
+	@# checksum before the xz0 unpacking starts".  Patches the last 2
+	@# bytes of the resident bin so word-additive sum = 0xCAFE; the
+	@# magic ends up INSIDE the ZX0-compressed blob and decompresses
+	@# faithfully, so the relocator/bootstrap can verify the resident
+	@# image is intact after dzx0.  Without this, post-decompress
+	@# checksum would be undefined.
+	python3 cpnos-build/patch_payload_checksum.py $(BUILDDIR)/cpnos_lp_RESIDENT_JUMPTABLE.bin
+	@echo "=== sdcc-prom1lineprog ZX0 compress + roundtrip ==="
+	$(ZX0_BIN) -f $(BUILDDIR)/cpnos_lp_INIT_CODE.bin $(SDCC_LP_DIR)/init.zx0
+	@rm -f /tmp/sdcc_lp_init_rt.bin
+	$(DZX0_BIN) $(SDCC_LP_DIR)/init.zx0 /tmp/sdcc_lp_init_rt.bin
+	cmp $(BUILDDIR)/cpnos_lp_INIT_CODE.bin /tmp/sdcc_lp_init_rt.bin || \
+	    { echo "FAIL: SDCC init.zx0 roundtrip"; exit 1; }
+	$(ZX0_BIN) -f $(BUILDDIR)/cpnos_lp_RESIDENT_JUMPTABLE.bin $(SDCC_LP_DIR)/payload.zx0
+	@rm -f /tmp/sdcc_lp_payload_rt.bin
+	$(DZX0_BIN) $(SDCC_LP_DIR)/payload.zx0 /tmp/sdcc_lp_payload_rt.bin
+	cmp $(BUILDDIR)/cpnos_lp_RESIDENT_JUMPTABLE.bin /tmp/sdcc_lp_payload_rt.bin || \
+	    { echo "FAIL: SDCC payload.zx0 roundtrip"; exit 1; }
+	@echo "=== sdcc-prom1lineprog pass 2: relink with real ZX0 ==="
+	@cd $(BUILDDIR) && $(CC) $(ZFLAGS_BASE) $(SDCC_ZLFLAGS) \
+	    $(addprefix ../,$(SDCC_LP_ASM_SRCS)) \
+	    xport_aliases.asm cpnos_layout.asm \
+	    $(notdir $(SDCC_LP_C_OBJS)) \
+	    -o cpnos_lp > /tmp/sdcc_lp_pass2.log 2>&1 || { \
+	      tail -30 /tmp/sdcc_lp_pass2.log; exit 1; }
+	@cp $(BUILDDIR)/cpnos_lp_LINEPROG_HEADER.bin $(SDCC_LP_DIR)/prom1-lineprog.bin
+	@SZ=$$(wc -c < $(SDCC_LP_DIR)/prom1-lineprog.bin | tr -d ' '); \
+	 echo "  raw: $$SZ B"; \
+	 PAD=4096; \
+	 if [ $$SZ -gt $$PAD ]; then \
+	   echo "ERROR: SDCC PROM1-only image > $$PAD B; bump pad or shrink"; exit 1; \
+	 fi; \
+	 { cat $(SDCC_LP_DIR)/prom1-lineprog.bin; \
+	   perl -e "print \"\\xff\" x ($$PAD - $$SZ)"; } > $(SDCC_LP_DIR)/prom1-lineprog.bin.tmp; \
+	 mv $(SDCC_LP_DIR)/prom1-lineprog.bin.tmp $(SDCC_LP_DIR)/prom1-lineprog.bin; \
+	 echo "  padded: $$(wc -c < $(SDCC_LP_DIR)/prom1-lineprog.bin | tr -d ' ') B (target $$PAD)"; \
+	 echo "  init.zx0:    $$(wc -c < $(SDCC_LP_DIR)/init.zx0 | tr -d ' ') B"; \
+	 echo "  payload.zx0: $$(wc -c < $(SDCC_LP_DIR)/payload.zx0 | tr -d ' ') B"
+	@echo "wrote $(SDCC_LP_DIR)/prom1-lineprog.bin"
+endif
+
+# ---- SDCC PROM1-only line program (WIP) ---------------------------
+#
+# Stage 1 (measurement): take the existing SDCC two-PROM build's
+# concatenated resident bytes (resident_a.bin + resident_b.bin = 2192 B
+# at HEAD), ZX0-compress, and ROUND-TRIP-VERIFY.  Gives a reliable
+# size measurement for the eventual PROM1-only SDCC build without
+# requiring the full sdcc-prom1lineprog/ link pipeline.
+#
+# Stage 2 (future): mirror clang's prom1-lineprog using
+# sdcc-prom1lineprog/sections.asm + bootstrap.asm + dzx0_standard.asm
+# (scaffolding committed, Makefile rule outstanding -- see
+# cpnos-in-c/sdcc-prom1lineprog/README.md for the hand-off plan).
+#
+# Run: `COMPILER=sdcc make sdcc-resident-zx0-probe`
+SDCC_PROM1LP_DIR = sdcc-prom1lineprog
+
+.PHONY: sdcc-resident-zx0-probe
+sdcc-resident-zx0-probe: sdcc/resident_a.bin sdcc/resident_b.bin
+	@mkdir -p $(SDCC_PROM1LP_DIR)
+	@cat sdcc/resident_a.bin sdcc/resident_b.bin > $(SDCC_PROM1LP_DIR)/resident.bin
+	@RAW=$$(wc -c < $(SDCC_PROM1LP_DIR)/resident.bin | tr -d ' '); \
+	 echo "SDCC resident: $$RAW B raw (cat resident_a + resident_b)"
+	$(ZX0_BIN) -f $(SDCC_PROM1LP_DIR)/resident.bin $(SDCC_PROM1LP_DIR)/resident.zx0
+	@rm -f /tmp/sdcc_resident_rt.bin
+	$(DZX0_BIN) $(SDCC_PROM1LP_DIR)/resident.zx0 /tmp/sdcc_resident_rt.bin
+	@cmp $(SDCC_PROM1LP_DIR)/resident.bin /tmp/sdcc_resident_rt.bin \
+	    || { echo "FAIL: SDCC resident ZX0 roundtrip mismatch"; exit 1; }
+	@RAW=$$(wc -c < $(SDCC_PROM1LP_DIR)/resident.bin | tr -d ' '); \
+	 Z=$$(wc -c < $(SDCC_PROM1LP_DIR)/resident.zx0 | tr -d ' '); \
+	 SAVED=$$((RAW - Z)); \
+	 PCT=$$(( (Z * 100) / RAW )); \
+	 echo "  $(SDCC_PROM1LP_DIR)/resident.zx0: $$RAW -> $$Z B ($$PCT%, -$$SAVED B); roundtrip OK"
+	@echo "Stage 1 done.  Stage 2 (sdcc-prom1lineprog full link pipeline)"
+	@echo "still outstanding -- see sdcc-prom1lineprog/README.md."
 
 # ---- Clean --------------------------------------------------------
 
@@ -1512,18 +1747,20 @@ $(BUILDDIR)/cpnos_layout.asm: cpnos-build/d/cpnos.sym
 	   echo "    PUBLIC CPNOS_NDOSRL"; \
 	   echo "    PUBLIC CPNOS_NDOS"; \
 	   echo "    PUBLIC CPNOS_BDOS"; \
-	   echo "    PUBLIC __stack_top"; \
 	   echo ""; \
 	   echo "defc CPNOS_NDOSRL = 0x$$NDOSRL    ; cpnos.com DATA region base"; \
 	   echo "defc CPNOS_NDOS   = 0x$$NDOS    ; cpnos.com CODE region base (loaded by netboot)"; \
 	   echo "defc CPNOS_BDOS   = 0x$$BDOS    ; BDOS dispatch (programs CALL ZP[5..7] -> jp here)"; \
 	   echo ""; \
-	   echo "; Stack top = NDOSRL.  First push lands at NDOSRL-1, in TPA proper"; \
-	   echo "; (0x0100..NDOSRL-1) which is genuinely unused at boot.  Stack at"; \
-	   echo "; or above NDOSRL would stomp NDOS's variable storage -- bug fixed"; \
-	   echo "; by Path 6.1.  Symbol is referenced via EXTERN __stack_top in"; \
-	   echo "; sdcc/reset.asm; if cpnos-build's DATA_BASE shifts, SP follows."; \
-	   echo "defc __stack_top = CPNOS_NDOSRL"; \
+	   echo "; __stack_top is NOT emitted from this file.  Two callers:"; \
+	   echo ";   - PROM1-only (sdcc-prom1lineprog/bootstrap.asm): hardcodes"; \
+	   echo ";     SP=0xF680 directly; ignores this file entirely.  Runtime SP"; \
+	   echo ";     observed 0xF65A..0xF668, plenty of slack vs resident."; \
+	   echo ";   - Two-PROM (sdcc/reset.asm): historical EXTERN __stack_top"; \
+	   echo ";     pointing at NDOSRL.  Two-PROM is PARKED (see tasks/"; \
+	   echo ";     TWO_PROM_PARKED.md); breaking that symbol is acceptable."; \
+	   echo ";   If two-PROM SDCC is ever revived, re-emit __stack_top here"; \
+	   echo ";   or move the SP literal into reset.asm directly."; \
 	} > $@
 
 # Frame-pointer audit: produce a .s for every C source we compile so

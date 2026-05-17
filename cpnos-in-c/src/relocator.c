@@ -321,6 +321,13 @@ NORETURN void relocate(void) {
         for (;;) { }
     }
 
+    /* Locale-tables pre-init (outcon identity pre-fill at 0xF680,
+     * sentinel write) is NOT done here.  It lives in cpnos_cold_entry
+     * (init.c) so the SAME code runs for both two-PROM (this
+     * relocator) and PROM1-only (clang-prom1lineprog/bootstrap.s
+     * which also jumps into cpnos_cold_entry).  Keeps the cold-init
+     * logic compiler-agnostic -- clang and SDCC share init.c. */
+
     /* JP cold entry.
      *
      * Clang Z80: an ordinary function-pointer call lowers to the

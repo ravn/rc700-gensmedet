@@ -285,8 +285,18 @@ static void display_sw1_status(void) {
 /* Copy banner from BOOT ROM to display, stamp SW1 status on row 1,
  * and start CRT controller.  Programs DMA ch2 with display address
  * before starting CRT so the first frame renders immediately without
- * waiting for the ISR. */
+ * waiting for the ISR.
+ *
+ * Clears the full 80x25 display buffer to space (0x20) BEFORE the
+ * memcpy banner because dspstr is power-on RAM (0x00 in MAME, also
+ * 0x00 on real hardware after warm reset), and ROA296 renders byte
+ * 0x00 as a Danish accented glyph that produces a visible dot-
+ * pattern flicker across the whole screen during the autoload-to-
+ * cpnos handoff window (~250 ms emulated; visible frame-by-frame in
+ * MAME captures).  memset is 80 * 25 = 2000 bytes; LDIR-lowered by
+ * clang so the cost is trivial. */
 static void display_banner_and_start_crt(void) {
+    memset(dspstr, 0x20, 80 * 25);
     memcpy(dspstr, BANNER_PTR, BANNER_LENGTH);
     display_sw1_status();
     /* Pre-program DMA ch2 for first frame (ISR takes over for subsequent frames) */

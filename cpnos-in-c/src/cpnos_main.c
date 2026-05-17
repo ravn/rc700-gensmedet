@@ -33,6 +33,13 @@
  * relocator-facing entry point _cpnos_cold_entry is exposed there. */
 #include "cfgtbl.h"
 
+/* Resident-side helper exported by resident.c.  File-scope extern
+ * declaration required so SDCC's z88dk back-end emits the matching
+ * EXTERN directive in the generated .asm (function-scope extern is
+ * silently dropped from the .asm symbol list -- caught session
+ * 73j-late during SDCC PROM1-only diagnosis). */
+extern void install_locale_tables(void);
+
 /* BIOS jump table base = BIOS_BASE.  `_bios_boot` is the first entry
  * label exported from bios_jt.s and pinned at the start of .payload
  * by payload.ld.  Reference it as a C array so the source-of-truth
@@ -374,6 +381,20 @@ void resident_handoff(uint16_t entry) {
      * netboot-loaded image.  We're at 0xED00 (RAM); still running. */
     _port_out(PORT_RAMEN, 0x00);
     BOOT_MARK(16, 'P');                /* PROMs disabled */
+
+    /* Install locale tables from cpnos.img prefix.  PROM1-only-only:
+     * the function checks prom1_only_sentinel and is a no-op on
+     * two-PROM (where the LDIR destination 0xF680..0xF7FF is stack
+     * workspace + pio_rx_buf, not free RAM). */
+    /* install_locale_tables lives in resident.c; both compilers
+     * export it (verified in sdcc/cpnos.map).  Declared at file
+     * scope (just above) because SDCC's z88dk back-end doesn't
+     * propagate function-scope `extern` declarations into the
+     * generated .asm's EXTERN list -- a function-local extern
+     * compiles fine under clang but yields z80asm "undefined
+     * symbol _install_locale_tables" under SDCC.  Caught session
+     * 73j-late while diagnosing the SDCC PROM1-only build. */
+    install_locale_tables();
 
     /* Restore cfgtbl.fnc to LIST (0x05) -- netboot's cpnet_xact left
      * it at the last function code (16 = CLOSE).  cfgtbl shares its

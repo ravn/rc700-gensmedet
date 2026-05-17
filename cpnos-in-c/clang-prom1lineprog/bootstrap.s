@@ -23,7 +23,8 @@
 	.globl	bootstrap_entry
 bootstrap_entry:
 	di
-	ld	sp, 0xF700		; same stack top the resident uses
+	ld	sp, 0xF680		; PROM1-only-v3 stack top (was 0xF700;
+					; layout moved it to free locale region)
 	; Decompress payload first -- resident at 0xED00 must be live
 	; before init runs, because init.c calls into resident-side
 	; helpers (impl_conout, snios_*, isr_*, set_i_reg, etc.).
@@ -36,6 +37,11 @@ bootstrap_entry:
 	ld	hl, __init_zx0_start
 	ld	de, 0xC000
 	call	dzx0_standard
+	; Locale-tables pre-init (outcon identity pre-fill + sentinel
+	; write) used to live here, in clang-only asm.  It moved to
+	; cpnos_cold_entry() in init.c so the same C code runs on both
+	; the PROM1-only (this bootstrap) and two-PROM (relocator.c)
+	; cold paths, and on both compilers (clang + SDCC).
 	; Tail-call into init.  cpnos_cold_entry is NORETURN; it ends
 	; with resident_handoff which RAMENs and JPs to NDOS at 0xDD80.
 	jp	0xC000

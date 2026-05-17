@@ -34,6 +34,12 @@
 extern void *memcpy(void *dest, const void *src, unsigned int n);
 #endif
 
+/* Resident helper from resident.c.  File-scope declaration so SDCC
+ * z88dk emits the matching EXTERN _get_img_base directive in the
+ * generated .asm -- function-scope `extern` is silently dropped.
+ * Caught session 73j-late during SDCC PROM1-only diagnosis. */
+extern uint8_t *get_img_base(void);
+
 /* ---- ISRs + helpers from isr.s. ----------------------------------- */
 extern void isr_crt(void);
 extern void isr_noop(void);
@@ -342,8 +348,18 @@ static void init_hardware(void) {
  * The .COM file is the CODE section -- linked at CODE_BASE and
  * record-padded to 0xC80 on disk; file offset 0 = memory
  * CPNOS_NDOS_ADDR.  Source of truth is cpnos.sym (extracted into
- * clang/cpnos_addrs.h as CPNOS_NDOS_ADDR). */
-#define IMG_BASE   ((uint8_t *)CPNOS_NDOS_ADDR)
+ * clang/cpnos_addrs.h as CPNOS_NDOS_ADDR).
+ *
+ * IMG_BASE is decided at runtime via prom1_only_sentinel: PROM1-only
+ * builds expect cpnos.img to start with a 384 B locale prefix
+ * (outcon[128]+inconv[256]) prepended by cpnos-disk-install-with-locale;
+ * the slave loads at CPNOS_NDOS_ADDR - 384 so the prefix lands in TPA
+ * scratch just below NDOS and the rest of cpnos.com lands at NDOS_ADDR
+ * as usual.  resident_handoff's install_locale_tables() then LDIRs
+ * the prefix to its runtime home at 0xF680.  Two-PROM cold-init never
+ * sets the sentinel, so IMG_BASE stays at CPNOS_NDOS_ADDR and the
+ * netboot reads a normal (un-prefixed) cpnos.img. */
+#define LOCALE_PREFIX_SIZE 384
 #define ENTRY_ADDR (CPNOS_NDOS_ADDR)
 
 /* MP/M II default password on mpm-net2-1.dsk.  Override at build time
@@ -429,7 +445,13 @@ static uint16_t netboot_mpm(void) {
     BOOT_MARK(11, 'O');              /* OPEN ok */
 
     /* --- READ-SEQ loop -------------------------------------------- */
-    uint8_t *dma = IMG_BASE;
+    /* Runtime IMG_BASE: PROM1-only build shifts down by 384 B for
+     * the locale prefix; two-PROM does too once both relocators
+     * set the sentinel.  Branch lives in get_img_base() (.resident)
+     * to keep this .init function under the 640 B cap.  File-scope
+     * extern (top of init.c) so SDCC's z88dk back-end emits the
+     * EXTERN _get_img_base directive in the generated .asm. */
+    uint8_t *dma = get_img_base();
     for (;;) {
         reuse_fcb();
         uint8_t rc = cpnet_xact(20, 36);
@@ -453,13 +475,18 @@ static uint16_t netboot_mpm(void) {
     BOOT_MARK(13, 'E');              /* EOF reached */
     crlf();
 
-    /* --- print build stamp from last 24 B of payload --------------
-     * stamp_cpnos.py wrote 23 ASCII bytes + 0x00 sentinel into the
-     * trailing 0x1A padding of cpnos.com.  dma now points one past
-     * the last loaded byte, so the stamp lives at dma-24..dma-1. */
+    /* --- print build stamp from last 32 B of payload --------------
+     * stamp_cpnos.py writes 31 ASCII bytes + 0x00 sentinel into the
+     * trailing 0x1A padding of cpnos.com.  The text is the build
+     * timestamp + git hash + optional locale tag (e.g.
+     * "2026-05-17 19:14 0aa5e7e da_US").  The locale tag rides here
+     * rather than on print_banner's row 0 because the slave PROM
+     * doesn't know which locale tables the master's cpnos.img
+     * carries until netboot completes.  dma now points one past the
+     * last loaded byte, so the stamp lives at dma-32..dma-1. */
     {
-        const uint8_t *s = dma - 24;
-        for (uint8_t i = 0; i < 23 && s[i] != 0; ++i) impl_conout(s[i]);
+        const uint8_t *s = dma - 32;
+        for (uint8_t i = 0; i < 31 && s[i] != 0; ++i) impl_conout(s[i]);
         crlf();
     }
 
@@ -494,7 +521,14 @@ static void print_banner(void) {
     /* NNK = TPA size (CPNOS_TPA_KB, build-time from cpnos.sym).
      * WWW-MMM = TRANSPORT_NAME literal (Makefile -DTRANSPORT_NAME='"PIO"'/"SIO").
      * cc = CPNOS_COMPILER_NAME ("clang"/"sdcc"/"hitech"), picked at preprocess time
-     * so the banner unambiguously identifies which build is running. */
+     * so the banner unambiguously identifies which build is running.
+     *
+     * The locale tag (da_US / da_DK / ...) intentionally does NOT
+     * appear on this banner -- print_banner runs BEFORE netboot, so
+     * cpnos.img hasn't been loaded yet and the slave PROM1 has no
+     * idea which locale tables the master's cpnos.img is carrying.
+     * The locale tag rides on the cpnos.img stamp line instead
+     * (printed on row 2 by netboot_mpm's stamp reader). */
 #define _STR(x) #x
 #define STR(x) _STR(x)
     static const SECTION_INIT_RODATA char banner[] =
@@ -551,6 +585,31 @@ static void install_transport(void) {
 
 SECTION_INIT_TEXT
 NORETURN void cpnos_cold_entry(void) {
+    /* Locale-tables pre-init: byte-identity outcon at 0xF680..0xF6FF
+     * + sentinel armed.  This used to live in PROM1-only's bootstrap.s
+     * (asm) and the two-PROM relocator.c (clang-only inline asm); both
+     * call paths now share this one C site so the SDCC two-PROM build
+     * gets locale support without per-compiler asm.
+     *
+     * Why HERE: cpnos_cold_entry is the first place after the cold
+     * paths converge.  print_banner (the next call after these few
+     * SW1 reads) goes through impl_conout, which uses the outcon
+     * table at 0xF680 when the sentinel is set -- pre-filling with
+     * identity bytes lets the banner render as its literal characters
+     * before install_locale_tables() overlays the real US-ASCII
+     * outcon in resident_handoff.  Sentinel set here also flips
+     * get_img_base() into "shift IMG_BASE down by 384 B" mode so
+     * netboot lands the cpnos.img locale prefix at 0xDC00.
+     *
+     * Costs ~25 B init.c .text via the compiled for-loop; within the
+     * 640 B .init region budget on both compilers. */
+    {
+        uint8_t *outcon = (uint8_t *)0xF680;
+        for (uint8_t i = 0; i < 128; i++) outcon[i] = i;
+        extern uint8_t prom1_only_sentinel;
+        prom1_only_sentinel = 0x5A;
+    }
+
     /* Sample SW1 bit 0 (S01) ONCE -- impl_conin / impl_conout are hot.
      * MAME "On" = bit clear = joined console (SIO-B + keyboard input,
      * SIO-B + CRT output); MAME "Off" = bit set = local-only.
@@ -578,7 +637,11 @@ NORETURN void cpnos_cold_entry(void) {
 
     /* Banner BEFORE netboot so it appears on row 0; netboot dots
      * flow on row 1 (operator's "OS identity at top, progress
-     * below" expectation). */
+     * below" expectation).  In PROM1-only, bootstrap.s has both
+     * pre-filled outcon with byte-identity AND armed the sentinel
+     * before this point, so impl_conout indexes a valid identity
+     * table.  In two-PROM, the sentinel stays 0 (no bootstrap.s on
+     * that path) and impl_conout bypasses the table entirely. */
     print_banner();
 
     uint16_t entry = netboot_mpm();

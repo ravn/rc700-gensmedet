@@ -12,3 +12,29 @@ autoload-in-c/cmake-build-*/
 # MAME runtime files
 snap/
 cfg/
+
+# MAME run captures (kept by scripts/mame_capture.sh, pruned to MAX_KEEP)
+scratch/mame-videos/*.mp4
+scratch/mame-videos/*.avi
+scratch/mame-videos/*.mng
+
+# SDCC PROM1-only line program (work in progress)
+cpnos-in-c/sdcc-prom1lineprog/resident.bin
+cpnos-in-c/sdcc-prom1lineprog/resident.zx0
+cpnos-in-c/sdcc-prom1lineprog/*.o
+cpnos-in-c/sdcc-prom1lineprog/*.elf
+cpnos-in-c/sdcc-prom1lineprog/prom1-lineprog.bin
+cpnos-in-c/sdcc-prom1lineprog/init.bin
+cpnos-in-c/sdcc-prom1lineprog/payload.bin
+cpnos-in-c/sdcc-prom1lineprog/init.zx0
+cpnos-in-c/sdcc-prom1lineprog/payload.zx0
+
+# SDCC PROM1-only line program intermediate artifacts
+cpnos-in-c/sdcc/cpnos_lp
+cpnos-in-c/sdcc/cpnos_lp_*.bin
+cpnos-in-c/sdcc/cpnos_lp.rom
+cpnos-in-c/sdcc/cpnos_lp.map
+cpnos-in-c/sdcc/cpnos_lp.def
+cpnos-in-c/sdcc/cpnos_lp.lis
+cpnos-in-c/sdcc/cpnos_lp.sym
+cpnos-in-c/sdcc/cpnos_with_locale.img

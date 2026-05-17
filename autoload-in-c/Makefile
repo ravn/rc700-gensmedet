@@ -230,7 +230,8 @@ clang/prom.clang.bin: $(CLANG_OBJS) $(CLANG_ZX0_OBJS) clang/rc700_prom.ld
 	$(RUN) $(CLANG_OBJDUMP) -d -S --triple=z80 clang/prom.clang.elf > clang/prom.clang.lis
 
 clang/banner.h:
-	@BANNER=" RC700 CL $$(date '+%Y-%m-%d %H.%M')/$$(whoami)"; \
+	@HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "????"); \
+	 BANNER=" RC700 ROA375 CL $$(date '+%Y-%m-%d %H.%M') $$HASH/$$(whoami)"; \
 	 echo "#define BUILD_BANNER \"$$BANNER\"" > $@; \
 	 echo "#define BUILD_BANNER_LENGTH $${#BANNER}" >> $@
 
