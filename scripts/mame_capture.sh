@@ -59,14 +59,17 @@ if [ -s "$AVI_TMP" ]; then
     echo "[mame_capture] encoding -> $MP4_OUT"
     # Scale the raw screen capture (i8275 native 544x200 + overscan,
     # nominally arriving as 568x212 in the AVI) up to the layout's
-    # display geometry 864x550.  RC702 layout (mame/src/mame/layout/
-    # rc702.lay) targets 864x550 inside a 904x590 view -- this is the
-    # PAR-correct 4:3-ish aspect the physical CRT showed.  Without the
-    # scale, MP4 plays back 2.7:1 wide and short.
+    # display geometry 864x550, then pad to the full 904x590 layout
+    # view with the RC702 bezel orange (#C06000).  Mirrors what MAME
+    # shows live via mame/src/mame/layout/rc702.lay: 20-px border
+    # around the screen, background color
+    # rgb(0xC0, 0x60, 0x00) = "red=0.7529 green=0.3765 blue=0.0".
+    # Without the pad, the MP4 was just the screen area -- the
+    # physical-monitor look got lost in capture.
     docker run --rm -v "$MAME_VIDEO_DIR:/work" "$FFMPEG_IMAGE" \
         -y -loglevel warning \
         -i "/work/$STEM.avi" \
-        -vf "scale=864:550:flags=lanczos" \
+        -vf "scale=864:550:flags=lanczos,pad=904:590:20:20:0xC06000" \
         -c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p \
         "/work/$STEM.mp4" || {
             echo "[mame_capture] ffmpeg failed; keeping AVI for triage" >&2
