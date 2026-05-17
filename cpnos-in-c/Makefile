@@ -46,7 +46,12 @@ MIRROR_SIOB ?= 1
 # keeps the marker on for bring-up / debugging.  Set to 0 for the
 # tightest production PROM -- saves ~30-50 B by collapsing every
 # BOOT_MARK() call site to a no-op.  See hal.h for placement.
-BOOT_MARK_ENABLED ?= 1
+BOOT_MARK_ENABLED ?= 0    # disabled 2026-05-17 to fit the locale-table
+                          # feature into PROM1 (cpnos-in-c PROM1-only at
+                          # 2 KB cap).  Was default 1; cost was 67 B for
+                          # cold-boot visual progress markers in row 0
+                          # cols 60..78 ('I N I L O R E + P J' etc.).
+                          # Re-enable explicitly for cold-init debugging.
 
 # Bring-up scaffolding: enables the PIO-B 10-byte CP/NET frame loopback
 # test in cpnos_main (Z80 sends -> harness mirrors -> Z80 validates).
