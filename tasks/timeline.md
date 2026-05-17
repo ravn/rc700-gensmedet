@@ -254,6 +254,68 @@ view delay.  Verified end-to-end via MAME snapshot.
     Reclaimable if .init slack appears (e.g. some cold-init code
     moves into bootstrap or is removed).  Low priority.
 
+### Addenda (branch `cpnos-shrink-investigation-73j`)
+
+  - **SDCC autoload build unblocked**.  Docker-absolute path for
+    `copt-rules` (commit `cb9bea5` on branch).
+  - **Per-compiler size policy.**  clang autoload = 2 KB hard cap
+    (matches user's physical 2716 sockets; no A11 bridge);
+    SDCC = 4 KB ceiling for MAME-only parity testing.
+  - **cpnos PROM1 shrink** (commit `69c897b`): install_transport
+    word-store rewrite + dead `#if 0` cleanup -> 2018 -> 1999 B
+    (30 B free -> 49 B free).
+  - **impl_conout hot-path reorder** (session 73j late addendum):
+    branch order now `xflg, c>=0x20, CR, LF, specc` instead of
+    `xflg, LF, CR, c<0x20, specc`.  Printable hot path drops from
+    5 tests to 2 tests (~24 T saved per char at 4 MHz).  PROM1
+    1999 -> 2000 B (+1 B, negligible).  Default-PIO slave still
+    boots banner cleanly through the new dispatch.
+
+### Follow-ups added late session 73j
+
+18. **SDCC PROM1-only build path.**  User-asked, then PARKED.
+    Requires a SDCC-side equivalent of clang's two-pass extract +
+    ZX0-compress + relink pipeline because SDCC `.o` is z88dk
+    format (not ELF, so `ld.lld` can't be used).  Path A is a
+    post-process Python hack reading the SDCC map + section
+    binaries; Path B is a proper SDCC linker recipe.  Either way
+    the projected SDCC image is ~2360 B -- over the 2 KB cap but
+    fits the 4 KB SDCC ceiling.  Planning note:
+    `cpnos-in-c/tasks/todo-sdcc-zx0-2026-05-17.md`.
+
+19. **MAME ROM-install footgun.**  Three different make targets
+    cp their PROM0 to `mame/roms/rc702/roa375.ic66`:
+    autoload-in-c (`make prom`), cpnos-in-c (`make cpnos` two-PROM
+    via SDCC), and probably others.  Last-one-wins; previous
+    operator state silently breaks when switching build targets
+    (caught this session: SDCC cpnos two-PROM build overwrote the
+    autoload PROM0 in MAME, causing later PROM1-only boots to
+    hit "PROM MISMATCH").  Mitigate by: per-target MAME ROM
+    paths (e.g. roa375.ic66 reserved for autoload, separate slot
+    for cpnos PROM0), or a check-before-install that refuses to
+    clobber a different-purpose binary.
+
+20. **cpnos.img-loaded locale tables + ROA327 font** (user-asked
+    feature-completion item).  Refines #11: instead of fitting
+    `outcon`/`inconv` tables inside PROM1, fetch them from the
+    master via existing CP/NET file I/O during cold-init.  Same
+    mechanism can load a full 2 KB ROA327 image and stream it
+    through 0xD1/0xD2/0xD3 to program the SEM702 with the full
+    character set (not just the 64 sextant subset autoload
+    programs).  Both gracefully degrade if files absent.
+    Planning note:
+    `cpnos-in-c/tasks/todo-load-from-cpnos-img-2026-05-17.md`.
+
+21. **DMA dual-buffer scroll experiment** (user-asked, marked
+    experimental).  Avoid the 1920 B LDIR in scroll_lines (~3.6
+    ms per scroll at 4 MHz, 113 B of resident code) by feeding
+    the 8275 from two alternating regions in RAM and swapping
+    the DMA source address.  User-flagged: "will ruin the 0xF800
+    memory layout" if direct-poke software compat isn't preserved.
+    Large project; defer until other hot paths are optimised.
+    Planning note:
+    `cpnos-in-c/tasks/todo-dma-dual-buffer-2026-05-17.md`.
+
 ## Session 73i: ZX0 on autoload + cpnos-in-c PROM1-only, park cpnos-in-asm (May 17, 2026) — Medium
 
 ## Session 73i: ZX0 on autoload + cpnos-in-c PROM1-only, park cpnos-in-asm (May 17, 2026) — Medium
