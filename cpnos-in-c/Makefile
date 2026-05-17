@@ -1447,6 +1447,41 @@ $(PROM1ONLY_BIN): $(PROM1ONLY_OBJS) $(PROM1ONLY_DIR)/prom1.ld $(PROM1ONLY_PAYLOA
 	 mv $@.padded $@
 	@echo "wrote $@ ($$(wc -c < $@) B padded)"
 
+# ---- SDCC PROM1-only line program (WIP) ---------------------------
+#
+# Stage 1 (measurement): take the existing SDCC two-PROM build's
+# concatenated resident bytes (resident_a.bin + resident_b.bin = 2192 B
+# at HEAD), ZX0-compress, and ROUND-TRIP-VERIFY.  Gives a reliable
+# size measurement for the eventual PROM1-only SDCC build without
+# requiring the full sdcc-prom1lineprog/ link pipeline.
+#
+# Stage 2 (future): mirror clang's prom1-lineprog using
+# sdcc-prom1lineprog/sections.asm + bootstrap.asm + dzx0_standard.asm
+# (scaffolding committed, Makefile rule outstanding -- see
+# cpnos-in-c/sdcc-prom1lineprog/README.md for the hand-off plan).
+#
+# Run: `COMPILER=sdcc make sdcc-resident-zx0-probe`
+SDCC_PROM1LP_DIR = sdcc-prom1lineprog
+
+.PHONY: sdcc-resident-zx0-probe
+sdcc-resident-zx0-probe: sdcc/resident_a.bin sdcc/resident_b.bin
+	@mkdir -p $(SDCC_PROM1LP_DIR)
+	@cat sdcc/resident_a.bin sdcc/resident_b.bin > $(SDCC_PROM1LP_DIR)/resident.bin
+	@RAW=$$(wc -c < $(SDCC_PROM1LP_DIR)/resident.bin | tr -d ' '); \
+	 echo "SDCC resident: $$RAW B raw (cat resident_a + resident_b)"
+	$(ZX0_BIN) -f $(SDCC_PROM1LP_DIR)/resident.bin $(SDCC_PROM1LP_DIR)/resident.zx0
+	@rm -f /tmp/sdcc_resident_rt.bin
+	$(DZX0_BIN) $(SDCC_PROM1LP_DIR)/resident.zx0 /tmp/sdcc_resident_rt.bin
+	@cmp $(SDCC_PROM1LP_DIR)/resident.bin /tmp/sdcc_resident_rt.bin \
+	    || { echo "FAIL: SDCC resident ZX0 roundtrip mismatch"; exit 1; }
+	@RAW=$$(wc -c < $(SDCC_PROM1LP_DIR)/resident.bin | tr -d ' '); \
+	 Z=$$(wc -c < $(SDCC_PROM1LP_DIR)/resident.zx0 | tr -d ' '); \
+	 SAVED=$$((RAW - Z)); \
+	 PCT=$$(( (Z * 100) / RAW )); \
+	 echo "  $(SDCC_PROM1LP_DIR)/resident.zx0: $$RAW -> $$Z B ($$PCT%, -$$SAVED B); roundtrip OK"
+	@echo "Stage 1 done.  Stage 2 (sdcc-prom1lineprog full link pipeline)"
+	@echo "still outstanding -- see sdcc-prom1lineprog/README.md."
+
 # ---- Clean --------------------------------------------------------
 
 cpnos-clean:

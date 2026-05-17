@@ -17,3 +17,14 @@ cfg/
 scratch/mame-videos/*.mp4
 scratch/mame-videos/*.avi
 scratch/mame-videos/*.mng
+
+# SDCC PROM1-only line program (work in progress)
+cpnos-in-c/sdcc-prom1lineprog/resident.bin
+cpnos-in-c/sdcc-prom1lineprog/resident.zx0
+cpnos-in-c/sdcc-prom1lineprog/*.o
+cpnos-in-c/sdcc-prom1lineprog/*.elf
+cpnos-in-c/sdcc-prom1lineprog/prom1-lineprog.bin
+cpnos-in-c/sdcc-prom1lineprog/init.bin
+cpnos-in-c/sdcc-prom1lineprog/payload.bin
+cpnos-in-c/sdcc-prom1lineprog/init.zx0
+cpnos-in-c/sdcc-prom1lineprog/payload.zx0

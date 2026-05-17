@@ -6,7 +6,18 @@
 ;   HL: source address (compressed data)
 ;   DE: destination address (decompressing)
 ; -----------------------------------------------------------------------------
+; SDCC wrapper: pulled from z88dk/libsrc/compress/zx0/z80/dzx0_standard.asm
+; with SECTION + PUBLIC added so bootstrap.asm can call into it via the
+; underscore-prefixed C name `_dzx0_standard`.  Lives in LINEPROG_ENTRY
+; alongside bootstrap; not part of the resident or init regions.
+; -----------------------------------------------------------------------------
 
+    SECTION LINEPROG_ENTRY
+
+    PUBLIC _dzx0_standard
+    PUBLIC dzx0_standard
+
+_dzx0_standard:
 dzx0_standard:
         ld      bc, $ffff               ; preserve default offset 1
         push    bc
