@@ -779,11 +779,17 @@ void bios_boot_c(void)
     /* Conversion tables (outcon/inconv at 0xF680) are initialized by
      * coldboot from _conv_tables (boot_confi.c) before we get here. */
 
-    /* DIP switch 0 (port 0x14 bit 0) selects the SIO-B console mode:
-     *   bit 0 set   → UC1 (joined SIO-B + CRT console — debug mode)
-     *   bit 0 clear → CRT only; SIO-B stays as LST: printer (original BIOS)
-     * With the switch off the machine behaves like the stock RC702 BIOS. */
-    if (port_in(sw1) & 0x01)
+    /* DIP switch 0 (S01, port 0x14 bit 0) selects the SIO-B console mode.
+     * Mapping (MAME "On" = bit clear by convention; user spec 2026-05-17):
+     *   On  (bit=0, default) -> UC1 joined console: SIO-B + keyboard
+     *                            both provide input; SIO-B + CRT both
+     *                            receive output.  SIO-B writes go into
+     *                            the void if nothing is connected; harmless.
+     *   Off (bit=1)          -> CRT/keyboard only (local console);
+     *                            SIO-B stays as LST: printer destination.
+     * Was inverted before 2026-05-17 -- the previous mapping treated
+     * bit-set as JOINED (debug) and bit-clear as LOCAL (default). */
+    if ((port_in(sw1) & 0x01) == 0)
         iobyte = IOBYTE_CON_JOINED;
     else
         iobyte = IOBYTE_CON_LOCAL;

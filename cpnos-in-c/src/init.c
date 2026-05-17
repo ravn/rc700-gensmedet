@@ -511,8 +511,16 @@ static void print_banner(void) {
  * runtime stubs) work because the relocator already populated
  * 0xED00+ before JPing here.  PROMs are still mapped through
  * netboot completion; resident_handoff (RAM) does the OUT. */
+extern uint8_t console_joined;       /* resident.c -- gated by SW1 bit 0 */
+
 SECTION_INIT_TEXT
 NORETURN void cpnos_cold_entry(void) {
+    /* Sample SW1 bit 0 (S01) ONCE -- impl_conin / impl_conout are hot.
+     * MAME "On" = bit clear = joined console (SIO-B + keyboard input,
+     * SIO-B + CRT output); MAME "Off" = bit set = local-only.
+     * Must happen before print_banner because that calls impl_conout. */
+    console_joined = (_port_in(PORT_SW1) & 0x01) == 0 ? 1 : 0;
+
     cfgtbl_init();
     init_hardware();
 

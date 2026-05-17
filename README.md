@@ -45,6 +45,22 @@ All reasonable optimizations and clarifications are now done!
 
 ----
 
+## DIP switch SW1 (port 0x14)
+
+Used by both the autoload PROM and the reconstructed firmware (rcbios,
+cpnos).  MAME convention: "On" = bit cleared (default), "Off" = bit set.
+
+| Bit | Switch | Used by | Meaning |
+|-----|--------|---------|---------|
+| 0 | S01 | rcbios, cpnos | **Console mode.** On = SIO-B and keyboard both provide input, SIO-B and CRT both receive output (SIO-B writes go into the void if unconnected — harmless). Off = local only (CRT + keyboard, SIO-B ignored). |
+| 1 | S02 | autoload | **PROM1 lineprog enable.** On (default) = autoload checks the PROM1 signature on floppy-boot failure and jumps to the lineprog (e.g. cpnos slave) if present. Off = skip the signature check; halt with `NO DISKETTE NOR LINEPROG` even when a lineprog EPROM is socketed. |
+| 2..6 | S03..S07 | — | unused / reserved |
+| 7 | S08 | rcbios, MAME FDC clock | **Mini/maxi floppy.** On = 5.25″ mini (250 kbps FDC clock); Off = 8″ maxi (500 kbps). Hardware-level; set wrong and the FDC will not read disks. |
+
+Defaults render the same operator-visible behaviour as the original
+RC702 (joined console + 8″ floppy + PROM1 fallback enabled).  Canonical
+doc: [`docs/SW1_BIT_MAP.md`](docs/SW1_BIT_MAP.md).
+
 ## Old text
 
 

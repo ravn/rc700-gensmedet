@@ -713,9 +713,20 @@ static NORETURN void boot_floppy_or_prom(void) {
     halt_msg(" **NO KATALOG** ", 16);
 }
 
-/* Check secondary PROM at 0x2000 for RC702 signature; jump or halt. */
+/* Check secondary PROM at 0x2000 for RC702 signature; jump or halt.
+ *
+ * SW1 bit 1 (S02) is the operator-visible PROM1 enable:
+ *   On  (bit=0, default) -> check the PROM1 signature; jump to the
+ *                           lineprog at 0x2000 if it's there.
+ *   Off (bit=1)          -> skip the signature check entirely; halt
+ *                           with NO DISKETTE NOR LINEPROG even when a
+ *                           lineprog EPROM is socketed.  Lets the
+ *                           operator lock out the PROM1 fallback
+ *                           without physically pulling the chip.
+ */
 void prom1_if_present(void) {
-    if (compare_6bytes((const byte *) 0x2002, (const byte *) msg_rc702) == 0) {
+    if ((read_sw1() & 0x02) == 0 &&
+        compare_6bytes((const byte *) 0x2002, (const byte *) msg_rc702) == 0) {
         jump_to(*(word *)0x2000);
         return;
     }

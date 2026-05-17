@@ -7,8 +7,8 @@ Disassembly of section .boot:
        0: 80 02 00 00 00 00 00 00         ........
        8: 20 52 43 37 30 32 20 43          RC702 C
       10: 2d 42 49 4f 53 20 32 30         -BIOS 20
-      18: 32 36 2d 30 35 2d 31 35         26-05-15
-      20: 20 31 36 3a 34 33 20 2f          16:43 /
+      18: 32 36 2d 30 35 2d 31 37         26-05-17
+      20: 20 31 34 3a 34 37 20 2f          14:47 /
       28: 54 68 6f 72 62 6a 6f 65         Thorbjoe
       30: 72 6e 20 52 61 76 6e 20         rn Ravn 
       38: 41 6e 64 65 72 73 65 6e         Andersen
@@ -434,12 +434,12 @@ Disassembly of section .text:
 0000da8f <_bios_boot_c>:
 ; DEFPORT(sw1,          PORT_SW1)
     da8f: db 14        	in	a,($14)
-;     if (port_in(sw1) & 0x01)
+;     if ((port_in(sw1) & 0x01) == 0)
     da91: 0f           	rrca
     da92: 30 04        	jr	nc,$da98
-    da94: 3e 97        	ld	a,$97
+    da94: 3e 95        	ld	a,$95
     da96: 18 02        	jr	$da9a
-    da98: 3e 95        	ld	a,$95
+    da98: 3e 97        	ld	a,$97
     da9a: 32 03 00     	ld	($3),a                  ; 0x3 <_boot_header+0x3>
 ;     cdisk = 0;
     da9d: af           	xor	a

@@ -179,6 +179,12 @@ uint8_t impl_const(void) {
 uint8_t curx;                 /* 0..79 */
 uint8_t cury;                 /* 0..24 */
 uint8_t cur_dirty;            /* set by impl_conout, cleared by _isr_crt */
+/* SW1 bit 0 (S01) sampled once in cpnos_cold_entry (init.c).
+ *   1 = joined console: SIO-B + keyboard input, SIO-B + CRT output
+ *       (matches MAME "On" = SW1 bit cleared; default).
+ *   0 = local-only: keyboard input + CRT output, SIO-B ignored.
+ * Read once because impl_conin / impl_conout are hot. */
+uint8_t console_joined;
 static uint8_t xflg;          /* 0 = normal; 2/1 = awaiting XY coord bytes */
 static uint8_t xy_first;      /* first coord saved between XY calls */
 
@@ -379,7 +385,8 @@ uint8_t impl_conin(void) {
     sync_cursor_if_dirty();
 
     for (;;) {
-        if (_port_in(PORT_SIO_B_CTRL) & SIO_RR0_RX_CHAR_AVAIL) {
+        if (console_joined &&
+            (_port_in(PORT_SIO_B_CTRL) & SIO_RR0_RX_CHAR_AVAIL)) {
             return _port_in(PORT_SIO_B_DATA);
         }
         if (kbd_head != kbd_tail) {
@@ -394,8 +401,12 @@ RESIDENT
 void impl_conout(uint8_t c) {
 #if MIRROR_SIOB
     /* Serial mirror first — captures the raw byte stream for null-modem
-     * logs regardless of what we do to the CRT side. */
-    console_putc(c);
+     * logs regardless of what we do to the CRT side.  Runtime-gated on
+     * SW1 bit 0 (console_joined): operator picks local-only vs. joined
+     * console at boot without rebuilding the PROM. */
+    if (console_joined) {
+        console_putc(c);
+    }
 #endif
 
     if (xflg != 0) {
