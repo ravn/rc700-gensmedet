@@ -35,6 +35,8 @@ import sys
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 DANISH_HDR  = os.path.normpath(os.path.join(
     SCRIPT_DIR, "..", "..", "rcbios-in-c", "locale", "danish_tables.h"))
+US_ASCII_HDR = os.path.normpath(os.path.join(
+    SCRIPT_DIR, "..", "..", "rcbios-in-c", "locale", "us_ascii_tables.h"))
 
 
 def parse_byte_blocks(text):
@@ -52,24 +54,36 @@ def main():
     out_path = sys.argv[1]
 
     with open(DANISH_HDR) as f:
-        blocks = parse_byte_blocks(f.read())
-    if len(blocks) != 3:
-        sys.exit(f"danish_tables.h: expected 3 x 128 B blocks, got {len(blocks)}")
-    # blocks[0] = outcon[128]              (Danish outcon -- NOT what we want)
-    # blocks[1] = inconv lower[128]        (identity in Danish)
-    # blocks[2] = inconv upper[128]        (Danish overrides)
+        danish = parse_byte_blocks(f.read())
+    if len(danish) != 3:
+        sys.exit(f"danish_tables.h: expected 3 x 128 B blocks, got {len(danish)}")
+    # danish[0] = Danish outcon (unused -- we use the US_ASCII variant)
+    # danish[1] = inconv lower[128]  (identity in Danish for 0x20..0x7E)
+    # danish[2] = inconv upper[128]  (Danish-specific extended scancodes)
 
-    # outcon = US-ASCII identity (user request: "us-ascii output table for now")
-    outcon_us_ascii = bytes(range(128))
+    with open(US_ASCII_HDR) as f:
+        us_ascii = parse_byte_blocks(f.read())
+    if len(us_ascii) != 3:
+        sys.exit(f"us_ascii_tables.h: expected 3 x 128 B blocks, got {len(us_ascii)}")
+    # us_ascii[0] = US-ASCII outcon -- remaps 0x5B/0x5C/0x5D -> 0x0B/0x0C/0x0D
+    # (ROA296 codepoints for [\]) and 0x7B..0x7E -> 0x1B/0x1C/0x1D/0x0F
+    # ({|}~).  These ROM positions live in ROA296's 0x00..0x1F
+    # "accented/brackets/diacritics" range; without this remap the
+    # display shows Æ/Ø/Å for [\] because that's what ROA296 has at
+    # the standard ASCII codepoints.
 
-    inconv = bytes(blocks[1] + blocks[2])  # 256 B
-    prefix = outcon_us_ascii + inconv      # 128 + 256 = 384 B
+    # Output table: US-ASCII glyph mapping for ROA296.
+    # Input table:  Danish keyboard layout (user request: "danish
+    # keyboard, but the us-ascii output table for now").
+    outcon = bytes(us_ascii[0])
+    inconv = bytes(danish[1] + danish[2])
+    prefix = outcon + inconv
     assert len(prefix) == 384
 
     with open(out_path, "wb") as f:
         f.write(prefix)
-    print(f"wrote {out_path}: 384 B prefix (128 B US-ASCII outcon + "
-          f"256 B Danish inconv)")
+    print(f"wrote {out_path}: 384 B prefix (128 B US-ASCII outcon "
+          f"[ROA296-glyph-mapped] + 256 B Danish inconv)")
 
 
 if __name__ == "__main__":
