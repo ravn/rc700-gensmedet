@@ -1364,7 +1364,11 @@ ZX0_BIN  = $(CURDIR)/../../z88dk/src/zx0/z88dk-zx0
 DZX0_BIN = $(CURDIR)/../../z88dk/src/zx0/z88dk-dzx0
 
 .PHONY: prom1-lineprog
+ifeq ($(COMPILER),clang)
 prom1-lineprog: $(PROM1ONLY_BIN)
+endif
+# COMPILER=sdcc binding is defined further down (next to the SDCC
+# pipeline rule) so the SDCC variables it references are in scope.
 
 # Re-link the payload objects with init relocated to VMA 0xC000.
 # PROM1-only is dual-transport: both transport_pio.o and transport_sio.o
@@ -1468,8 +1472,13 @@ SDCC_LP_ASM_SRCS = $(SDCC_LP_DIR)/sections.asm \
 # relocator.c references _payload_header which we drop.
 SDCC_LP_C_OBJS = $(filter-out $(BUILDDIR)/relocator.o,$(SDCC_C_OBJS))
 
-.PHONY: sdcc-prom1lineprog sdcc-prom1lineprog-try
-sdcc-prom1lineprog-try: sdcc-prom1lineprog
+# prom1-lineprog binding for COMPILER=sdcc: same target name as the
+# clang path above; SDCC pipeline is below.  Two legacy aliases kept
+# so previous-session invocations don't break: `sdcc-prom1lineprog`
+# and `sdcc-prom1lineprog-try` both resolve to the same target.
+.PHONY: prom1-lineprog sdcc-prom1lineprog sdcc-prom1lineprog-try
+sdcc-prom1lineprog-try: prom1-lineprog
+sdcc-prom1lineprog: prom1-lineprog
 
 # Two-pass build (mirrors clang's clang-prom1lineprog two-pass):
 #   pass 1: link with empty init.zx0 / payload.zx0 -> extract real
@@ -1477,7 +1486,7 @@ sdcc-prom1lineprog-try: sdcc-prom1lineprog
 #   ZX0:    compress + roundtrip verify
 #   pass 2: relink -- INCBIN now picks up real ZX0 blobs
 #   pad:    output the final 4 KB sdcc-prom1lineprog/prom1-lineprog.bin
-sdcc-prom1lineprog: $(SDCC_LP_C_OBJS) $(BUILDDIR)/cpnos_layout.asm $(BUILDDIR)/xport_aliases.asm \
+prom1-lineprog: $(SDCC_LP_C_OBJS) $(BUILDDIR)/cpnos_layout.asm $(BUILDDIR)/xport_aliases.asm \
                     $(SDCC_LP_DIR)/sections.asm $(SDCC_LP_DIR)/bootstrap.asm \
                     $(SDCC_LP_DIR)/dzx0_standard.asm \
                     $(SDCC_LP_DIR)/init_zx0.asm $(SDCC_LP_DIR)/payload_zx0.asm
