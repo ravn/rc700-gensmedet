@@ -159,7 +159,22 @@ view delay.  Verified end-to-end via MAME snapshot.
     accurate (S02 selects the signature autoload looks for at PROM1).
     Rename to "S02 PROM1=lineprog" for clarity.  Lives in
     `mame/src/mame/regnecentralen/rc702.cpp` `rc702_maxi` +
-    `rc702_mini` PORT_DIPNAME labels.
+    `rc702_mini` PORT_DIPNAME labels.  **RESOLVED 2026-05-17:** label
+    shortened to "S02 PROM1=lineprog" + matching comment block (line 214)
+    updated to drop the chargen-gating prose.
+
+11. **cpnos-in-c: reserve translation-table space + hook default tables.**
+    rcbios-in-c provides `outcon` / `inconv` tables at a fixed address
+    (0xF680, see `rcbios-in-c/bios.c:779,934,1372`) which CONFI.COM and
+    locale-aware utilities expect.  cpnos-in-c (the diskless slave) has
+    no equivalent today, so programs assuming the BIOS layout render
+    wrong glyphs against the slave.  Reserve byte-compatible slots in
+    the slave image and bundle a default table set.  PROM1 budget is
+    tight (118 B free); likely needs ZX0 compression or RAM-decompressed
+    placement.  Planning note:
+    `cpnos-in-c/tasks/todo-translation-tables-2026-05-17.md`.  Cost
+    class: Medium.  Deferred -- not blocking anything live, pick up
+    next time the slave is touched.
 
 ## Session 73i: ZX0 on autoload + cpnos-in-c PROM1-only, park cpnos-in-asm (May 17, 2026) — Medium
 
