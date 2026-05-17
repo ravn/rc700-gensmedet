@@ -379,8 +379,14 @@ void resident_handoff(uint16_t entry) {
      * the function checks prom1_only_sentinel and is a no-op on
      * two-PROM (where the LDIR destination 0xF680..0xF7FF is stack
      * workspace + pio_rx_buf, not free RAM). */
+    /* SDCC two-PROM build is parked (see tasks/TWO_PROM_PARKED.md);
+     * its locale support isn't wired and install_locale_tables /
+     * get_img_base are clang-only resident-c symbols.  Gate to keep
+     * SDCC compiling. */
+#ifdef __clang__
     extern void install_locale_tables(void);
     install_locale_tables();
+#endif
 
     /* Restore cfgtbl.fnc to LIST (0x05) -- netboot's cpnet_xact left
      * it at the last function code (16 = CLOSE).  cfgtbl shares its

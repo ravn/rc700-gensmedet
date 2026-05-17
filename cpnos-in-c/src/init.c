@@ -441,9 +441,17 @@ static uint16_t netboot_mpm(void) {
     /* --- READ-SEQ loop -------------------------------------------- */
     /* Runtime IMG_BASE: PROM1-only build shifts down by 384 B for the
      * locale prefix; two-PROM doesn't.  Branch lives in get_img_base()
-     * (.resident) to keep this .init function under the 640 B cap. */
+     * (.resident) to keep this .init function under the 640 B cap.
+     *
+     * SDCC two-PROM build is parked -- get_img_base is a clang-only
+     * resident symbol; on SDCC fall back to the unshifted address
+     * so the file at least compiles.  See tasks/TWO_PROM_PARKED.md. */
+#ifdef __clang__
     extern uint8_t *get_img_base(void);
     uint8_t *dma = get_img_base();
+#else
+    uint8_t *dma = (uint8_t *)CPNOS_NDOS_ADDR;
+#endif
     for (;;) {
         reuse_fcb();
         uint8_t rc = cpnet_xact(20, 36);

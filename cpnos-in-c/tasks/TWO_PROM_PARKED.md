@@ -17,17 +17,32 @@ the primary slave topology.
 
 The clang cpnos build comfortably fits in 2 KB (`prom1-lineprog`
 artifact = ~2020 / 2048 B as of session 73j-locale).  Combined with
-the 4 KB autoload-in-c PROM 0 (ZX0-compressed, ~1509 / 2048 B), the
+the 4 KB autoload-in-c PROM 0 (ZX0-compressed, ~1667 / 2048 B), the
 user's hardware -- which has NO A11 bridge and is hard-locked to two
 2 KB PROMs (see memory rule `project_rc702_2kb_prom_hard_limit`) --
 can run the production "autoload + cpnos" combination.
 
-**SDCC's cpnos build is larger than 2 KB.**  It does not fit in PROM 1
-alone.  Session 73j attempted ZX0-compression on the SDCC build to
-recover the gap; that work is parked
-(`tasks/todo-sdcc-zx0-2026-05-17.md`).  Until SDCC ZX0 lands, the
-SDCC slave HAS to ship as the historical two-PROM split (relocator +
-init + payload spread across PROM 0 + PROM 1).
+**SDCC's cpnos build is larger than 2 KB.**  Raw resident = 2192 B.
+Two-PROM SDCC builds today, but FUNCTIONALITY IS BROKEN:
+
+  * `install_locale_tables` and `get_img_base` are clang-only
+    resident-c symbols.  SDCC's two-PROM cold path is gated via
+    `#ifdef __clang__` -- the SDCC slave boots and reaches CCP but
+    locale tables are NEVER installed.  The banner row 2 will not
+    include a locale tag.  impl_conout/impl_conin use byte-identity
+    bypass (sentinel never set in SDCC).
+  * SDCC PROM1-only does not exist yet.
+
+**Experimental result (2026-05-17):**  z88dk-zx0 on the raw SDCC
+resident (2192 B) compresses to **1554 B** (-29%).  Adding a 68 B
+dzx0_standard decoder + ~50 B bootstrap + ZX0-compressed init image
+(rough estimate 400 B) + 8 B lineprog header lands at ~2080 B for a
+hypothetical SDCC PROM1-only target -- JUST over the 2 KB cap.
+Probably fits after init-region shrinking or dropping dual-transport.
+
+So the SDCC slave is in a transitional state: builds two-PROM-OK
+for size, but the locale + sentinel machinery has been gated off
+clang-only until SDCC ZX0 lands (see `tasks/todo-sdcc-zx0-2026-05-17.md`).
 
 So:
 

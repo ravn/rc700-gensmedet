@@ -335,7 +335,15 @@ NORETURN void relocate(void) {
      * hand-rolled 10-byte loop matches bootstrap.s and is essentially
      * free against that budget.  Sentinel address comes in via
      * --defsym=_prom1_only_sentinel=... in the Makefile relocator-link
-     * step. */
+     * step.
+     *
+     * Clang-only: two-PROM is the production target for clang, but
+     * parked for SDCC (see tasks/TWO_PROM_PARKED.md).  SDCC's inline-
+     * asm syntax (`__asm ... __endasm`) is incompatible with clang's
+     * GAS-style `__asm__ volatile`; gate to keep the SDCC two-PROM
+     * path compilable.  When SDCC ZX0 lands and the SDCC slave moves
+     * to PROM1-only, this two-PROM path won't matter for SDCC. */
+#if defined(__clang__) && defined(__z80__)
     __asm__ volatile (
         "ld   hl, 0xF680\n\t"
         "xor  a\n\t"
@@ -348,6 +356,7 @@ NORETURN void relocate(void) {
         "ld   (_prom1_only_sentinel), a\n\t"
         : : : "a", "h", "l", "memory"
     );
+#endif
 
     /* JP cold entry.
      *
