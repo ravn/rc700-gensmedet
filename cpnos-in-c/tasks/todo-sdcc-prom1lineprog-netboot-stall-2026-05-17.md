@@ -69,6 +69,30 @@ window (tested 60 s).
    meaningful code/data.  Verify via sdcc/cpnos_lp.map that
    RESIDENT_CHECKSUM is at the end.
 
+## Diagnostic findings (session 73j-late close)
+
+  * **Slave dzx0_standard verified correct.**  Dumped slave RAM
+    0xED00..0xF58D after decompression; cmp'd against host-side
+    z88dk-dzx0 of payload.zx0; byte-identical (2190 / 2190).
+    Slave init at 0xC000..0xC28C also matches host dzx0 of
+    init.zx0.  So the ZX0 decoder + the compressed bytes round-trip
+    correctly on the Z80; the resident is intact post-unpack.
+
+  * **PC stall location: `_transport_pio_recv_byte` (0xEDEF +).**
+    Slave PC oscillates 0xEDF5..0xEE04 -- the PIO IRQ ring drain
+    loop.  Ring stays empty -> spins forever.
+
+  * **28 dots = full 3584 B cpnos.img received.**  The IRQ ring
+    worked for 28 records (one ACK and one data frame each).  The
+    29th READ-SEQ request (which expects an EOF response with
+    rc=1) is where the slave wedges.
+
+So: dzx0 is good, the resident is good.  The bug is in the live
+state of the netboot conversation -- master probably never sent
+the 29th response, OR slave's request was malformed.  Reading
+/tmp/cpnos_sioa.raw from a netboot run would show the wire-level
+exchange.
+
 ## Diagnostic tools available
 
   * `/tmp/probe_resident.lua` (gist: reads memory at fixed addresses
