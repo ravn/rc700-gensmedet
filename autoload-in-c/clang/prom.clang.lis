@@ -8,43 +8,104 @@ Disassembly of section .boot:
        0: f3           	di
 ;     SET_SP(ROM_STACK);
        1: 31 ff bf     	ld	sp,$bfff
-;     memcpy(RELOC_DST, RELOC_SRC, RELOC_SIZE);
-       4: 21 68 00     	ld	hl,$68
-       7: 11 00 60     	ld	de,$6000
-       a: 01 02 07     	ld	bc,$702
-       d: 78           	ld	a,b
-       e: b1           	or	c
-       f: 28 02        	jr	z,$13
-      11: ed b0        	ldir
+;     reloc_zx0();
+       4: cd 68 00     	call	$68
 ;         memset(BSS_DST, 0, BSS_SIZE);
-      13: 21 ce 66     	ld	hl,$66ce
-      16: 1e 00        	ld	e,$0
-      18: 01 34 00     	ld	bc,$34
-      1b: 78           	ld	a,b
-      1c: b1           	or	c
-      1d: 28 0b        	jr	z,$2a
-      1f: 73           	ld	(hl),e
-      20: 0b           	dec	bc
-      21: 78           	ld	a,b
-      22: b1           	or	c
-      23: 28 05        	jr	z,$2a
-      25: 54           	ld	d,h
-      26: 5d           	ld	e,l
-      27: 13           	inc	de
-      28: ed b0        	ldir
+       7: 21 ce 66     	ld	hl,$66ce
+       a: 1e 00        	ld	e,$0
+       c: 01 34 00     	ld	bc,$34
+       f: 78           	ld	a,b
+      10: b1           	or	c
+      11: 28 0b        	jr	z,$1e
+      13: 73           	ld	(hl),e
+      14: 0b           	dec	bc
+      15: 78           	ld	a,b
+      16: b1           	or	c
+      17: 28 05        	jr	z,$1e
+      19: 54           	ld	d,h
+      1a: 5d           	ld	e,l
+      1b: 13           	inc	de
+      1c: ed b0        	ldir
 ;     main_relocated();
-      2a: c3 1e 64     	jp	$641e
+      1e: c3 1e 64     	jp	$641e
 
-0000002d <_banner_string>:
-      2d: 20 52 43 37 30 30 20 43          RC700 C
-      35: 4c 20 32 30 32 36 2d 30         L 2026-0
-      3d: 35 2d 31 35 20 31 36 2e         5-15 16.
-      45: 33 37 2f 72 61 76 6e 00         37/ravn.
+00000021 <_banner_string>:
+      21: 20 52 43 37 30 30 20 43          RC700 C
+      29: 4c 20 32 30 32 36 2d 30         L 2026-0
+      31: 35 2d 31 35 20 31 36 2e         5-15 16.
+      39: 33 37 2f 72 61 76 6e 00         37/ravn.
 
 Disassembly of section .nmi:
 
 00000066 <_nmi_handler>:
       66: ed 45        	retn
+
+Disassembly of section .zx0_decoder:
+
+00000068 <_reloc_zx0>:
+      68: 21 b3 00     	ld	hl,$b3
+      6b: 11 00 60     	ld	de,$6000
+
+0000006e <dzx0_standard>:
+      6e: 01 ff ff     	ld	bc,$ffff
+      71: c5           	push	bc
+      72: 03           	inc	bc
+      73: 3e 80        	ld	a,$80
+
+00000075 <dzx0s_literals>:
+      75: cd a4 00     	call	$a4
+      78: ed b0        	ldir
+      7a: 87           	add	a,a
+      7b: 38 0d        	jr	c,$8a
+      7d: cd a4 00     	call	$a4
+
+00000080 <dzx0s_copy>:
+      80: e3           	ex	(sp),hl
+      81: e5           	push	hl
+      82: 19           	add	hl,de
+      83: ed b0        	ldir
+      85: e1           	pop	hl
+      86: e3           	ex	(sp),hl
+      87: 87           	add	a,a
+      88: 30 eb        	jr	nc,$75
+
+0000008a <dzx0s_new_offset>:
+      8a: cd a4 00     	call	$a4
+      8d: 08           	ex	af,af'
+      8e: f1           	pop	af
+      8f: af           	xor	a
+      90: 91           	sub	c
+      91: c8           	ret	z
+      92: 47           	ld	b,a
+      93: 08           	ex	af,af'
+      94: 4e           	ld	c,(hl)
+      95: 23           	inc	hl
+      96: cb 18        	rr	b
+      98: cb 19        	rr	c
+      9a: c5           	push	bc
+      9b: 01 01 00     	ld	bc,$1
+      9e: d4 ac 00     	call	nc,$ac
+      a1: 03           	inc	bc
+      a2: 18 dc        	jr	$80
+
+000000a4 <dzx0s_elias>:
+      a4: 0c           	inc	c
+
+000000a5 <dzx0s_elias_loop>:
+      a5: 87           	add	a,a
+      a6: 20 03        	jr	nz,$ab
+      a8: 7e           	ld	a,(hl)
+      a9: 23           	inc	hl
+      aa: 17           	rla
+
+000000ab <dzx0s_elias_skip>:
+      ab: d8           	ret	c
+
+000000ac <dzx0s_elias_backtrack>:
+      ac: 87           	add	a,a
+      ad: cb 11        	rl	c
+      af: cb 10        	rl	b
+      b1: 18 f2        	jr	$a5
 
 Disassembly of section .text:
 
@@ -671,7 +732,7 @@ Disassembly of section .text:
     630d: b7           	or	a
     630e: 20 09        	jr	nz,$6319
 ;         jump_to(*(word *)0x2000);
-    6310: 2a 00 20     	ld	hl,($2000)              ; 0x2000 <__prom_end+0x1896>
+    6310: 2a 00 20     	ld	hl,($2000)              ; 0x2000 <__text_zx0_end+0x1a1b>
     6313: e5           	push	hl
     6314: fd e1        	pop	iy
     6316: c3 cc 66     	jp	$66cc
@@ -973,7 +1034,7 @@ Disassembly of section .text:
     64b7: 01 b0 07     	ld	bc,$7b0
     64ba: ed b0        	ldir
 ;     memcpy(dspstr, BANNER_PTR, BANNER_LENGTH);
-    64bc: 21 2d 00     	ld	hl,$2d
+    64bc: 21 21 00     	ld	hl,$21
     64bf: 11 00 7a     	ld	de,$7a00
     64c2: 01 1f 00     	ld	bc,$1f
     64c5: ed b0        	ldir

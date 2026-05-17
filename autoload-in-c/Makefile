@@ -184,10 +184,40 @@ CLANG_CFLAGS = --target=z80 -Oz -g -nostdlib \
 # possible.
 
 CLANG_OBJS = clang/boot.o clang/intvec.o clang/rom.o clang/runtime.o
+CLANG_ZX0_OBJS = clang/dzx0_standard.o clang/text_compressed.o
 
-clang/prom.clang.bin: $(CLANG_OBJS) clang/rc700_prom.ld
-	$(RUN) $(CLANG_LD) --gc-sections -T clang/rc700_prom.ld $(CLANG_OBJS) -o clang/prom.clang.elf
-	$(RUN) $(CLANG_OBJCOPY) -O binary clang/prom.clang.elf clang/prom.clang.bin
+# Host-side ZX0 compressor + verifier from z88dk source tree.
+Z88DK_ZX0  = $(CURDIR)/../../z88dk/src/zx0/z88dk-zx0
+Z88DK_DZX0 = $(CURDIR)/../../z88dk/src/zx0/z88dk-dzx0
+
+# Two-pass build:
+#   Pass 1 link with whatever clang/text_compressed.zx0 currently holds
+#   (empty placeholder on first build).  Extract raw .text bytes.
+#   Compress with z88dk-zx0; verify by host-side z88dk-dzx0 roundtrip
+#   that the decompressed bytes match the pass-1 .text exactly.
+#   Pass 2 re-link with the new compressed blob, then strip VMA-only
+#   .text from the binary so only the four ROM-resident sections land
+#   in the .bin.
+clang/prom.clang.bin: $(CLANG_OBJS) $(CLANG_ZX0_OBJS) clang/rc700_prom.ld
+	@echo "=== pass 1: link to extract raw .text bytes ==="
+	$(RUN) $(CLANG_LD) --gc-sections -T clang/rc700_prom.ld $(CLANG_OBJS) $(CLANG_ZX0_OBJS) -o clang/prom.pass1.elf
+	$(RUN) $(CLANG_OBJCOPY) -O binary --only-section=.text clang/prom.pass1.elf clang/text_raw.bin
+	@RAW=$$(wc -c < clang/text_raw.bin | tr -d ' '); \
+	 echo "    .text raw = $$RAW bytes"
+	@echo "=== ZX0 compress ==="
+	$(Z88DK_ZX0) -f clang/text_raw.bin clang/text_compressed.zx0
+	@echo "=== roundtrip verify: z88dk-dzx0 must reproduce pass-1 .text exactly ==="
+	$(Z88DK_DZX0) clang/text_compressed.zx0 clang/text_roundtrip.bin
+	cmp clang/text_raw.bin clang/text_roundtrip.bin \
+	    || { echo "FAIL: ZX0 roundtrip mismatch -- compressed blob would not unpack correctly at boot"; exit 1; }
+	@echo "    OK: $$(wc -c < clang/text_raw.bin | tr -d ' ') bytes raw -> $$(wc -c < clang/text_compressed.zx0 | tr -d ' ') bytes compressed; roundtrip exact"
+	@echo "=== pass 2: re-assemble text_compressed.o + link ==="
+	$(RUN) $(CLANG_CC) --target=z80 -c clang/text_compressed.s -o clang/text_compressed.o
+	$(RUN) $(CLANG_LD) --gc-sections -T clang/rc700_prom.ld $(CLANG_OBJS) $(CLANG_ZX0_OBJS) -o clang/prom.clang.elf
+	$(RUN) $(CLANG_OBJCOPY) -O binary \
+	    --only-section=.boot --only-section=.nmi \
+	    --only-section=.zx0_decoder --only-section=.text_compressed \
+	    clang/prom.clang.elf clang/prom.clang.bin
 	# Source-annotated listing (committed to git for historical diffs
 	# without needing to rebuild clang).
 	$(RUN) $(CLANG_OBJDUMP) -d -S --triple=z80 clang/prom.clang.elf > clang/prom.clang.lis
@@ -201,6 +231,19 @@ clang/boot.o: boot_rom.c rom.h clang/banner.h $(CLANG_COMPILER)
 	$(RUN) $(CLANG_CC) $(CLANG_CFLAGS) -c $< -o $@
 
 clang/runtime.o: clang/runtime.s $(CLANG_COMPILER)
+	$(RUN) $(CLANG_CC) --target=z80 -c $< -o $@
+
+clang/dzx0_standard.o: clang/dzx0_standard.s $(CLANG_COMPILER)
+	$(RUN) $(CLANG_CC) --target=z80 -c $< -o $@
+
+# text_compressed.o incbins clang/text_compressed.zx0.  On a fresh
+# tree the zx0 file may not exist yet; create an empty placeholder so
+# pass 1 can link (pass 1's bytes are discarded; pass 2 rebuilds this
+# object against the real compressed blob).
+clang/text_compressed.zx0:
+	@touch $@
+
+clang/text_compressed.o: clang/text_compressed.s clang/text_compressed.zx0 $(CLANG_COMPILER)
 	$(RUN) $(CLANG_CC) --target=z80 -c $< -o $@
 
 clang/intvec.o: intvec.c rom.h $(CLANG_COMPILER)
