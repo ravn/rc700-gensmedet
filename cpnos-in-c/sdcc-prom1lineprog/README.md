@@ -33,6 +33,40 @@ Empirical inputs from session 73j-late:
     dzx0_standard.asm`.  Needs SECTION + PUBLIC wrapper to expose
     `_dzx0_standard` to bootstrap.asm.
 
+## Stage 1 (DONE): ZX0 measurement on SDCC resident
+
+  * Makefile target: `COMPILER=sdcc make sdcc-resident-zx0-probe`
+  * Measured: 2192 B raw -> 1554 B ZX0 (-29%, roundtrip OK)
+
+## Stage 2 (IN PROGRESS): relink SDCC with PROM1-only sections
+
+  * Makefile target: `COMPILER=sdcc make sdcc-prom1lineprog-try`
+  * Current state: gets past the relocator.c (excluded via
+    SDCC_LP_C_OBJS = $(filter-out relocator.o,$(SDCC_C_OBJS)))
+    and most resident sources, but link still fails on missing
+    symbols that the standard sdcc/sections.asm provides:
+      - `__ivt_start` / `__ivt_end` (bss_ivt declarations)
+      - `_pio_rx_buf` / `_pio_rx_buf_page` (bss_pio_rx + page-derive)
+      - `__payload_zx0_start` / `__init_zx0_start` (not yet
+        provided -- init_zx0.asm + payload_zx0.asm wrappers
+        outstanding)
+
+  Next steps:
+   1. Copy bss_ivt + bss_pio_rx + scratch_bss alias declarations
+      from sdcc/sections.asm into sdcc-prom1lineprog/sections.asm,
+      relocating bss_pio_rx to its new 0xEC00 page and providing
+      _pio_rx_buf_page = HIGH(_pio_rx_buf).  __ivt_start can stay
+      at 0xEA00 (unchanged).
+   2. Once the link succeeds, extract per-section .bin from
+      cpnos_lp_<section>.bin outputs.
+   3. ZX0 + roundtrip each .bin (init at 0xC000, resident at 0xED00).
+   4. Generate init_zx0.asm + payload_zx0.asm with PUBLIC labels
+      `__init_zx0_start` / `__payload_zx0_start` and `binary` /
+      INCBIN of the ZX0 blobs.
+   5. Final z80asm link of bootstrap + dzx0 + init_zx0 + payload_zx0
+      anchored at 0x2000 -> sdcc-prom1lineprog/prom1-lineprog.bin.
+   6. MAME verification via mame_capture.sh.
+
 ## What's NOT done yet
 
   1. **dzx0_standard SECTION wrapper.**  The vanilla z88dk source

@@ -1447,6 +1447,38 @@ $(PROM1ONLY_BIN): $(PROM1ONLY_OBJS) $(PROM1ONLY_DIR)/prom1.ld $(PROM1ONLY_PAYLOA
 	 mv $@.padded $@
 	@echo "wrote $@ ($$(wc -c < $@) B padded)"
 
+# ---- SDCC PROM1-only line program: stage 2 try ---------------------
+#
+# Relink SDCC objects using sdcc-prom1lineprog/sections.asm (INIT_CODE
+# at 0xC000, no RESET / PAYLOAD_HEADER) plus bootstrap.asm + dzx0.
+# Emits per-section .bin via z88dk-zcc -create-app.  Stage 2.
+#
+# Status: experimental.  Expected to surface link errors -- iterate.
+ifeq ($(COMPILER),sdcc)
+SDCC_LP_DIR = sdcc-prom1lineprog
+SDCC_LP_ASM_SRCS = $(SDCC_LP_DIR)/sections.asm \
+                   $(SDCC_LP_DIR)/bootstrap.asm \
+                   $(SDCC_LP_DIR)/dzx0_standard.asm \
+                   sdcc/bios_jt.asm sdcc/snios.asm sdcc/hal.asm \
+                   sdcc/runtime.asm
+
+# Exclude relocator.o -- bootstrap.asm replaces it for PROM1-only.
+# relocator.c references _payload_header which we drop.
+SDCC_LP_C_OBJS = $(filter-out $(BUILDDIR)/relocator.o,$(SDCC_C_OBJS))
+
+.PHONY: sdcc-prom1lineprog-try
+sdcc-prom1lineprog-try: $(SDCC_LP_C_OBJS) $(BUILDDIR)/cpnos_layout.asm $(BUILDDIR)/xport_aliases.asm
+	@mkdir -p $(SDCC_LP_DIR)
+	@echo "=== stage 2: relink SDCC with PROM1-only sections layout ==="
+	cd $(BUILDDIR) && $(CC) $(ZFLAGS_BASE) $(SDCC_ZLFLAGS) \
+	    $(addprefix ../,$(SDCC_LP_ASM_SRCS)) \
+	    xport_aliases.asm \
+	    cpnos_layout.asm \
+	    $(notdir $(SDCC_LP_C_OBJS)) \
+	    -o cpnos_lp 2>&1 | tail -30
+	@ls -la $(BUILDDIR)/cpnos_lp_*.bin 2>&1 | head
+endif
+
 # ---- SDCC PROM1-only line program (WIP) ---------------------------
 #
 # Stage 1 (measurement): take the existing SDCC two-PROM build's
