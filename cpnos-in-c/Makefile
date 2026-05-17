@@ -1242,10 +1242,98 @@ endif
 cpnet-mame-test: cpnos
 	cd .. && python3 tests/cpnet_bridge/harness.py
 
+# ---- PROM1-only line program (experimental, clang only) ----------
+# Builds cpnos-in-c as a single 2 KB PROM1 line program (signature
+# at 0x2000) that pairs with autoload-in-c in PROM0.  See
+# tasks/zx0-prom1-only-plan-2026-05-17.md for the full design.
+#
+# Two ZX0-compressed blobs share one 68 B decoder:
+#   - init.zx0     init.bin relinked at VMA 0xC000 (RAM)
+#   - payload.zx0  resident at VMA 0xED00 (unchanged from main build)
+# Bootstrap (~30 B) decompresses both, then jp 0xC000 -> cpnos_cold_entry.
+
+PROM1ONLY_DIR     = clang-prom1lineprog
+PROM1ONLY_LD      = $(PROM1ONLY_DIR)/payload.ld
+PROM1ONLY_PAYLOAD_ELF = $(PROM1ONLY_DIR)/payload.elf
+PROM1ONLY_INIT_BIN    = $(PROM1ONLY_DIR)/init.bin
+PROM1ONLY_PAYLOAD_BIN = $(PROM1ONLY_DIR)/payload.bin
+PROM1ONLY_INIT_ZX0    = $(PROM1ONLY_DIR)/init.zx0
+PROM1ONLY_PAYLOAD_ZX0 = $(PROM1ONLY_DIR)/payload.zx0
+PROM1ONLY_BIN         = $(PROM1ONLY_DIR)/prom1-lineprog.bin
+
+ZX0_BIN  = $(CURDIR)/../../z88dk/src/zx0/z88dk-zx0
+DZX0_BIN = $(CURDIR)/../../z88dk/src/zx0/z88dk-dzx0
+
+.PHONY: prom1-lineprog
+prom1-lineprog: $(PROM1ONLY_BIN)
+
+# Re-link the payload objects with init relocated to VMA 0xC000.
+$(PROM1ONLY_PAYLOAD_ELF): $(PAYLOAD_OBJS) $(PROM1ONLY_LD) cpnos-build/d/cpnos.sym
+	@mkdir -p $(PROM1ONLY_DIR)
+	@N=$$(perl -ne 'while (/([0-9A-Fa-f]{4})\s+NDOS\b/g) { print "$$1"; last }' cpnos-build/d/cpnos.sym); \
+	 [ -n "$$N" ] || { echo "ERROR: NDOS symbol missing from cpnos.sym"; exit 1; }; \
+	 NEND=$$(printf '0x%X' $$(( 0x$$N + 0xC80 ))); \
+	 echo "prom1-lineprog payload.elf: __cpnos_load_end = $$NEND"; \
+	 $(LD) --gc-sections -T $(PROM1ONLY_LD) \
+	    --defsym=__cpnos_load_end=$$NEND \
+	    $(TRANSPORT_DEFSYMS) $(PAYLOAD_OBJS) -o $@
+
+$(PROM1ONLY_INIT_BIN): $(PROM1ONLY_PAYLOAD_ELF)
+	$(OBJCOPY) -O binary --only-section=.init $< $@
+
+$(PROM1ONLY_PAYLOAD_BIN): $(PROM1ONLY_PAYLOAD_ELF) cpnos-build/patch_payload_checksum.py
+	$(OBJCOPY) -O binary --only-section=.payload $< $@
+	python3 cpnos-build/patch_payload_checksum.py $@
+
+# ZX0 compress + host-side roundtrip verify (must reproduce input
+# exactly; build fails on mismatch).  Mirrors autoload-in-c pattern.
+$(PROM1ONLY_INIT_ZX0): $(PROM1ONLY_INIT_BIN)
+	$(ZX0_BIN) -f $< $@
+	@rm -f /tmp/cpnos_prom1_init_rt.bin
+	$(DZX0_BIN) $@ /tmp/cpnos_prom1_init_rt.bin
+	cmp $< /tmp/cpnos_prom1_init_rt.bin || { echo "FAIL: init ZX0 roundtrip"; exit 1; }
+	@echo "  init: $$(wc -c < $<) -> $$(wc -c < $@) B, roundtrip OK"
+
+$(PROM1ONLY_PAYLOAD_ZX0): $(PROM1ONLY_PAYLOAD_BIN)
+	$(ZX0_BIN) -f $< $@
+	@rm -f /tmp/cpnos_prom1_payload_rt.bin
+	$(DZX0_BIN) $@ /tmp/cpnos_prom1_payload_rt.bin
+	cmp $< /tmp/cpnos_prom1_payload_rt.bin || { echo "FAIL: payload ZX0 roundtrip"; exit 1; }
+	@echo "  payload: $$(wc -c < $<) -> $$(wc -c < $@) B, roundtrip OK"
+
+$(PROM1ONLY_DIR)/bootstrap.o: $(PROM1ONLY_DIR)/bootstrap.s
+	$(CC) --target=z80 -c $< -o $@
+
+$(PROM1ONLY_DIR)/dzx0_standard.o: $(PROM1ONLY_DIR)/dzx0_standard.s
+	$(CC) --target=z80 -c $< -o $@
+
+$(PROM1ONLY_DIR)/init_zx0.o: $(PROM1ONLY_DIR)/init_zx0.s $(PROM1ONLY_INIT_ZX0)
+	$(CC) --target=z80 -c $< -o $@
+
+$(PROM1ONLY_DIR)/payload_zx0.o: $(PROM1ONLY_DIR)/payload_zx0.s $(PROM1ONLY_PAYLOAD_ZX0)
+	$(CC) --target=z80 -c $< -o $@
+
+PROM1ONLY_OBJS = $(PROM1ONLY_DIR)/bootstrap.o $(PROM1ONLY_DIR)/dzx0_standard.o \
+                 $(PROM1ONLY_DIR)/init_zx0.o $(PROM1ONLY_DIR)/payload_zx0.o
+
+$(PROM1ONLY_BIN): $(PROM1ONLY_OBJS) $(PROM1ONLY_DIR)/prom1.ld
+	$(LD) -T $(PROM1ONLY_DIR)/prom1.ld $(PROM1ONLY_OBJS) \
+	    -o $(PROM1ONLY_DIR)/prom1-lineprog.elf
+	$(OBJCOPY) -O binary $(PROM1ONLY_DIR)/prom1-lineprog.elf $@
+	@SZ=$$(wc -c < $@ | tr -d ' '); \
+	 echo "PROM1 line program: $$SZ / 2048 B ($$((2048 - SZ)) B free)"; \
+	 if [ $$SZ -gt 2048 ]; then \
+	   echo "ERROR: PROM1 lineprog exceeds 2 KB by $$((SZ - 2048)) B"; \
+	   exit 1; \
+	 fi; \
+	 { cat $@; perl -e "print \"\\xff\" x (2048 - $$SZ)"; } > $@.padded; \
+	 mv $@.padded $@
+	@echo "wrote $@ ($$(wc -c < $@) B padded)"
+
 # ---- Clean --------------------------------------------------------
 
 cpnos-clean:
-	rm -rf clang
+	rm -rf clang clang-prom1lineprog
 	rm -f sdcc/*.o sdcc/cpnos*.bin sdcc/cpnos*.map sdcc/cpnos*.lis \
 	      sdcc/cpnos*.sym sdcc/cpnos*.def sdcc/cpnos*.ihx \
 	      sdcc/prom0*.bin sdcc/prom1*.bin sdcc/cpnos.cim sdcc/cpnos \
