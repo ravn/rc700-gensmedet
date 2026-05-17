@@ -93,5 +93,69 @@ master-side file inclusion.
 ## When
 
 Pick up once the PROM1 budget is stable.  Currently 1999 B / 2048 B
-(48 B free) -- this work doesn't grow the PROM1 image, it shrinks
+(49 B free) -- this work doesn't grow the PROM1 image, it shrinks
 it if anything (no embedded font/tables).
+
+## Investigation 2026-05-17 (session 73j-late, branch
+   locale_tables_via_img_prefix; not merged)
+
+Attempted the "prepend tables to cpnos.img, LDIR at boot" approach
+suggested by the user.  Architecture works in principle:
+
+  Master:  cpnos.img = locale_prefix(N) + cpnos.com
+  Slave:   loads at IMG_BASE - N (so prefix lands just below NDOS,
+           cpnos.com lands at the expected NDOS load address);
+           after EOF, LDIR the prefix from below-NDOS to its
+           runtime home; JP to NDOS as usual.
+
+Three real constraints surfaced that blocked landing:
+
+1. **`pio_rx_buf` occupies 0xF700**.  rcbios puts `inconv[256]` at
+   0xF700; placing it there on cpnos overwrites the PIO-B IRQ ring,
+   breaking CP/NET frame reception.  Symptom: slave reached `E>`,
+   but PPAS load timed out (file fetch failed) because the SNIOS
+   layer couldn't drain incoming bytes.
+
+2. **Stack workspace is at 0xF621..0xF6FF**.  rcbios puts
+   `outcon[128]` at 0xF680; on cpnos that overlaps the stack
+   working area.  Stack pushes would corrupt outcon and vice versa.
+
+3. **Two-PROM cpnos scratch_bss is 270 B**, vs the PROM1-only
+   variant's ~256 B.  Moving `pio_rx_buf` to 0xEC00 (inside the
+   SCRATCH region) requires shrinking SCRATCH from 0x200 to 0x100,
+   which underfits the two-PROM build by 14 B.
+
+What the investigation *did* confirm:
+
+  * The LDIR-from-prefix mechanism itself is sound -- single 384 B
+    LDIR (`ld hl, src; ld de, 0xF680; ld bc, 0x180; ldir`) cleanly
+    moves a contiguous outcon+inconv block if the layout cooperates.
+  * The Makefile concatenation (`cat locale_prefix.bin cpnos.com >
+    cpnos_with_locale.img`) and cpmcp install path work end-to-end.
+  * `gen_locale_prefix.py` extracts the correct bytes from
+    `rcbios-in-c/locale/danish_tables.h` (US-ASCII identity outcon
+    + Danish inconv lower-identity + upper-overrides).
+
+Path forward (next session):
+
+A. **Audit two-PROM scratch_bss for 14 B of shrink**.  llvm-nm shows
+   the `__sframe_*` static-stack frames are the bulk of usage; some
+   may be combinable or eliminable via attribute changes (e.g. making
+   some functions reuse a common scratch frame).  Once that 14 B is
+   freed, the layout surgery (pio_rx_buf -> 0xEC00, stack_top ->
+   0xF680, contiguous tables at 0xF680..0xF7FF) becomes viable.
+
+B. **Accept non-rcbios addresses**.  outcon @ 0xEC80 (in scratch_bss
+   free area, ~237 B available), inconv @ 0xF600..0xF6FF if stack
+   shrunk below; CONFI.COM-style address compat breaks but the
+   functional behaviour (Danish keyboard + US-ASCII output) works.
+   Two LDIRs instead of one.
+
+C. **Skip outcon, ship inconv only** at non-rcbios address.  Drops
+   the user's "both tables always" requirement; defers outcon until
+   layout permits.
+
+Recommendation: A (audit) if user wants the full rcbios layout;
+otherwise B for a working compromise.  The user-confirmed pick was
+A ("1" in the session 73j-late thread) but the audit work itself
+wasn't started.
