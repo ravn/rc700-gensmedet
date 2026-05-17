@@ -349,6 +349,10 @@ $(BUILDDIR)/bios_jt.o: bios_jt.s
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(ASFLAGS) -c $< -o $@
 
+$(BUILDDIR)/xport_jt.o: xport_jt.s
+	@mkdir -p $(BUILDDIR)
+	$(CC) $(ASFLAGS) -c $< -o $@
+
 $(BUILDDIR)/snios.o: snios.s
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(ASFLAGS) -c $< -o $@
@@ -1268,7 +1272,16 @@ DZX0_BIN = $(CURDIR)/../../z88dk/src/zx0/z88dk-dzx0
 prom1-lineprog: $(PROM1ONLY_BIN)
 
 # Re-link the payload objects with init relocated to VMA 0xC000.
-$(PROM1ONLY_PAYLOAD_ELF): $(PAYLOAD_OBJS) $(PROM1ONLY_LD) cpnos-build/d/cpnos.sym
+# PROM1-only is dual-transport: both transport_pio.o and transport_sio.o
+# are linked (transport_sio.o is in PAYLOAD_OBJS and the SIO symbol
+# references in init.c's install_transport() keep it alive under
+# --gc-sections), and xport_jt.o provides 3-byte JP-NN trampolines for
+# _xport_send_byte / _xport_recv_byte that init.c patches at cold-init
+# based on SW1 bit 2 (S03).  TRANSPORT_DEFSYMS is overridden to empty
+# so the legacy --defsym aliases don't clash with the asm-emitted
+# symbols.
+$(PROM1ONLY_PAYLOAD_ELF): TRANSPORT_DEFSYMS =
+$(PROM1ONLY_PAYLOAD_ELF): $(PAYLOAD_OBJS) $(BUILDDIR)/xport_jt.o $(PROM1ONLY_LD) cpnos-build/d/cpnos.sym
 	@mkdir -p $(PROM1ONLY_DIR)
 	@N=$$(perl -ne 'while (/([0-9A-Fa-f]{4})\s+NDOS\b/g) { print "$$1"; last }' cpnos-build/d/cpnos.sym); \
 	 [ -n "$$N" ] || { echo "ERROR: NDOS symbol missing from cpnos.sym"; exit 1; }; \
@@ -1276,7 +1289,7 @@ $(PROM1ONLY_PAYLOAD_ELF): $(PAYLOAD_OBJS) $(PROM1ONLY_LD) cpnos-build/d/cpnos.sy
 	 echo "prom1-lineprog payload.elf: __cpnos_load_end = $$NEND"; \
 	 $(LD) --gc-sections -T $(PROM1ONLY_LD) \
 	    --defsym=__cpnos_load_end=$$NEND \
-	    $(TRANSPORT_DEFSYMS) $(PAYLOAD_OBJS) -o $@
+	    $(TRANSPORT_DEFSYMS) $(PAYLOAD_OBJS) $(BUILDDIR)/xport_jt.o -o $@
 
 $(PROM1ONLY_INIT_BIN): $(PROM1ONLY_PAYLOAD_ELF)
 	$(OBJCOPY) -O binary --only-section=.init $< $@

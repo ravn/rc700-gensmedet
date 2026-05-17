@@ -54,7 +54,8 @@ cpnos).  MAME convention: "On" = bit cleared (default), "Off" = bit set.
 |-----|--------|---------|---------|
 | 0 | S01 | rcbios, cpnos | **Console mode.** On = SIO-B and keyboard both provide input, SIO-B and CRT both receive output (SIO-B writes go into the void if unconnected — harmless). Off = local only (CRT + keyboard, SIO-B ignored). |
 | 1 | S02 | autoload | **PROM1 lineprog enable.** On (default) = autoload checks the PROM1 signature on floppy-boot failure and jumps to the lineprog (e.g. cpnos slave) if present. Off = skip the signature check; halt with `NO DISKETTE NOR LINEPROG` even when a lineprog EPROM is socketed. |
-| 2..6 | S03..S07 | — | unused / reserved |
+| 2 | S03 | cpnos (PROM1-only lineprog build) | **CP/NOS transport.** On (default) = PIO-B (IRQ-driven, 256 B ring). Off = SIO-A (38400 polled). Both transports linked into a single PROM1; a 3-byte JP-NN trampoline pair is patched at cold-init. Bit ignored on the legacy two-PROM build (transport picked at compile time). |
+| 3..6 | S04..S07 | — | unused / reserved |
 | 7 | S08 | rcbios, MAME FDC clock | **Mini/maxi floppy.** On = 5.25″ mini (250 kbps FDC clock); Off = 8″ maxi (500 kbps). Hardware-level; set wrong and the FDC will not read disks. |
 
 Defaults render the same operator-visible behaviour as the original

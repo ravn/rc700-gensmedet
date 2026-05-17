@@ -513,6 +513,39 @@ static void print_banner(void) {
  * netboot completion; resident_handoff (RAM) does the OUT. */
 extern uint8_t console_joined;       /* resident.c -- gated by SW1 bit 0 */
 
+/* xport_jt.s trampolines: 3-byte JP NN each, NN patched at cold-init. */
+extern uint8_t xport_send_byte[];    /* xport_jt.s */
+extern uint8_t xport_recv_byte[];
+extern void transport_pio_send_byte(uint8_t);
+extern uint16_t transport_pio_recv_byte(uint16_t);
+/* SIO transport functions use unprefixed names -- historical artefact;
+ * see transport_sio.c (transport_send_byte / transport_recv_byte). */
+extern void transport_send_byte(uint8_t);
+extern uint16_t transport_recv_byte(uint16_t);
+
+/* Patch the JP NN trampolines in xport_jt.s based on SW1 bit 2 (S03).
+ *   On  (bit=0, default) -> PIO (already the link-time default).
+ *   Off (bit=1)          -> SIO (overwrite NN bytes at +1 / +2).
+ * The address references to the SIO transport functions here are what
+ * keep transport_sio.o alive under --gc-sections in the dual-transport
+ * build.
+ *
+ * Lives in .resident (RAM-loaded by the bootstrap before .init runs)
+ * rather than .init -- the .init region is capped at 640 B by the
+ * linker script and has no room.  Costs ~0 B in .init (just one CALL)
+ * and ~30 B in .resident. */
+SECTION_RESIDENT
+static void install_transport(void) {
+    if (_port_in(PORT_SW1) & 0x04) {
+        uint16_t snd = (uint16_t)&transport_send_byte;
+        uint16_t rcv = (uint16_t)&transport_recv_byte;
+        xport_send_byte[1] = (uint8_t)snd;
+        xport_send_byte[2] = (uint8_t)(snd >> 8);
+        xport_recv_byte[1] = (uint8_t)rcv;
+        xport_recv_byte[2] = (uint8_t)(rcv >> 8);
+    }
+}
+
 SECTION_INIT_TEXT
 NORETURN void cpnos_cold_entry(void) {
     /* Sample SW1 bit 0 (S01) ONCE -- impl_conin / impl_conout are hot.
@@ -520,6 +553,11 @@ NORETURN void cpnos_cold_entry(void) {
      * SIO-B + CRT output); MAME "Off" = bit set = local-only.
      * Must happen before print_banner because that calls impl_conout. */
     console_joined = (_port_in(PORT_SW1) & 0x01) == 0 ? 1 : 0;
+
+    /* SW1 bit 2 (S03): pick the SNIOS byte-transport (PIO vs SIO).
+     * Patches the xport_jt.s trampolines in place; must happen before
+     * any SNIOS call (netboot is downstream). */
+    install_transport();
 
     cfgtbl_init();
     init_hardware();

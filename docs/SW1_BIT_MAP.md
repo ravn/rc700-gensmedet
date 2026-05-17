@@ -13,7 +13,7 @@ behavior wherever a switch hasn't been wired up.
 |------|--------|-----------------------------------------------|---------------------------------------|--------------------------------------|---------------------|
 | 0    | S01    | Console mode                                  | joined (SIO-B+kbd in, SIO-B+CRT out)  | local (CRT+kbd only)                 | rcbios-in-c, cpnos-in-c |
 | 1    | S02    | PROM1 lineprog enable                         | check PROM1 sig; jump if present      | skip check; halt NO DISKETTE-NOR-LINEPROG | autoload-in-c       |
-| 2    | S03    | unused                                        | -                                     | -                                    | -                   |
+| 2    | S03    | CP/NOS transport (PROM1-only lineprog build)  | PIO (Z80-PIO Mode 1, IRQ + 256 B ring) | SIO (SIO-A async 38400 polled)        | cpnos-in-c          |
 | 3    | S04    | unused                                        | -                                     | -                                    | -                   |
 | 4    | S05    | unused                                        | -                                     | -                                    | -                   |
 | 5    | S06    | unused                                        | -                                     | -                                    | -                   |
@@ -72,6 +72,45 @@ MAME models the SEM702 in machine `rc702sem702` (see
 `mame/src/mame/regnecentralen/rc702.cpp`).  Boot that variant when
 you want to exercise the SEM702 display path; baseline `rc702` still
 uses the ROA327 ROM and is unaffected.
+
+## Bit 2 -- CP/NOS transport (cpnos-in-c PROM1-only build)
+
+Spec finalised 2026-05-17:
+
+- **On** (bit=0, default): the cpnos slave drives the SNIOS byte
+  layer through `transport_pio_send_byte` / `transport_pio_recv_byte`
+  (Z80-PIO Mode 1, IRQ-driven 256 B SPSC ring buffer).
+- **Off** (bit=1): the cpnos slave drives the SNIOS byte layer
+  through `transport_send_byte` / `transport_recv_byte` (SIO-A async
+  ~38400 baud, polled, no buffer).
+
+Only effective on the **PROM1-only lineprog build**
+(`make prom1-lineprog` in `cpnos-in-c/`).  The legacy two-PROM
+build (`make cpnos-burn`) still picks the transport at compile time
+via `TRANSPORT=pio-irq` or `TRANSPORT=sio`; bit 2 is ignored there
+because only one transport's code is linked.
+
+Implementation: both `transport_pio.o` and `transport_sio.o` are
+linked into the PROM1-only image.  A 6-byte jump table in
+`src/xport_jt.s` provides `_xport_send_byte` / `_xport_recv_byte`
+as 3-byte `JP NN` trampolines defaulting to the PIO bodies.  At
+cold-init, `install_transport()` (init.c, in `.resident` because
+`.init` was at its 640 B cap) reads SW1 bit 2 and, if set, patches
+the NN bytes to point at the SIO bodies.  Cost: ~69 B of PROM1
+(transport_sio.o + jump table + cold-init patcher).
+
+PROM1 sizes:
+- PIO-only build (`make prom1-lineprog` pre-dual): 1949 / 2048 B
+- Dual-transport build: 2018 / 2048 B (30 B free)
+
+Buffer-sharing question (was the original ask): the SIO transport
+uses no RX buffer (it polls SIO-A directly), so the PIO's 256 B
+`pio_rx_buf` is the only buffer in either path -- nothing to share.
+
+SIO transport selection means SIO-A is the CP/NET wire.  SIO-B
+remains the console serial port (independent chip channel), so
+the bit 0 joined-console mode does not conflict with bit 2 SIO
+transport.
 
 ## Adding new bits
 
