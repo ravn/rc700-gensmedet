@@ -701,6 +701,15 @@ static NORETURN void boot_floppy_or_prom(void) {
         jump_to(*(volatile word *) 0x0000);
     }
 
+    /* Intentional: readable-disk-no-recognised-signature halts here and
+     * does NOT fall back to prom1_if_present().  Unlike the four
+     * floppy-failure paths upstream of this function (drive-not-ready,
+     * format-undetectable, both sides + recalibrate failures), which
+     * all chain to PROM1, a Track 0 we successfully read but cannot
+     * recognise is treated as an inserted stranger's disk -- we refuse
+     * to silently jump into PROM1 (potentially a CP/NET lineprog that
+     * the operator did not intend to run).  Policy confirmed 2026-05-17.
+     * See tasks/timeline.md session 73j follow-up #8. */
     halt_msg(" **NO KATALOG** ", 16);
 }
 

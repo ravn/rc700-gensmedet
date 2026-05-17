@@ -135,18 +135,22 @@ view delay.  Verified end-to-end via MAME snapshot.
    When the floppy is readable but Track 0 has no recognised signature
    (neither ` RC702` CP/M nor ` RC700` ID-COMAL), autoload halts
    instead of falling back to `prom1_if_present()`.  All four other
-   floppy-failure paths *do* try PROM1.  Could be intentional (defend
-   against accidental boot of a stranger's lineprog into a corrupt-disk
-   workflow) or a missed branch.  Decide and either change behaviour
-   or add a code comment locking the policy in.
+   floppy-failure paths *do* try PROM1.  **RESOLVED 2026-05-17:**
+   user-confirmed intentional -- a readable Track 0 we cannot
+   recognise is treated as an inserted stranger's disk, and silently
+   running PROM1 would be a surprise (potentially executing a CP/NET
+   lineprog the operator didn't ask for).  Policy locked in via code
+   comment at rom.c:704; #9 below remains as optional regression
+   coverage.
 
-9. **No MAME test covers the readable-disk-no-signature path.**  We
-   have oracles for "bootable CP/M floppy" (qrtest_run.lua) and "no
-   floppy at all" (sw1-test target); none for a disk that is readable
-   but unrecognised.  Add a fixture (e.g. an IMD file containing a
-   single Track 0 of garbage) and a lua test asserting the "NO
-   KATALOG" string appears in display memory.  Pairs with #8 to make
-   the decision testable.
+9. **No MAME test covers the readable-disk-no-signature path.**
+   Optional after #8's resolution.  We have oracles for "bootable
+   CP/M floppy" (qrtest_run.lua) and "no floppy at all" (sw1-test
+   target); none for a disk that is readable but unrecognised.  Add
+   a fixture (e.g. an IMD file containing a single Track 0 of
+   garbage) and a lua test asserting the `"NO KATALOG"` string
+   appears in display memory + that PROM1 is NOT jumped into.
+   Useful as regression coverage for the locked-in policy from #8.
 
 10. **MAME's `rc702_maxi` / `rc702_mini` DIP label "S02 PROM1=lineprog
     (skip chargen)" is partially stale.**  After session 73j the
