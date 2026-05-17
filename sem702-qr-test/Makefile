@@ -46,7 +46,6 @@ $(WORK_IMD): $(COM) $(FLOPPY)
 	@cpmls -f rc702-8dd "$(WORK_IMD)" | grep -i qrtest || true
 
 run: $(WORK_IMD)
-	@echo QRTEST > /tmp/qrtest_cmd.txt
 	$(MAME)/regnecentralend rc702sem702 -rompath $(MAME)/roms \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 35 \
@@ -56,4 +55,4 @@ run: $(WORK_IMD)
 	@ls -1t snap/qrtest*.png 2>/dev/null | head -1
 
 clean:
-	rm -rf zout $(ASM) $(WORK_IMD) /tmp/qrtest_cmd.txt
+	rm -rf zout $(ASM) $(WORK_IMD)

@@ -1,11 +1,11 @@
--- qrtest_run.lua -- boot CP/M, type the command in /tmp/qrtest_cmd.txt,
--- wait until the .COM paints 0x84 at 0xF800, snapshot, exit.
+-- qrtest_run.lua -- boot CP/M, run QRTEST, snapshot when painted, exit.
 --
--- The Makefile writes the command (e.g. "QRTEST1") to /tmp/qrtest_cmd.txt
--- before each `mame ...` invocation so this single autoboot script can
--- drive any sextant-painting .COM on the floppy.
+-- Waits for the CCP "A>" prompt, posts "QRTEST\r" via natkeyboard,
+-- then watches 0xF800 for the 0x84 field-attribute byte that QRTEST
+-- writes at the start of its paint sequence.  Once seen, settle a
+-- few frames so the rest of the screen lands, then snapshot + exit.
 
-local CMD_PATH       = "/tmp/qrtest_cmd.txt"
+local CMD            = "QRTEST"
 local TIMEOUT_FRAMES = 50 * 30
 local SETTLE_FRAMES  = 12
 
@@ -13,16 +13,6 @@ local frame   = 0
 local typed   = false
 local settle  = 0
 local snapped = false
-local cmd     = "QRTEST1"   -- safe default
-
-do
-    local fh = io.open(CMD_PATH, "r")
-    if fh then
-        local line = fh:read("*l")
-        if line and #line > 0 then cmd = line end
-        fh:close()
-    end
-end
 
 local function space()
     return manager.machine.devices[":maincpu"].spaces["program"]
@@ -50,16 +40,15 @@ emu.register_frame_done(function()
     if not typed then
         if at_prompt() then
             typed = true
-            print(string.format("[qrtest_run] CCP prompt at frame %d, typing %s", frame, cmd))
-            manager.machine.natkeyboard:post(cmd .. "\r")
+            print(string.format("[qrtest_run] CCP prompt at frame %d, typing %s", frame, CMD))
+            manager.machine.natkeyboard:post(CMD .. "\r")
         end
     elseif painted() then
         settle = settle + 1
         if settle >= SETTLE_FRAMES then
             snapped = true
             manager.machine.video:snapshot()
-            print(string.format("[qrtest_run] snapshot at frame %d (cmd=%s)", frame, cmd))
-            manager.machine:popmessage("snapshot taken: " .. cmd)
+            print(string.format("[qrtest_run] snapshot at frame %d", frame))
             manager.machine:exit()
         end
     end
