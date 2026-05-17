@@ -38,7 +38,31 @@ Empirical inputs from session 73j-late:
   * Makefile target: `COMPILER=sdcc make sdcc-resident-zx0-probe`
   * Measured: 2192 B raw -> 1554 B ZX0 (-29%, roundtrip OK)
 
-## Stage 2 (IN PROGRESS): relink SDCC with PROM1-only sections
+## Stage 2 + 3 (DONE): two-pass build pipeline emits prom1-lineprog.bin
+
+`make sdcc-prom1lineprog COMPILER=sdcc` now produces a complete image:
+
+  * pass 1: zcc -create-app links with empty init.zx0 / payload.zx0
+    placeholders; emits per-section .bin files including
+    `cpnos_lp_INIT_CODE.bin` (653 B at VMA 0xC000) and
+    `cpnos_lp_RESIDENT_JUMPTABLE.bin` (2190 B at VMA 0xED00).
+  * ZX0 compress + z88dk-dzx0 roundtrip-verify both blobs:
+      init    653 -> 562 B (-14%)
+      payload 2190 -> 1552 B (-29%)
+  * pass 2: zcc relinks with real ZX0 blobs INCBIN'd via
+    init_zx0.asm + payload_zx0.asm.
+  * Final image: cpnos_lp_LINEPROG_HEADER.bin = 2216 B raw,
+    padded to 4 KB at sdcc-prom1lineprog/prom1-lineprog.bin.
+
+Image contents (LMA 0x2000):
+    0x2000+0: bootstrap_entry word (= 0x2008)
+    0x2002:   " RC702" signature (autoload-in-c detection contract)
+    0x2008+:  bootstrap.asm code (~30 B)
+    + dzx0_standard (~69 B)
+    + init.zx0 (562 B INCBIN)
+    + payload.zx0 (1552 B INCBIN)
+
+## Stage 4 (NEXT): MAME boot verification
 
   * Makefile target: `COMPILER=sdcc make sdcc-prom1lineprog-try`
   * Current state: gets past the relocator.c (excluded via

@@ -1459,6 +1459,8 @@ SDCC_LP_DIR = sdcc-prom1lineprog
 SDCC_LP_ASM_SRCS = $(SDCC_LP_DIR)/sections.asm \
                    $(SDCC_LP_DIR)/bootstrap.asm \
                    $(SDCC_LP_DIR)/dzx0_standard.asm \
+                   $(SDCC_LP_DIR)/init_zx0.asm \
+                   $(SDCC_LP_DIR)/payload_zx0.asm \
                    sdcc/bios_jt.asm sdcc/snios.asm sdcc/hal.asm \
                    sdcc/runtime.asm
 
@@ -1466,17 +1468,61 @@ SDCC_LP_ASM_SRCS = $(SDCC_LP_DIR)/sections.asm \
 # relocator.c references _payload_header which we drop.
 SDCC_LP_C_OBJS = $(filter-out $(BUILDDIR)/relocator.o,$(SDCC_C_OBJS))
 
-.PHONY: sdcc-prom1lineprog-try
-sdcc-prom1lineprog-try: $(SDCC_LP_C_OBJS) $(BUILDDIR)/cpnos_layout.asm $(BUILDDIR)/xport_aliases.asm
+.PHONY: sdcc-prom1lineprog sdcc-prom1lineprog-try
+sdcc-prom1lineprog-try: sdcc-prom1lineprog
+
+# Two-pass build (mirrors clang's clang-prom1lineprog two-pass):
+#   pass 1: link with empty init.zx0 / payload.zx0 -> extract real
+#           init_code.bin + resident.bin from per-section .bin output
+#   ZX0:    compress + roundtrip verify
+#   pass 2: relink -- INCBIN now picks up real ZX0 blobs
+#   pad:    output the final 4 KB sdcc-prom1lineprog/prom1-lineprog.bin
+sdcc-prom1lineprog: $(SDCC_LP_C_OBJS) $(BUILDDIR)/cpnos_layout.asm $(BUILDDIR)/xport_aliases.asm \
+                    $(SDCC_LP_DIR)/sections.asm $(SDCC_LP_DIR)/bootstrap.asm \
+                    $(SDCC_LP_DIR)/dzx0_standard.asm \
+                    $(SDCC_LP_DIR)/init_zx0.asm $(SDCC_LP_DIR)/payload_zx0.asm
 	@mkdir -p $(SDCC_LP_DIR)
-	@echo "=== stage 2: relink SDCC with PROM1-only sections layout ==="
-	cd $(BUILDDIR) && $(CC) $(ZFLAGS_BASE) $(SDCC_ZLFLAGS) \
+	@# Ensure ZX0 placeholders exist before pass 1
+	@touch $(SDCC_LP_DIR)/init.zx0 $(SDCC_LP_DIR)/payload.zx0
+	@echo "=== sdcc-prom1lineprog pass 1: link with empty ZX0 ==="
+	@cd $(BUILDDIR) && $(CC) $(ZFLAGS_BASE) $(SDCC_ZLFLAGS) \
 	    $(addprefix ../,$(SDCC_LP_ASM_SRCS)) \
-	    xport_aliases.asm \
-	    cpnos_layout.asm \
+	    xport_aliases.asm cpnos_layout.asm \
 	    $(notdir $(SDCC_LP_C_OBJS)) \
-	    -o cpnos_lp 2>&1 | tail -30
-	@ls -la $(BUILDDIR)/cpnos_lp_*.bin 2>&1 | head
+	    -o cpnos_lp > /tmp/sdcc_lp_pass1.log 2>&1 || { \
+	      tail -30 /tmp/sdcc_lp_pass1.log; exit 1; }
+	@echo "=== sdcc-prom1lineprog ZX0 compress + roundtrip ==="
+	$(ZX0_BIN) -f $(BUILDDIR)/cpnos_lp_INIT_CODE.bin $(SDCC_LP_DIR)/init.zx0
+	@rm -f /tmp/sdcc_lp_init_rt.bin
+	$(DZX0_BIN) $(SDCC_LP_DIR)/init.zx0 /tmp/sdcc_lp_init_rt.bin
+	cmp $(BUILDDIR)/cpnos_lp_INIT_CODE.bin /tmp/sdcc_lp_init_rt.bin || \
+	    { echo "FAIL: SDCC init.zx0 roundtrip"; exit 1; }
+	$(ZX0_BIN) -f $(BUILDDIR)/cpnos_lp_RESIDENT_JUMPTABLE.bin $(SDCC_LP_DIR)/payload.zx0
+	@rm -f /tmp/sdcc_lp_payload_rt.bin
+	$(DZX0_BIN) $(SDCC_LP_DIR)/payload.zx0 /tmp/sdcc_lp_payload_rt.bin
+	cmp $(BUILDDIR)/cpnos_lp_RESIDENT_JUMPTABLE.bin /tmp/sdcc_lp_payload_rt.bin || \
+	    { echo "FAIL: SDCC payload.zx0 roundtrip"; exit 1; }
+	@echo "=== sdcc-prom1lineprog pass 2: relink with real ZX0 ==="
+	@cd $(BUILDDIR) && $(CC) $(ZFLAGS_BASE) $(SDCC_ZLFLAGS) \
+	    $(addprefix ../,$(SDCC_LP_ASM_SRCS)) \
+	    xport_aliases.asm cpnos_layout.asm \
+	    $(notdir $(SDCC_LP_C_OBJS)) \
+	    -o cpnos_lp > /tmp/sdcc_lp_pass2.log 2>&1 || { \
+	      tail -30 /tmp/sdcc_lp_pass2.log; exit 1; }
+	@cp $(BUILDDIR)/cpnos_lp_LINEPROG_HEADER.bin $(SDCC_LP_DIR)/prom1-lineprog.bin
+	@SZ=$$(wc -c < $(SDCC_LP_DIR)/prom1-lineprog.bin | tr -d ' '); \
+	 echo "  raw: $$SZ B"; \
+	 PAD=4096; \
+	 if [ $$SZ -gt $$PAD ]; then \
+	   echo "ERROR: SDCC PROM1-only image > $$PAD B; bump pad or shrink"; exit 1; \
+	 fi; \
+	 { cat $(SDCC_LP_DIR)/prom1-lineprog.bin; \
+	   perl -e "print \"\\xff\" x ($$PAD - $$SZ)"; } > $(SDCC_LP_DIR)/prom1-lineprog.bin.tmp; \
+	 mv $(SDCC_LP_DIR)/prom1-lineprog.bin.tmp $(SDCC_LP_DIR)/prom1-lineprog.bin; \
+	 echo "  padded: $$(wc -c < $(SDCC_LP_DIR)/prom1-lineprog.bin | tr -d ' ') B (target $$PAD)"; \
+	 echo "  init.zx0:    $$(wc -c < $(SDCC_LP_DIR)/init.zx0 | tr -d ' ') B"; \
+	 echo "  payload.zx0: $$(wc -c < $(SDCC_LP_DIR)/payload.zx0 | tr -d ' ') B"
+	@echo "wrote $(SDCC_LP_DIR)/prom1-lineprog.bin"
 endif
 
 # ---- SDCC PROM1-only line program (WIP) ---------------------------

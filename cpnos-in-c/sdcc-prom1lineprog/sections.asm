@@ -55,18 +55,45 @@
     SECTION RESIDENT_CHECKSUM
 
     ; SCRATCH_BSS layout matches clang-prom1lineprog/payload.ld v3:
+    ;   0xEA00 .. 0xEA23  bss_ivt (36 B IM2 vector table, page-aligned)
     ;   0xEB00 .. 0xEBFF  scratch_bss (shrunk from 0x200)
     ;   0xEC00 .. 0xECFF  pio_rx_buf (moved from 0xF700)
     ;   0xF53C .. 0xF60D  cfgtbl (moved out of scratch_bss)
     ;   0xF680 .. 0xF7FF  locale tables (installed from cpnos.img prefix)
+
+    ; IM2 IVT -- 36 B at the head of a page so `I = HIGH(__ivt_start)`
+    ; = 0xEA suffices.  Page-aligned by `org 0xEA00`.
+    SECTION bss_ivt
+    org 0xEA00
+    PUBLIC __ivt_start
+    PUBLIC __ivt_end
+__ivt_start:
+    defs 36
+__ivt_end:
+
     SECTION SCRATCH_BSS
     org 0xEB00
 
     SECTION bss_compiler
     SECTION bss_clib
+    SECTION bss_string
 
-    SECTION CFGTBL_BSS
-    org 0xF53C
-
-    SECTION PIO_RX_BSS
+    ; PIO-B receive ring -- page-aligned 256-byte buffer at 0xEC00.
+    ; ISR reads via `ld h, _pio_rx_buf_page; ld l, head/tail`, so the
+    ; buffer MUST be page-aligned and _pio_rx_buf_page is derived
+    ; from the actual placement (no hardcoded literal).
+    SECTION bss_pio_rx
     org 0xEC00
+    align 256
+    PUBLIC _pio_rx_buf
+_pio_rx_buf:
+    defs 256
+
+    PUBLIC _pio_rx_buf_page
+    defc _pio_rx_buf_page = _pio_rx_buf / 256
+
+    ; cfgtbl moved out of scratch_bss to its own pinned region.
+    ; init.c::cfgtbl has SECTION_BSS_CFGTBL attribute which maps to
+    ; `bss.cfgtbl` under clang; the SDCC compat shim uses .bss_cfgtbl.
+    SECTION bss_cfgtbl
+    org 0xF53C
