@@ -37,6 +37,22 @@ bootstrap_entry:
 	ld	hl, __init_zx0_start
 	ld	de, 0xC000
 	call	dzx0_standard
+	; Pre-fill outcon at 0xF680..0xF6FF with byte-identity (0..0x7F).
+	; This makes impl_conout pass chars through during the cold-boot
+	; window before install_locale_tables() runs in resident_handoff
+	; -- netboot's loading-dot progress on row 1 + any other pre-
+	; install conout writes render as their literal byte instead of
+	; indexing into a still-zero table (which previously turned the
+	; whole cold-boot phase into NUL spew when sentinel=1).  L wraps
+	; from 0xFF to 0x00 inside a single 256 B page (HL stays in
+	; 0xF6xx), so we only need to test A for the 0x80 sentinel.
+	ld	hl, 0xF680
+	xor	a
+.fill_outcon:
+	ld	(hl), a
+	inc	l
+	inc	a
+	jp	p, .fill_outcon
 	; Sentinel is NOT written here.  init.c arms it between
 	; print_banner() and netboot_mpm(); writing it in bootstrap
 	; made impl_conout index a still-empty outcon at 0xF680 during
