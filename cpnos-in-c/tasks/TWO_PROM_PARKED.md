@@ -1,17 +1,28 @@
-# cpnos-in-c two-PROM build: PARKED 2026-05-17
+# cpnos-in-c two-PROM build: PARKED 2026-05-17 (status: BROKEN, no plans to revive)
 
 ## TL;DR
 
 **The two-PROM build (`make cpnos-install`, `cpnos-shared/ld/payload.ld`,
-`cpnos-shared/relocator.c`) is no longer the production target.  The
-production target is autoload-in-c (ROA375) in PROM 0 + cpnos-in-c
-PROM1-only line program (`make prom1-lineprog`) in PROM 1.**
+`src/relocator.c`) is parked.  The only supported slave topology is
+autoload-in-c (ROA375) in PROM 0 + cpnos-in-c PROM1-only line program
+(`make prom1-lineprog`) in PROM 1.**
 
-Two-PROM still builds, still passes `cpnos-polypascal-test`, and still
-mirrors the production layout (locale tables, da_US banner tag, all
-of session 73j-locale).  It is kept around for the SDCC test path
-ONLY -- see "why two-PROM survives" below.  Do not invest in it as
-the primary slave topology.
+Two-PROM is BROKEN as of session 73j-locale's late-cycle refactor:
+the locale pre-init machinery moved from bootstrap.s + relocator.c
+into `cpnos_cold_entry()` (init.c) so both compilers + both cold
+paths share one C site.  Two-PROM still ROUTES through that function
+on clang, so clang two-PROM may compile -- but no one is testing it
+anymore.  SDCC two-PROM gets an `_get_img_base` link error in
+`init.c` (sdcc/init.o cannot resolve the symbol via the two-PROM
+relocator link); fixing it has no value because two-PROM is parked.
+
+User directive 2026-05-17:
+  > please park the two-prom scenario.  it is only the autoload+
+  > cpnos scenario that interests e
+
+So: ALL effort on cpnos targets autoload+PROM1-only.  Once SDCC ZX0
+lands (`tasks/todo-sdcc-zx0-2026-05-17.md`), `make prom1-lineprog`
+gains a SDCC variant; two-PROM is then deleteable.
 
 ## Why two-PROM survives
 

@@ -321,42 +321,12 @@ NORETURN void relocate(void) {
         for (;;) { }
     }
 
-    /* Pre-fill outcon at 0xF680..0xF6FF with byte-identity (0..0x7F)
-     * and arm the locale-tables sentinel before jumping to cold_entry.
-     * Matches PROM1-only's bootstrap.s: the resident payload itself is
-     * identical between the two cold paths (cpnos-shared/ld/payload.ld
-     * == clang-prom1lineprog/payload.ld in layout), only the pre-init
-     * differs.  install_locale_tables() in resident_handoff overlays
-     * the real US-ASCII outcon + Danish inconv from cpnos.img once
-     * netboot lands them at 0xDC00.
-     *
-     * Inline asm because the relocator's .text/.rodata region is
-     * capped at 672 B and clang's loop lowering pushes it over -- the
-     * hand-rolled 10-byte loop matches bootstrap.s and is essentially
-     * free against that budget.  Sentinel address comes in via
-     * --defsym=_prom1_only_sentinel=... in the Makefile relocator-link
-     * step.
-     *
-     * Clang-only: two-PROM is the production target for clang, but
-     * parked for SDCC (see tasks/TWO_PROM_PARKED.md).  SDCC's inline-
-     * asm syntax (`__asm ... __endasm`) is incompatible with clang's
-     * GAS-style `__asm__ volatile`; gate to keep the SDCC two-PROM
-     * path compilable.  When SDCC ZX0 lands and the SDCC slave moves
-     * to PROM1-only, this two-PROM path won't matter for SDCC. */
-#if defined(__clang__) && defined(__z80__)
-    __asm__ volatile (
-        "ld   hl, 0xF680\n\t"
-        "xor  a\n\t"
-        "1:\n\t"
-        "ld   (hl), a\n\t"
-        "inc  l\n\t"
-        "inc  a\n\t"
-        "jp   p, 1b\n\t"
-        "ld   a, 0x5A\n\t"
-        "ld   (_prom1_only_sentinel), a\n\t"
-        : : : "a", "h", "l", "memory"
-    );
-#endif
+    /* Locale-tables pre-init (outcon identity pre-fill at 0xF680,
+     * sentinel write) is NOT done here.  It lives in cpnos_cold_entry
+     * (init.c) so the SAME code runs for both two-PROM (this
+     * relocator) and PROM1-only (clang-prom1lineprog/bootstrap.s
+     * which also jumps into cpnos_cold_entry).  Keeps the cold-init
+     * logic compiler-agnostic -- clang and SDCC share init.c. */
 
     /* JP cold entry.
      *

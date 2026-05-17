@@ -37,32 +37,11 @@ bootstrap_entry:
 	ld	hl, __init_zx0_start
 	ld	de, 0xC000
 	call	dzx0_standard
-	; Pre-fill outcon at 0xF680..0xF6FF with byte-identity (0..0x7F).
-	; This makes impl_conout pass chars through during the cold-boot
-	; window before install_locale_tables() runs in resident_handoff
-	; -- netboot's loading-dot progress on row 1 + any other pre-
-	; install conout writes render as their literal byte instead of
-	; indexing into a still-zero table (which previously turned the
-	; whole cold-boot phase into NUL spew when sentinel=1).  L wraps
-	; from 0xFF to 0x00 inside a single 256 B page (HL stays in
-	; 0xF6xx), so we only need to test A for the 0x80 sentinel.
-	ld	hl, 0xF680
-	xor	a
-.fill_outcon:
-	ld	(hl), a
-	inc	l
-	inc	a
-	jp	p, .fill_outcon
-	; Stamp the PROM1-only sentinel into resident BSS.  The outcon
-	; pre-fill above means impl_conout's sentinel-gated table lookup
-	; sees identity bytes (banner + netboot dots both render through
-	; the table as their literal byte), so it's now safe to arm here
-	; rather than between print_banner() and netboot_mpm() in init.c.
-	; Two-PROM cold-init never writes this byte -- it has no bootstrap.s
-	; -- so install_locale_tables() is a no-op there, leaving the
-	; pio_rx_buf at 0xF700 intact for the IRQ ring.
-	ld	a, 0x5A
-	ld	(_prom1_only_sentinel), a
+	; Locale-tables pre-init (outcon identity pre-fill + sentinel
+	; write) used to live here, in clang-only asm.  It moved to
+	; cpnos_cold_entry() in init.c so the same C code runs on both
+	; the PROM1-only (this bootstrap) and two-PROM (relocator.c)
+	; cold paths, and on both compilers (clang + SDCC).
 	; Tail-call into init.  cpnos_cold_entry is NORETURN; it ends
 	; with resident_handoff which RAMENs and JPs to NDOS at 0xDD80.
 	jp	0xC000

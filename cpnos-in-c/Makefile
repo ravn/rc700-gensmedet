@@ -596,12 +596,9 @@ $(BUILDDIR)/payload_a.bin $(BUILDDIR)/payload_b.bin: $(BUILDDIR)/payload.bin
 $(BUILDDIR)/relocator.elf: $(RELOC_OBJS) $(RELOC_LD) $(BUILDDIR)/payload.elf
 	@stack=$$($(NM) $(BUILDDIR)/payload.elf | awk '/ __stack_top$$/ {print "0x"$$1}'); \
 	 test -n "$$stack" || { echo "ERROR: __stack_top not found in payload"; exit 1; }; \
-	 sentinel=$$($(NM) $(BUILDDIR)/payload.elf | awk '/ _prom1_only_sentinel$$/ {print "0x"$$1}'); \
-	 test -n "$$sentinel" || { echo "ERROR: _prom1_only_sentinel not found"; exit 1; }; \
-	 echo "relocator: __stack_top=$$stack _prom1_only_sentinel=$$sentinel"; \
+	 echo "relocator: __stack_top=$$stack (other metadata via payload_header)"; \
 	 $(LD) --gc-sections -T $(RELOC_LD) \
 	       --defsym=__stack_top=$$stack \
-	       --defsym=_prom1_only_sentinel=$$sentinel \
 	       $(RELOC_OBJS) -o $@
 
 # ---- Produce prom0.bin / prom1.bin (clang only) -------------------

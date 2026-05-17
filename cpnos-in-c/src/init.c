@@ -439,19 +439,13 @@ static uint16_t netboot_mpm(void) {
     BOOT_MARK(11, 'O');              /* OPEN ok */
 
     /* --- READ-SEQ loop -------------------------------------------- */
-    /* Runtime IMG_BASE: PROM1-only build shifts down by 384 B for the
-     * locale prefix; two-PROM doesn't.  Branch lives in get_img_base()
-     * (.resident) to keep this .init function under the 640 B cap.
-     *
-     * SDCC two-PROM build is parked -- get_img_base is a clang-only
-     * resident symbol; on SDCC fall back to the unshifted address
-     * so the file at least compiles.  See tasks/TWO_PROM_PARKED.md. */
-#ifdef __clang__
+    /* Runtime IMG_BASE: PROM1-only build shifts down by 384 B for
+     * the locale prefix; two-PROM does too once both relocators
+     * set the sentinel.  Branch lives in get_img_base() (.resident)
+     * to keep this .init function under the 640 B cap.  Both
+     * compilers export the symbol (sdcc/cpnos.map confirmed). */
     extern uint8_t *get_img_base(void);
     uint8_t *dma = get_img_base();
-#else
-    uint8_t *dma = (uint8_t *)CPNOS_NDOS_ADDR;
-#endif
     for (;;) {
         reuse_fcb();
         uint8_t rc = cpnet_xact(20, 36);
@@ -585,6 +579,31 @@ static void install_transport(void) {
 
 SECTION_INIT_TEXT
 NORETURN void cpnos_cold_entry(void) {
+    /* Locale-tables pre-init: byte-identity outcon at 0xF680..0xF6FF
+     * + sentinel armed.  This used to live in PROM1-only's bootstrap.s
+     * (asm) and the two-PROM relocator.c (clang-only inline asm); both
+     * call paths now share this one C site so the SDCC two-PROM build
+     * gets locale support without per-compiler asm.
+     *
+     * Why HERE: cpnos_cold_entry is the first place after the cold
+     * paths converge.  print_banner (the next call after these few
+     * SW1 reads) goes through impl_conout, which uses the outcon
+     * table at 0xF680 when the sentinel is set -- pre-filling with
+     * identity bytes lets the banner render as its literal characters
+     * before install_locale_tables() overlays the real US-ASCII
+     * outcon in resident_handoff.  Sentinel set here also flips
+     * get_img_base() into "shift IMG_BASE down by 384 B" mode so
+     * netboot lands the cpnos.img locale prefix at 0xDC00.
+     *
+     * Costs ~25 B init.c .text via the compiled for-loop; within the
+     * 640 B .init region budget on both compilers. */
+    {
+        uint8_t *outcon = (uint8_t *)0xF680;
+        for (uint8_t i = 0; i < 128; i++) outcon[i] = i;
+        extern uint8_t prom1_only_sentinel;
+        prom1_only_sentinel = 0x5A;
+    }
+
     /* Sample SW1 bit 0 (S01) ONCE -- impl_conin / impl_conout are hot.
      * MAME "On" = bit clear = joined console (SIO-B + keyboard input,
      * SIO-B + CRT output); MAME "Off" = bit set = local-only.
