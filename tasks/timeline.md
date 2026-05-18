@@ -1,5 +1,140 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73k: rcbios CP/NET PIO transport + cpnos __sfr port-IO + single MAME tree (May 18, 2026) — Hard
+
+End state: both clang and SDCC BIOS variants of rcbios run a full
+PolyPascal PRIMES regression over CP/NET via the new PIO transport
+in `cpnet/snios.asm`, end-to-end through CPNETLDR / LOGIN / NETWORK
+/ H: drive change / PolyPascal load from master / PRIMES through
+29989 / Q return to CCP.  cpnos's PROM1-only build also got its
+own polypascal-test green for both compilers via a content-driven
+`xport_aliases.asm` regen.
+
+### What landed (commits on `main`)
+
+  - **`754b901`** `cpnos: __sfr-backed IO_WRITE/IO_READ macros for
+    compile-time-constant ports` — closed ravn/z88dk#9.  SDCC
+    PROM1-only resident: 2196 -> 2120 B (-76 B raw, -39 B post-ZX0).
+    All 18 of cpnos's `_port_out`/`_port_in` indirect helper calls
+    now lower to bare `OUT (n),A` / `IN A,(n)`.  Audit guard
+    confirms zero helper calls remain.
+
+  - **`732f2b0`** `cpnos-polypascal-test: drive PROM1-only topology,
+    single MAME tree` — `cpnos-polypascal-test` no longer chains
+    through the parked two-PROM `cpnos-install` (broken at
+    `__stack_top` since `a6b8948`).  New install path: autoload-in-c
+    clang ROA375 -> PROM0 + cpnos lineprog -> PROM1 + locale-prefixed
+    cpnos.img on mpm-net2 disk.  `MAME_IRQ` consolidated into single
+    `MAME` tree.
+
+  - **`e26dfff`** `cpnos: SDCC PROM1-only polypascal-test PASS —
+    content-driven xport_aliases regen` — root cause of the SDCC
+    "LOGIN hang" was a stale `sdcc/xport_aliases.asm` newer than its
+    `transport_stamp` mtime, generated for `TRANSPORT=sio` while the
+    build ran `TRANSPORT=pio-irq`.  Slave's SNIOS dispatched CP/NET
+    frames to SIO-A (raw file sink) instead of PIO.  Decisive
+    diagnostic: TCP MITM tap between MAME and mpm-net2 captured
+    "S>M: 00" then silence.  Switched the .asm regeneration rule
+    from mtime-dep to `$(shell) + grep` of an embedded `TRANSPORT=`
+    marker.
+
+  - **`fe95af8`** `cpnet/snios.asm: dual SIO+PIO transport, runtime
+    select via SW1 bit 2` — rcbios CP/NET driver gains a PIO
+    transport mirroring cpnos's `transport_pio.c`.  `SENDBY` /
+    `RECVBY` / `RECVBT` become 3-byte `JP nn` trampolines; NTWKIN
+    reads SW1 bit 2 and patches the operand in place.  PIO impl:
+    direct Mode 1 input + IRQ ring buffer (256 B SPSC) installed at
+    IVT slot 17.  SNIOS code 673 -> 1149 B, SPR file 1024 -> 1664 B.
+
+  - **`496f687`** `cpnet/polypascal_pio_test: SDCC BIOS PASS — fix
+    SDCC build path + byte pacing + CR` — `rcbios-in-c/sdcc/Makefile`
+    repathed the helper-call-guard from pre-split
+    `cpnos-rom/tasks/scripts/check_no_helper_calls.py` to its
+    post-split home `cpnos-shared/scripts/check_no_helper_calls.py`.
+    Without this the SDCC BIOS build silently failed and tests ran
+    against stale BIOS.
+
+  - **`86ab3b8`** `cpnet/polypascal_pio_test: keep PPAS inject +
+    record investigation` — final form of the rcbios CP/NET PIO
+    PolyPascal regression test.  Mirrors cpnos's
+    `polypascal_test.lua` pattern: SUB carries CPNETLDR / LOGIN /
+    NETWORK / H:; injector picks up at H>, types `PPAS\r`, drives
+    interactive L PRIMES / R / Q.  Both compilers green (clang
+    10.50 s, SDCC 10.71 s).
+
+### Bugs / issues filed at ravn/z88dk
+
+  - **#8** zsdcc switch with tail-callable case bodies emits a dead
+    `jp` block after default `ret`.  Concrete repro in 15 lines;
+    36 B unreachable in cpnos's `_specc`.
+  - **#9** (closed) inline port-IO intrinsic / address_space — user
+    pointed out `__sfr __at` already handles this; commit `754b901`
+    uses that idiom.
+  - **#10** zsdcc IX-frame fallback for cross-call spills; spends
+    ~17 B prologue/epilogue on functions that just need to save one
+    byte across a single call (`_scroll_lines`).  Structural; filed
+    for tracking, not blocking.
+
+### Memory rules filed this session
+
+  - **`feedback_build_var_artifacts_content_check`** — generated
+    files whose content depends on a Make-level variable
+    (`TRANSPORT`, `COMPILER`, build-info-string, ...) must regen via
+    parse-time content-check, not mtime dep on a stamp file.  Bitten
+    twice in one session (xport_aliases.asm + buildinfo.h -> .o
+    dependency).  Diagnostic shortcut: `head -1 generated.file`.
+
+  - **`feedback_verify_pass_condition`** — when a test prints PASS,
+    cross-check elapsed time vs plausibility + scan post-test
+    artefact for setup-step evidence + look for working-reference
+    example.  False-positive bitten when polypascal-PIO "PASS"ed in
+    4.55 s by short-circuit (PPAS staged on local A:, CP/NET never
+    ran; CPNETLDR/LOGIN/NETWORK ran AFTER the inject had declared
+    PASS).  Workaround without explanation = red flag.
+
+### Key decisions
+
+  | Decision | Rationale |
+  | -------- | --------- |
+  | rcbios SNIOS gains PIO as opt-in via SW1 bit 2 (default = PIO) | Matches cpnos's canonical convention in `docs/SW1_BIT_MAP.md`; future hardware likely wired PIO; existing SIO users flip S03=Off |
+  | Self-modifying `JP nn` trampoline dispatch | Same idiom cpnos uses for xport_aliases; zero per-call overhead once patched at NTWKIN |
+  | ISR ring buffer is SNIOS-local (256 B in SPR data) | Avoids the IVT-page constraint cpnos pio_rx_buf hits; SPR relocation bitmap handles ISR address fixup |
+  | PPAS launched via injector typed-with-CR, not SUB | cpnos's polypascal_test.lua pattern; SUB-fed PPAS works through TCP proxy but is brittle direct -- byte-timing on CP/NET PIO load |
+  | Single MAME tree (was MAME + MAME_IRQ) | Cross-tree sync clobbered freshly-installed PROMs; consolidation eliminates that class of stale-ROM trap |
+  | Content-check, not mtime-check, for build-var artifacts | mtime drifts through interrupted builds, sub-makes, ad-hoc target invocations; embedded marker is authoritative |
+
+### Test snapshot (post-session)
+
+  | Test                              | clang   | SDCC    |
+  | --------------------------------- | ------- | ------- |
+  | cpnos-polypascal-test             | 51.33 s | 49.67 s |
+  | cpnet/polypascal_pio_test.sh      | 10.50 s | 10.71 s |
+  | cpnos pio-irq-netboot             | PASS    | PASS    |
+
+### Painful moments
+
+  - **False-positive PASS** (motivated `feedback_verify_pass_condition`):
+    polypascal-PIO "PASSed" in 4.55 s; I committed it.  Reality: PPAS
+    was staged on local A: as a "workaround" for a SUB-order bug I
+    hadn't understood, so the test ran PolyPascal purely on CP/M with
+    CP/NET never engaged.  Caught by user pushback "I am not sure you
+    are bringing in the latest work in the cpnet driver to rcbios" and
+    later "do ppas sdcc and clang run to completion".  Lesson +
+    rule filed.
+
+  - **Stale Makefile path** in `rcbios-in-c/sdcc/Makefile` pointed at
+    pre-split `cpnos-rom/...` that no longer exists; SDCC BIOS build
+    silently failed; tests ran against stale clang BIOS and reported
+    bogus SDCC results.  Fixed; rule already covered by
+    `feedback_check_banner_timestamp`.
+
+  - **Multiple investigation pivots on "what's wrong with SDCC".**
+    Misdiagnosed as "PIO drive-change hang" -> "SDCC SIO RX drops CR"
+    -> "stale BIOS".  Real cause was always stale builds; the
+    pretty-asm-debugging detours cost ~2 hours.  User correction
+    "if you have no idea what the problem is, stop and investigate"
+    was the right course adjustment.
+
 ## Session 73j: SEM702 RAM chargen in MAME + autoload sextants + QR test (May 17, 2026) — Medium
 
 End state: MAME `rc702sem702` machine variant models the SEM702
