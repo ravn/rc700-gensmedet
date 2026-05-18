@@ -13,48 +13,30 @@
 #   MAME            — primary MAME tree path
 #   MAME_PROM0      — destination path for prom0 install
 #   MAME_PROM1      — destination path for prom1 install
-#   MAME_ROMS_DIR   — alternate MAME tree's rc702 roms dir
+#   MAME_ROMS_DIR   — alias for $(MAME)/roms/rc702 (legacy name)
 #
-# MAME_IRQ is a separate alternate-tree handle that recipes probe for
-# (used by pio-irq targets that need cpnet_bridge instrumentation).  The
-# includer sets it; if undefined or non-existent at install time the
-# recipes degrade gracefully.
+# Single MAME tree (was two: MAME + MAME_IRQ, consolidated 2026-05-18
+# after user noted the dual maintenance was a footgun -- polypascal-test's
+# cross-tree sync clobbered freshly-installed PROMs).
 
-MAME           ?= /Users/ravn/git/mame
+MAME           ?= $(CURDIR)/../../mame
 MAME_PROM0     ?= $(MAME)/roms/rc702/roa375.ic66
 MAME_PROM1     ?= $(MAME)/roms/rc702/prom1.ic65
-MAME_ROMS_DIR  ?= $(CURDIR)/../../mame/roms/rc702
+MAME_ROMS_DIR  ?= $(MAME)/roms/rc702
 
 # ---- MAME ROM install --------------------------------------------------
 #
 # Two halves: install (cpnos-mame-install) and verify (verify-mame-roms-current).
 # Used as a pre-flight check before any direct MAME launch (`regnecentralend`
 # outside Make).  HARD RULE feedback_check_banner_timestamp.md.
-#
-# Mirrors to MAME_IRQ tree if it exists -- pio-irq targets and
-# cpnos-bios-jt-trace launch from there; an ad-hoc `regnecentralend`
-# against MAME_IRQ would otherwise pick up whatever the previous
-# polypascal-test left in $(MAME_IRQ)/roms/rc702 and silently boot a
-# stale build.  Conditional `-d` check so the rule passes when MAME_IRQ
-# doesn't exist on a given checkout.
 
 $(MAME_PROM0): $(BUILDDIR)/prom0_padded.ic66
 	cp $< $@
-	@if [ -n "$(MAME_IRQ)" ] && [ -d $(MAME_IRQ)/roms/rc702 ]; then \
-	    cp $@ $(MAME_IRQ)/roms/rc702/$(notdir $@); \
-	    echo "installed cpnos prom0 -> $@ (+ MAME_IRQ)"; \
-	else \
-	    echo "installed cpnos prom0 -> $@"; \
-	fi
+	@echo "installed cpnos prom0 -> $@"
 
 $(MAME_PROM1): $(BUILDDIR)/prom1.bin
 	cp $< $@
-	@if [ -n "$(MAME_IRQ)" ] && [ -d $(MAME_IRQ)/roms/rc702 ]; then \
-	    cp $@ $(MAME_IRQ)/roms/rc702/$(notdir $@); \
-	    echo "installed cpnos prom1 -> $@ (+ MAME_IRQ)"; \
-	else \
-	    echo "installed cpnos prom1 -> $@"; \
-	fi
+	@echo "installed cpnos prom1 -> $@"
 
 .PHONY: cpnos-mame-install
 cpnos-mame-install: $(MAME_PROM0) $(MAME_PROM1)

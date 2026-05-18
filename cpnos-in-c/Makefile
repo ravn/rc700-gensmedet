@@ -880,23 +880,23 @@ _check-tag-not-pio-irq:
 # on pio-mpm-irq-fix branch).  We check by source-grep, not by binary
 # inspection — robust against the binary being rebuilt without the fix.
 _check-mame-irq:
-	@if [ ! -x $(MAME_IRQ)/regnecentralend ]; then \
-	    echo "FAIL: $(MAME_IRQ)/regnecentralend not found or not executable"; \
+	@if [ ! -x $(MAME)/regnecentralend ]; then \
+	    echo "FAIL: $(MAME)/regnecentralend not found or not executable"; \
 	    exit 1; \
 	fi
-	@if [ ! -f $(MAME_IRQ)/src/devices/bus/rc702/pio_port/cpnet_bridge.cpp ]; then \
-	    echo "FAIL: $(MAME_IRQ) is not a MAME tree (no cpnet_bridge.cpp)"; \
+	@if [ ! -f $(MAME)/src/devices/bus/rc702/pio_port/cpnet_bridge.cpp ]; then \
+	    echo "FAIL: $(MAME) is not a MAME tree (no cpnet_bridge.cpp)"; \
 	    exit 1; \
 	fi
-	@if ! grep -q 'm_brdy_high' $(MAME_IRQ)/src/devices/bus/rc702/pio_port/cpnet_bridge.cpp; then \
-	    echo "FAIL: $(MAME_IRQ) cpnet_bridge.cpp missing the gate fix."; \
+	@if ! grep -q 'm_brdy_high' $(MAME)/src/devices/bus/rc702/pio_port/cpnet_bridge.cpp; then \
+	    echo "FAIL: $(MAME) cpnet_bridge.cpp missing the gate fix."; \
 	    echo "      Need branch with poll_tick gated on m_brdy_high"; \
 	    echo "      (commit 60e2b9a032f on ravn/mame:pio-mpm-irq-fix)."; \
 	    exit 1; \
 	fi
-	@if [ ! $(MAME_IRQ)/regnecentralend -nt $(MAME_IRQ)/src/devices/bus/rc702/pio_port/cpnet_bridge.cpp ]; then \
-	    echo "FAIL: $(MAME_IRQ)/regnecentralend is older than cpnet_bridge.cpp."; \
-	    echo "      Rebuild MAME (cd $(MAME_IRQ) && make)."; \
+	@if [ ! $(MAME)/regnecentralend -nt $(MAME)/src/devices/bus/rc702/pio_port/cpnet_bridge.cpp ]; then \
+	    echo "FAIL: $(MAME)/regnecentralend is older than cpnet_bridge.cpp."; \
+	    echo "      Rebuild MAME (cd $(MAME) && make)."; \
 	    exit 1; \
 	fi
 
@@ -1040,7 +1040,10 @@ sio-smoke:
 #
 # Pass criterion: boot-strip column 18 = 'J' (NDOS COLDST reached) and
 # clean A> on SIO-B.
-MAME_IRQ ?= $(CURDIR)/../../mame
+# MAME_IRQ removed 2026-05-18 -- consolidated to single MAME tree.  All
+# previous $(MAME_IRQ) references rewritten to $(MAME); the cross-tree
+# sync steps that clobbered freshly-installed PROMs are now no-ops and
+# stripped below.  See common.mk for the canonical $(MAME) default.
 pio-irq-netboot: cpnos-install _check-tag-pio-irq _check-mame-irq
 	@echo "=== 1/4 restarting MP/M with fresh disks ==="
 	$(MAKE) _kill-mpm
@@ -1048,12 +1051,9 @@ pio-irq-netboot: cpnos-install _check-tag-pio-irq _check-mame-irq
 	@echo "=== 2/4 waiting for MP/M CP/NET server on :4002 ==="
 	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
 	@sleep 2
-	@echo "=== 3/4 syncing ROMs to IRQ-fix MAME tree ==="
-	cp $(MAME)/roms/rc702/roa375.ic66 $(MAME_IRQ)/roms/rc702/roa375.ic66
-	cp $(MAME)/roms/rc702/prom1.ic65  $(MAME_IRQ)/roms/rc702/prom1.ic65
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_screen.txt /tmp/cpnos_boot_marks.txt
 	@echo "=== 4/4 launching MAME (PIO-B -> mpm-net2 :4002) ==="
-	-$(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
+	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 30 \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
@@ -1094,9 +1094,6 @@ pio-irq-smoke: cpnos-install _check-tag-pio-irq _check-mame-irq
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
 	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
 	@sleep 2
-	@echo "=== 3/5 syncing ROMs to IRQ-fix MAME tree ==="
-	cp $(MAME)/roms/rc702/roa375.ic66 $(MAME_IRQ)/roms/rc702/roa375.ic66
-	cp $(MAME)/roms/rc702/prom1.ic65  $(MAME_IRQ)/roms/rc702/prom1.ic65
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_wboot.txt /tmp/cpnos_boot_result.txt \
 	    /tmp/cpnos_smoke_inject.log /tmp/cpnos_boot_marks.txt
 	@echo "=== 4/5 launching smoke_inject + MAME (workload: $(WORKLOAD)) ==="
@@ -1106,7 +1103,7 @@ pio-irq-smoke: cpnos-install _check-tag-pio-irq _check-mame-irq
 	    > /tmp/cpnos_smoke_inject.log 2>&1 & \
 	 echo $$! > /tmp/cpnos_smoke_inject.pid
 	@sleep 0.4
-	-$(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
+	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 1200 \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
@@ -1141,9 +1138,6 @@ cpnos-polypascal-test-no-mirror:
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt
-	@echo "=== 4/4 syncing ROMs to IRQ-fix MAME tree ==="
-	cp $(MAME)/roms/rc702/roa375.ic66 $(MAME_IRQ)/roms/rc702/roa375.ic66
-	cp $(MAME)/roms/rc702/prom1.ic65  $(MAME_IRQ)/roms/rc702/prom1.ic65
 	@KH=$$($(NM) $(BUILDDIR)/payload.elf | awk '/_kbd_head$$/{print $$1}'); \
 	 KR=$$($(NM) $(BUILDDIR)/payload.elf | awk '/_kbd_ring$$/{print $$1}'); \
 	 printf 'return {\n  kbd_head = 0x%s,\n  kbd_ring = 0x%s,\n}\n' "$$KH" "$$KR" \
@@ -1151,9 +1145,9 @@ cpnos-polypascal-test-no-mirror:
 	@cat $(BUILDDIR)/cpnos_polypascal_addrs.lua
 	@echo "=== launching MAME with no-mirror PolyPascal test driver ==="
 	-COMPILER=$(COMPILER) \
-	MAME_BIN=$(MAME_IRQ)/regnecentralend \
+	MAME_BIN=$(MAME)/regnecentralend \
 	$(CURDIR)/../scripts/mame_capture.sh polypascal_no_mirror_$(COMPILER)_$(TRANSPORT) -- \
-	    rc702 -rompath $(MAME_IRQ)/roms \
+	    rc702 -rompath $(MAME)/roms \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 240 \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
@@ -1168,49 +1162,48 @@ cpnos-polypascal-test-no-mirror:
 	@grep -q '^PASS' /tmp/cpnos_polypascal_result.txt 2>/dev/null
 
 cpnos-polypascal-test:
-	@# Build + install cpnos.com onto the mpm-net2 library disk BEFORE
-	@# starting cpmsim.  cpmsim opens the disk image at startup and
-	@# caches sector reads internally; if we update the disk file via
-	@# `cpmcp` AFTER cpmsim has it open, mpm-net2 happily serves the
-	@# pre-update bytes -- the slave then netboots a stale cpnos.com
-	@# whose NDOS / BDOS addresses don't match the freshly-built
-	@# cpnos_addrs.h, the post-handoff JP lands in the wrong place,
-	@# and the slave warm-boots back to its own banner without ever
-	@# reaching E>.  Symptom in /tmp/cpnos_siob.raw: slave banner with
-	@# the current build's timestamp + 25 netboot dots + a SECOND,
-	@# OLDER banner from the previous build.  Fixed 2026-05-08 by
-	@# moving the install BEFORE the cpmsim restart so mpm-net2 reads
-	@# fresh disk content.
-	@echo "=== 1/4 building cpnos-rom with MIRROR_SIOB=1 + installing ==="
-	$(MAKE) MIRROR_SIOB=1 cpnos-install
-	@echo "=== 2/4 (re)starting MP/M with fresh disks ==="
+	@# PROM1-only topology (session 73j-end onwards): autoload-in-c
+	@# ROA375 in PROM0 + cpnos-in-c PROM1 line program in PROM1.  The
+	@# two-PROM cpnos build is PARKED (see cpnos-in-c/TWO_PROM_PARKED.md)
+	@# so this target no longer drives cpnos-install (which would fail
+	@# in the sdcc/cpnos.cim link at __stack_top).  cpnos-disk-install
+	@# is still needed: mpm-net2 serves the 384 B locale-prefix +
+	@# cpnos.com image to the slave at handoff (locale tables travel
+	@# with the disk image, not the PROM).
+	@#
+	@# PROM0 (autoload-in-c ROA375) is assumed already installed in
+	@# MAME's roms/rc702/roa375.ic66 by `cd ../autoload-in-c && make
+	@# clang_prom` (or the SDCC equivalent).  We don't touch it here --
+	@# only PROM1 gets swapped in by this target.
+	@echo "=== 1/5 building prom1-lineprog ($(COMPILER)) + installing ==="
+	$(MAKE) MIRROR_SIOB=1 prom1-lineprog-install
+	@echo "=== 2/5 refreshing disk-side cpnos.img (locale prefix) ==="
+	$(MAKE) MIRROR_SIOB=1 cpnos-disk-install
+	@echo "=== 3/5 (re)starting MP/M with fresh disks ==="
 	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
-	@echo "=== 3/4 waiting for MP/M CP/NET server on :4002 ==="
+	@echo "=== 4/5 waiting for MP/M CP/NET server on :4002 ==="
 	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt
-	@echo "=== 4/4 syncing ROMs to IRQ-fix MAME tree ==="
-	cp $(MAME)/roms/rc702/roa375.ic66 $(MAME_IRQ)/roms/rc702/roa375.ic66
-	cp $(MAME)/roms/rc702/prom1.ic65  $(MAME_IRQ)/roms/rc702/prom1.ic65
-	@echo "=== generating $(BUILDDIR)/cpnos_polypascal_addrs.lua ==="
+	@echo "=== 5/5 generating $(BUILDDIR)/cpnos_polypascal_addrs.lua ==="
 ifeq ($(COMPILER),sdcc)
-	@# z88dk's `cpnos.map` lines look like:
+	@# z88dk's prom1-lineprog map `sdcc/cpnos_lp.map` lines look like:
 	@#   _kbd_head    = $ED10 ; addr, public, ...
 	@KH=$$(awk '/^_kbd_head[ \t]+=[ \t]+\$$/ {gsub(/.*\$$|[ \t].*/,"",$$0); print $$0}' \
-	         $(BUILDDIR)/cpnos.map | head -1); \
+	         $(BUILDDIR)/cpnos_lp.map | head -1); \
 	 KR=$$(awk '/^_kbd_ring[ \t]+=[ \t]+\$$/ {gsub(/.*\$$|[ \t].*/,"",$$0); print $$0}' \
-	         $(BUILDDIR)/cpnos.map | head -1); \
+	         $(BUILDDIR)/cpnos_lp.map | head -1); \
 	 [ -n "$$KH" ] && [ -n "$$KR" ] || { \
-	   echo "ERROR: kbd_head/kbd_ring missing from $(BUILDDIR)/cpnos.map"; exit 1; }; \
+	   echo "ERROR: kbd_head/kbd_ring missing from $(BUILDDIR)/cpnos_lp.map"; exit 1; }; \
 	 printf 'return {\n  kbd_head = 0x%s,\n  kbd_ring = 0x%s,\n}\n' "$$KH" "$$KR" \
 	   > $(BUILDDIR)/cpnos_polypascal_addrs.lua
 else
-	@KH=$$($(NM) $(BUILDDIR)/payload.elf | awk '/_kbd_head$$/{print $$1}'); \
-	 KR=$$($(NM) $(BUILDDIR)/payload.elf | awk '/_kbd_ring$$/{print $$1}'); \
+	@KH=$$($(NM) $(PROM1ONLY_PAYLOAD_ELF) | awk '/_kbd_head$$/{print $$1}'); \
+	 KR=$$($(NM) $(PROM1ONLY_PAYLOAD_ELF) | awk '/_kbd_ring$$/{print $$1}'); \
 	 [ -n "$$KH" ] && [ -n "$$KR" ] || { \
-	   echo "ERROR: kbd_head/kbd_ring missing from payload.elf"; exit 1; }; \
+	   echo "ERROR: kbd_head/kbd_ring missing from $(PROM1ONLY_PAYLOAD_ELF)"; exit 1; }; \
 	 printf 'return {\n  kbd_head = 0x%s,\n  kbd_ring = 0x%s,\n}\n' "$$KH" "$$KR" \
 	   > $(BUILDDIR)/cpnos_polypascal_addrs.lua
 endif
@@ -1222,9 +1215,9 @@ ifeq ($(TRANSPORT),sio)
 	@# raw TCP console socket (z80pack cpmsim net_server.conf), which
 	@# accepts byte pass-through identically to the PIO cpnet_bridge.
 	-COMPILER=$(COMPILER) \
-	MAME_BIN=$(MAME_IRQ)/regnecentralend \
+	MAME_BIN=$(MAME)/regnecentralend \
 	$(CURDIR)/../scripts/mame_capture.sh polypascal_$(COMPILER)_$(TRANSPORT) -- \
-	    rc702 -rompath $(MAME_IRQ)/roms \
+	    rc702 -rompath $(MAME)/roms \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 240 \
 	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
@@ -1232,9 +1225,9 @@ ifeq ($(TRANSPORT),sio)
 	    -autoboot_script $(SHARED)/mame/polypascal_test.lua
 else
 	-COMPILER=$(COMPILER) \
-	MAME_BIN=$(MAME_IRQ)/regnecentralend \
+	MAME_BIN=$(MAME)/regnecentralend \
 	$(CURDIR)/../scripts/mame_capture.sh polypascal_$(COMPILER)_$(TRANSPORT) -- \
-	    rc702 -rompath $(MAME_IRQ)/roms \
+	    rc702 -rompath $(MAME)/roms \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 240 \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
@@ -1277,11 +1270,8 @@ cpnos-bios-jt-trace:
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       /tmp/cpnos_bios_jt_trace.log
-	@echo "=== syncing ROMs to IRQ-fix MAME tree ==="
-	cp $(MAME)/roms/rc702/roa375.ic66 $(MAME_IRQ)/roms/rc702/roa375.ic66
-	cp $(MAME)/roms/rc702/prom1.ic65  $(MAME_IRQ)/roms/rc702/prom1.ic65
 	@echo "=== 4/4 launching MAME with BIOS-JT trace lua (~30s) ==="
-	-$(MAME_IRQ)/regnecentralend rc702 -rompath $(MAME_IRQ)/roms \
+	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 30 \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
@@ -1542,6 +1532,42 @@ prom1-lineprog: $(SDCC_LP_C_OBJS) $(BUILDDIR)/cpnos_layout.asm $(BUILDDIR)/xport
 	 echo "  payload.zx0: $$(wc -c < $(SDCC_LP_DIR)/payload.zx0 | tr -d ' ') B"
 	@echo "wrote $(SDCC_LP_DIR)/prom1-lineprog.bin"
 endif
+
+# ---- prom1-lineprog → MAME install --------------------------------
+#
+# Installs the full PROM1-only topology into MAME's roms/rc702/:
+#   PROM0 (roa375.ic66) <- autoload-in-c/clang/prom.clang.bin (autoload)
+#   PROM1 (prom1.ic65)  <- freshly-built prom1-lineprog.bin (clang or SDCC)
+#
+# Parallel to cpnos-mame-install but for the PROM1-only topology
+# (session 73j-end onwards).  The two-PROM cpnos-mame-install is
+# parked alongside the two-PROM build (TWO_PROM_PARKED.md).
+.PHONY: prom1-lineprog-mame-install prom1-lineprog-install autoload-prom-install
+ifeq ($(COMPILER),clang)
+PROM1LP_SRC = $(PROM1ONLY_BIN)
+else
+PROM1LP_SRC = $(SDCC_LP_DIR)/prom1-lineprog.bin
+endif
+
+# Build + install autoload-in-c's clang PROM as PROM0.  Delegates to
+# autoload-in-c's Makefile which writes to $(MAME)/roms/rc702/roa375.ic66
+# directly (its own MAME default resolves to the same tree this Makefile
+# uses post-consolidation).
+#
+# COMPILER=clang is HARD-PINNED — autoload's SDCC variant is 2214 B
+# (won't fit the 2 KB hard PROM0 limit per project_rc702_2kb_prom_hard_limit),
+# and the lineprog topology already requires clang's autoload (the only
+# combination tested to work at session 73j-end).  Doesn't matter what
+# COMPILER cpnos itself is built with -- PROM0 is always the clang
+# autoload, PROM1 is the cpnos lineprog (clang or SDCC).
+autoload-prom-install:
+	$(MAKE) -C ../autoload-in-c COMPILER=clang prom
+
+prom1-lineprog-mame-install: prom1-lineprog
+	cp $(PROM1LP_SRC) $(MAME_PROM1)
+	@echo "installed prom1-lineprog ($(COMPILER)) -> $(MAME_PROM1)"
+
+prom1-lineprog-install: autoload-prom-install prom1-lineprog-mame-install cpnos-disk-install
 
 # ---- SDCC PROM1-only line program (WIP) ---------------------------
 #
