@@ -85,27 +85,34 @@ Relocation bitmap correctly tracks the ISR address (the only
 new IVT-bound relocatable).  Build's own simulated-load test
 confirms NTWKIN's JP target relocates correctly.
 
-## Runtime testing -- next session
+## Runtime testing
 
-Not yet run on a real boot.  Needs:
+Done.  `cpnet/polypascal_pio_test.sh` (added 2026-05-18, refined
+2026-05-19) drives the full rcbios + PIO + PolyPascal regression
+against z80pack mpm-net2:
 
-  * MAME built with cpnet_bridge (already current).
-  * Reference disk image (~/Downloads/SW1711-I8.imd or similar)
-    that `cpnet/run_test.sh` expects.
-  * z80pack MP/M running on `:4002` (PIO mode) or null_modem TCP
-    server (SIO mode).
+  | BIOS  | Result   |
+  | ----- | -------- |
+  | clang | PASS 10.50 s |
+  | SDCC  | PASS 10.71 s |
 
-Test plan:
+Stages: CPNETLDR -> LOGIN PASSWORD -> NETWORK H:=A: -> H: (first
+remote-drive SELDSK) -> PPAS launch (typed via SIO-B injector with
+explicit CR; see `polypascal_pio_inject.py`) -> L PRIMES (PPAS.COM
+loaded from H: over CP/NET PIO) -> R -> PRIMES output through 29989
+-> Q -> H>.
 
-  1. **SIO regression** (`cpnet/chksum_roundtrip_test.sh`):
-     set SW1 bit 2 = Off (=1) so the new NTWKIN takes the SIO
-     branch and behaves identically to pre-2026-05-18 SNIOS.
-     Confirms the SIO path didn't regress in the refactor.
+Open follow-up: PPAS-launched-from-`$$$.SUB` works through a TCP
+proxy but not direct-to-mpm.  Documented in
+`cpnet/todo-ppas-sub-direct-vs-proxy-2026-05-19.md`.  Not blocking
+-- the inject-typed-with-CR path is robust.
 
-  2. **PIO new path**: same test with SW1 bit 2 = On (=0, default)
-     and a PIO-wired test topology (`-piob cpnet_bridge`).
-     Confirms the SENDBY/RECVBY dispatcher patch + ISR + ring
-     buffer work end-to-end against MP/M.
+SIO regression (`cpnet/chksum_roundtrip_test.sh` with SW1 bit 2 =
+Off) is also still expected to pass but hasn't been re-run this
+session; the SIO code-path was preserved verbatim in the
+refactor and the dispatcher patch is bottom-up content-checked at
+NTWKIN, so a regression on SIO would manifest as a NTWKIN-time
+failure visible in the dispatch (SENDBY/RECVBY/RECVBT) JP-targets.
 
 ## Memory rules invoked
 
