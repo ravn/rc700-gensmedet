@@ -31,8 +31,8 @@
  * console byte to the null-modem log. */
 RESIDENT
 static void console_putc(uint8_t c) {
-    while ((_port_in(PORT_SIO_B_CTRL) & SIO_RR0_TX_BUF_EMPTY) == 0) { }
-    _port_out(PORT_SIO_B_DATA, c);
+    while ((IO_READ(SIO_B_CTRL) & SIO_RR0_TX_BUF_EMPTY) == 0) { }
+    IO_WRITE(SIO_B_DATA, c);
 }
 #endif
 
@@ -165,7 +165,7 @@ uint8_t *get_img_base(void) {
 
 RESIDENT
 uint8_t impl_const(void) {
-    if (_port_in(PORT_SIO_B_CTRL) & SIO_RR0_RX_CHAR_AVAIL) {
+    if (IO_READ(SIO_B_CTRL) & SIO_RR0_RX_CHAR_AVAIL) {
         return 0xFF;
     }
     if (kbd_head != kbd_tail) {
@@ -370,7 +370,7 @@ static void specc(uint8_t c) {
     case 0x02: delete_line();          break;
     case 0x05: cursor_left();          break;  /* ENQ = BS */
     case 0x06: start_xy();             break;
-    case 0x07: _port_out(PORT_BIB, 0); break;  /* bell */
+    case 0x07: IO_WRITE(BIB, 0); break;  /* bell */
     case 0x08: cursor_left();          break;
     case 0x09: tab();                  break;
     case 0x0A: cursor_down();          break;
@@ -406,9 +406,9 @@ RESIDENT
 static void sync_cursor_if_dirty(void) {
     if (cur_dirty) {
         cur_dirty = 0;
-        _port_out(PORT_CRT_CMD, 0x80);     /* 8275 'load cursor position' */
-        _port_out(PORT_CRT_PARAM, curx);
-        _port_out(PORT_CRT_PARAM, cury);
+        IO_WRITE(CRT_CMD, 0x80);     /* 8275 'load cursor position' */
+        IO_WRITE(CRT_PARAM, curx);
+        IO_WRITE(CRT_PARAM, cury);
     }
 }
 
@@ -426,8 +426,8 @@ uint8_t impl_conin(void) {
     uint8_t use_inconv = (prom1_only_sentinel == 0x5A);
     for (;;) {
         if (console_joined &&
-            (_port_in(PORT_SIO_B_CTRL) & SIO_RR0_RX_CHAR_AVAIL)) {
-            uint8_t c = _port_in(PORT_SIO_B_DATA);
+            (IO_READ(SIO_B_CTRL) & SIO_RR0_RX_CHAR_AVAIL)) {
+            uint8_t c = IO_READ(SIO_B_DATA);
             return use_inconv ? inconv[c] : c;
         }
         if (kbd_head != kbd_tail) {

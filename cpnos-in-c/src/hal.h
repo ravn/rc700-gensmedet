@@ -50,12 +50,12 @@ static inline void _port_out(uint8_t p, uint8_t v) {
 }
 
 #elif defined(__SDCC) || defined(__SCCZ80)
-/* SDCC / sccz80: __sfr requires a constant address, so per-port
- * helpers don't compose into a runtime-port call.  Instead provide
- * extern functions implemented in hal_sdcc.s — same call-shape,
- * costs ~17 T-states per call (CALL + asm body + RET) versus ~12 T
- * inline.  Fine on boot init paths.  Hot-path SDCC code can still
- * use __sfr __at directly if it must shave the call. */
+/* SDCC / sccz80: __sfr requires a literal constant address; doesn't
+ * compose into a runtime-port call.  Keep the extern function for the
+ * one runtime-port site (port_init's loop in init.c) and provide
+ * __sfr-backed `IO_WRITE` / `IO_READ` macros for the common
+ * compile-time-constant ports (ravn/z88dk#9).  Per port: ~3 B saved
+ * vs `call __port_out` indirection (~50+ B across the build). */
 extern uint8_t _port_in (uint8_t p);
 extern void    _port_out(uint8_t p, uint8_t v);
 
@@ -101,6 +101,56 @@ enum : uint8_t {
     PORT_RAMEN        = 0x18,   /* any write disables both PROMs */
     PORT_BIB          = 0x1C
 };
+
+/* ================================================================
+ * Per-port IO_WRITE / IO_READ.
+ *
+ * SDCC path uses `__sfr __at <literal>` so `IO_WRITE(name, v)` lowers
+ * to a bare `out (n),a` (2 B) instead of `ld l,v; ld a,p; call __port_out`
+ * (7 B + 5 B helper).  Resolves ravn/z88dk#9.
+ *
+ * clang path delegates to `_port_out` / `_port_in`, which the address_space(2)
+ * inliner above already collapses to inline IN/OUT.
+ *
+ * Macro takes a bare port suffix (e.g. `PIO_B_CTRL`, not `PORT_PIO_B_CTRL`);
+ * SDCC binds it to the `__sfr` variable, clang re-prefixes to look up
+ * the enum value.
+ *
+ * Coverage: only ports actually written from C are declared.  Adding a new
+ * one is a one-line `__sfr __at 0xNN _io_NAME;` + matching enum entry.
+ * `_Static_assert` keeps the two in sync.
+ * ================================================================ */
+
+#if defined(__SDCC) && !defined(__clang__)
+__sfr __at 0x00 _io_CRT_PARAM;
+__sfr __at 0x01 _io_CRT_CMD;
+__sfr __at 0x08 _io_SIO_A_DATA;
+__sfr __at 0x09 _io_SIO_B_DATA;
+__sfr __at 0x0A _io_SIO_A_CTRL;
+__sfr __at 0x0B _io_SIO_B_CTRL;
+__sfr __at 0x11 _io_PIO_B_DATA;
+__sfr __at 0x13 _io_PIO_B_CTRL;
+__sfr __at 0x14 _io_SW1;
+__sfr __at 0x18 _io_RAMEN;
+__sfr __at 0x1C _io_BIB;
+
+_Static_assert(PORT_CRT_PARAM  == 0x00 && PORT_CRT_CMD   == 0x01 &&
+               PORT_SIO_A_DATA == 0x08 && PORT_SIO_B_DATA == 0x09 &&
+               PORT_SIO_A_CTRL == 0x0A && PORT_SIO_B_CTRL == 0x0B &&
+               PORT_PIO_B_DATA == 0x11 && PORT_PIO_B_CTRL == 0x13 &&
+               PORT_SW1        == 0x14 && PORT_RAMEN     == 0x18 &&
+               PORT_BIB        == 0x1C,
+               "hal.h: __sfr __at literals out of sync with PORT_* enum");
+
+#define IO_WRITE(name, v)  (_io_##name = (v))
+#define IO_READ(name)      (_io_##name)
+
+#else
+/* clang Z80 (inline IN/OUT via address_space(2)) or host LSP stubs:
+ * use the existing _port_out/_port_in path. */
+#define IO_WRITE(name, v)  _port_out(PORT_##name, (v))
+#define IO_READ(name)      _port_in (PORT_##name)
+#endif
 
 /* SIO RR0 bits (status register 0, shared by both channels) */
 enum : uint8_t {

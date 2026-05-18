@@ -293,8 +293,8 @@ static void init_hardware(void) {
 
     /* Drain any stray RX on the SIOs (RRs can latch error bits from
      * reset that block subsequent transmits until cleared by read). */
-    (void)_port_in(PORT_SIO_A_CTRL);
-    (void)_port_in(PORT_SIO_B_CTRL);
+    (void)IO_READ(SIO_A_CTRL);
+    (void)IO_READ(SIO_B_CTRL);
 
     /* Clear display with spaces so subsequent CONOUT output is
      * readable against a blank background.  Call into resident.c's
@@ -570,7 +570,7 @@ extern uint16_t transport_recv_byte(uint16_t);
  * and ~30 B in .resident. */
 SECTION_RESIDENT
 static void install_transport(void) {
-    if (_port_in(PORT_SW1) & 0x04) {
+    if (IO_READ(SW1) & 0x04) {
         /* Write the JP-NN target as a single 16-bit store per slot.
          * Pointer-aliasing through uint16_t* lets clang -Oz emit
          * Z80's `LD (nn),HL` (3 B) instead of two `LD (nn),A` (6 B).
@@ -614,7 +614,7 @@ NORETURN void cpnos_cold_entry(void) {
      * MAME "On" = bit clear = joined console (SIO-B + keyboard input,
      * SIO-B + CRT output); MAME "Off" = bit set = local-only.
      * Must happen before print_banner because that calls impl_conout. */
-    console_joined = (_port_in(PORT_SW1) & 0x01) == 0 ? 1 : 0;
+    console_joined = (IO_READ(SW1) & 0x01) == 0 ? 1 : 0;
 
     /* SW1 bit 2 (S03): pick the SNIOS byte-transport (PIO vs SIO).
      * Patches the xport_jt.s trampolines in place; must happen before

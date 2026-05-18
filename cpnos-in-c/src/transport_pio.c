@@ -99,8 +99,8 @@ extern volatile uint8_t pio_rx_buf[PIO_RX_BUF_SIZE];
 RESIDENT
 static void pio_b_set_output(void) {
     if (pio_b_dir == PIO_DIR_OUTPUT) return;
-    _port_out(PORT_PIO_B_CTRL, PIO_IE_DISABLE);
-    _port_out(PORT_PIO_B_CTRL, PIO_MODE_OUTPUT);
+    IO_WRITE(PIO_B_CTRL, PIO_IE_DISABLE);
+    IO_WRITE(PIO_B_CTRL, PIO_MODE_OUTPUT);
     pio_b_dir = PIO_DIR_OUTPUT;
 }
 
@@ -119,10 +119,10 @@ static void pio_b_set_input(void) {
      * Final 0x83 re-asserts IE on, so isr_pio_par fires once per
      * real chip strobe and pushes the latched byte into pio_rx_buf
      * for snios's transport_pio_recv_byte to pop. */
-    _port_out(PORT_PIO_B_CTRL, PIO_MODE_INPUT);
-    _port_out(PORT_PIO_B_CTRL, PIO_IE_ENABLE_RESET);
-    _port_out(PORT_PIO_B_CTRL, PIO_INT_MASK_NONE);
-    _port_out(PORT_PIO_B_CTRL, PIO_IE_ENABLE);
+    IO_WRITE(PIO_B_CTRL, PIO_MODE_INPUT);
+    IO_WRITE(PIO_B_CTRL, PIO_IE_ENABLE_RESET);
+    IO_WRITE(PIO_B_CTRL, PIO_INT_MASK_NONE);
+    IO_WRITE(PIO_B_CTRL, PIO_IE_ENABLE);
     pio_b_dir = PIO_DIR_INPUT;
 }
 
@@ -156,12 +156,12 @@ RESIDENT
 PRESERVES_REGS_CLANG("d", "e", "h", "l", "b", "c")
 void transport_pio_send_byte(uint8_t c) {
     if (pio_b_dir == PIO_DIR_OUTPUT) {
-        _port_out(PORT_PIO_B_DATA, c);
+        IO_WRITE(PIO_B_DATA, c);
         return;
     }
-    _port_out(PORT_PIO_B_CTRL, PIO_IE_DISABLE);
-    _port_out(PORT_PIO_B_DATA, c);              /* preload m_output */
-    _port_out(PORT_PIO_B_CTRL, PIO_MODE_OUTPUT); /* fires callback with c */
+    IO_WRITE(PIO_B_CTRL, PIO_IE_DISABLE);
+    IO_WRITE(PIO_B_DATA, c);              /* preload m_output */
+    IO_WRITE(PIO_B_CTRL, PIO_MODE_OUTPUT); /* fires callback with c */
     pio_b_dir = PIO_DIR_OUTPUT;
 }
 

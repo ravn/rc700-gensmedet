@@ -379,7 +379,7 @@ NORETURN
 void resident_handoff(uint16_t entry) {
     /* Disable the PROMs -- exposes RAM underneath for the TPA and
      * netboot-loaded image.  We're at 0xED00 (RAM); still running. */
-    _port_out(PORT_RAMEN, 0x00);
+    IO_WRITE(RAMEN, 0x00);
     BOOT_MARK(16, 'P');                /* PROMs disabled */
 
     /* Install locale tables from cpnos.img prefix.  PROM1-only-only:

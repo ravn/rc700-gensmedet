@@ -30,15 +30,15 @@
 RESIDENT
 PRESERVES_REGS_CLANG("d", "e", "h", "l", "b", "c")
 void transport_send_byte(uint8_t c) {
-    while ((_port_in(PORT_SIO_A_CTRL) & SIO_RR0_TX_BUF_EMPTY) == 0) { }
-    _port_out(PORT_SIO_A_DATA, c);
+    while ((IO_READ(SIO_A_CTRL) & SIO_RR0_TX_BUF_EMPTY) == 0) { }
+    IO_WRITE(SIO_A_DATA, c);
 }
 
 RESIDENT
 uint16_t transport_recv_byte(uint16_t timeout_ticks) {
     while (timeout_ticks--) {
-        if (_port_in(PORT_SIO_A_CTRL) & SIO_RR0_RX_CHAR_AVAIL) {
-            return _port_in(PORT_SIO_A_DATA);
+        if (IO_READ(SIO_A_CTRL) & SIO_RR0_RX_CHAR_AVAIL) {
+            return IO_READ(SIO_A_DATA);
         }
     }
     return TRANSPORT_TIMEOUT;
