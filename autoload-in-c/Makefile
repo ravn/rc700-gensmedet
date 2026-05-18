@@ -214,6 +214,7 @@ clang/prom.clang.bin: $(CLANG_OBJS) $(CLANG_ZX0_OBJS) clang/rc700_prom.ld
 	@echo "=== ZX0 compress ==="
 	$(Z88DK_ZX0) -f clang/text_raw.bin clang/text_compressed.zx0
 	@echo "=== roundtrip verify: z88dk-dzx0 must reproduce pass-1 .text exactly ==="
+	@rm -f clang/text_roundtrip.bin
 	$(Z88DK_DZX0) clang/text_compressed.zx0 clang/text_roundtrip.bin
 	cmp clang/text_raw.bin clang/text_roundtrip.bin \
 	    || { echo "FAIL: ZX0 roundtrip mismatch -- compressed blob would not unpack correctly at boot"; exit 1; }
