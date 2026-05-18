@@ -30,11 +30,12 @@ RESULT = '/tmp/cpnet_pio_polypascal_result.txt'
 STAGES = [
     # (deadline_sec, marker,         cmd_to_send_after, name)
     # Stage 0: wait for slave to reach H> after SUB-driven CPNETLDR /
-    # LOGIN / NETWORK / H:, then type 'PPAS' WITH CR so PolyPascal
-    # launches.  PPAS isn't in the SUB because SUB records have no
-    # terminator and rcbios SDCC's CCP-vs-SUB path doesn't auto-fire
-    # the line without an explicit CR (clang BIOS does, hence the
-    # earlier compiler-asymmetric "hang").
+    # LOGIN / NETWORK / H:, then type 'PPAS' WITH CR.  PPAS isn't in
+    # the SUB itself -- the SUB-record path lacks a reliable
+    # line-terminator semantics across CCP/CP/NET timing variations
+    # (without a TCP proxy between MAME's cpnet_bridge and mpm-net2,
+    # the PPAS.COM load over CP/NET stalls).  Mirrors cpnos's
+    # polypascal_test.lua which also injects PPAS as a typed command.
     (60.0,           b'H>',          b'PPAS\r',         'wait H> then send PPAS'),
     (90.0,           b'>>',          b'L PRIMES\r',     'initial PPAS prompt / L PRIMES'),
     (90.0,           b'>>',          b'R\r',            'post-load prompt / R'),

@@ -85,12 +85,14 @@ def rec(cmd):
 #                -- earlier suspect-of-hanging, but in fact works fine;
 #                the previous 'Bdos Err' was the SUB record order being
 #                reversed)
-# PPAS is launched by polypascal_pio_inject.py (the injector types
-# 'PPAS\\r' after seeing H>, with explicit CR) -- not from the SUB.
-# Rationale: SUB records have no terminator and clang's CCP auto-runs
-# them, but SDCC's BIOS-side line handling waits for an explicit CR.
-# Keeping CR-bearing input in the injector avoids the CCP-vs-SUB
-# divergence between compilers.
+# CCP $$$.SUB exec is BOTTOM-UP: pops the last record first.
+# PPAS is NOT in the SUB -- per cpnos's polypascal_test.lua reference,
+# program-launch commands go through the keyboard injector (with
+# explicit CR) so the slave's CCP handles them like a typed command.
+# SUB-fed PPAS works in some MAME/timing configurations but not all:
+# without a TCP-proxy between MAME's cpnet_bridge and mpm-net2 the
+# byte timing breaks the PPAS.COM load over CP/NET (confirmed
+# 2026-05-18, both clang and SDCC BIOS).  Inject path is robust.
 data = (rec('H:')
       + rec('NETWORK H:=A:')
       + rec('LOGIN PASSWORD')
