@@ -56,24 +56,31 @@ for f in "$CPNET_DIST"/*.com "$CPNET_DIST"/*.spr; do
     NAME=$(basename "$f" | tr '[:lower:]' '[:upper:]')
     cpmcp -f "$FORMAT" "$WORK_IMAGE" "$f" "0:$NAME"
 done >/dev/null
-# PolyPascal on local A: so the slave runs PPAS from its default
-# drive (no SELDSK-on-remote-drive transition).  Drive-change to
-# H: after NETWORK hangs in BDOS; the LOGIN + NETWORK setup
-# already exercises PIO end-to-end, and PPAS as a workload adds
-# substantial keyboard/console I/O to the test envelope.
-cpmcp -f "$FORMAT" "$WORK_IMAGE" cpnos-shared/e_drive_seed/ppas/PPAS.COM   "0:PPAS.COM"
-cpmcp -f "$FORMAT" "$WORK_IMAGE" cpnos-shared/e_drive_seed/ppas/PRIMES.PAS "0:PRIMES.PAS"
+# PPAS+PRIMES live on master's A: (staged in step 4), accessed via
+# slave H: after NETWORK.  Exercises CP/NET PIO fully -- both the
+# file load and the interactive run go over the wire.
 python3 -c "
 def rec(cmd):
     b = cmd.encode('ascii')
     return bytes([len(b)]) + b + bytes(127 - len(b))
-# SUB records run top-to-bottom: CPNETLDR -> LOGIN -> NETWORK -> PPAS.
-# After PPAS launches at A>, polypascal_pio_inject.py drives the
-# interactive L PRIMES / R / Q sequence over SIO-B.
-data = (rec('CPNETLDR')
-      + rec('LOGIN PASSWORD')
+# CCP \$\$\$.SUB execution pops the LAST record first then truncates.
+# File order is REVERSE of execution order.  Execute sequence:
+#   CPNETLDR  -> load CP/NET (NDOS + SNIOS.SPR, SNIOS NTWKIN reads SW1
+#                bit 2; bit clear -> PIO transport in the new dual-
+#                transport SNIOS)
+#   LOGIN     -> first real CP/NET login frame, exercises PIO send/recv
+#   NETWORK   -> map slave H: to master A:
+#   H:        -> change default drive to H: (first remote-drive SELDSK
+#                -- earlier suspect-of-hanging, but in fact works fine;
+#                the previous 'Bdos Err' was the SUB record order being
+#                reversed)
+#   PPAS      -> launch PolyPascal-80 from H: (=master's A:); loads
+#                PPAS.COM over CP/NET PIO and runs PRIMES.PAS
+data = (rec('PPAS')
+      + rec('H:')
       + rec('NETWORK H:=A:')
-      + rec('PPAS'))
+      + rec('LOGIN PASSWORD')
+      + rec('CPNETLDR'))
 open('/tmp/cpnet_pio_sub.tmp', 'wb').write(data)
 "
 cpmcp -f "$FORMAT" "$WORK_IMAGE" /tmp/cpnet_pio_sub.tmp '0:$$$.SUB'

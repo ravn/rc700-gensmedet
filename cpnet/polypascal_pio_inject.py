@@ -28,13 +28,41 @@ import time
 RESULT = '/tmp/cpnet_pio_polypascal_result.txt'
 
 STAGES = [
-    # (deadline_sec, marker_bytes,  cmd_to_send_after, name)
+    # (deadline_sec, marker,         cmd_to_send_after, name)
+    # CCP prompt marker is "any drive letter A..P + '>'", matched as
+    # the regex r"[A-P]>"; written as a sentinel-byte LIST that the
+    # main loop expands per-letter.  Same idea as cpnos's smoke_inject.
     (90.0,           b'>>',          b'L PRIMES\r',     'initial PPAS prompt / L PRIMES'),
     (90.0,           b'>>',          b'R\r',            'post-load prompt / R'),
     (180.0,          b'29989',       None,              'PRIMES output complete'),
     (30.0,           b'>>',          b'Q\r',            'post-Run prompt / Q'),
-    (30.0,           b'A>',          None,              'CCP return (A>)'),
+    (30.0,           None,           None,              'CCP return (any drive prompt)'),
 ]
+
+
+def _is_ccp_prompt(buf):
+    """Buffer tail looks like a CCP prompt: ASCII drive letter + '>'."""
+    if len(buf) < 2 or buf[-1:] != b'>':
+        return False
+    c = buf[-2]
+    return 0x41 <= c <= 0x50  # 'A'..'P' (CP/M supports up to 16 drives)
+
+
+def _find_marker(stage, buf):
+    """Locate the stage's marker in buf.  Returns end-index of the
+    match, or -1 if not yet matched.  Stage 4's None-marker uses the
+    CCP-prompt heuristic since we don't know which drive the slave
+    will be on (depends on whether the workload ran from local A:
+    or remote H:)."""
+    marker = stage[1]
+    if marker is None:
+        # CCP-prompt check: scan for any drive-letter + '>' in buf.
+        for i in range(len(buf) - 1):
+            if buf[i+1:i+2] == b'>' and 0x41 <= buf[i] <= 0x50:
+                return i + 2
+        return -1
+    idx = buf.find(marker)
+    return -1 if idx < 0 else idx + len(marker)
 
 
 def write_result(text):
@@ -68,7 +96,9 @@ def main():
     stage_idx = 0
     stage_deadline = time.monotonic() + STAGES[0][0]
     t0 = time.monotonic()
-    print(f'[stage {stage_idx}] waiting for {STAGES[stage_idx][1]!r} '
+    _first_marker = STAGES[stage_idx][1]
+    _first_desc = repr(_first_marker) if _first_marker else '<CCP prompt>'
+    print(f'[stage {stage_idx}] waiting for {_first_desc} '
           f'({STAGES[stage_idx][3]})', flush=True)
 
     while stage_idx < len(STAGES):
@@ -82,31 +112,35 @@ def main():
             # Trim buf so we don't re-match the same prefix forever
             if len(buf) > 4096:
                 del buf[:2048]
-        marker = STAGES[stage_idx][1]
-        if marker in buf:
-            cmd = STAGES[stage_idx][2]
+        stage = STAGES[stage_idx]
+        end_idx = _find_marker(stage, buf)
+        if end_idx >= 0:
+            cmd = stage[2]
             elapsed = time.monotonic() - t0
-            print(f'[stage {stage_idx}] matched {marker!r} '
+            matched = bytes(buf[max(0, end_idx-8):end_idx])
+            print(f'[stage {stage_idx}] matched ...{matched!r} '
                   f'(t={elapsed:.2f}s) -> '
                   f'{"send "+repr(cmd) if cmd else "advance"}',
                   flush=True)
             if cmd:
                 conn.sendall(cmd)
-            # Drop everything up to and including the marker so the
-            # next stage doesn't re-match it.
-            i = buf.find(marker) + len(marker)
-            del buf[:i]
+            # Drop everything up to and including the matched bytes.
+            del buf[:end_idx]
             stage_idx += 1
             if stage_idx < len(STAGES):
+                next_marker = STAGES[stage_idx][1]
+                next_desc = repr(next_marker) if next_marker else '<CCP prompt>'
                 stage_deadline = time.monotonic() + STAGES[stage_idx][0]
-                print(f'[stage {stage_idx}] waiting for {STAGES[stage_idx][1]!r} '
+                print(f'[stage {stage_idx}] waiting for {next_desc} '
                       f'({STAGES[stage_idx][3]})', flush=True)
             continue
         if time.monotonic() > stage_deadline:
             elapsed = time.monotonic() - t0
+            _m = STAGES[stage_idx][1]
+            _mdesc = repr(_m) if _m else '<CCP prompt>'
             reason = (f'timeout at stage {stage_idx} '
                       f'({STAGES[stage_idx][3]}); '
-                      f'wanted {STAGES[stage_idx][1]!r}; '
+                      f'wanted {_mdesc}; '
                       f'last 80 B = {bytes(buf[-80:])!r}')
             print(f'FAIL: {reason}', flush=True)
             write_result(f'FAIL: {reason}')
