@@ -53,7 +53,7 @@ ZLFLAGS = -m --list -create-app -Cz"--org 0" $(ZLIB)
 # which under z88dk's stock stdlib is a silent-miscompile trap if any
 # arch-helper (__moduchar / __mulint / __divuchar / ...) is reached.
 # Production stays helper-free; this gate enforces it at build time.
-HELPER_CALL_GUARD = ../../cpnos-rom/tasks/scripts/check_no_helper_calls.py
+HELPER_CALL_GUARD = ../../cpnos-shared/scripts/check_no_helper_calls.py
 
 bios.cim: z88dk_section_layout.asm $(PARENT)/boot_block.c $(PARENT)/boot_confi.c \
           $(PARENT)/boot_entry.c $(PARENT)/bios_hw_init.c \

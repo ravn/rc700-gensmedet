@@ -29,9 +29,13 @@ RESULT = '/tmp/cpnet_pio_polypascal_result.txt'
 
 STAGES = [
     # (deadline_sec, marker,         cmd_to_send_after, name)
-    # CCP prompt marker is "any drive letter A..P + '>'", matched as
-    # the regex r"[A-P]>"; written as a sentinel-byte LIST that the
-    # main loop expands per-letter.  Same idea as cpnos's smoke_inject.
+    # Stage 0: wait for slave to reach H> after SUB-driven CPNETLDR /
+    # LOGIN / NETWORK / H:, then type 'PPAS' WITH CR so PolyPascal
+    # launches.  PPAS isn't in the SUB because SUB records have no
+    # terminator and rcbios SDCC's CCP-vs-SUB path doesn't auto-fire
+    # the line without an explicit CR (clang BIOS does, hence the
+    # earlier compiler-asymmetric "hang").
+    (60.0,           b'H>',          b'PPAS\r',         'wait H> then send PPAS'),
     (90.0,           b'>>',          b'L PRIMES\r',     'initial PPAS prompt / L PRIMES'),
     (90.0,           b'>>',          b'R\r',            'post-load prompt / R'),
     (180.0,          b'29989',       None,              'PRIMES output complete'),
@@ -123,7 +127,16 @@ def main():
                   f'{"send "+repr(cmd) if cmd else "advance"}',
                   flush=True)
             if cmd:
-                conn.sendall(cmd)
+                # Pace byte writes so we don't overrun the slave's SIO-B
+                # RX 3-deep FIFO.  At 38400 baud one byte is ~260 us on
+                # the wire; the slave's SIO-B ISR latency is much higher
+                # under heavy CP/NET PIO load (and the SDCC BIOS's ISR
+                # appears to be slower than clang's -- empirically drops
+                # the CR of bursts).  20 ms/byte matches cpnos's
+                # smoke_inject pacing.  See feedback_no_taps_in_polled_rx.
+                for byte in cmd:
+                    conn.sendall(bytes([byte]))
+                    time.sleep(0.02)
             # Drop everything up to and including the matched bytes.
             del buf[:end_idx]
             stage_idx += 1

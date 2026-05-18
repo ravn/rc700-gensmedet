@@ -45,9 +45,20 @@ python3 cpnet/build_snios.py >/dev/null
 echo "  SNIOS.SPR: $(wc -c < cpnet/zout/SNIOS.SPR) B"
 
 echo "=== 2/6 building rcbios + patching onto fresh disk image ==="
-make -C rcbios-in-c bios --no-print-directory >/dev/null
+# COMPILER env var (default clang) picks rcbios's compile path.
+# rcbios's clang BIOS at rcbios-in-c/clang/bios.clang.cim,
+# rcbios's SDCC  BIOS at rcbios-in-c/sdcc/bios.cim.  SNIOS.SPR is
+# asm-only -- same SPR for both.
+RCBIOS_COMPILER="${COMPILER:-clang}"
+echo "  rcbios COMPILER=$RCBIOS_COMPILER"
+make -C rcbios-in-c bios COMPILER="$RCBIOS_COMPILER" --no-print-directory >/dev/null
 cp "$REFERENCE_IMAGE" "$WORK_IMAGE"
-python3 rcbios/patch_bios.py "$WORK_IMAGE" rcbios-in-c/clang/bios.clang.cim >/dev/null
+if [ "$RCBIOS_COMPILER" = clang ]; then
+    BIOS_CIM=rcbios-in-c/clang/bios.clang.cim
+else
+    BIOS_CIM=rcbios-in-c/sdcc/bios.cim
+fi
+python3 rcbios/patch_bios.py "$WORK_IMAGE" "$BIOS_CIM" >/dev/null
 
 echo "=== 3/6 injecting CP/NET files + \$\$\$.SUB into local disk ==="
 FORMAT="rc702-8dd"
@@ -74,10 +85,13 @@ def rec(cmd):
 #                -- earlier suspect-of-hanging, but in fact works fine;
 #                the previous 'Bdos Err' was the SUB record order being
 #                reversed)
-#   PPAS      -> launch PolyPascal-80 from H: (=master's A:); loads
-#                PPAS.COM over CP/NET PIO and runs PRIMES.PAS
-data = (rec('PPAS')
-      + rec('H:')
+# PPAS is launched by polypascal_pio_inject.py (the injector types
+# 'PPAS\\r' after seeing H>, with explicit CR) -- not from the SUB.
+# Rationale: SUB records have no terminator and clang's CCP auto-runs
+# them, but SDCC's BIOS-side line handling waits for an explicit CR.
+# Keeping CR-bearing input in the injector avoids the CCP-vs-SUB
+# divergence between compilers.
+data = (rec('H:')
       + rec('NETWORK H:=A:')
       + rec('LOGIN PASSWORD')
       + rec('CPNETLDR'))
