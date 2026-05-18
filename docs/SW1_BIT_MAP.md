@@ -13,7 +13,7 @@ behavior wherever a switch hasn't been wired up.
 |------|--------|-----------------------------------------------|---------------------------------------|--------------------------------------|---------------------|
 | 0    | S01    | Console mode                                  | joined (SIO-B+kbd in, SIO-B+CRT out)  | local (CRT+kbd only)                 | rcbios-in-c, cpnos-in-c |
 | 1    | S02    | PROM1 lineprog enable                         | check PROM1 sig; jump if present      | skip check; halt NO DISKETTE-NOR-LINEPROG | autoload-in-c       |
-| 2    | S03    | CP/NOS transport (PROM1-only lineprog build)  | PIO (Z80-PIO Mode 1, IRQ + 256 B ring) | SIO (SIO-A async 38400 polled)        | cpnos-in-c          |
+| 2    | S03    | CP/NET transport (CP/NOS lineprog + rcbios SNIOS) | PIO (Z80-PIO Mode 1, IRQ + 256 B ring) | SIO (SIO-A async 38400 polled)        | cpnos-in-c, cpnet/snios.asm |
 | 3    | S04    | unused                                        | -                                     | -                                    | -                   |
 | 4    | S05    | unused                                        | -                                     | -                                    | -                   |
 | 5    | S06    | unused                                        | -                                     | -                                    | -                   |
@@ -73,22 +73,41 @@ MAME models the SEM702 in machine `rc702sem702` (see
 you want to exercise the SEM702 display path; baseline `rc702` still
 uses the ROA327 ROM and is unaffected.
 
-## Bit 2 -- CP/NOS transport (cpnos-in-c PROM1-only build)
+## Bit 2 -- CP/NET transport (cpnos PROM1-only build + rcbios SNIOS)
 
-Spec finalised 2026-05-17:
+Spec finalised 2026-05-17, extended to rcbios SNIOS 2026-05-18:
 
-- **On** (bit=0, default): the cpnos slave drives the SNIOS byte
-  layer through `transport_pio_send_byte` / `transport_pio_recv_byte`
-  (Z80-PIO Mode 1, IRQ-driven 256 B SPSC ring buffer).
-- **Off** (bit=1): the cpnos slave drives the SNIOS byte layer
-  through `transport_send_byte` / `transport_recv_byte` (SIO-A async
-  ~38400 baud, polled, no buffer).
+- **On** (bit=0, default): drive the SNIOS byte layer through the
+  PIO transport -- Z80-PIO Mode 1, IRQ-driven 256 B SPSC ring buffer.
+  In cpnos: `transport_pio_send_byte` / `transport_pio_recv_byte`.
+  In rcbios SNIOS: `SENDBY_PIO` / `RECVBY_PIO` / `RECVBT_PIO` +
+  `ISR_PIO_RX` (cpnet/snios.asm).
+- **Off** (bit=1): drive the SNIOS byte layer through the SIO
+  transport -- SIO-A async ~38400 baud, polled, no buffer.  In cpnos:
+  `transport_send_byte` / `transport_recv_byte`.  In rcbios SNIOS:
+  `SENDBY_SIO` / `RECVBY_SIO` / `RECVBT_SIO` (calling rcbios BIOS
+  PUNCH/READER at 0xDA12/0xDA15).
 
-Only effective on the **PROM1-only lineprog build**
-(`make prom1-lineprog` in `cpnos-in-c/`).  The legacy two-PROM
-build (`make cpnos-burn`) still picks the transport at compile time
-via `TRANSPORT=pio-irq` or `TRANSPORT=sio`; bit 2 is ignored there
-because only one transport's code is linked.
+Applies to:
+- **cpnos PROM1-only lineprog build** (`make prom1-lineprog` in
+  `cpnos-in-c/`).  Both transports linked, dispatcher patched at
+  `install_transport()` cold-init.
+- **rcbios SNIOS** (cpnet/snios.asm -> SNIOS.SPR, loaded by
+  CPNETLDR.SYS).  Both transports assembled into one SPR, NTWKIN
+  patches the SENDBY / RECVBY / RECVBT JP-target at runtime based
+  on SW1 bit 2 (self-modifying-JP, ~3 B patch per primitive).
+
+Does NOT apply to:
+- The legacy two-PROM `cpnos` build (`make cpnos-burn`).  Picks the
+  transport at compile time via `TRANSPORT=pio-irq` or `TRANSPORT=sio`;
+  bit 2 is ignored because only one transport's code is linked.
+
+**Migration note for rcbios users on existing hardware**: pre-PIO
+SNIOS.SPR builds (before 2026-05-18) ignored SW1 bit 2 entirely and
+always used SIO.  After upgrading the SNIOS.SPR, default-state DIP
+switches (bit 2 = 0, On) will switch to PIO transport.  Users on
+SIO-A wired CP/NET hardware should flip S03 to Off (=1) before
+booting with the upgraded SNIOS.SPR.
 
 Implementation: both `transport_pio.o` and `transport_sio.o` are
 linked into the PROM1-only image.  A 6-byte jump table in
