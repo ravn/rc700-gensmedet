@@ -365,24 +365,32 @@ static void xy_step(uint8_t c) {
 
 RESIDENT
 static void specc(uint8_t c) {
-    switch (c) {
-    case 0x01: insert_line();          break;
-    case 0x02: delete_line();          break;
-    case 0x05: cursor_left();          break;  /* ENQ = BS */
-    case 0x06: start_xy();             break;
-    case 0x07: IO_WRITE(BIB, 0); break;  /* bell */
-    case 0x08: cursor_left();          break;
-    case 0x09: tab();                  break;
-    case 0x0A: cursor_down();          break;
-    case 0x0C: clear_screen();         break;
-    case 0x0D: curx = 0;               break;
-    case 0x18: cursor_right();         break;
-    case 0x1A: cursor_up();            break;
-    case 0x1D: home();                 break;
-    case 0x1E: erase_to_eol();         break;
-    case 0x1F: erase_to_eos();         break;
-    default:                           break;  /* unhandled ctrl: drop */
-    }
+    /* Ordered if/else chain, frequency-first.  Each branch lowers to a
+     * single `cp N; jp Z, _handler` (5 B) via SDCC's tail-call peephole
+     * + the orphan-jp cleanup added in ravn/z88dk#8 (peep 149a/b).
+     * Smaller and faster on the hot controls than the prior numeric
+     * `switch` (which SDCC laid out as a compare chain anyway, but
+     * with the numerically-lowest cases in front -- 0x01/0x02 are the
+     * rarest controls of all, so they punished every more-common one).
+     * CR/LF kept at the bottom defensively: cpnos's impl_conout filters
+     * them upstream so they shouldn't reach here, but rcbios may call
+     * the same routine without that filter (future port). */
+    if      (c == 0x08) cursor_left();      /* BS  -- common */
+    else if (c == 0x09) tab();              /* HT  -- common */
+    else if (c == 0x0C) clear_screen();     /* FF  -- common (PolyPascal blanks) */
+    else if (c == 0x07) IO_WRITE(BIB, 0);   /* BEL -- moderately common */
+    else if (c == 0x1D) home();             /* GS  -- cursor home */
+    else if (c == 0x1E) erase_to_eol();     /* RS */
+    else if (c == 0x1F) erase_to_eos();     /* US */
+    else if (c == 0x18) cursor_right();     /* CAN -- cursor right */
+    else if (c == 0x1A) cursor_up();        /* SUB -- cursor up */
+    else if (c == 0x05) cursor_left();      /* ENQ -- BS alias */
+    else if (c == 0x06) start_xy();         /* ACK -- XY-pos state mach */
+    else if (c == 0x01) insert_line();      /* SOH */
+    else if (c == 0x02) delete_line();      /* STX */
+    else if (c == 0x0A) cursor_down();      /* LF  -- defensive (filtered) */
+    else if (c == 0x0D) curx = 0;           /* CR  -- defensive (filtered) */
+    /* else: unhandled control byte -- drop. */
 }
 
 /* --- public CONIN / CONOUT ---------------------------------------- */
