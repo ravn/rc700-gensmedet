@@ -3,6 +3,30 @@
 Date: 2026-05-19
 Status: open; documented inline in commit 86ab3b8, not blocking.
 
+## Update 2026-05-19 (after `cpnet/CPNET_SYSTEM.md` `$NN.SUB` doc)
+
+The CKDOL `$$$ -> $NN` rewrite (now documented in CPNET_SYSTEM.md)
+does **not** explain this issue:
+
+  * In the failing test, `$$$.SUB` is on the slave's *local* A:
+    floppy.  CCP's SUB processing does `select 0` (= drive A) for
+    every readcom; slave's A: stays local through `NETWORK H:=A:`
+    (only H: gets the netcfg bit set, not A:).  So SUB chain runs
+    from local A: and PPAS *does* get typed at H> -- siob confirms.
+  * The failure point is later: `PPAS.COM` itself loads from H:
+    (= master.A:) via CP/NET BDOS Open + Read.  *That's* what
+    times out on direct connection but completes through the
+    proxy.  Not a SUB-name issue.
+
+A genuine `$NN.SUB` concern remains, but it's orthogonal: if any
+future test wants the SUB itself to live on master (so SUB
+processing exercises CP/NET), master must have `$01.SUB` for
+slave BSRID=0x01 -- otherwise CKDOL-rewrite finds nothing.
+
+The user's clarification of local-vs-remote SUB naming is now
+documented at `cpnet/CPNET_SYSTEM.md` "`$$$` filename rewrite
+(per-client temp files)" section.
+
 ## Observation
 
 Two MAME wirings, same SNIOS.SPR, same rcbios BIOS (both clang and
