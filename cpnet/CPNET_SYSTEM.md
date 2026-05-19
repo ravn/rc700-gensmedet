@@ -113,6 +113,47 @@ A>CHKSUM H:DATAFILE.DAT ; Verify file integrity
 
 See TEST_RESULTS.md for detailed protocol testing results.
 
+## `$$$` filename rewrite (per-client temp files)
+
+CP/NET's NDOS rewrites filenames that start with `$$$` before sending
+them to the server.  The first three chars become `$NN` where `NN` is
+the two hex digits of the slave's CP/NET network ID (`BSRID` byte at
+`CFGTBL+1`).  Examples for a slave with `BSRID=0x01`:
+
+  | Source filename | What master sees |
+  | --------------- | ---------------- |
+  | `$$$.SUB`       | `$01.SUB`        |
+  | `$$$.SET`       | `$01.SET`        |
+  | `$$$$$$.TMP`    | `$01$$$.TMP`     |
+
+Purpose: temp files for SUBMIT (`$$$.SUB`), STAT mode-set
+(`$$$.SET`), etc. need to be **per-client unique** so multiple slaves
+on the same CP/NET don't trample each other's work.  CP/M was written
+assuming `$$$.SUB` was unique on the local A: -- on a shared remote
+A: drive that assumption breaks unless the name is mangled in.
+
+Mechanism: slave-side, not server-side.  `CKDOL` in
+`~/git/cpnet-z80/src/ndos3.asm:679` walks the FCB filename, and when
+the first three chars are all `$`, increments a counter (`FNTMPF`)
+and writes `$NN` over those three bytes using the slave's BSRID from
+its CFGTBL.  The server sees the rewritten name on every FCB-bearing
+BDOS call and treats it as ordinary, distinct.
+
+Implications for our test harnesses (e.g.
+`cpnet/polypascal_pio_test.sh`):
+
+  * Pre-staging a `$$$.SUB` on the slave's *local* A: floppy (with
+    `cpmcp ... '0:$$$.SUB'`) is fine -- the slave's CCP processes
+    it locally without NDOS-rewrite, because local-disk BDOS calls
+    don't route through SNIOS.
+  * Pre-staging on the *master*'s A: drive (e.g. for a slave that
+    `H:` 's into master A: and expects to see `$$$.SUB`) would need
+    the file named `$NN.SUB` matching the slave's BSRID, **not**
+    `$$$.SUB`, because that's the actual filename the server has.
+  * Any debug listing on the master that shows `$01.SUB`, `$02.SUB`,
+    ... is fine and expected -- those are SUBMIT-temp files for
+    slaves 0x01, 0x02, etc.
+
 ## Serial Protocol
 
 Uses the standard DRI binary serial protocol. See [DRI_PROTOCOL.md](DRI_PROTOCOL.md)
