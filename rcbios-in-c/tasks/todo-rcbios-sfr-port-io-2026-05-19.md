@@ -1,7 +1,28 @@
 # rcbios: apply `__sfr __at` port-IO idiom (SDCC BIOS)
 
 Date: 2026-05-19
-Status: open; concrete-win follow-up from session 73k.
+Status: **CLOSED 2026-05-19** — already implemented.  Task was filed
+without first reading `rcbios-in-c/hal.h`, which has been using
+`__sfr __at` for SDCC since long before session 73k.  See lines
+117-124 of that file:
+
+```c
+#elif defined(__SDCC) || defined(__SCCZ80)
+#define DEFPORT(name, addr) __sfr __at (addr) _sfr_##name;
+#define port_in(name)       (_sfr_##name)
+#define port_out(name, val) (_sfr_##name = (val))
+```
+
+`check_no_helper_calls.py` confirms zero `__port_in` / `__port_out`
+helper calls in the SDCC BIOS link output.  The 166 B SDCC-vs-clang
+size gap on rcbios BIOS is therefore NOT from port-IO indirection;
+it lives somewhere else (regalloc, jumptable, IX-frame -- the same
+class of gaps cpnos has, tracked in cpnos-in-c/tasks/
+sdcc-codegen-gap-2026-05-18.md and ravn/z88dk#8, #10).
+
+The original ravn/z88dk#9 close ("just use __sfr") was the right
+call for cpnos because cpnos was the outlier -- rcbios was already
+following the pattern.
 
 ## Opportunity
 
