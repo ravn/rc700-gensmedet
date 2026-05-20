@@ -1,5 +1,94 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73l-fix: SDCC K&R REGPARM-preserve patch closes ravn/z88dk #5, #6 (K&R), #14 (May 21, 2026) — Medium
+
+End state: a ~10-line patch to SDCC's \`mergeKRDeclListIntoFuncDecl\`
+(in \`src/sdcc-build/src/SDCCsymt.c\`) closes three open ravn/z88dk
+bugs in a single change.  K&R AES sweep now matches ANSI sweep
+byte-for-byte across all 13 configs.
+
+### Root cause
+
+SDCC's \`processFuncArgs\` runs on a K&R function definition while
+the parameter still has its default int type (per K&R rule).  It
+calls \`port->reg_parm\` which returns argreg=1 for size-2 pointer
+args under \`--sdcccall 1\`, and sets \`SPEC_REGPARM(parLoop->etype) = 1\`.
+
+Then \`mergeKRDeclListIntoFuncDecl\` walks the K&R parameter
+declaration list and REPLACES \`parLoop->type\` and \`parLoop->etype\`
+with the K&R-declared type's pointers (e.g., \`ctx_t *\`).  The
+REGPARM flag was on the now-orphaned int etype, NOT on the new
+etype.
+
+Downstream \`geniCodeReceive\` (SDCCicode.c:3815) queries
+\`IS_REGPARM(args->etype)\` on the new etype, sees false, emits no
+RECEIVE iCode.  Function body emits stack-args reads
+(\`ld c,(ix+4); ld b,(ix+5)\`) regardless of \`--sdcccall 1\`.
+
+When ANSI callers in other TUs see only the function's ANSI
+prototype, they emit register-args calls.  Cross-TU ABI mismatch.
+
+### Fix
+
+In \`mergeKRDeclListIntoFuncDecl\`, save \`SPEC_REGPARM\` and
+\`SPEC_ARGREG\` before the type replacement and restore them on
+the new etype (and \`sym->etype\`) afterwards.
+
+Patch saved as \`src/zsdcc/sdcc-kr-regparm-preserve-z88dk.patch\`
+in the local z88dk fork (commit \`57a9a8f2\`).  Bin replaced in
+\`bin/z88dk-zsdcc\` after native rebuild.
+
+### What was Hard
+
+- The original #5 description ("writes through r are dropped") was
+  a misdiagnosis.  Three rounds of issue updates before the trace
+  showed the writes actually happen and a LATER call clobbers same
+  memory.  Saved by full \`-trace\` capture (10M lines) and grep for
+  PC=0x0D2A (the zeroing instruction).
+- Single-function isolated repro is impossible — the bug only fires
+  when the caller TU sees only the ANSI prototype.  Resolved by
+  building a 2-file repro with separate caller / callee TUs.
+- Three SDCC code sites (SDCC.y, SDCCsymt.c \`processFuncArgs\`,
+  SDCCsymt.c \`mergeKRDeclList\`) all touch K&R handling.  Took
+  per-pass \`fprintf\` instrumentation + rebuild to confirm WHICH
+  ran in what order and where REGPARM got lost.
+- Initial fix hypothesis (PFA called BEFORE merge) was correct, but
+  the print-debug showed PFA ran TWICE for the same function before
+  merge.  Both runs marked REGPARM on the same (about-to-be-replaced)
+  etype.  Merge ran AFTER both and clobbered the marks.
+
+### Sweep impact (K&R AES, post-fix)
+
+\`\`\`
+                            pre-fix         post-fix          delta
+01_baseline_prod K&R    3604 / 14.19 Mts   3323 / 12.08 Mts   -7.8% size, -14.9% runtime
+08_nogcse        K&R    3711 / 14.20 Mts F 3368 / 12.08 Mts P FAIL -> PASS  (#5)
+09_clib_ix       K&R    4793 / 31.90 Mts F 4579 / 12.32 Mts P FAIL -> PASS  (#6 correctness)
+\`\`\`
+
+K&R now matches ANSI byte-identical on every config.  The original
+"K&R int-promotion penalty" (#14) was the stack-args overhead, not
+a separate int-promotion issue.
+
+### Memory rule extractable
+
+When tracing apparent codegen bugs: instrument all upstream and
+downstream passes, not just the one closest to the symptom.  Per-pass
+\`fprintf\` of \`getenv ("DEBUG_X")\` lets one rebuild + run repeatedly
+without code-stream changes.
+
+### Issues closed in local toolchain
+
+- ravn/z88dk#5 — root-caused, FIX-CONFIRMED comment posted.
+- ravn/z88dk#6 — K&R correctness half FIXED, size bloat half left
+  as separable concern.
+- ravn/z88dk#14 — FIXED (was the same root cause as #5).
+- ravn/z88dk#15 — already landed in #73l (cosmetic version banner).
+
+The size-bloat half of #6 (sdcc_ix is 38% larger than sdcc_iy)
+remains and should be re-filed as its own issue or left as a
+known quality gap.
+
 ## Session 73l: AES corpus full 4-cell sweep + ravn/z88dk K&R-only finding (May 20, 2026) — Easy
 
 End state: AES-256 corpus now measures all four combinations of

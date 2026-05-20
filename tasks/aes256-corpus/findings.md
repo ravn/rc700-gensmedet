@@ -1,5 +1,13 @@
 # AES-256 corpus — compiler-efficiency findings
 
+> **Session 73l update (2026-05-21):** ravn/z88dk **#5, #6 (K&R correctness
+> half), and #14** all closed by a single ~10-line patch to SDCC's
+> `mergeKRDeclListIntoFuncDecl`.  See "ravn/z88dk" section below.  K&R
+> AES sweep now matches ANSI byte-for-byte across all 13 configs.
+> Patch saved as `src/zsdcc/sdcc-kr-regparm-preserve-z88dk.patch` in
+> the local z88dk fork; should be mirrored upstream to SDCC at
+> sourceforge.
+
 Source: <http://z80.eu/downloads/aes256.zip> — byte-oriented AES-256
 by Ilya O. Levin with CP/M-compat tweaks by Peter Dassow. ~13 KB C
 source; ~20 functions; exercises real-world codegen patterns
@@ -204,19 +212,27 @@ Cross-cutting: also validates open issue
 pessimize on Z80) with **−52% runtime** on AES, much sharper than
 the original cpnos-rom evidence.
 
-### ravn/z88dk (3 issues, root-cause-clustered)
+### ravn/z88dk (3 issues, all closed by one patch — session 73l)
 
-| # | Title | Manifestation | Trigger | Repro |
-|---|---|---|---|---|
-| **#5** | zsdcc `--nogcse` drops late-assigned absolute-pointer writes after struct-arg call | K&R + `--nogcse` + `--sdcccall 1`: writes through `r = (uint8_t *)0xC000;` elided | **`--sdcccall 1` + K&R** (73l diagnostic).  `--sdcccall 0` PASSes. | `repros/repro_nogcse_late_r.c` |
-| **#6** | zsdcc `-clib=sdcc_ix` silently miscompiles AES output | K&R + `sdcc_ix`: wrong ciphertext.  ANSI: PASS but 33% larger.  ABI- and `--nogcse`-independent on K&R. | **K&R + `-clib=sdcc_ix`**, any `--sdcccall`/`--nogcse`. | `repros/repro_clib_ix.c` |
-| **#14** | zsdcc K&R int-promotion penalty: 7.8% size + 15% runtime under `--sdcccall 1` | K&R prototypes pass widened-to-int parameters that subsequent iCode passes don't re-narrow under register-arg ABI | **`--sdcccall 1` + K&R** | (73l) sweep delta itself; no isolated single-fn repro yet |
+Root cause: \`mergeKRDeclListIntoFuncDecl\` in SDCC's \`SDCCsymt.c\`
+replaces \`parLoop->etype\` with the K&R-declared type, discarding
+the \`SPEC_REGPARM\`/\`SPEC_ARGREG\` flags that \`processFuncArgs\` had
+already set on the now-orphaned default-int etype.  Downstream
+\`geniCodeReceive\` sees \`IS_REGPARM=false\` on the new etype and
+emits no RECEIVE iCode — function body falls back to stack-args
+ABI (\`ld c,(ix+4); ld b,(ix+5)\`) under \`--sdcccall 1\`.  When ANSI
+callers in other TUs see only the ANSI prototype, they emit
+register-args calls — silent cross-TU ABI mismatch.
 
-**Clustering:** #5 and #14 share the `--sdcccall 1 + K&R` trigger
-and likely a single root cause in `--sdcccall 1` parameter
-lowering on K&R-widened registers.  #6 is independent — it fires
-on `sdcc_ix` regardless of `--sdcccall` setting.  Three issues,
-two underlying bug classes.
+| # | Title | Status |
+|---|---|---|
+| **#5** | zsdcc `--nogcse` drops late-assigned absolute-pointer writes after struct-arg call | **FIXED** — was a symptom of the K&R REGPARM-discard.  Cipher main wrote to $C000 was correct; subsequent K&R `aes_done` mis-read its `ctx` from BC (alias of main's leftover `r`) and zeroed $C000..$C01F. |
+| **#6** | zsdcc `-clib=sdcc_ix` silently miscompiles AES output | **CORRECTNESS FIXED** — K&R-only correctness shared the same root cause.  Remaining: `sdcc_ix` is 38% larger than `sdcc_iy` regardless of variant.  Separable code-density concern. |
+| **#14** | zsdcc K&R int-promotion penalty: 7.8% size + 15% runtime under `--sdcccall 1` | **FIXED** — K&R bodies were running stack-args ABI; the size + runtime penalty WAS the stack-args overhead, not a separate int-promotion issue.  K&R now byte-identical to ANSI on all 13 sweep configs. |
+
+Patch: \`src/zsdcc/sdcc-kr-regparm-preserve-z88dk.patch\` in the
+local z88dk fork (commit \`57a9a8f2\`).  ~10 lines.  Preserves
+REGPARM/ARGREG across the K&R type-replacement step.
 
 ### Strategic frame
 
