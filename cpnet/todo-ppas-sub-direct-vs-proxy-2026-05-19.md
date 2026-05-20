@@ -149,6 +149,25 @@ perl -e 'alarm 100; exec @ARGV' /Users/ravn/z80/mame/regnecentralend rc702 \
    wire-log + proxy-vs-direct comparison is enough evidence to
    open a clear issue.
 
+## 2026-05-20 update: filed as ravn/mame#9
+
+Today's session (during ravn/z88dk#13 investigation) accumulated
+more data: 5/5 clang failures, 1/4 sdcc failures across
+controlled retries with `make -C cpnos-in-c _kill-mpm; sleep 8`
+between each.  Even with clean master state, the hang is
+reproducible -- this is a real underlying timing bug, not just
+stale-daemon state.
+
+Filed at ravn/mame#9 with full repro, the 3 hypotheses ranked,
+and concrete next-step investigations.
+
+The **clang-vs-sdcc asymmetry** (clang fails more) is new
+evidence pointing at hypothesis 3 (BIOS-codegen-sensitive ISR
+latency): different BIOS instruction sequences shift the
+byte-arrival vs PIO direction-flip timing window.  But
+hypothesis 1 (TCP_NODELAY) is cheaper to test first --
+~5 lines of MAME change.
+
 ## Not blocking
 
 The polypascal-PIO test passes today via the injector pattern

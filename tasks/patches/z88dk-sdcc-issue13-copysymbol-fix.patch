@@ -1,0 +1,57 @@
+From: ravn/z88dk session 73-followup 2026-05-20
+Subject: Fix shared spillLoc when copySymbol copies an allocator-state-bearing source
+
+ravn/z88dk#13 root cause: copySymbol's shallow memcpy carries register-
+allocator state (usl.spillLoc, isspilt, regs[], ...) from src to dest.
+Two copies of the same source end up aliasing one spill location,
+corrupting stack allocation.  The defensive clear at z80/ralloc.c:1190
+is one workaround for this; SDCCopt.c:2935-2949 has commented-out
+copySymbol calls with an explanation of the same bug.
+
+This patch fixes the root cause: after the memcpy + field copies in
+copySymbol, explicitly clear allocator-private fields so a fresh copy
+starts fresh in any register allocator.
+
+Tested 2026-05-20:
+  * cpnos-polypascal-test (SDCC PROM1-only):    PASS 49.41s.  Size
+    2152 -> 2151 B (-1 B; allocation layout shifted by 1 byte).
+  * rcbios polypascal-pio-test (SDCC):          PASS 11.25s.  BIOS
+    byte-identical at 6091 B (modulo timestamp).
+  * z88dk#8 4-case switch repro:                21 B (unchanged).
+
+Apply to: z88dk/src/sdcc-build/src/SDCCsymt.c
+(z88dk's src/sdcc-build/ tree is .gitignored, so this patch is the
+canonical record of the fix.)
+
+Reapplication procedure (when sdcc-build is rebuilt from scratch):
+  1. cd /Users/ravn/z80/z88dk
+  2. patch -p1 < ../rc700-gensmedet/tasks/patches/z88dk-sdcc-issue13-copysymbol-fix.patch
+  3. cd src/sdcc-build && make sdcc-cc -j4
+  4. cp src/sdcc /Users/ravn/z80/z88dk/bin/z88dk-zsdcc
+  5. Verify with cpnos-polypascal-test COMPILER=sdcc.
+
+Upstream status: same bug exists in upstream SDCC trunk
+(verified 2026-05-19 against
+ https://sourceforge.net/p/sdcc/code/HEAD/tree/trunk/sdcc/src/SDCCsymt.c).
+Submit upstream after local burn-in (multiple polypascal runs +
+cpnos full regression).
+
+--- a/src/sdcc-build/src/SDCCsymt.c
++++ b/src/sdcc-build/src/SDCCsymt.c
+@@ -1369,6 +1369,15 @@ copySymbol (const symbol * src)
+   dest->next = NULL;
+   dest->key = src->key;
+   dest->allocreq = src->allocreq;
++  /* ravn/z88dk#13: shallow memcpy above carries register-allocator
++     state from src.  A fresh copy must start fresh in the allocator;
++     otherwise two symbols can share one spillLoc (ralloc.c:1190 was
++     a defensive clear against this).  Clear allocator-private fields. */
++  dest->usl.spillLoc = NULL;
++  dest->isspilt = 0;
++  dest->spillA = 0;
++  dest->stackSpil = 0;
++  dest->for_newralloc = 0;
++  memset (dest->regs, 0, sizeof (dest->regs));
+   return dest;
+ }
+
