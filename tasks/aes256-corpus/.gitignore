@@ -28,3 +28,5 @@ sweep_*/
 # Reference files we DO keep (overrides above globs):
 !DEMO.COM
 !aes256-original.zip
+icode_diff/
+repros/build_*/

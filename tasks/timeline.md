@@ -84,6 +84,45 @@ already covers this — its scope expands to FAIL signals when
 runtime characteristics are part of the claim.  Diagnostic script
 now mirrors the main sweep's fill step.
 
+### #5 deep-dive — original "writes dropped" diagnosis was wrong
+
+After the cross-product diagnostic, I attempted to extract a
+single-function isolated repro for the #5/#14 cluster.  Minimal
+isolation impossible (original #5 filer's note confirmed: bug
+needs full AES register pressure).  Switched to iCode dump diff +
+`z88dk-ticks -trace`.
+
+**Root cause** (traced via 10M-line ticks trace + binary
+disassembly): the writes through `r` at $C000..$C00F DO happen
+correctly (PC=0x01EA `ld (hl), a` runs 16× with HL=$C000+i and
+A=cipher byte).  Subsequent call to `aes_done(&ctx)` then zeros
+$C000..$C01F because `aes_done`'s body reads its ctx parameter
+from BC instead of from HL (where main correctly placed &ctx).
+BC still holds $C000 = main's `r` pointer at the call site
+(under `--nogcse` it survives there; under default GCSE it gets
+overwritten by the loop counter pattern, so the symptom
+disappears).
+
+This is a callee-side register-convention violation in `aes_done`
+(and likely the second `aes256_init` call).  Triggers under
+K&R + `--sdcccall 1` + `--nogcse`; `--sdcccall 0` masks it because
+the stack-args ABI doesn't depend on BC's leftover value.
+
+Filed deep-dive analysis in
+`tasks/aes256-corpus/repros/analysis_5_root_cause_2026_05_20.md`
+and posted to ravn/z88dk#5.  Three prior issue comments contained
+wrong intermediate diagnoses; the bug took four rounds of
+refinement to localize.  Memory rule for me to extract: trace
+before theorizing on "writes elided" — always verify the actual
+store opcode runs with the expected operands FIRST, before
+hypothesizing about codegen suppressing it.
+
+### Also filed: ravn/z88dk#15 — wrong version banner
+
+zsdcc reports build platform as "Mac OS X ppc" on macOS aarch64.
+Cosmetic but misleading.  Spotted by user during the deep-dive
+session.
+
 ### What was Easy
 
 - Sweep script parameterization (minimal env-var diff).
