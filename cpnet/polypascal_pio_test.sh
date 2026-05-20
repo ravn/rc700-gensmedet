@@ -40,6 +40,14 @@ SIOB_PORT="${SIOB_PORT:-9001}"
 [ -f "$REFERENCE_IMAGE" ] || { echo "ERROR: $REFERENCE_IMAGE missing"; exit 1; }
 [ -d "$CPNET_DIST" ]      || { echo "ERROR: $CPNET_DIST missing"; exit 1; }
 
+# Transport is fixed by SW1 bit 2 = 0 (default On) in the disk image
+# we patch.  Print it explicitly so anyone watching the test log knows
+# which slave-side CP/NET transport is being exercised.
+TRANSPORT="PIO"
+echo "========================================================="
+echo "  rcbios polypascal-test  COMPILER=${COMPILER:-clang}  TRANSPORT=$TRANSPORT"
+echo "========================================================="
+
 echo "=== 1/6 building SNIOS.SPR (dual SIO+PIO transport) ==="
 python3 cpnet/build_snios.py >/dev/null
 echo "  SNIOS.SPR: $(wc -c < cpnet/zout/SNIOS.SPR) B"

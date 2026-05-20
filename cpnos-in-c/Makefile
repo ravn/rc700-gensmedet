@@ -1175,6 +1175,9 @@ cpnos-polypascal-test:
 	@# MAME's roms/rc702/roa375.ic66 by `cd ../autoload-in-c && make
 	@# clang_prom` (or the SDCC equivalent).  We don't touch it here --
 	@# only PROM1 gets swapped in by this target.
+	@echo "========================================================="
+	@echo "  cpnos-polypascal-test  COMPILER=$(COMPILER)  TRANSPORT=$(TRANSPORT_NAME) (env TRANSPORT=$(TRANSPORT))"
+	@echo "========================================================="
 	@echo "=== 1/5 building prom1-lineprog ($(COMPILER)) + installing ==="
 	$(MAKE) MIRROR_SIOB=1 prom1-lineprog-install
 	@echo "=== 2/5 refreshing disk-side cpnos.img (locale prefix) ==="
