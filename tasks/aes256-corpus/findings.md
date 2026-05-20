@@ -75,21 +75,50 @@ LLVM's AggressiveInstCombine can.  The asymmetry means we should
 prefer ANSI sources at the project level — and may motivate a
 separate SDCC-side issue for "int-promotion narrowing".
 
-### ravn/z88dk #5 and #6 are K&R-only
+### ravn/z88dk #5 and #6 — diagnostic cross-product results
 
-Both K&R-FAIL configs PASS cleanly on ANSI:
+Initial K&R-vs-ANSI sweep flipped both FAILs to PASS, suggesting
+both bugs were "K&R-only".  Follow-up diagnostic cross-product
+(`diagnostic_sweep.sh`) refined the picture:
 
-| Config | K&R | ANSI | Bug |
+| Config | K&R verify | ANSI verify | Bug |
 |---|---|---|---|
-| `08_nogcse` | FAIL (3711 / 14.2 Mts) | **PASS** (3368 / 12.08 Mts) | ravn/z88dk#5 |
-| `09_clib_ix` | FAIL (4793 / 31.9 Mts — runaway) | **PASS** (4579 / 12.32 Mts) | ravn/z88dk#6 |
+| `08_nogcse` (sdcc_iy + sdcccall 1) | FAIL (3711 / 14.20 Mts) | PASS (3368 / 12.08 Mts) | ravn/z88dk#5 |
+| `09_clib_ix` (sdcc_ix + sdcccall 1) | FAIL (4793 / 0.93 Mts) | PASS (4579 / 12.32 Mts) | ravn/z88dk#6 |
 
-Both bugs reclassified from "SDCC miscompile" to "SDCC
-K&R-with-flag-X miscompile".  Issues updated with the
-ANSI-confirmed repro.  Workaround is now obvious: use ANSI
-prototypes.  The 33% bloat from `-clib=sdcc_ix` (vs `sdcc_iy`)
-remains under ANSI — that part of #6 is a quality issue, separate
-from the correctness bug.
+**#5 is `--sdcccall 1`-only.**  K&R + `--nogcse` + `--sdcccall 0`
+PASSes (config 04 in the diagnostic table; 3782 B / 14.20 Mts).
+That makes #5 the same trigger class as #14 — both fire under
+register-arg ABI on K&R-promoted parameters.  Suggests a single
+underlying iCode pass.
+
+**#6 affects both ABIs.**  All four `sdcc_ix` cross-products FAIL
+on K&R:
+
+| config | --sdcccall | --nogcse | bin | tstates |
+|---|:---:|:---:|---:|---:|
+| 05 | 1 | — | 4793 | 31.90 Mts |
+| 06 | 0 | — | 4876 | 27.56 Mts |
+| 07 | 1 | yes | 4975 | 27.65 Mts |
+| 08 | 0 | yes | 5046 | 27.58 Mts |
+
+All run to normal-ish completion (27-32 Mts) and produce wrong
+ciphertext at the verifier — single data-flow miscompile that
+fires on `sdcc_ix` regardless of ABI or `--nogcse`.  The 33% size
+bloat (4793-5046 B vs 3604-3782 B for `sdcc_iy` configs) is
+independent of the correctness bug and survives every variant.
+
+**Tooling lesson (73l):** initial diagnostic_sweep.sh skipped the
+`fill_with_jp_done.py` step and reported `sdcc_ix` runtimes
+(929960 ts) that were ~30× shorter than the headline sweep
+(31,895,119 ts).  Same md5 bin, different ticks output — because
+unfilled bins overrun into NOP-sled, PC wraps 0xFFFF→0x0000,
+ticks's `pc==start` counter-reset clobbers the tstate total.  The
+sweep's value is correct; my first diagnostic was wrong.  Memory
+rule [[feedback-verify-pass-condition]] applies to FAIL signals
+too: "0.9 Mts for a FAIL" should have read as implausible and
+prompted a sanity check.  Diagnostic now wraps the same fill
+protection as the main sweep.
 
 ## Best PASS configs from the sweeps (post-session 73k refresh)
 
@@ -175,12 +204,19 @@ Cross-cutting: also validates open issue
 pessimize on Z80) with **−52% runtime** on AES, much sharper than
 the original cpnos-rom evidence.
 
-### ravn/z88dk (2 issues — both K&R-only after 73k re-measurement)
+### ravn/z88dk (3 issues, root-cause-clustered)
 
-| # | Title | Manifestation | Repro | Notes |
+| # | Title | Manifestation | Trigger | Repro |
 |---|---|---|---|---|
-| **#5** | zsdcc `--nogcse` drops late-assigned absolute-pointer writes after struct-arg call | K&R: all writes through `r = (uint8_t *)0xC000;` elided.  ANSI: PASS | `repros/repro_nogcse_late_r.c` | **K&R-only** (73k); ANSI sweep `08_nogcse` PASSes at 3368 B |
-| **#6** | zsdcc `-clib=sdcc_ix` silently miscompiles AES output | K&R: wrong ciphertext, 33% larger code, runaway tstates.  ANSI: PASS but still 33% larger | `repros/repro_clib_ix.c` | Correctness bug **K&R-only** (73k); size bloat (+1256 B vs `sdcc_iy`) still present on ANSI |
+| **#5** | zsdcc `--nogcse` drops late-assigned absolute-pointer writes after struct-arg call | K&R + `--nogcse` + `--sdcccall 1`: writes through `r = (uint8_t *)0xC000;` elided | **`--sdcccall 1` + K&R** (73l diagnostic).  `--sdcccall 0` PASSes. | `repros/repro_nogcse_late_r.c` |
+| **#6** | zsdcc `-clib=sdcc_ix` silently miscompiles AES output | K&R + `sdcc_ix`: wrong ciphertext.  ANSI: PASS but 33% larger.  ABI- and `--nogcse`-independent on K&R. | **K&R + `-clib=sdcc_ix`**, any `--sdcccall`/`--nogcse`. | `repros/repro_clib_ix.c` |
+| **#14** | zsdcc K&R int-promotion penalty: 7.8% size + 15% runtime under `--sdcccall 1` | K&R prototypes pass widened-to-int parameters that subsequent iCode passes don't re-narrow under register-arg ABI | **`--sdcccall 1` + K&R** | (73l) sweep delta itself; no isolated single-fn repro yet |
+
+**Clustering:** #5 and #14 share the `--sdcccall 1 + K&R` trigger
+and likely a single root cause in `--sdcccall 1` parameter
+lowering on K&R-widened registers.  #6 is independent — it fires
+on `sdcc_ix` regardless of `--sdcccall` setting.  Three issues,
+two underlying bug classes.
 
 ### Strategic frame
 

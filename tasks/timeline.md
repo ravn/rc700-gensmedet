@@ -40,12 +40,49 @@ K&R-only re-classification of two existing SDCC correctness bugs.
   + 15% runtime that recovers under ANSI prototypes".  Includes
   reproducible sweep delta + hypothesis (iCode allocator not
   narrowing through promoted-int operations) + workaround.
-- **Updated ravn/z88dk#5** — `--nogcse` is K&R-only.  ANSI sweep
-  PASSes at 3368 B / 12.08 Mts.
-- **Updated ravn/z88dk#6** — split into two findings: correctness
-  bug is K&R-only; 33% bloat from `sdcc_ix` vs `sdcc_iy` is real
-  on both variants and deserves a separate code-quality issue
-  once #6 closes.
+- **Updated ravn/z88dk#5** — `--nogcse` miscompile is K&R-only on
+  ANSI sweep, then diagnostic narrowed further: actually
+  `--sdcccall 1`-only.  Same trigger class as #14.
+- **Updated ravn/z88dk#6** — first pass said "K&R-only correctness +
+  size bloat both variants"; diagnostic cross-product then
+  showed the bug fires on every K&R `-clib=sdcc_ix` variant
+  regardless of `--sdcccall` or `--nogcse`.  Single data-flow
+  miscompile, no control-flow layer (initial "early HALT /
+  runaway" reading was the ticks counter-reset artefact — see
+  Tooling lesson below).
+
+### Diagnostic cross-product (`diagnostic_sweep.sh`)
+
+8-config K&R sweep designed to test the hypothesis that #5/#6
+share root cause with #14 (all `--sdcccall 1` + K&R triggers):
+
+| config | --sdcccall | -clib | --nogcse | verify |
+|---|:---:|---|:---:|:---:|
+| 01 | 1 | iy | — | PASS |
+| 02 | 0 | iy | — | PASS |
+| 03 | 1 | iy | yes | **FAIL** (#5) |
+| 04 | **0** | iy | yes | **PASS** (#5 fixed by --sdcccall 0) |
+| 05-08 | × | ix | × | FAIL (#6, all variants) |
+
+Clean clustering: 3 issues, 2 underlying bug classes (#5 ⊂ #14;
+#6 independent).
+
+### Tooling lesson — `feedback_verify_pass_condition` applies to FAIL too
+
+First diagnostic run skipped `fill_with_jp_done.py`.  Without
+JP-fill, miscompiled bins escape into NOP-sled, PC wraps
+0xFFFF→0x0000, `z88dk-ticks`'s `start==pc` counter-reset clobbers
+the tstate total.  Reported runtimes (0.93 Mts for K&R sdcc_ix)
+were ~30× shorter than the true value (31.9 Mts).  Same md5 bin,
+different tstate output between sweep (filled) and diagnostic
+(unfilled).
+
+The "0.93 Mts for a FAIL" reading was implausibly fast and
+should have prompted a sanity check before being written into
+issue comments.  Memory rule [[feedback-verify-pass-condition]]
+already covers this — its scope expands to FAIL signals when
+runtime characteristics are part of the claim.  Diagnostic script
+now mirrors the main sweep's fill step.
 
 ### What was Easy
 
