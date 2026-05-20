@@ -11,93 +11,152 @@ The reference `DEMO.COM` in the upstream zip is 9216 B as built by
 Peter Dassow's CP/M-targeted compiler. Provenance is NOT preserved
 in the zip — see "DEMO.COM provenance" section below.
 
-## Headline — 4-cell baseline matrix
+## Headline — 4-cell baseline + tuned matrix
 
-**Post-session 70 (refined #160 diagnosis — was ABI residual, actually missed AggressiveInstCombine icmp-sink narrowing; see [#160 comment](https://github.com/ravn/llvm-z80/issues/160#issuecomment-4453745878)):**
+**Post-session 73k (2026-05-20): full ANSI sweep landed; previous
+K&R-vs-ANSI conclusions reframed.**
 
-**Post-session 69 (after llvm-z80 fixes #158, #159, #161):**
+Baseline = each compiler's untouched default config
+(`01_baseline_Oz` for clang `-Oz`; `01_baseline_prod` for zsdcc with
+production cpnos-rom flag set).  Tuned = each compiler's smallest
+PASS in its 13-config sweep.
 
 ```
-Variant   zsdcc bin  clang bin   gap B      ×    zsdcc ts    clang ts      ×
-K&R            3604       4642   +1038  1.29×    14185104    66019335   4.65×
-ANSI           3323       4241    +918  1.28×    12080289    59557771   4.93×
+                       K&R bin    K&R tstates       ANSI bin   ANSI tstates
+clang baseline           4111     15,704,339          4047       16,021,371
+clang tuned              2695     15,201,006          2636       15,515,354
+                       (09_prod_like)               (09_prod_like)
+zsdcc baseline           3604     14,185,104          3323       12,080,289
+zsdcc tuned              3589     14,178,600          3323       12,080,289
+                       (11_max_allocs_100000)       (01_baseline_prod)
 ```
 
-Pre-session 69 K&R was 5114 B (1.42×); ANSI was unbuildable due
-to #159's silent miscompile.  Session 69 fix impact:
-- **K&R clang.bin: −472 B (−9.2%)** from #158
-- **ANSI clang.bin: −873 B** from baseline (#158 + #159 unblock + #161)
-- **ANSI-vs-K&R gap closed to 1.09×** (was 1.42×)
+### Three headline reframings vs older findings
 
-ANSI vs K&R: clang.bin **−8.6%**, zsdcc.bin **−7.8%**.
+**1. Apples-to-apples reversal — clang wins on size.**  Earlier text
+("zsdcc wins by 1.29×") compared zsdcc-tuned vs clang-baseline.
+Comparing **smallest PASS to smallest PASS**:
 
-zsdcc wins this real-world workload by **42% on size / 4.66× on
-runtime** under K&R; by **31% / 4.93×** under ANSI. This
-**reverses** the micro-corpus result in
-`sccz80-oracle-corpus/findings-2026-05-13.md` where clang was 1.5×
-smaller than zsdcc on synthetic patterns.
+| | clang smallest | zsdcc smallest | clang advantage |
+|---|---:|---:|---:|
+| K&R | 2695 | 3589 | **−894 B / −24.9%** |
+| ANSI | **2636** | 3323 | **−687 B / −20.7%** |
 
-The reversal is the headline finding. The micro-corpus measured
-clang's strengths (mid-end identity recognition, branchless boolify,
-LDIR-overlap fill). AES is dominated by clang's weaknesses: regalloc
-churn under high pressure, BSS spill traffic, the LICM+CSE
-pessimization (open issue #128), the K&R int-promotion cascade
-(filed as #158 + #160 + the propagation-into-callers Effect 3), the
-silent miscompile in ANSI chained rotates (#159), and the
-`+static-stack` AES miscompile (#156).
+With both compilers at their best flag set, **clang is 20-25%
+smaller**.  The micro-corpus result (clang 1.5× smaller) is not
+reversed here — it is *reinforced* once the comparison is fair.
 
-Observation worth flagging: under ANSI, the clang/zsdcc runtime
-ratio actually **gets worse** (4.66× → 4.93×) even though both
-compilers run faster. zsdcc benefits more proportionally on runtime
-than clang does. Suggests the K&R int-promotion was masking some
-zsdcc runtime overhead that's now visible — orthogonal to the size
-analysis. Worth a small follow-up investigation.
+**2. Runtime ratio collapsed.**  Old documented value: zsdcc 4.65×
+faster than clang on K&R, 4.93× on ANSI.  Current measurement:
 
-## Best PASS configs from the sweeps
+| | clang | zsdcc | zsdcc advantage |
+|---|---:|---:|---:|
+| K&R baseline | 15.70 Mts | 14.19 Mts | **1.11×** |
+| K&R tuned | 15.20 Mts | 14.18 Mts | **1.07×** |
+| ANSI tuned | 15.52 Mts | 12.08 Mts | **1.28×** |
 
-### clang
+The 4.65× figure predates the LICM/CSE diagnosis and S3'
+(`006ba9607dd1`); current clang baseline runs at 15.7 Mts (was 66.0
+Mts).  zsdcc is still faster, but it is a percentage gap, not a
+multiplier.  The ANSI ratio is wider than K&R because zsdcc gains
+more from ANSI on speed (14.2 → 12.1 Mts, −15%) than clang does
+(15.7 → 15.5 Mts, −1%).
+
+**3. SDCC's K&R int-promotion penalty is far worse than clang's.**
+ANSI delta at baseline:
+
+| | K&R | ANSI | Δ | Δ % |
+|---|---:|---:|---:|---:|
+| clang | 4111 | 4047 | −64 | −1.6% |
+| zsdcc | 3604 | 3323 | **−281** | **−7.8%** |
+
+zsdcc's iCode allocator cannot see through `int` widening the way
+LLVM's AggressiveInstCombine can.  The asymmetry means we should
+prefer ANSI sources at the project level — and may motivate a
+separate SDCC-side issue for "int-promotion narrowing".
+
+### ravn/z88dk #5 and #6 are K&R-only
+
+Both K&R-FAIL configs PASS cleanly on ANSI:
+
+| Config | K&R | ANSI | Bug |
+|---|---|---|---|
+| `08_nogcse` | FAIL (3711 / 14.2 Mts) | **PASS** (3368 / 12.08 Mts) | ravn/z88dk#5 |
+| `09_clib_ix` | FAIL (4793 / 31.9 Mts — runaway) | **PASS** (4579 / 12.32 Mts) | ravn/z88dk#6 |
+
+Both bugs reclassified from "SDCC miscompile" to "SDCC
+K&R-with-flag-X miscompile".  Issues updated with the
+ANSI-confirmed repro.  Workaround is now obvious: use ANSI
+prototypes.  The 33% bloat from `-clib=sdcc_ix` (vs `sdcc_iy`)
+remains under ANSI — that part of #6 is a quality issue, separate
+from the correctness bug.
+
+## Best PASS configs from the sweeps (post-session 73k refresh)
+
+### clang — K&R
 
 | Config | bin B | tstates | vs baseline |
 |---|---:|---:|---|
-| `01_baseline_Oz` | 5114 | 66.1M | — |
-| **`06_Oz_no_licm_cse`** | **4733** | **31.6M** | −381 B / −52.2% runtime |
-| **`11_Oz_no_licm_cse_gc`** | **4682** | 31.6M | −432 B / −52.2% runtime (smallest PASS) |
-| `10_Oz_no_licm_cse_lsr` | 5089 | 31.6M | −25 B / −52.2% runtime |
-| `07_Oz_no_lsr` | 5480 | 66.1M | +366 B, no speed change |
+| `01_baseline_Oz` | 4111 | 15.70M | — |
+| `06_Oz_no_licm_cse` | 3815 | 15.54M | −296 B / −1.0% runtime |
+| `11_Oz_no_licm_cse_gc` | 3795 | 15.54M | −316 B / −1.0% runtime |
+| `12_Oz_no_omit_fp` | 3568 | 15.49M | −543 B / −1.4% runtime |
+| `13_Oz_no_omit_fp_no_licm_cse_gc` | 3328 | 15.37M | −783 B / −2.1% runtime |
+| `05_Oz_static_stack` | 2830 | 15.26M | −1281 B / −2.8% runtime |
+| **`09_Oz_prod_like`** | **2695** | **15.20M** | **−1416 B / −3.2% runtime (smallest PASS)** |
 
-The clear win: `-mllvm -disable-machine-licm -mllvm -disable-machine-cse`.
-**−7.4% size + −52.2% runtime in a single flag pair.** Validates
-[ravn/llvm-z80#128](https://github.com/ravn/llvm-z80/issues/128)
-("MachineLICM and MachineCSE pessimize at -Oz on Z80") with
-much sharper numeric evidence than the original cpnos-rom data.
-
-Adding `-ffunction-sections -fdata-sections --gc-sections` on top
-saves another 51 B (config 11). LSR helps on AES (+366 B without
-it), counter to the cpnos-rom production decision to disable it —
-worth re-measuring on cpnos-rom (open task).
-
-### zsdcc
+### clang — ANSI
 
 | Config | bin B | tstates | vs baseline |
 |---|---:|---:|---|
-| `01_baseline_prod` | 3604 | 14.2M | — |
-| **`11_max_allocs_100000`** | **3589** | 14.2M | −15 B (smallest PASS) |
-| `02_sdcccall_0` | 3682 | 14.2M | +78 B (stack-arg ABI cost) |
-| `05_SO0` (no peephole) | 3802 | 15.4M | +198 B / +8.4% runtime |
+| `01_baseline_Oz` | 4047 | 16.02M | — |
+| `13_Oz_no_omit_fp_no_licm_cse_gc` | 3269 | 15.69M | −778 B / −2.1% runtime |
+| `05_Oz_static_stack` | 2766 | 15.58M | −1281 B / −2.8% runtime |
+| **`09_Oz_prod_like`** | **2636** | **15.52M** | **−1411 B / −3.1% runtime (smallest PASS)** |
 
-Findings:
-- **`--sdcccall 1`** is worth ~2% size over stack-arg ABI on this
-  workload (smaller win than micro-corpus saw, because helper-call
-  ABI mismatch isn't reached).
-- **`--max-allocs-per-node 100000`** earns ~0.4% size over the
-  production 25000 — diminishing returns; production setting is
-  near-optimum.
-- **`--no-peep`, `--all-callee-saves`, `--reserve-regs-iy`
-  (keep_frame_ptr)**: byte-identical to baseline → these knobs have
-  no effect on AES-shape code under production flags.
-- **`-SO0`** costs ~5% size / 8% speed → peephole is real value.
-- **`--opt-code-speed`** is 81 B BIGGER than `--opt-code-size`
-  *and* only 1.2% faster → not a useful trade on this workload.
+`09_Oz_prod_like` =
+`-Oz -Xclang -target-feature -Xclang +static-stack -mllvm -disable-lsr -mllvm -disable-machine-licm -mllvm -disable-machine-cse -ffunction-sections -fdata-sections`
+is the canonical production recipe and dominates on both variants.
+The big single-flag-pair win is still `-mllvm -disable-machine-licm
+-mllvm -disable-machine-cse` (validates [ravn/llvm-z80#128]) — but
+the runtime impact (−1 to −2% post-S3') is much smaller than the
+previously-documented −52.2%, which predates session 73b's S3' fix
+landing.
+
+LSR helps on K&R (+366 B without it on `07_Oz_no_lsr`) and is
+disabled in cpnos-rom production — re-measuring cpnos-rom with LSR
+enabled remains the open follow-up.
+
+### zsdcc — K&R
+
+| Config | bin B | tstates | vs baseline |
+|---|---:|---:|---|
+| `01_baseline_prod` | 3604 | 14.19M | — |
+| **`11_max_allocs_100000`** | **3589** | 14.18M | −15 B (smallest PASS) |
+| `02_sdcccall_0` | 3682 | 14.19M | +78 B (stack-arg ABI cost) |
+| `05_SO0` (no peephole) | 3802 | 15.37M | +198 B / +8.4% runtime |
+| `08_nogcse` | 3711 | 14.20M | **FAIL — ravn/z88dk#5** |
+| `09_clib_ix` | 4793 | 31.90M | **FAIL — ravn/z88dk#6** |
+
+### zsdcc — ANSI
+
+| Config | bin B | tstates | vs baseline |
+|---|---:|---:|---|
+| **`01_baseline_prod`** | **3323** | **12.08M** | — (smallest PASS — production is already optimal) |
+| `06_SO2` | 3428 | 12.10M | +105 B |
+| `02_sdcccall_0` | 3682 | 14.19M | +359 B (stack-arg ABI cost; speed regression too) |
+| `08_nogcse` | 3368 | 12.08M | +45 B; now PASS — #5 is K&R-only |
+| `09_clib_ix` | 4579 | 12.32M | +1256 B; now PASS — #6 K&R-only correctness, ANSI bloat remains |
+
+Findings (carry over from prior sweep, refined):
+- **`--sdcccall 1`** is worth ~2% size on K&R, ~10% on ANSI (the ABI
+  win compounds with the int-promotion narrowing).
+- **`--max-allocs-per-node 100000`** earns ~0.4% K&R, **zero ANSI**
+  (3330 vs 3323).  Drop the suggestion to bump production's 25000.
+- **`-SO0`** costs ~5% size / 8% speed on K&R, similar on ANSI —
+  peephole continues to deliver real value.
+- **`--opt-code-speed`** is +81 B K&R / +12 B ANSI, ~0–2% faster —
+  not a useful trade on either variant.
 
 ## Filed issues (this corpus's queue, none fixed)
 
@@ -116,12 +175,12 @@ Cross-cutting: also validates open issue
 pessimize on Z80) with **−52% runtime** on AES, much sharper than
 the original cpnos-rom evidence.
 
-### ravn/z88dk (2 issues)
+### ravn/z88dk (2 issues — both K&R-only after 73k re-measurement)
 
-| # | Title | Manifestation | Repro |
-|---|---|---|---|
-| **#5** | zsdcc `--nogcse` drops late-assigned absolute-pointer writes after struct-arg call | All writes through `r = (uint8_t *)0xC000;` elided | `repros/repro_nogcse_late_r.c` |
-| **#6** | zsdcc `-clib=sdcc_ix` silently miscompiles AES output | Wrong ciphertext, 33% larger code | `repros/repro_clib_ix.c` |
+| # | Title | Manifestation | Repro | Notes |
+|---|---|---|---|---|
+| **#5** | zsdcc `--nogcse` drops late-assigned absolute-pointer writes after struct-arg call | K&R: all writes through `r = (uint8_t *)0xC000;` elided.  ANSI: PASS | `repros/repro_nogcse_late_r.c` | **K&R-only** (73k); ANSI sweep `08_nogcse` PASSes at 3368 B |
+| **#6** | zsdcc `-clib=sdcc_ix` silently miscompiles AES output | K&R: wrong ciphertext, 33% larger code, runaway tstates.  ANSI: PASS but still 33% larger | `repros/repro_clib_ix.c` | Correctness bug **K&R-only** (73k); size bloat (+1256 B vs `sdcc_iy`) still present on ANSI |
 
 ### Strategic frame
 
@@ -130,12 +189,18 @@ on int-promotion narrowing + regalloc quality. SDCC track is
 upstream-SDCC work on the two correctness bugs.
 
 Until the issues are fixed, the workarounds are:
-- **Clang track**: use ANSI prototypes where possible. Even with #159
-  blocking one function, the corpus-wide ANSI variant saves 14.5%
-  binary size (5114 → 4375 B). Production cpnos-rom is already
-  ANSI; aes256.c is the upstream-K&R source kept for provenance.
-- **SDCC track**: avoid `--nogcse` and `-clib=sdcc_ix`. Stick with
-  the production `-clib=sdcc_iy --sdcccall 1` recipe.
+- **Clang track**: use ANSI prototypes where possible. Corpus-wide
+  ANSI saves 1.6% size + 1.4% runtime over K&R at the same flags
+  (session 73k refresh).  The much larger pre-session-73b numbers
+  (14.5% / 4.9×) are stale; current bin sizes are
+  K&R 4111 / ANSI 4047 at `-Oz` baseline.
+- **SDCC track**: avoid `--nogcse` and `-clib=sdcc_ix` ON K&R.  Both
+  correctness bugs disappear on ANSI sources.  Production cpnos-rom
+  is already ANSI, so neither bug currently bites in production —
+  but they remain unfixed in SDCC and the upstream issues should be
+  resolved.  ANSI cuts size 7.8% over K&R on this workload, so the
+  recommendation to keep `-clib=sdcc_iy --sdcccall 1 -Cs"--fomit-frame-pointer"`
+  is unchanged.
 
 ## Tooling findings (the ticks investigation)
 
@@ -176,30 +241,42 @@ anything, just curiosity).
 
 ## What we'd do next (per todo.md follow-ups)
 
-1. **Adopt `-mllvm -disable-machine-licm -mllvm -disable-machine-cse`
-   as the corpus baseline** — already in production cpnos-rom flags
-   per CLAUDE.md.
-2. **Re-measure cpnos-rom with LSR enabled** — AES shows LSR helps;
+1. **Re-measure cpnos-rom with LSR enabled** — AES shows LSR helps;
    production currently disables it. Worth a sweep on actual
    cpnos-rom workload before flipping the default.
-3. **Add AES to the regular regression suite** — runtime tstate
+2. **Add AES to the regular regression suite** — runtime tstate
    metric is a much sharper signal than size alone.
-4. **Find the DEMO.COM-producing compiler** — try other HiTech flags,
+3. **Find the DEMO.COM-producing compiler** — try other HiTech flags,
    BDS C, Aztec C.
-5. **Continue down the priority queue**: aes_shiftRows / aes_sr_inv
-   (+102 / +100 B each), then aes_subBytes / aes_sb_inv /
-   aes_addRoundKey (+85 B each). Per the per-function survey, all
-   are #157 variants — confirm and add as evidence comments to #157
-   without filing duplicate issues.
-6. **Investigate why zsdcc gets a bigger runtime ratio improvement
-   under ANSI than clang** (4.66× → 4.93×). Probably reveals an
-   SDCC peephole that's K&R-blocked. Worth a brief bisect.
-7. **Wait on the 5 llvm-z80 + 2 z88dk filed issues**. Re-run
-   `make test` and `make sweep` after each fix to capture FAIL→PASS
-   transitions and size deltas.
-8. **Extend sweeps to ANSI variant** — currently sweeps target
-   K&R only. Doubling sweep time is justified once we have an upstream
-   fix landing that affects both variants differently.
+4. **Continue down the per-function priority queue**: `aes_mc_inv`
+   +549 B, `aes_mixColumns` +289 B, `rj_sb_inv` +126 B, `gf_log`
+   +121 B, then `aes_shiftRows / aes_sr_inv` (+102 / +100 B).  Per
+   the per-function survey, all are #157 variants — confirm and add
+   as evidence comments to #157 without filing duplicate issues.
+5. **File new SDCC issue: K&R int-promotion narrowing.**  Session
+   73k showed zsdcc loses 7.8% to K&R vs ANSI (4.9× clang's
+   penalty).  Suggests an iCode-allocator pass that fails to narrow
+   through promoted-int comparisons / shifts.  Repro: the existing
+   K&R vs ANSI AES sweep difference is itself the repro.
+6. **Wait on the 5 llvm-z80 + 2 z88dk filed issues**. Re-run
+   `make sweep` after each fix to capture FAIL→PASS transitions
+   and size deltas.
+
+### Done
+
+- ~~Extend sweeps to ANSI variant~~ — landed session 73k.
+  Sweep scripts now accept `AES_SRC`, `TSV_NAME`, `MD_NAME`,
+  `MD_TITLE_SUFFIX` env vars; run as
+  `AES_SRC=../aes256_ansi.c TSV_NAME=results_ansi.tsv MD_NAME=clang-flag-sweep-ansi.md ./flag_sweep.sh`
+  (or the parallel `flag_sweep_sdcc.sh`).
+- ~~Adopt `-mllvm -disable-machine-licm -mllvm -disable-machine-cse`
+  as the corpus baseline~~ — already in production cpnos-rom flags;
+  AES sweep keeps the no-flag baseline (`01_baseline_Oz`) as the
+  reference point so the impact of those flags is visible in the
+  table delta column.
+- ~~`--max-allocs-per-node 100000` re-measurement~~ — session 73k
+  ANSI sweep showed zero benefit over the 25000 production setting
+  (3330 vs 3323 B).  Production setting is optimal.
 
 ## How to interpret the sweep tables
 

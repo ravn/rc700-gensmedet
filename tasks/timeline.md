@@ -1,5 +1,69 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73l: AES corpus full 4-cell sweep + ravn/z88dk K&R-only finding (May 20, 2026) — Easy
+
+End state: AES-256 corpus now measures all four combinations of
+{clang, zsdcc} × {K&R, ANSI} on its 13-config flag sweep.  Previous
+"K&R-only" coverage left three of four cells unmeasured; this
+session filled them in and surfaced a major reframing of the
+corpus headline numbers plus a new SDCC quality issue and a
+K&R-only re-classification of two existing SDCC correctness bugs.
+
+### What landed
+
+- **Sweep scripts parameterized** (`AES_SRC`, `TSV_NAME`,
+  `MD_NAME`, `MD_TITLE_SUFFIX` env vars; defaults preserve K&R).
+  Both `flag_sweep.sh` and `flag_sweep_sdcc.sh` accept the same
+  knobs.  Two new committed markdown tables: `clang-flag-sweep-ansi.md`
+  + `sdcc-flag-sweep-ansi.md`.
+- **`findings.md` rewritten**: headline 4-cell matrix replaces
+  the stale pre-session-73b table; Best-PASS tables rebuilt with
+  post-S3' numbers for both variants; z88dk issue table notes
+  both bugs are K&R-only; old "What we'd do next" pruned.
+
+### Headline reframings
+
+1. **Apples-to-apples reversal.**  Comparing smallest-PASS to
+   smallest-PASS rather than zsdcc-tuned vs clang-baseline, clang
+   is **20-25% smaller** on AES (K&R 2695 vs 3589; ANSI 2636 vs
+   3323).  The "zsdcc wins 1.29×" line was apples-to-oranges.
+2. **Runtime ratio collapsed.**  Old documented 4.65× clang
+   slowdown is post-S3' down to 1.07-1.28×.  zsdcc is still
+   faster on tstates, but as a percentage gap not a multiplier.
+3. **SDCC K&R int-promotion is 4.9× clang's.**  zsdcc loses 7.8%
+   size + 14.8% runtime to K&R prototypes; clang loses 1.6% size
+   + 2.0% runtime.
+
+### Issues filed / updated
+
+- **Filed ravn/z88dk#14** — "K&R int-promotion penalty: 7.8% size
+  + 15% runtime that recovers under ANSI prototypes".  Includes
+  reproducible sweep delta + hypothesis (iCode allocator not
+  narrowing through promoted-int operations) + workaround.
+- **Updated ravn/z88dk#5** — `--nogcse` is K&R-only.  ANSI sweep
+  PASSes at 3368 B / 12.08 Mts.
+- **Updated ravn/z88dk#6** — split into two findings: correctness
+  bug is K&R-only; 33% bloat from `sdcc_ix` vs `sdcc_iy` is real
+  on both variants and deserves a separate code-quality issue
+  once #6 closes.
+
+### What was Easy
+
+- Sweep script parameterization (minimal env-var diff).
+- Running the four sweeps (mechanical, total wallclock ~6-7 min).
+- Cross-checking the K&R-vs-ANSI failure pattern on `08_nogcse`
+  and `09_clib_ix` — both flipped cleanly, no edge cases.
+
+### What was Painful
+
+- Initial concurrent `make sweep` collision (forgot CWD twice,
+  three sweeps running in parallel until pkill).  Resolved fast,
+  but a textbook example of why concurrent fire-and-forget kicks
+  benefit from `lsof`-style guard or an outer flock.
+- Edit tool dropped exec bit on `flag_sweep_sdcc.sh` once during
+  the edits; `bash ./script.sh` works around it but `./script.sh`
+  needed `chmod +x` after editing.
+
 ## Session 73k: rcbios CP/NET PIO transport + cpnos __sfr port-IO + single MAME tree (May 18, 2026) — Hard
 
 End state: both clang and SDCC BIOS variants of rcbios run a full

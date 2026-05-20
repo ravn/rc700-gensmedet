@@ -1,7 +1,7 @@
 # clang flag sweep — AES-256 corpus
 
-Last run: 2026-05-15  
-llvm-z80 HEAD: `da1ac7a33181`
+Last run: 2026-05-20  
+llvm-z80 HEAD: `0cf4034d8635`
 
 Reproducible via `make sweep` in this directory. Each row is a
 clean rebuild + run-to-HALT in `z88dk-ticks` with verification of

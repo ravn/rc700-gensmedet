@@ -26,6 +26,15 @@ cd "$HERE"
 mkdir -p sweep
 cd sweep
 
+# Optional ANSI mode: env-var driven so K&R defaults are preserved.
+#   AES_SRC=../aes256_ansi.c TSV_NAME=results_ansi.tsv \
+#   MD_NAME=clang-flag-sweep-ansi.md MD_TITLE_SUFFIX=" (ANSI variant)" \
+#   ./flag_sweep.sh
+AES_SRC=${AES_SRC:-../aes256.c}
+TSV_NAME=${TSV_NAME:-results.tsv}
+MD_NAME=${MD_NAME:-clang-flag-sweep.md}
+MD_TITLE_SUFFIX=${MD_TITLE_SUFFIX:-}
+
 # Reuse reset_clang.s and clang.ld from parent build (regenerate if absent).
 if [ ! -e reset_clang.s ]; then
   printf '%s\n' '    .section .reset, "ax"' '    .global _start' '_start:' \
@@ -40,7 +49,7 @@ if [ ! -e clang.ld ]; then
 fi
 
 # TSV header
-TSV=results.tsv
+TSV="$TSV_NAME"
 printf 'label\tbin\taes_text\ttstates\tverify\tflags\n' > "$TSV"
 
 build_and_measure() {
@@ -53,7 +62,7 @@ build_and_measure() {
     $cflags -c reset_clang.s -o ${prefix}_reset.o 2>/dev/null
   $CLANG --target=z80 -nostdlib -ffreestanding \
     -std=c89 -Wno-deprecated-non-prototype \
-    $cflags -c ../aes256.c -o ${prefix}_aes.o 2>/dev/null
+    $cflags -c "$AES_SRC" -o ${prefix}_aes.o 2>/dev/null
   $CLANG --target=z80 -nostdlib -ffreestanding \
     -std=c89 -Wno-deprecated-non-prototype \
     $cflags -c ../test_main.c -o ${prefix}_main.o 2>/dev/null
@@ -134,11 +143,14 @@ build_and_measure "13_Oz_no_omit_fp_no_licm_cse_gc" \
 
 # Generate the markdown table.
 cd ..
-python3 <<'PY' > clang-flag-sweep.md
-import csv, datetime, subprocess
+TSV_NAME="$TSV_NAME" MD_TITLE_SUFFIX="$MD_TITLE_SUFFIX" python3 <<'PY' > "$MD_NAME"
+import csv, datetime, os, subprocess
+
+tsv_name = os.environ.get('TSV_NAME', 'results.tsv')
+title_suffix = os.environ.get('MD_TITLE_SUFFIX', '')
 
 rows = []
-with open('sweep/results.tsv') as f:
+with open(f'sweep/{tsv_name}') as f:
     r = csv.DictReader(f, delimiter='\t')
     for row in r:
         rows.append(row)
@@ -151,7 +163,7 @@ llvm_z80_head = subprocess.run(
     ['git', '-C', '/Users/ravn/z80/llvm-z80', 'rev-parse', '--short=12', 'HEAD'],
     capture_output=True, text=True).stdout.strip()
 
-print('# clang flag sweep — AES-256 corpus')
+print(f'# clang flag sweep — AES-256 corpus{title_suffix}')
 print()
 print(f'Last run: {datetime.date.today().isoformat()}  ')
 print(f'llvm-z80 HEAD: `{llvm_z80_head}`')
@@ -182,4 +194,4 @@ print('See `findings.md` for analysis of why each config wins or loses.')
 PY
 
 echo
-echo "Wrote clang-flag-sweep.md"
+echo "Wrote $MD_NAME"

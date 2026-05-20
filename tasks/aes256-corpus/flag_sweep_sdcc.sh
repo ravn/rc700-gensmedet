@@ -20,7 +20,18 @@ cd "$HERE"
 mkdir -p sweep
 cd sweep
 
-TSV=results_sdcc.tsv
+# Optional ANSI mode — env-var driven so K&R defaults are preserved.
+#   AES_SRC=../aes256_ansi.c TSV_NAME=results_sdcc_ansi.tsv \
+#   MD_NAME=sdcc-flag-sweep-ansi.md MD_TITLE_SUFFIX=" (ANSI variant)" \
+#   ./flag_sweep_sdcc.sh
+# Note: zcc + map-regex assume the input filename is `aes256.c`, so we
+# copy AES_SRC -> aes256.c locally and the rest of the path is identical.
+AES_SRC=${AES_SRC:-../aes256.c}
+TSV_NAME=${TSV_NAME:-results_sdcc.tsv}
+MD_NAME=${MD_NAME:-sdcc-flag-sweep.md}
+MD_TITLE_SUFFIX=${MD_TITLE_SUFFIX:-}
+
+TSV="$TSV_NAME"
 printf 'label\tbin\taes_text\ttstates\tverify\tflags\n' > "$TSV"
 
 build_and_measure() {
@@ -28,8 +39,9 @@ build_and_measure() {
   local cflags="$*"
   local prefix="${label}"
 
-  # zcc wants source files in cwd; copy from parent.
-  cp ../aes256.c ../test_main.c .
+  # zcc wants source files in cwd; copy from parent (AES_SRC → aes256.c).
+  cp "$AES_SRC" ./aes256.c
+  cp ../test_main.c .
   rm -f ${prefix}_*.map ${prefix}.bin ${prefix}.map ${prefix}.ram \
         ${prefix}_BSS.bin ${prefix}_CODE.bin ${prefix}_DATA.bin
 
@@ -144,11 +156,14 @@ build_and_measure "13_all_callee_saves"       '-clib=sdcc_iy --opt-code-size -SO
 
 # Generate markdown table.
 cd ..
-python3 <<'PY' > sdcc-flag-sweep.md
-import csv, datetime, subprocess
+TSV_NAME="$TSV_NAME" MD_TITLE_SUFFIX="$MD_TITLE_SUFFIX" python3 <<'PY' > "$MD_NAME"
+import csv, datetime, os, subprocess
+
+tsv_name = os.environ.get('TSV_NAME', 'results_sdcc.tsv')
+title_suffix = os.environ.get('MD_TITLE_SUFFIX', '')
 
 rows = []
-with open('sweep/results_sdcc.tsv') as f:
+with open(f'sweep/{tsv_name}') as f:
     r = csv.DictReader(f, delimiter='\t')
     for row in r:
         rows.append(row)
@@ -165,7 +180,7 @@ z88dk_head = subprocess.run(
     ['git', '-C', '/Users/ravn/z80/z88dk', 'rev-parse', '--short=12', 'HEAD'],
     capture_output=True, text=True).stdout.strip() or '(unknown)'
 
-print('# zsdcc flag sweep — AES-256 corpus')
+print(f'# zsdcc flag sweep — AES-256 corpus{title_suffix}')
 print()
 print(f'Last run: {datetime.date.today().isoformat()}  ')
 print(f'z88dk HEAD: `{z88dk_head}`')
@@ -198,4 +213,4 @@ for row in rows:
 PY
 
 echo
-echo "Wrote sdcc-flag-sweep.md"
+echo "Wrote $MD_NAME"
