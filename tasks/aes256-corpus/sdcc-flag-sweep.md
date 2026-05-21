@@ -1,9 +1,11 @@
 # zsdcc flag sweep — AES-256 corpus
 
 Last run: 2026-05-21  
-z88dk HEAD: `d962a34fe39d`
+z88dk HEAD: `fd664cc97905`
 
-Reproducible via `make sweep_sdcc` in this directory.
+Reproducible via `make sweep_sdcc` in this directory. Each row is a
+clean rebuild + run-to-HALT in `z88dk-ticks` with verification of
+the 35-byte result vector at 0xC000.
 
 Baseline (`01_baseline_prod`) = current production cpnos-rom flags.
 

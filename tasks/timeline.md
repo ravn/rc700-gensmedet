@@ -1,5 +1,72 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73o: #172 A-shuttle drilled -- structural infrastructure landed (default off) (May 21, 2026) — Medium
+
+End state: ravn/llvm-z80 adds new `AReg` single-register class + new pre-RA pass `Z80PinAluAccumulator`, commit `2c4627c80ef1`.  Default OFF pending a liveness-aware selector.  Targets the dominant residual SDCC speed gap on AES: clang routes XOR/AND/OR chains through A via `ld a, r; OP; ld r, a` round-trips while SDCC keeps the accumulator in A directly (4 ts vs 12 ts per ALU op).
+
+### What landed
+
+1. **#172 filed** with the MIR pattern, the SDCC asm comparison, and four fix paths.
+2. **Hint attempt** in `getRegAllocationHints`: fires correctly, greedy regalloc ignores it.  Reverted.  Confirms the existing comment at `Z80RegisterInfo.cpp:1891` that hints don't move the allocator on this path.
+3. **Structural attempt**: new `AReg` class containing only A, new `Z80PinAluAccumulator` MachineFunctionPass that rewrites GR8 vregs matching the ALU accumulator chain pattern to `AReg`.  Mirrors `Z80SplitDjnzCounters` (the documented #99 workaround for the same regalloc gotcha at i16 width).
+4. **Default OFF** -- first-implementation pins too aggressively without interference checks.  AES `01_baseline_Oz` regressed +261 B / +3.8 % ts, `02_Os` +285 B / +3.9 % ts, `05_Oz_static_stack` segfaulted during regalloc.  The pass works correctly in isolation (`gf_alog_mini` chain collapsed in A) but breaks when multiple accumulators have overlapping live ranges.
+
+### What's needed for default-on (#172 follow-up)
+
+A liveness-aware selector that:
+1. Uses MachineLoopInfo to find natural loops + their headers / latches.
+2. Uses LiveIntervals to check for overlap with already-pinned vregs.
+3. Walks PHI cycles to identify the full accumulator chain (not just the COPY-boundary vregs).
+4. Picks ONE primary accumulator per loop via use frequency.
+
+Estimated 200-400 lines.  Multi-session work.
+
+### SDCC-gap status snapshot
+
+Post-#168 + post-Z80NarrowIV, on the AES production target:
+
+| | clang `09_Oz_prod_like` | SDCC `01_baseline_prod` | gap |
+|---|---|---|---|
+| size | 2667 B | 3323 B | clang **-20 %** |
+| tstates | 14,887,472 | 12,080,289 | SDCC **-18.9 %** |
+
+Breakdown of the residual 2.8M ts clang lag (suspected):
+
+- A-shuttle (#172): ~1.5M ts (~5 pp)
+- Other regalloc churn (#27, #115): ~0.8M ts (~3 pp)
+- Per-function gaps (aes_mc_inv +549 B, etc.): ~0.5M ts (~2 pp)
+
+### Verification
+
+  - Z80 lit: 104 PASS + 3 XFAIL unchanged (default-off = no codegen change).
+  - AES corpus: 13/13 PASS (default-off).
+  - z80-utils test-runner: not re-checked (default-off = same as no pass).
+
+### Files (llvm-z80)
+
+  - `llvm/lib/Target/Z80/Z80RegisterInfo.td` -- new `AReg` class.
+  - `llvm/lib/Target/Z80/Z80PinAluAccumulator.{h,cpp}` -- the pass.
+  - `llvm/lib/Target/Z80/Z80TargetMachine.cpp` -- pipeline hook.
+  - `llvm/lib/Target/Z80/Z80.h` + `CMakeLists.txt` -- registration.
+  - `llvm/tasks/session73o-issue172-a-pin.md` -- full investigation log.
+
+### Commits (llvm-z80 main)
+
+  - `2c4627c80ef1` -- AReg + Z80PinAluAccumulator (default off)
+  - `6a6f38255608` -- session 73o summary
+
+### What was Easy / Hard
+
+**Easy**: filing #172.  The asm comparison wrote itself.
+
+**Easy**: the hint experiment.  Confirmed negative result in 30 min.
+
+**Medium**: implementing the structural pass.  Mirroring `Z80SplitDjnzCounters` made the scaffolding straightforward.
+
+**Hard**: pattern detection for the accumulator chain.  First try required both COPY-to-A and COPY-from-A on the SAME vreg; fires zero times because chains have separate vregs at the boundaries.  Relaxed to either-side; pins partial chains, leaves the PHI carrier in a non-A reg.
+
+**Painful**: the segfault on 05.  No diagnostic.  Backing out to default-off was correct.
+
 ## Session 73n: Z80NarrowIV pass lands default-on -- closes #77 fix path 1 (May 21, 2026) — Medium
 
 End state: ravn/llvm-z80 ships a target-specific `Z80NarrowIV` IR pass that narrows i16 loop counters to i8 when SCEV proves the unsigned range fits in [0, 255].  Merged to main as `bbcc6f6047c3` from branch `session-73n-issue77-peephole`.
