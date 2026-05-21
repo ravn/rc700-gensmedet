@@ -1172,15 +1172,15 @@ Disassembly of section .text:
     657b: 01 cf 07     	ld	bc,$7cf
     657e: ed b0        	ldir
 ;     memset(dspstr, 0x20, 80 * 25);
-    6580: 21 1f 7a     	ld	hl,$7a1f
+    6580: 21 2e 7a     	ld	hl,$7a2e
     6583: 77           	ld	(hl),a
-    6584: 11 20 7a     	ld	de,$7a20
-    6587: 01 b0 07     	ld	bc,$7b0
+    6584: 11 2f 7a     	ld	de,$7a2f
+    6587: 01 a1 07     	ld	bc,$7a1
     658a: ed b0        	ldir
 ;     memcpy(dspstr, BANNER_PTR, BANNER_LENGTH);
     658c: 21 21 00     	ld	hl,$21
     658f: 11 00 7a     	ld	de,$7a00
-    6592: 01 1f 00     	ld	bc,$1f
+    6592: 01 2e 00     	ld	bc,$2e
     6595: ed b0        	ldir
 ; DEFPORT(sw1,          0x14)
     6597: db 14        	in	a,($14)

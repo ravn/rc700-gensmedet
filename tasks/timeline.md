@@ -1,5 +1,60 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73p Phase 2: #177 Z80 TTI -- investigation arc, ship clean cases, file #184 (May 22, 2026) — Medium
+
+End state: `session-73p-phase2-issue177` merged to main (commit
+`541b687bbecc`).  Two TTI hooks ship; one filed for follow-up;
+#177 stays open with much clearer scope.
+
+### Codegen landed (1 merged commit `e585f3301c5f`)
+
+Three `Z80TargetTransformInfo.h` overrides:
+- `prefersVectorizedAddressing=false` (Z80 has no SIMD).
+- `getArithmeticInstrCost`: only `Mul -> TCC_Expensive`.
+- `getCastInstrCost`: trunc i16->i8 free, zext i8->i16 free,
+  sext i8->i16 = 2.
+
+Production delta: cpnos PROM1 2030 -> **2029 B** (-1 B; 19 B free).
+AES 13/13 PASS, lit 105+3, wider oracle byte-identical.
+
+### Investigation arc
+
+- **Phase A** -- mapped IR pass -> TTI hook usage.  Found
+  MachineLICM / MachineCSE do NOT use TTI.  Retired Phase E
+  (~1 wk saved).
+- **Phase B0** -- predicted near-zero impact from Tier 1 hooks.
+  PREDICTION WRONG.
+- **Phase B1** -- ran the bundle, found miscompile in
+  `05_Oz_static_stack` (100M ts timeout) + silent fails in
+  `02_Os`/`04_O2`.  Parked #177.  WRONG REFLEX.
+- User redirect: "i am fine with you accidentially introducing
+  bugs, as long as you fix them correctly."
+- **Phase B2** -- bisected the bundle in 4 cycles (~15 min each).
+  Isolated to ONE line: `getArithmeticInstrCost` returning 2 for
+  i16.  Shipped sibling clean cases; filed bad case as #184.
+
+### Issues filed
+
+- **ravn/llvm-z80#184** -- `getArithmeticInstrCost(i16)=2`
+  miscompiles AES under `+static-stack`.  Reproducer + asm diff
+  included.
+
+### Methodological lessons (in Phase-B2 doc)
+
+1. When predicting "near-zero impact" from IR cost hooks: RUN
+   THE FULL ORACLE before documenting the prediction.
+2. When the oracle shows a miscompile: BISECT on first failure;
+   don't park.  Bisect cost ~1 hour, recovers the clean cases.
+
+### Estimate accuracy
+
+- Phase A: estimated ~30 min, actual ~30 min.  ✓
+- Phase B0: estimated "Phase B is 2-3 days, near-zero impact".  ✗
+- Phase B2 bisect: estimated ~1 hour, actual ~1 hour.  ✓
+
+The session's larger value was process discipline, not the single
+byte of production yield.
+
 ## Session 73p Phase 1: clang DOMINATES SDCC on AES production target (May 21, 2026) — Hard
 
 End state: AES corpus production target `09_Oz_prod_like` flipped
