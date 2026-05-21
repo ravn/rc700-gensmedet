@@ -1,5 +1,92 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73m: #168 SimplifyCFG cost-gate lands; #77a guards refined; SDCC AES gap dissected (May 21, 2026) — Medium
+
+End state: ravn/llvm-z80#168 closed by a 12-line cost-gated bailout in
+`foldTwoEntryPHINode` (commit `cd2a2ace8754`).  Every `xor 27` in AES
+hot paths is now reached only via a taken conditional branch — the
+branchless-XOR pattern from #167 is fully eliminated.  AES
+`09_Oz_prod_like` clang 2695 → **2679 B**, tstates 15.05M → 14.88M
+(−1.1% global, −16 B / −167 K ts at the production target).  cpnos
+clang PROM1 within 18 B of the 2 KB hard cap (2030 / 2048).
+`experiment-cpnos-prom-4k` merged back to main; `CPNOS_PROM1_CAP`
+reverted to 2048 B.  cpnos-polypascal-test PASS 51.69 s; z80-utils
+test-runner clang suite 681/46/56/207 unchanged.
+
+Headline framing question for the session: **"are clang as fast as
+SDCC now?"** → No, still 19% slower.  clang `09_Oz_prod_like`
+2679 B / 14.88M ts vs SDCC `01_baseline_prod` 3323 B / 12.08M ts —
+clang **19% smaller**, **19% slower**.  Gap dissected via per-instr
+counting on `_gf_alog`: the residual 24 ts/iter (37% per-iter) is
+**A-register churn from regalloc**, not pattern recognition.
+Tracked by:
+
+  - **#77** — 8-bit `dec r; jr nz` instead of `ld a,r; dec a; ld r,a; ld a,r; or a; jr nz`
+  - **#89** + **#27** — broader regalloc cluster (A-shuttle, copy cost)
+
+Per-iter decomposition posted on #167 with the side-by-side asm so
+future readers don't expect the SimplifyCFG fix alone to recover the
+full +38% headline regression.
+
+**#77a rotation default-on attempt** (commit `5118ca7b97b7`): added
+CALL-skip + min-trip-count (≥8) guards to `Z80LoopRotate.cpp`,
+briefly flipped default on to measure.  Results mixed: cpnos −4 B,
+AES prod-like −2.2% tstates, but AES `01_baseline_Oz` regressed
+**+11% tstates** (size recovered, speed didn't).  Per-iter math on
+`gf_alog` shows rotated form is 4 ts cheaper, so the +11% lives in
+another function (`aes_mixColumns` / `aes_mc_inv` suspected,
+LICM/CSE-touched header).  Diagnosed but not isolated.  Default
+stays off; guards land regardless because they make manual opt-in
+safer.  Comment on #100 records the measurements + the cleaner
+alternative path (post-RA `ld a,r; or a; jr nz` → `dec r; jr nz`
+peephole, surgical, no LICM interaction risk).
+
+### Files touched (llvm-z80)
+
+  - `llvm/lib/Transforms/Utils/SimplifyCFG.cpp` — cost gate
+  - `llvm/lib/Target/Z80/Z80LoopRotate.cpp` — guards + documentation
+  - `llvm/test/CodeGen/Z80/issue-167-branchless-conditional-xor.ll` — XFAIL test
+  - `llvm/test/CodeGen/Z80/issue-77a-loop-rotate.ll` — commentary refresh
+  - `llvm/tasks/session73m-summary.md` — session summary
+
+### Files touched (rc700-gensmedet)
+
+  - `cpnos-in-c/Makefile` — `CPNOS_PROM1_CAP ?= 2048` (revert
+    `experiment-cpnos-prom-4k`'s 4 KB experiment)
+  - `tasks/timeline.md` — this entry
+
+### Commits
+
+  - llvm-z80 `cd2a2ace8754` — SimplifyCFG cost-gate (#168 / refs #167)
+  - llvm-z80 `5118ca7b97b7` — Z80LoopRotate guards (refs #77 / #100)
+  - rc700-gensmedet `dec28de` — cpnos cap revert
+  - rc700-gensmedet `71c131f` — experiment branch `--no-ff` merge to main
+  - workspace `efb1ee3` / `423c88c` — banner removed + submodule bumps
+
+### What was Easy / Hard
+
+**Easy:** diagnosis.  Per-instr counting on `_gf_alog` made the
+SimplifyCFG-vs-regalloc split obvious within ~20 minutes.
+
+**Easy:** the #168 patch.  12 lines, threshold `Cost > TCC_Free`
+(not `TCC_Basic` which would silently miss the gf_alog case
+because the XOR has `Cost = 1 = TCC_Basic`).
+
+**Medium:** the cost-gate threshold choice.  Initial blanket
+bailout (672f24188ca8) regressed cpnos +23 B; #168 form is +5 B.
+Difference is the threshold; same callsite.
+
+**Hard:** the #77a rotation +11% regression.  Per-iter math
+predicts a *win*; sweep measures a *loss*.  The function actually
+costing the tstates wasn't isolated this session — handed off as
+a #100 comment.
+
+**Painful:** instrument debug.  Two false starts on the cost-gate
+investigation (DEBUG output via stderr produced 0 firings even
+though the fix was firing) — root cause was a stale `git stash
+pop` re-introducing a separate blanket-bailout patch.  Resolved
+via `git diff` to inspect actual file state.
+
 ## Session 73l-fix: SDCC K&R REGPARM-preserve patch closes ravn/z88dk #5, #6 (K&R), #14 (May 21, 2026) — Medium
 
 End state: a ~10-line patch to SDCC's \`mergeKRDeclListIntoFuncDecl\`
