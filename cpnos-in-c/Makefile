@@ -87,15 +87,10 @@ BUILDDIR  = $(COMPILER)
 #
 # Hard physical cap on the user's RC702 is 2048 B (no A11 bridge -- see
 # memory rule `project_rc702_2kb_prom_hard_limit`).  Anything larger
-# does not fit a real 2 KB PROM1 socket and is MAME-only.
-#
-# Branch `experiment-cpnos-prom-4k` raises the default cap to 4096 to
-# match the SDCC PROM1-only path (PROMCFG=2 in MAME) so we can land
-# cpnos-affecting fixes that temporarily grow code, then shrink back
-# below 2048 before merging to main.  DO NOT MERGE THIS BRANCH TO MAIN
-# WITH THE 4096 DEFAULT -- the hard cap must come back at merge time.
+# does not fit a real 2 KB PROM1 socket and is MAME-only.  Override via
+# `make ... CPNOS_PROM1_CAP=4096` only for MAME PROMCFG=2 experiments.
 # ----------------------------------------------------------------------
-CPNOS_PROM1_CAP ?= 4096
+CPNOS_PROM1_CAP ?= 2048
 
 ifeq ($(COMPILER),clang)
   # ---- clang Z80 toolchain -----------------------------------------
