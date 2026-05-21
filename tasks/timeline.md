@@ -1,5 +1,72 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73n: Z80NarrowIV pass lands default-on -- closes #77 fix path 1 (May 21, 2026) — Medium
+
+End state: ravn/llvm-z80 ships a target-specific `Z80NarrowIV` IR pass that narrows i16 loop counters to i8 when SCEV proves the unsigned range fits in [0, 255].  Merged to main as `bbcc6f6047c3` from branch `session-73n-issue77-peephole`.
+
+Two conservative guards make default-on safe:
+
+1. **After-LSR placement**: pass invoked from legacy-PM `Z80PassConfig::addIRPasses` AFTER `TargetPassConfig::addIRPasses()` (which is where LLVM core's `LoopStrengthReduce` is added).  LSR runs first, our narrowing runs second -- prevents LSR from rewriting our narrowed phi into a "shift-by-1" form that the Z80 backend mishandles (carrier register preserved across CALL ends up off-by-one, infinite loop).
+2. **Single-phi-header gate**: skip any loop whose header has > 1 phi.  Parallel `phi i8` + `phi i16` IVs in `main` verifier loops (test_94) silently miscompile when only the i16 phi is narrowed -- regalloc/coalescer handles two `i8` phis differently from `i8 + i16`.
+
+### Verification (default-on vs default-off, 13-config AES sweep)
+
+| Config | Δ bin | Δ tstates | Notes |
+|---|---:|---:|---|
+| `07_Oz_no_lsr` | **-148 B** | **-129,888 (-0.84 %)** | narrowing fires + helps |
+| `09_Oz_prod_like` (production target) | **-12 B** | +5,214 (+0.04 %) | size win, tstates in noise band |
+| `10_Oz_no_licm_cse_lsr` | -22 B | -12,706 (-0.08 %) | small win |
+| 10 other configs | 0 | 0 | unchanged |
+
+  - **z80-utils test-runner clang**: 681 / 46 / 56 / 207 (exact baseline match).
+  - **Z80 lit**: 104 PASS + 3 XFAIL (unchanged).
+  - **cpnos clang PROM1**: 2031 B / 17 B free under 2 KB hard cap (within build-date drift of the 2030 B baseline).  polypascal-test PASS 51.05 s.
+  - **AES 13 / 13 PASS**.
+
+### Three open issues stay as fix-later trackers
+
+The guards are workarounds, not root-cause fixes -- the underlying regalloc/backend bugs still exist and would fire if a user disabled the guard.  Each issue has the relevant reduction-hint + comment trail:
+
+  - **ravn/llvm-z80#169** -- Backend miscompiles narrowed-then-rewidened IV loops with CALL in body (LSR-corruption shape).  Tried standalone reduction; bug doesn't reproduce outside the full AES context.  Worked around by after-LSR placement.
+  - **ravn/llvm-z80#170** -- Z80NarrowIV miscompiles parallel `phi i8` + `phi i16` loops.  test_94 silently wrong DE bits at O1/O2; timeout at O3/Os/Oz.  Worked around by single-phi guard.
+  - **ravn/llvm-z80#171** -- Z80NarrowIV times out test_96 IY-spill loop.  Also parallel-phi shape.  Same guard.
+
+### Honest assessment of #77 closure
+
+The original #77 comment proposed a post-RA `ld a,r; or a; jr nz` -> `dec r; jr nz` peephole.  Investigation (session 73n start) showed that peephole would fire on **zero** instances in current AES/cpnos output -- the patterns always have flag clobbers between dec and test.  Retracted as a comment on #77.
+
+The IR-level IV narrowing (Fix path 1 from that retract comment) IS the right tool: it targets the dominant Pattern A (`dec bc` 16-bit flagless) directly by replacing it with a flag-setting `dec c`.  Z80NarrowIV ships that.
+
+Closes #77 in spirit; the structural transform works.  Residual SDCC gap on AES is **regalloc A-register churn** (Pattern B / C, tracked separately by **#89** + **#27**), not anything that loop-level IV narrowing can solve.
+
+### Files (llvm-z80)
+
+  - `llvm/lib/Target/Z80/Z80NarrowIV.{h,cpp}` -- new pass (377 + 38 lines)
+  - `llvm/lib/Target/Z80/Z80TargetMachine.cpp` -- legacy-PM hook in `addIRPasses` AFTER LSR
+  - `llvm/lib/Target/Z80/CMakeLists.txt` -- build
+  - `llvm/lib/Target/Z80/Z80.h` -- initialize hook
+  - `llvm/tasks/session73n-issue77-peephole-investigation.md` -- full bisection trail
+
+### Commits (llvm-z80 main)
+
+  - `95f0951f27d8` -- initial Z80NarrowIV pass (default off, exposed downstream bugs)
+  - `c022023f91be` -- legacy-PM after-LSR placement (closed #169 path)
+  - `12f2fd8c1aec` -- single-phi-header guard + default ON (closed #170 + #171 paths)
+  - `bd4217c4db86` -- AES tstate regression check recorded
+  - `bbcc6f6047c3` -- merge --no-ff to main
+
+### What was Easy / Hard
+
+**Easy**: identifying LSR as the corruptor.  Single bisect pass over `-disable-machine-licm / -disable-machine-cse / -disable-lsr` cleanly fingered LSR.
+
+**Easy**: the single-phi-header guard.  Once I had the test_94 failure shape (parallel `phi i8` + `phi i16`), the guard was 5 lines and fully fixed both test_94 and test_96.
+
+**Medium**: deciding NOT to root-cause the underlying bugs.  Tempting to keep digging since the bugs are real and the guards are conservative -- but the workarounds cleanly unblock the AES wins, and each underlying bug is its own session.
+
+**Hard**: standalone reduction for #169.  Spent ~30 min trying to reduce the AES `aes_subBytes` failure to a minimal C / IR repro; the bug only manifests in the full pipeline (probably needs inlining, multiple loops competing for registers, or specific data layout).  Filed without a reduced repro.
+
+**Painful**: the test_94 / test_96 silent miscompile during the default-on attempt.  AES verified clean, but the test-runner suite caught 15 regressions.  Caught only because I ran test-runner separately; would have been a real production bug if AES alone had been the gate.  Lesson: never trust a single oracle for default-on flips of a codegen pass.
+
 ## Session 73m: #168 SimplifyCFG cost-gate lands; #77a guards refined; SDCC AES gap dissected (May 21, 2026) — Medium
 
 End state: ravn/llvm-z80#168 closed by a 12-line cost-gated bailout in
