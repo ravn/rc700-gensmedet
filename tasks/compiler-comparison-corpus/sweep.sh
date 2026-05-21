@@ -43,7 +43,7 @@ ZSDCC_FLAGS=(+z80 -compiler=sdcc -clib=sdcc_iy
              '-Cs--fomit-frame-pointer'
              -create-app)
 
-BENCHES=(sieve)
+BENCHES=(sieve fannkuch pi)
 # Filtered by env-var BENCH if set
 if [ -n "${BENCH:-}" ]; then BENCHES=("$BENCH"); fi
 ONLY="${ONLY:-both}"
@@ -68,7 +68,8 @@ run_llvm_z80() {
   $CLANG --target=z80 -nostdlib -ffreestanding -std=c89 -Wno-deprecated-non-prototype \
     "${LLVM_FLAGS[@]}" -c "$main" -o ${prefix}_main.o
   $LLDLD -T ../sweep/clang.ld --gc-sections -o ${prefix}.elf \
-    ${prefix}_reset.o ${prefix}_bench.o ${prefix}_main.o
+    ${prefix}_reset.o ${prefix}_bench.o ${prefix}_main.o \
+    $LLVM_Z80/lib/z80/z80_rt.a
   $LLVMOBJCOPY -O binary ${prefix}.elf ${prefix}.bin
 
   local bin text done_addr tstates verify
