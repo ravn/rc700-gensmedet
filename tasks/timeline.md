@@ -1,6 +1,94 @@
 # RC700-SYSGEN Project Timeline
 
-## Session 73p: #172 A-pin scope tightened -- segfault gone, default still OFF (May 21, 2026) — Easy
+## Session 73p: three documented dead-ends + one new issue (May 21, 2026) — Medium
+
+End state: three lines of investigation, each ending with a
+documented negative result rather than a landed fix.  One new
+high-yield issue surfaced from the analysis.  Net codegen change is
+zero; net artifact is documentation density (3 commits, 1 new issue,
+2 existing-issue comment updates) so future drillers don't repeat
+the dead-ends.
+
+### Investigations
+
+1. **#172 A-pin scope tightened** — segfault from 73o gone; pin=on
+   still net negative (+24 to +81 B on safe cases); default stays
+   OFF.  Real fix needs LiveIntervals + PHI walk to pin loop
+   carriers, not proxies.  (Commit `862321520547`, AReg infrastructure
+   preserved.)
+
+2. **#166 ADD_HL_rr remat dead-end** — direct attempt is impossible.
+   `ADD_HL_rr` has no SSA output (HL implicitly defined via
+   `Defs = [HL, FLAGS]`), so `isReMaterializable` is silently
+   ignored.  AES corpus byte-identical with the flag set.  In-place
+   comment in `Z80InstrInfo.td` prevents re-attempt.  (Commit
+   `34b1732266c4`.)
+
+3. **#166 ADD16_tied wire-up at G_PTR_ADD** — two routes tried.
+   - `$dst` GR16: BC/DE fallback in expansion clobbered HL undeclared.
+     All 13 AES configs FAIL.
+   - `$dst` HLI (BC/DE fallback removed): still miscompiles.  13/13
+     AES FAIL, test-runner 173/990 FAIL (vs baseline 46), 4 lit
+     regressions.  Root cause: unisolated tied-operand regalloc
+     interaction.
+   In-place comment at the call site captures both failure modes for
+   future.  (Commit `8400050dd2bf`.)
+
+### New issue filed
+
+**ravn/llvm-z80 #173** — 8-bit BSS spill via A goes through a 6 B
+`push af; ld a, r; ld (nn), a; pop af` shape because Z80 has no
+`LD (nn), r8` except for A.  PUSH/POP-pair peephole (when partner
+half is dead) saves 4 B per spill; mixed-mode BSS (8-bit via IX,
+16-bit via direct) saves 3 B.  ~15+ instances per parallel-XOR
+function (`aes_mc_inv`, `aes_mixColumns`, `aes_subBytes`).
+Estimated 100-200 B saving across AES corpus.  Highest-yield-per-
+session-hour open lever.
+
+### Verification
+
+| Oracle | Result |
+|---|---|
+| Z80 lit suite | 104 PASS + 3 XFAIL (unchanged) |
+| AES corpus | 13/13 PASS (byte-identical baseline) |
+| test-runner clang | 681/46/56/207 (baseline noise band) |
+| AES verifier 4 cells | PASS (K&R + ANSI × clang + zsdcc) |
+
+No regressions in defaults; no codegen change.
+
+### Open levers ranked by likely yield-per-session-hour
+
+1. **#173 — 8-bit BSS spill peephole** (NEW this session)
+2. **#170 — Z80NarrowIV parallel-phi guard removal** (narrow scope)
+3. **#166 — ADD16_tied MIR-after-two-addr diagnosis**
+4. **#172 — A-pin liveness-aware version** (~5 pp yield bounded)
+5. **#169 — LSR + backend miscompile root-cause** (multi-session)
+
+### Files (llvm-z80)
+
+  - `llvm/lib/Target/Z80/Z80PinAluAccumulator.cpp` — scope rewrite
+  - `llvm/lib/Target/Z80/Z80InstrInfo.td` — ADD_HL_rr comment
+  - `llvm/lib/Target/Z80/Z80InstructionSelector.cpp` — ADD16_tied
+    dead-end comment at G_PTR_ADD call site
+  - `llvm/tasks/session73p-issue172-conservative-scope.md` — #172 log
+  - `llvm/tasks/session73p-summary.md` — umbrella session summary
+
+### Difficulty: Medium
+
+No single difficult crux — three small drills, each ending honestly.
+The Hard moment was the second ADD16_tied route (HLI-restricted)
+catastrophically failing despite the obvious fix to the first route
+— established that the real ADD16_tied wire-up needs MIR-after-two-
+addr inspection, not just operand-class tweaking.
+
+The Easy parts: the conservative #172 rewrite, the #166 ADD_HL_rr
+no-SSA-output diagnosis (5 min), the aes_mc_inv inspection that
+surfaced #173.
+
+## Session 73p (initial): #172 A-pin scope tightened -- segfault gone, default still OFF (May 21, 2026) — Easy
+
+[OBSOLETED by the umbrella entry above; preserved for commit-history
+continuity since the initial session-73p commit referenced this.]
 
 End state: `Z80PinAluAccumulator` rewritten with a strict per-MBB
 invariant -- pin only vregs whose single-MBB liveness puts them in a
