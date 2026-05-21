@@ -328,7 +328,7 @@ cpnos-ppas-test: cpnos-polypascal-test
 cpnos: $(BUILDDIR)/cpnos.bin cpnos-mame-install cpnos-size cpnos-lis
 
 # Flag changes (e.g. -DRC702_SLAVEID=) must invalidate all objects.
-$(ALL_OBJS): Makefile $(BUILDDIR)/transport_stamp
+$(ALL_OBJS): Makefile $(BUILDDIR)/transport_stamp $(BUILDDIR)/toolchain_stamp
 
 # Re-stamp whenever TRANSPORT changes so a `make cpnos TRANSPORT=sio`
 # after a `TRANSPORT=pio-irq` build (or vice versa) actually picks up
@@ -351,6 +351,31 @@ endif
 
 # No-op rule -- the file is created/updated by $(shell) at parse time.
 $(BUILDDIR)/transport_stamp: ;
+
+# ---------------------------------------------------------------------
+# Toolchain stamp -- track compiler binary content so a rebuild of
+# clang (via ninja in llvm-z80/) forces our .o files to rebuild.
+#
+# Without this, the Makefile's $(CC) refers to a binary path but the
+# binary isn't a prereq of any rule -- so updating clang and re-running
+# make leaves stale .o files compiled by the OLD clang, producing
+# misleading "no change" measurements.  This file is content-hashed:
+# the md5 of $(CC) goes into BUILDDIR/toolchain_stamp; when the hash
+# changes, the stamp's mtime updates, and ALL_OBJS depend on it.
+# ---------------------------------------------------------------------
+ifeq ($(filter clean cpnos-clean,$(MAKECMDGOALS)),)
+_DUMMY_TOOLCHAIN_STAMP := $(shell mkdir -p $(BUILDDIR); \
+    NEW=$$(md5 -q "$(CC)" 2>/dev/null || md5sum "$(CC)" 2>/dev/null | awk '{print $$1}'); \
+    [ -n "$$NEW" ] || NEW=missing; \
+    OLD=$$(cat $(BUILDDIR)/toolchain_stamp 2>/dev/null); \
+    if [ "$$NEW" != "$$OLD" ]; then \
+        echo "$$NEW" > $(BUILDDIR)/toolchain_stamp; \
+        echo "toolchain stamp: $$NEW ($(COMPILER))" >&2; \
+    fi)
+endif
+
+# No-op rule -- the file is created/updated by $(shell) at parse time.
+$(BUILDDIR)/toolchain_stamp: ;
 
 # ---- Compile ------------------------------------------------------
 
