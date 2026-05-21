@@ -1,7 +1,7 @@
 # clang flag sweep — AES-256 corpus
 
 Last run: 2026-05-22  
-llvm-z80 HEAD: `8b16470954b3`
+llvm-z80 HEAD: `541b687bbecc`
 
 Reproducible via `make sweep` in this directory. Each row is a
 clean rebuild + run-to-HALT in `z88dk-ticks` with verification of
@@ -20,7 +20,7 @@ Baseline is `01_baseline_Oz` (`-Oz` only, no production knobs).
 | `06_Oz_no_licm_cse` | -Oz<br>-mllvm -disable-machine-licm<br>-mllvm -disable-machine-cse | 3703 | +0 | 3299 | 11502249 | +0.0% | PASS |
 | `07_Oz_no_lsr` | -Oz<br>-mllvm -disable-lsr | 4036 | +333 | 3288 | 11095056 | -3.5% | PASS |
 | `08_Oz_gc_sections` | -Oz<br>-ffunction-sections -fdata-sections | 3683 | -20 | 3299 | 11502249 | +0.0% | PASS |
-| `09_Oz_prod_like` | -Oz<br>-Xclang -target-feature<br>-Xclang +static-stack<br>-mllvm -disable-lsr<br>-mllvm -disable-machine-licm<br>-mllvm -disable-machine-cse<br>-ffunction-sections -fdata-sections | 2574 | -1129 | 2216 | 10749186 | -6.5% | PASS |
+| `09_Oz_prod_like` | -Oz<br>-Xclang -target-feature<br>-Xclang +static-stack<br>-mllvm -disable-lsr<br>-mllvm -disable-machine-licm<br>-mllvm -disable-machine-cse<br>-ffunction-sections -fdata-sections | 2562 | -1141 | 2204 | 10737538 | -6.6% | PASS |
 | `10_Oz_no_licm_cse_lsr` | -Oz<br>-mllvm -disable-machine-licm<br>-mllvm -disable-machine-cse<br>-mllvm -disable-lsr | 4036 | +333 | 3288 | 11095056 | -3.5% | PASS |
 | `11_Oz_no_licm_cse_gc` | -Oz<br>-mllvm -disable-machine-licm<br>-mllvm -disable-machine-cse<br>-ffunction-sections -fdata-sections | 3683 | -20 | 3299 | 11502249 | +0.0% | PASS |
 | `12_Oz_no_omit_fp` | -Oz -fno-omit-frame-pointer | 3244 | -459 | 2840 | 11337419 | -1.4% | PASS |

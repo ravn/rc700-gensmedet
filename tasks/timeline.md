@@ -1,5 +1,61 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73p Phase 2 (#173 peephole): bare-store + 4-instr A-preserving reload (May 22, 2026) — Hard
+
+End state: `session-73p-issue173` merged to main.  Z80LateOpt peephole
+catches the dominant residual bloat shape in AES static-stack code.
+
+### Codegen landed (1 commit)
+
+`Z80LateOptimization.cpp` adds 254-line peephole + 56-line lit test:
+
+  ;; Before (9 B per pair):
+  ld   (slot), a           ; bare store -- A held the value
+  ... push hl; call; ...
+  push af                  ; reload-preserving-A template
+  ld   a, (slot)
+  ld   r, a
+  pop  af
+  pop  de                  ; existing across-CALL pair tail
+
+  ;; After (3 B per pair, saves 6 B):
+  ld   r, a; push rr       ; spill via stack
+  ... push hl; call; ...
+  pop  de                  ; existing across-CALL pair tail
+  pop  rr                  ; at stack-balanced point
+
+Two-phase stack tracking handles matched-reloads nested inside other
+PUSH/POP brackets (existing across-CALL peephole's push hl/pop de).
+
+### Production yield (measured)
+
+- AES `09_Oz_prod_like`: 2574 -> **2562 B (-12 B)**; ts -0.11%.
+- cpnos PROM1 (clang): 2029 -> **2028 B (-1 B)**.  20 B free.
+- Z80 lit: 106 + 3 XFAIL (was 105 + 3).
+- AES 13/13 PASS; wider oracle byte-identical.
+- cpnos polypascal-test PASS at 51.11 s.
+
+### Investigation arc
+
+1. First MVP scoped wrong (symmetric 4+4 same-MBB).  AES sweep byte-
+   identical to baseline.  Initial conclusion "Path A doesn't fire."
+2. User redirect: "reinvestigate thoroughly."
+3. Programmatic catalog of 11 bare-store + 4-instr-reload pairs.
+4. Implementation bailed everywhere because CALL implicit-defs
+   counted as partner modifications.
+5. Fix: exclude implicit defs / CALL clobbers.  aes_subBytes +
+   aes_sb_inv fire; multi-reload and cross-MBB cases bail correctly.
+
+### Methodological lessons (in issue173-investigation.md)
+
+1. **Catalog before implementing**.  Pattern frequency in real code
+   is the prerequisite, not the original issue text's yield estimate.
+2. **CALL clobbers are not value-producing definitions**.  Exclude
+   implicit defs from "register has been modified" checks.
+3. **Two-phase stack tracking** for nested PUSH/POP brackets.
+4. **The user redirect was load-bearing**.  Bisect-style depth pays
+   off (same lesson as Phase B1 -> B2 earlier today).
+
 ## Session 73p Phase 2: #177 Z80 TTI -- investigation arc, ship clean cases, file #184 (May 22, 2026) — Medium
 
 End state: `session-73p-phase2-issue177` merged to main (commit
