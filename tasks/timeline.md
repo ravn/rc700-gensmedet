@@ -1,5 +1,72 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73p: #172 A-pin scope tightened -- segfault gone, default still OFF (May 21, 2026) — Easy
+
+End state: `Z80PinAluAccumulator` rewritten with a strict per-MBB
+invariant -- pin only vregs whose single-MBB liveness puts them in a
+candidate bucket of size 1 within that MBB.  Multi-candidate blocks
+(the parallel-XOR shape in aes_mixColumns / aes_subBytes that
+segfaulted in 73o) are skipped entirely.
+
+### Result
+
+Segfault on `05_Oz_static_stack` from 73o is gone.  AES corpus
+13/13 PASS with pin both on and off.  But pin=on still **regresses**
+even on the safe single-candidate cases:
+
+| Config              | Δbin | Δts    |
+|---------------------|-----:|-------:|
+| 01_baseline_Oz      |  +61 | +0.19% |
+| 05_Oz_static_stack  |  +81 | +0.36% |
+| 09_Oz_prod_like     |  +24 | +0.02% |
+
+Compared to 73o's +261 B / +3.8 % on 01, the regression is ~4× smaller
+and the crash is gone, but the metric is still wrong-direction.
+
+### Why even the safe case loses
+
+Pinning a short-lived proxy vreg to AReg forces a materializing `LD A,
+source_reg` upstream that greedy was previously eliding by routing the
+proxy's allocation to share the source's physreg.  The savings from
+collapsing the round-trip don't cover the new mandatory LD.  Pinning
+proxies isn't enough; the carrier (PHI cycle) is what needs to live in
+A.
+
+### Path forward (#172 stays parked)
+
+Real fix is the same as 73o flagged: MachineLoopInfo + LiveIntervals +
+PHI walk to pin the loop carrier interference-free.  Not landing this
+session.  Other levers (#166 HL remat, #169 LSR root-cause, #170/#171
+narrow guards) likely higher-yield per session.
+
+### Verification
+
+  - Z80 lit: 104 PASS + 3 XFAIL unchanged.
+  - AES corpus 01/05/09: PASS both pin=on and pin=off.
+  - z80-utils test-runner clang suite: 681 PASS / 46 FAIL / 56 FATAL /
+    207 SKIP -- matches recent baseline (default-off, no codegen
+    change).
+
+### Files (llvm-z80)
+
+  - `llvm/lib/Target/Z80/Z80PinAluAccumulator.cpp` -- per-MBB scope
+    rewrite (uniqueRefMBB + DenseMap bucketing); updated comments
+    with the 73p empirical result.
+  - `llvm/tasks/session73p-issue172-conservative-scope.md` -- log.
+
+### What was Easy / Hard
+
+**Easy**: switching to per-MBB bucketing.  ~30 lines.  Builds clean,
+fixes segfault.
+
+**Medium**: A/B-confirming the regression persists.  Quick targeted
+sweep on 01/05/09 (~60 s) showed +24 to +81 B even on safe cases.
+Negative result is the artifact.
+
+**Honest**: stopping here rather than building the full liveness-
+aware version on speculation.  73o + 73p together establish that
+proxy-pinning isn't the answer regardless of safety scope.
+
 ## Session 73o: #172 A-shuttle drilled -- structural infrastructure landed (default off) (May 21, 2026) — Medium
 
 End state: ravn/llvm-z80 adds new `AReg` single-register class + new pre-RA pass `Z80PinAluAccumulator`, commit `2c4627c80ef1`.  Default OFF pending a liveness-aware selector.  Targets the dominant residual SDCC speed gap on AES: clang routes XOR/AND/OR chains through A via `ld a, r; OP; ld r, a` round-trips while SDCC keeps the accumulator in A directly (4 ts vs 12 ts per ALU op).
