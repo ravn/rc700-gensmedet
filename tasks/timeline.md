@@ -1,6 +1,109 @@
 # RC700-SYSGEN Project Timeline
 
-## Session 73p: three documented dead-ends + one new issue (May 21, 2026) — Medium
+## Session 73p Phase 1: clang DOMINATES SDCC on AES production target (May 21, 2026) — Hard
+
+End state: AES corpus production target `09_Oz_prod_like` flipped
+from +23% slower / -20% smaller to **-11% faster / -23% smaller**
+vs SDCC.  All 13 AES corpus configs are now faster than SDCC by
+4.8-11%; 4 of 13 are also smaller than SDCC.
+
+### Codegen landed (3 commits)
+
+1. **#179 P1** (`4f5562c99228`) — new `Z80ReorderTestDec` pre-RA
+   pass.  Rewrites `LD_A_R; DEC_A; LD_<r2>_A; LD_A_R; OR_A; JR_Z`
+   to `LD_A_R; SUB_n 1; LD_<r2>_A; JR_C`.  -5.1% AES ts.
+2. **#179 P2** (`6820930cc156`) — extends same pass.  Rewrites
+   `LD_A_R; ADD_A_A; LD_<r2>_A; LD_A_R; RLCA; JR_C/NC` by dropping
+   the redundant `LD_A_R; RLCA` (ADD_A_A's carry suffices).
+   Additional -23.9% AES ts.  **This is where the production
+   target flipped to dominate SDCC.**
+3. **#128** (`7d5b4e5ea86c`) — `Z80PassConfig` disables
+   `EarlyMachineLICM` + `MachineLICM` + `MachineCSE` globally.
+   Default `-Oz`: -281 B AES.  Closes ravn/llvm-z80#128.
+
+### Infrastructure landed
+
+- New `rc700-gensmedet/tasks/compiler-comparison-corpus/` (wider
+  oracle, mirrors AES corpus pattern).  3 z88dk-official
+  benchmarks ported: sieve, fannkuch, pi.
+- New lit tests: `issue-179-test-then-dec.ll`.
+- `Z80ReorderTestDec.{h,cpp}` pre-RA MIR pass.
+- Reset stub BSS-zero workaround for ravn/llvm-z80#182.
+
+### Issues filed Phase 1 (10 total)
+
+- **#173** — 8-bit BSS spill peephole (open)
+- **#174** — gf_log/gf_alog redundant reload (effectively closed
+  by #179)
+- **#175** — Missing 8-bit ALU with memory operand (revised:
+  only `(IX+d)`/`(IY+d)` forms missing)
+- **#176** — Auto-infer +static-stack safety per-function (open)
+- **#177** — No Z80-specific TargetTransformInfo (meta-fix, open)
+- **#178** — Pseudos with implicit physreg outputs (open)
+- **#179** — GISel + scheduler $a-chained reorder (closed by
+  Z80ReorderTestDec)
+- **#180** — Z80LateOptimization peephole audit tracker (open)
+- **#181** — DAGISel vs GISel coexistence audit (open)
+- **#182** — LLVM ScalarEvolution capacity overflow on init+reader
+  loop pattern (NEW high-priority upstream-LLVM bug, open)
+
+### Strategic documents
+
+- `llvm-z80/tasks/aes-speed-gap-analysis.md`
+- `llvm-z80/tasks/all-modes-competitive-plan.md`
+- `llvm-z80/tasks/structural-deficiency-survey.md`
+- `llvm-z80/tasks/issue174-implementation-plan.md`
+- `llvm-z80/tasks/session73p-summary.md` (early session)
+- `llvm-z80/tasks/session73p-phase1-summary.md` (this milestone)
+
+### Value oracle preserved
+
+All Decision E gates green after each commit:
+- Z80 lit: 106 PASS + 3 XFAIL (+2 new tests this Phase 1)
+- AES corpus: 13/13 PASS, byte-exact verifier
+- compiler-comparison-corpus: sieve + fannkuch + pi PASS
+- test-runner clang: 681/46/56/207 baseline maintained
+- cpnos PROM1: 2030/2048 B (unchanged from session start)
+
+### Estimates vs reality
+
+- #179 plan estimated 1.5 M ts saved.  Actual P1+P2 combined:
+  ~4.1 M ts (3× HIGH).  P2 fired on far more shapes than just
+  gf_alog -- the bit-7 test idiom is everywhere in AES.
+- #128 estimated -320 B at -Oz default.  Actual: -281 B
+  (12% low).
+- #173 and #175 estimates were too high; both turned out smaller
+  than my speed-gap analysis suggested (clang already uses (HL)
+  ALU fusion in +static-stack mode; the missing forms are
+  `(IX+d)` only).
+
+### Difficulty: Hard
+
+Each fix required substantial pattern analysis BEFORE
+implementation per the "do it right" directive.  TDD discipline
+(write failing lit test first) caught one near-miss correctness
+bug in #179 (the I2-destination-vreg safety gate).  The full
+Decision E oracle gating discovered a side-effect on cpnos PROM1
+(+1 B post-P2, recovered by #128).
+
+The Hard parts:
+- Recognizing #179's fix layer was pre-RA MIR pass, not
+  late-opt peephole (per project_z80_backend_unfinished).
+- Diagnosing why my P1 worked in single-PHI lit tests but not
+  on multi-PHI gf_alog shape (regalloc pressure interaction).
+- The I2-destination-vreg safety gate (caught
+  issue-132-bss-spill-cross-mbb.ll regression before commit).
+
+### Phase 2 next-best-steps
+
+In yield-per-session-hour order:
+1. **#173** — BSS spill peephole (~3-4 h)
+2. **#175 (IX+d) form** — 16 missing instructions (~1 day)
+3. **#176 auto-static-stack** — closes default-Oz size (1-3 wk)
+4. **#177 Z80 TTI** — meta-fix (1-2 wk)
+5. **#172 A-pin liveness** — residual ts gap (smaller now)
+
+
 
 End state: three lines of investigation, each ending with a
 documented negative result rather than a landed fix.  One new
