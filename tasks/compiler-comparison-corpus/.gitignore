@@ -1,0 +1,9 @@
+sweep/*.o
+sweep/*.elf
+sweep/*.bin
+sweep/*.ram
+sweep/*.filled.bin
+sweep/llvm_z80_*
+sweep/zsdcc_*
+sweep/*.map
+sweep/results.tsv
