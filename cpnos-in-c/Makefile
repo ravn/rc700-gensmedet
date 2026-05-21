@@ -82,6 +82,21 @@ PIO_SPEED_TEST    ?= 0
 COMPILER ?= clang
 BUILDDIR  = $(COMPILER)
 
+# ----------------------------------------------------------------------
+# CPNOS_PROM1_CAP: max size of the PROM1-only line program binary.
+#
+# Hard physical cap on the user's RC702 is 2048 B (no A11 bridge -- see
+# memory rule `project_rc702_2kb_prom_hard_limit`).  Anything larger
+# does not fit a real 2 KB PROM1 socket and is MAME-only.
+#
+# Branch `experiment-cpnos-prom-4k` raises the default cap to 4096 to
+# match the SDCC PROM1-only path (PROMCFG=2 in MAME) so we can land
+# cpnos-affecting fixes that temporarily grow code, then shrink back
+# below 2048 before merging to main.  DO NOT MERGE THIS BRANCH TO MAIN
+# WITH THE 4096 DEFAULT -- the hard cap must come back at merge time.
+# ----------------------------------------------------------------------
+CPNOS_PROM1_CAP ?= 4096
+
 ifeq ($(COMPILER),clang)
   # ---- clang Z80 toolchain -----------------------------------------
   LLVM_Z80    = $(CURDIR)/../../llvm-z80
@@ -1460,12 +1475,18 @@ $(PROM1ONLY_BIN): $(PROM1ONLY_OBJS) $(PROM1ONLY_DIR)/prom1.ld $(PROM1ONLY_PAYLOA
 	    -o $(PROM1ONLY_DIR)/prom1-lineprog.elf
 	$(OBJCOPY) -O binary $(PROM1ONLY_DIR)/prom1-lineprog.elf $@
 	@SZ=$$(wc -c < $@ | tr -d ' '); \
-	 echo "PROM1 line program: $$SZ / 2048 B ($$((2048 - SZ)) B free)"; \
-	 if [ $$SZ -gt 2048 ]; then \
-	   echo "ERROR: PROM1 lineprog exceeds 2 KB by $$((SZ - 2048)) B"; \
+	 HARD=2048; \
+	 CAP=$(CPNOS_PROM1_CAP); \
+	 echo "PROM1 line program: $$SZ / $$CAP B ($$((CAP - SZ)) B free; hard cap $$HARD B)"; \
+	 if [ $$SZ -gt $$CAP ]; then \
+	   echo "ERROR: PROM1 lineprog exceeds $$CAP B cap by $$((SZ - CAP)) B"; \
 	   exit 1; \
 	 fi; \
-	 { cat $@; perl -e "print \"\\xff\" x (2048 - $$SZ)"; } > $@.padded; \
+	 if [ $$SZ -gt $$HARD ]; then \
+	   echo "WARN: PROM1 lineprog exceeds $$HARD B (hard cap on real RC702 hardware) by $$((SZ - HARD)) B."; \
+	   echo "      Build will pad to $$CAP B and is MAME-only.  Shrink before merging to main."; \
+	 fi; \
+	 { cat $@; perl -e "print \"\\xff\" x ($$CAP - $$SZ)"; } > $@.padded; \
 	 mv $@.padded $@
 	@echo "wrote $@ ($$(wc -c < $@) B padded)"
 
