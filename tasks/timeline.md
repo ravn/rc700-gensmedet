@@ -35,29 +35,46 @@ Also recognizes `XOR_A` (self-clear idiom) as a full def.
                       (was FAIL @ 100M ts)
   cpnos polypascal-test: PASS @ 51 s
 
-### #184 second root cause (ravn/llvm-z80#185) — DIAGNOSED, NOT FIXED
+### #184 second root cause (ravn/llvm-z80#185) — FIXED
 
-i16=2 cost still miscompiles at -Os and -O2.  Investigation revealed:
-
-The "ts=28 PASS" symptom is misleading.  Program runs AES correctly,
-writes correct sentinels to 0xC000 → verifier PASS.  Then `aes_done`
-miscompiles, corrupting low memory.  The reset code at 0x0000 gets
-zeroed; PC walks through NOPs and z88dk-ticks RESETS its counter at
-PC=0x0000.  Reported "28 ts" is post-reset count, not actual.
-
-**Root cause in `aes_done`**: regalloc allocates B as DJNZ counter,
-but the body uses BC for pointer arithmetic (`ld c, l; ld b, h`),
-clobbering B.  Spill via `push af` saves only counter-via-A; `pop af`
-restores A but NOT B.  djnz then operates on corrupted B → 200+
-iterations writing zero bytes through bumping HL → wild memory
+After deeper investigation, the bug was not regalloc-level but in
+the DJNZ peephole itself.  The peephole `DEC A; LD B, A; [OR A;]
+JR NZ → DJNZ` dropped the LD_B_A reload, which was essential when
+the body had clobbered B (via `ld c, l; ld b, h` etc.).  DJNZ
+then operated on the clobbered B (high byte of pointer) → 200+
+extra iterations writing zeros through bumping HL → low memory
 corruption.
 
-The missing `ld b, a` after `pop af` (or `push bc/pop bc` instead
-of `push af/pop af`) is the precise miscompile.  Fix requires
-regalloc-level work; deferred.
+Fix on commit `fcce7b2c83e8` (merged via `ea3e3a0eff46`): refuse
+the peephole rewrite when B is defined anywhere in the MBB between
+begin() and the DEC_A.  Byte-neutral at clean baseline; 2 B cost
+per fired site where the peephole correctly refuses.
 
-Full diagnosis on ravn/llvm-z80#185.  i16=2 cost stays OFF in TTI
-until either #185 fixed OR Z80NarrowIV covers the cases.
+With both #184 r/c 1 and #185 r/c 2 fixed, i16=2 TTI cost is now
+SAFE to ship — but the production-target tradeoff still applies
+(i16=2 +44 B on AES `09_Oz_prod_like` vs -362 B on `07_Oz_no_lsr`).
+The decision is a tuning choice, not correctness.
+
+### #185 verified
+
+- AES 13/13 PASS with i16=2: 02_Os 10.86M ts, 04_O2 11.04M ts,
+  05_Oz_static_stack 11.17M ts (was: ts=28 false-positives or
+  100M ts timeout).
+- Z80 lit suite: 107 -> 108 PASS + 3 XFAIL.
+- cpnos PROM1 2028 B unchanged.
+- BIOS clang 5922 B unchanged.
+- cpnos polypascal-test PASS at 51 s.
+
+### Methodology note for #185
+
+I declared "regalloc-level fix needed" prematurely.  The deeper drill
+showed the bug was in the LATE PEEPHOLE itself, not regalloc — the
+peephole assumed an MIR shape (B holds counter, never redefined)
+without verifying.  Five-line fix in Z80LateOptimization.cpp,
+not the multi-week regalloc work I had originally estimated.
+
+Yet another instance of the lesson: when a bug looks intimidating,
+dig one level deeper before estimating.
 
 ## Session 73p Phase 2 (#173 peephole): bare-store + 4-instr A-preserving reload (May 22, 2026) — Hard
 
