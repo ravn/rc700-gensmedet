@@ -1,5 +1,47 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73p Phase 2 (#184 fix): peephole #148 fall-through MBB safety check (May 22, 2026) — Hard
+
+End state: `session-73p-issue184` merged.  #184 root cause 1 identified
++ fixed.  cpnos PROM1 -1 B as side benefit.  Second root cause filed
+as ravn/llvm-z80#185.
+
+### Codegen landed (1 commit)
+
+`Z80LateOptimization.cpp` peephole #148 safety check tightened.  When
+the branch is conditional (CP_n; JR/RET/JP cond) and the fall-through
+MBB reads A (e.g. `push af` to save across CALL), the peephole used
+to mis-fire because `Succ->liveins()` was stale post-regalloc.  Now
+walks the fall-through MBB instructions directly via `targetDeadA`.
+Also recognizes `XOR_A` (self-clear idiom) as a full def.
+
+### Concrete miscompile (AES `aes_sb_inv` with i16=2 cost)
+
+  inc  a            ; (was cp $FF after peephole #148 mis-fire) A=c+1
+  jp   z, exit
+  ... body uses C
+  push af           ; saves A = c+1
+  call ...
+  pop  af           ; A = c+1
+  dec  a            ; A = c (NOT c-1!)
+  ld   c, a         ; C unchanged → infinite loop
+
+### Production yield
+
+  cpnos PROM1 (clang): 2028 -> **2027 B** (-1 B; 21 B free)
+  Lit: 106 -> 107 PASS + 3 XFAIL (new test added)
+  AES corpus baseline: byte-identical (production 2562 B unchanged)
+  AES with i16=2 cost: 05_Oz_static_stack now PASS @ 11.16M ts
+                      (was FAIL @ 100M ts)
+  cpnos polypascal-test: PASS @ 51 s
+
+### #184 second root cause (ravn/llvm-z80#185)
+
+i16=2 cost still miscompiles at -Os and -O2 (different mechanism):
+program halts after ~28 tstates; verifier reports false-positive
+PASS via zeroed BSS sentinel match.  Filed for separate IR-pass-
+trace investigation.
+
 ## Session 73p Phase 2 (#173 peephole): bare-store + 4-instr A-preserving reload (May 22, 2026) — Hard
 
 End state: `session-73p-issue173` merged to main.  Z80LateOpt peephole
