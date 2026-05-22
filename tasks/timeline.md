@@ -35,12 +35,29 @@ Also recognizes `XOR_A` (self-clear idiom) as a full def.
                       (was FAIL @ 100M ts)
   cpnos polypascal-test: PASS @ 51 s
 
-### #184 second root cause (ravn/llvm-z80#185)
+### #184 second root cause (ravn/llvm-z80#185) — DIAGNOSED, NOT FIXED
 
-i16=2 cost still miscompiles at -Os and -O2 (different mechanism):
-program halts after ~28 tstates; verifier reports false-positive
-PASS via zeroed BSS sentinel match.  Filed for separate IR-pass-
-trace investigation.
+i16=2 cost still miscompiles at -Os and -O2.  Investigation revealed:
+
+The "ts=28 PASS" symptom is misleading.  Program runs AES correctly,
+writes correct sentinels to 0xC000 → verifier PASS.  Then `aes_done`
+miscompiles, corrupting low memory.  The reset code at 0x0000 gets
+zeroed; PC walks through NOPs and z88dk-ticks RESETS its counter at
+PC=0x0000.  Reported "28 ts" is post-reset count, not actual.
+
+**Root cause in `aes_done`**: regalloc allocates B as DJNZ counter,
+but the body uses BC for pointer arithmetic (`ld c, l; ld b, h`),
+clobbering B.  Spill via `push af` saves only counter-via-A; `pop af`
+restores A but NOT B.  djnz then operates on corrupted B → 200+
+iterations writing zero bytes through bumping HL → wild memory
+corruption.
+
+The missing `ld b, a` after `pop af` (or `push bc/pop bc` instead
+of `push af/pop af`) is the precise miscompile.  Fix requires
+regalloc-level work; deferred.
+
+Full diagnosis on ravn/llvm-z80#185.  i16=2 cost stays OFF in TTI
+until either #185 fixed OR Z80NarrowIV covers the cases.
 
 ## Session 73p Phase 2 (#173 peephole): bare-store + 4-instr A-preserving reload (May 22, 2026) — Hard
 
