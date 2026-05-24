@@ -105,6 +105,22 @@ Probe reverted; baseline re-verified (AES make clang.ram PASS 11.5M ts, lit 110+
 Reframes #112 from open-ended to "isolate one IY-allocation miscompile".  Writeup
 `llvm-z80/tasks/session73s-issue112-iy-unreserve-scope.md`.
 
+**Then ISOLATED + FIXED the dominant IY bug — Hard.**  Used the test-runner as a
+breadth oracle: IY-on regressed 70 tests (PASS->FAIL/FATAL).  Drilled the smallest
+named repro (test_28_pointer_arith, array-of-pointers summed in a loop, returns 0x0B
+vs 0x0F).  Diffed IY-on MIR/asm: `LEA_IX_FI %stack.0` with $iy dest emitted NOTHING
+-> IY read uninitialized by a downstream spill.  Root cause: `LEA_IX_FI`
+eliminateFrameIndex had no IY case -> `llvm_unreachable`, which in a **Release build
+is a no-op** -> pseudo erased, no def emitted.  FIXED (commit `27be55e2569d`): added IY
+cases to all three LEA_IX_FI branches + hidden `-z80-unreserve-iy` flag (default OFF,
+production byte-identical) + lit `lea-fi-iy-112.ll`.  Test-runner IY-on **622/85/76 ->
+684/42/57** (baseline 690/37/56) -- **63 of 70 regressions cleared by one fix**.
+Residual 6 tests (test_04_i32_bitwise, test_40_hash_crc): i32 decomposition emits
+**undocumented IYH/IYL** half-ops (BCIY-class i32 split) -- separate next-drill bug
+(exclude IX/IY from i32 classes when !undocumented).  Production verified byte-identical
+(flag off): AES09 2228 B, AES runtime PASS 11.5M ts, lit 111+5.  Big de-risk: #112 is no
+longer "Phase 3 regalloc theory" -- it's 1 fixed missing-case + 1 known residual.
+
 ## Session 73p Phase 2 (#184 fix): peephole #148 fall-through MBB safety check (May 22, 2026) — Hard
 
 End state: `session-73p-issue184` merged.  #184 root cause 1 identified
