@@ -76,10 +76,20 @@ clamp to HLI but widens to GR16).  dst=BC then hits the BC-accumulator fallback
 in H — the "unrelated value corruption."  Confirmed the obvious patches fail: adding
 HL to ADD16_tied Defs => "ran out of registers" (implicit HL-def collides with tied
 HL-def when dst==HL); narrowing the dst class doesn't help (coalescer escapes to GR16
-anyway).  Fix needs a coalescer class-clamp (generic LLVM, out of scope while
-upstream paused) or a non-tied remat model.  All drill code reverted; functional
-source diff empty (comment + writeup only); lit 109+5.  Writeup
-`llvm-z80/tasks/session73s-issue178-add16-tied-rootcause.md`.
+anyway).
+
+**Then BUILT the non-tied fix `ADD16_acc` (in scope -- fork-local, not upstream).**
+`(outs HLI:$dst),(ins GR16:$base, GR16_BCDE:$rhs)`, NO tie -> no SSA copy for the
+coalescer to fold the surviving base into -> dst stays HL, base independent.
+**Correctness SOLVED** (repro: both adds `ADD HL,DE`, dst=HL, no fallback; lit
+`add16-acc.ll`).  **But lever exhausted:** AES09 .text 2228 -> 2447 B (+219 / +9.8%);
+remat on/off byte-identical (FLAGS-clobber blocks the rematerializer -- same obstacle
+as ADD_HL_rr; SSA output doesn't dodge it) + HL-pinning spikes pressure under the
+3-pair file.  Kept default-OFF behind `-z80-add16-acc` (HLI class covers IX/IY ->
+revisit after #112 un-reserve).  Default codegen byte-identical (AES09 2228); lit
+110+5.  Writeup `llvm-z80/tasks/session73s-issue178-add16-tied-rootcause.md`.
+Correction logged: "generic LLVM code in the fork" != "upstream"; the coalescer
+fix is also in scope (wider blast radius), just not the path taken.
 
 ## Session 73p Phase 2 (#184 fix): peephole #148 fall-through MBB safety check (May 22, 2026) — Hard
 
