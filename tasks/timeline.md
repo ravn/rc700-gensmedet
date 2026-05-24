@@ -121,6 +121,17 @@ Residual 6 tests (test_04_i32_bitwise, test_40_hash_crc): i32 decomposition emit
 (flag off): AES09 2228 B, AES runtime PASS 11.5M ts, lit 111+5.  Big de-risk: #112 is no
 longer "Phase 3 regalloc theory" -- it's 1 fixed missing-case + 1 known residual.
 
+**Then drilled the residual: it's PERVASIVE, and a strategic decision.**  Tried constraining
+`G_UNMERGE_VALUES` source to GR16NoIR (!undoc) -- test_04 STILL had 26 undocumented IYH/IYL
+refs (8-bit ALU folds bypass it; 40+ sub-register extraction sites).  Reverted.  Crux: IY's
+byte halves are undocumented (the original reason it was reserved).  Pure-16-bit IY values
+(pointers/`ADD IY,rr`/load-store) are safe today (the LEA_IX_FI fix); byte-decomposed values
+(i32 chunks, byte-wise logic) need EITHER **(A) +undocumented in production** (real Z80+MAME
+run IYH/IYL fine; only the no-undocumented-default rule blocks it -- cheapest, needs user
+policy sign-off) OR **(B) a regalloc constraint keeping IY off byte-accessed vregs** (large).
+The -33 B AES win is real under either; it's an (A)-vs-(B) decision for the user.  No source
+change (G_UNMERGE attempt reverted); LEA_IX_FI fix stays committed; production byte-identical.
+
 ## Session 73p Phase 2 (#184 fix): peephole #148 fall-through MBB safety check (May 22, 2026) — Hard
 
 End state: `session-73p-issue184` merged.  #184 root cause 1 identified
