@@ -1,5 +1,34 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73s: #112/#14 ROOT-CAUSED + FIXED -- IX/IY transfer peephole liveness guard (May 25, 2026) — Hard
+
+The long-standing #14 "PUSH/POP for IY copies crashes when IY is allocatable"
+finally root-caused and fixed.  Continuing the option-1 RegisterCoalescer
+drill, an isolated reliable repro (`test_166_iy_shiftloop`: popcount via
+`while(v){count+=v&1; v>>=1;}`, FAIL 0xFFFF at O1-Os IY-on, PASS O0/Oz) was
+reduced through the test-runner oracle (NOT the unreliable DIY ticks harness).
+`-print-after-all` pinned the corruption to **Z80 Late Optimizations**: the
+"IX/IY transfer" peephole collapses `COPY16_PUSHPOP IY,bc ... COPY16_PUSHPOP
+bc,IY` into `PUSH bc ... POP bc`, dropping the `IY <- bc` write on the
+assumption IY is dead scratch.  But IY held the loop-carried i32 high word,
+live-out via the back-edge, so its per-iteration update vanished -> loop froze.
+
+Earlier hand-traces of the asm misled three times (the value is register-carried,
+not slot-carried as it appeared); the MIR-pass bisection was the decisive tool,
+exactly the "use the reliable oracle, not hand-reading" lesson.
+
+Fix (commit `dfa073a23e99`): gate both peephole forms on
+`computeRegisterLiveness(IXReg, after-closing-copy) == LQR_Dead`, mirroring the
+existing #161 guard.  Genuine scratch transfers still fire, so production
+(IY reserved, IX-only) is byte-identical.
+
+Oracle: IY-on clang suite 684 -> **694 pass** (42 -> 38 fail); test_166 6/6.
+IY-off production **696/37/56** (baseline + new test, no regression); AES corpus
+byte-identical (11516046 ts; C010=01/C021=01/C022=a5; 3715 B); Z80 lit 112+5.
+New lit guard `iy-loop-carried-112.ll`.  This unblocks #112 IY-unreserve: the
+loop-carried residual is closed; remaining IY-on deltas are ~2 tests, down from
+the original 70 regressions.
+
 ## Session 73s: #180 C2 peephole audit -- complete sweep over Z80LateOptimization (May 24, 2026) — Medium
 
 Systematic "disable / measure / sweep / delete-or-keep" pass over the 16
