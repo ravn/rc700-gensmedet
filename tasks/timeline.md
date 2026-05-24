@@ -34,7 +34,21 @@ Production targets unchanged: cpnos PROM1 ~2028-2029 B (drift band), AES
 09_Oz_prod_like .text 2228 B byte-identical, lit 109 PASS + 5 XFAIL,
 test-runner sweep 990/690/37/56/207.  Commits on `session-73s`:
 `4e82d95` (#8/#12/#21/#79 Keep annotations), `915b680` (audit-complete
-doc).
+doc), `e8f8731` (#17 conservative-keep upgraded to definitive LIVE).
+
+**Also #181 (DAGISel/GISel coexistence audit) RESOLVED.**  Refuted the
+"Z80ISelLowering.cpp is dead DAGISel code" hypothesis: there is NO
+SelectionDAG path at all (no Z80ISelDAGToDAG.cpp, no SelectionDAGISel, zero
+`setOperationAction`/`LowerOperation`/`SDValue`/`ISD::` in the backend).
+`Z80ISelLowering` is the live shared `TargetLowering` base GISel requires
+(used by Z80/SM83CallLowering, InlineAsmLowering, Subtarget) -- keep it.
+Instruction selection is 100% hand-written (`Z80InstructionSelector::select`,
+never delegates to the generated `selectImpl`).  SM83 shares the same GISel
+selector.  Actionable cleanup: removed the dead `-gen-dag-isel` tablegen line
+(Z80GenDAGISel.inc was generated but `#include`d by nothing -- vestigial from
+the LLVM-MOS infra port).  `-gen-global-isel` left in place (also unused today
+but conventional; flagged for discussion).  Commit `fe9a294` + roadmap Area 9 /
+coherence-map updates.  Writeup: `llvm-z80/tasks/session73s-issue181-dagisel-gisel-audit.md`.
 
 ## Session 73p Phase 2 (#184 fix): peephole #148 fall-through MBB safety check (May 22, 2026) — Hard
 
