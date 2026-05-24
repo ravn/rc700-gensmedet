@@ -50,6 +50,19 @@ the LLVM-MOS infra port).  `-gen-global-isel` left in place (also unused today
 but conventional; flagged for discussion).  Commit `fe9a294` + roadmap Area 9 /
 coherence-map updates.  Writeup: `llvm-z80/tasks/session73s-issue181-dagisel-gisel-audit.md`.
 
+**Also #27 (per-pair 16-bit copy cost, last Cluster A item) DRILLED -> negative
+result + reclassified.**  Measured the 16-bit copy population on AES: `copyPhysReg`
+already uses `EX DE,HL` (1 B) optimally for dead-source DE<->HL; IX/IY copies don't
+occur (always reserved -> that half gated on #38/#112).  The dominant BC/DE<->HL
+traffic (~80 B on AES) is NECESSARY base-pointer re-materialization (a table base
+held in BC/DE, copied to HL 2 B per `ADD HL,rr` at a different offset -- cheaper
+than the 3 B reload).  Prototype peephole (retarget a dead-pair reload straight
+into HL) was implemented + `.mir`-tested but instrumented to fire **0x** on AES
+(14 matches, all source-pair LIVE = base reuse); reverted per the #180 "no
+peephole that earns no bytes" rule.  #27 reclassified from "CopyCost tuning" to
+"reduce base re-materialization under 3-pair pressure" (regalloc-level, pairs
+#110/#115).  Commit `ad71a21`; writeup `llvm-z80/tasks/session73s-issue27-percopy-cost-drill.md`.
+
 ## Session 73p Phase 2 (#184 fix): peephole #148 fall-through MBB safety check (May 22, 2026) — Hard
 
 End state: `session-73p-issue184` merged.  #184 root cause 1 identified
