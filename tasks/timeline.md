@@ -1,5 +1,41 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73s: #180 C2 peephole audit -- complete sweep over Z80LateOptimization (May 24, 2026) — Medium
+
+Systematic "disable / measure / sweep / delete-or-keep" pass over the 16
+"Migrate"-classified peepholes in `Z80LateOptimization.cpp`.  Outcome:
+**5 deleted (~572 LOC), 11 confirmed live.**
+
+Deleted as dead at HEAD (input shape no longer materializes after the
+session-73p #128 LICM/CSE-disable + #177 TTI canonicalization changes):
+#11 (ALU #imm idempotent collapse), #9 (OR A; LD r,0; JR Z -- also fixed
+a latent miscompile of test_27_array_2d_Os, sweep +1 PASS), #2 (POP rr;
+PUSH rr), #24 (BC ping-pong single-BB self-loop #97, ~340 LOC -- dead
+because Z80LoopRotate is default-off), #23 (HL save-via-BC roundtrip #84).
+Their dedicated lit tests were XFAILed with un-XFAIL conditions.
+
+Re-tested and kept LIVE: #6, #7, #8, #10, #12, #13, #14, #16, #17, #18,
+#19, #20, #21, #25, #79.  The resume after a disk-full interruption
+re-tested the final four (#8 +18 B, #12 +4 B on AES; #21 and #79 AES/cpnos
+byte-neutral BUT regress their dedicated lit canaries -- ISel still emits
+their input shapes and each is the sole remover).
+
+**Methodology lesson:** AES-byte-identical alone does NOT prove a peephole
+dead.  The discriminator is the per-pattern lit test: it still FAILs when
+a *live* byte-neutral peephole is disabled (opportunity exists), vs PASSes
+for a genuinely dead one (opportunity gone upstream).
+
+**Disk-full recovery:** a 547 MB stray z88dk-ticks register trace
+(`aes256-corpus/icode_diff/ph_trace.txt`, the `feedback_docker_trace`
+antipattern) had filled the volume; deleted, back to 70+ GB free.  No
+campaign state was corrupted (work was committed; `.ninja_log` intact).
+
+Production targets unchanged: cpnos PROM1 ~2028-2029 B (drift band), AES
+09_Oz_prod_like .text 2228 B byte-identical, lit 109 PASS + 5 XFAIL,
+test-runner sweep 990/690/37/56/207.  Commits on `session-73s`:
+`4e82d95` (#8/#12/#21/#79 Keep annotations), `915b680` (audit-complete
+doc).
+
 ## Session 73p Phase 2 (#184 fix): peephole #148 fall-through MBB safety check (May 22, 2026) — Hard
 
 End state: `session-73p-issue184` merged.  #184 root cause 1 identified
