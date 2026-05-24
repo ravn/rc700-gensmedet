@@ -91,6 +91,20 @@ revisit after #112 un-reserve).  Default codegen byte-identical (AES09 2228); li
 Correction logged: "generic LLVM code in the fork" != "upstream"; the coalescer
 fix is also in scope (wider blast radius), just not the path taken.
 
+**Also #112/#38 (un-reserve IX/IY) REFRAMED via a live IY probe — Medium.**  CLAUDE.md
+frames this as "Phase 3 regalloc cost-model work"; that's stale.  Env-gated un-reserve
+of IY (IX left reserved) + rebuild: the session-40 "387 FATAL opcode-0 encoder crashes"
+are **GONE** (lit 110+5, identical to baseline) -- the GR16NoIR/GR16_BCDE operand
+discipline on all ~25 decomposing expansions (added since session 40) fixed the encoder
+blocker.  Audited every decomposition site: all already use IX/IY-excluding classes.
+BUT a **runtime miscompile remains**: IY-allocatable AES runs away (300M vs 11.5M tstates,
+PASS sentinels never written) -- no undoc-instruction leak, so it's a control-flow/value
+clobber, likely the parked #14 'y'-screen-crash class.  Prize behind it: **AES09 .text
+2228 -> 2195 B (-33 / -1.5%)** + relieves the 3-pair pressure behind #27/#110/#115/#178.
+Probe reverted; baseline re-verified (AES make clang.ram PASS 11.5M ts, lit 110+5).
+Reframes #112 from open-ended to "isolate one IY-allocation miscompile".  Writeup
+`llvm-z80/tasks/session73s-issue112-iy-unreserve-scope.md`.
+
 ## Session 73p Phase 2 (#184 fix): peephole #148 fall-through MBB safety check (May 22, 2026) — Hard
 
 End state: `session-73p-issue184` merged.  #184 root cause 1 identified
