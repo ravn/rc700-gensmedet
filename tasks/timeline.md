@@ -63,6 +63,24 @@ peephole that earns no bytes" rule.  #27 reclassified from "CopyCost tuning" to
 "reduce base re-materialization under 3-pair pressure" (regalloc-level, pairs
 #110/#115).  Commit `ad71a21`; writeup `llvm-z80/tasks/session73s-issue27-percopy-cost-drill.md`.
 
+**Also #178/#166 (ADD16_tied remat) ROOT-CAUSED — Hard.**  The 73p blocker
+("13/13 AES FAIL, root cause not isolated, corrupts values unrelated to the add
+output") is now isolated in a **5-line repro** (`two_idx(p,i,j){return p[i]+p[j];}`).
+Wired ADD16_tied behind a throwaway `-z80-add16-tied` flag and read the MIR: in the
+base-reuse shape the pointer base dies at its last indexed use, where the
+**RegisterCoalescer merges the GR16 base + the HLI accumulator copy + the
+HLI-classed tied-def into one interval and keeps the base's physreg (BC) — OUTSIDE
+the tied def's HLI class** (HLI is a proper subclass of GR16, so the join should
+clamp to HLI but widens to GR16).  dst=BC then hits the BC-accumulator fallback
+(`PUSH BC;POP HL;ADD HL,rr;PUSH HL;POP BC`) whose `POP HL` clobbers a `p[i]` stashed
+in H — the "unrelated value corruption."  Confirmed the obvious patches fail: adding
+HL to ADD16_tied Defs => "ran out of registers" (implicit HL-def collides with tied
+HL-def when dst==HL); narrowing the dst class doesn't help (coalescer escapes to GR16
+anyway).  Fix needs a coalescer class-clamp (generic LLVM, out of scope while
+upstream paused) or a non-tied remat model.  All drill code reverted; functional
+source diff empty (comment + writeup only); lit 109+5.  Writeup
+`llvm-z80/tasks/session73s-issue178-add16-tied-rootcause.md`.
+
 ## Session 73p Phase 2 (#184 fix): peephole #148 fall-through MBB safety check (May 22, 2026) — Hard
 
 End state: `session-73p-issue184` merged.  #184 root cause 1 identified

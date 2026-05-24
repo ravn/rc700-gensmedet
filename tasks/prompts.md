@@ -194,3 +194,4 @@
 - yes
 - b
 - go
+- go (continue #178 deep-regalloc investigation)
