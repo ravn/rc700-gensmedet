@@ -7385,3 +7385,26 @@ items: test_166, test_11 (f32/i64), test_58 (fixed_point)** -- all now PASS all
 opt levels under `-static-stack`.  AES byte-identical; cpnos 2028 B + polypascal
 PASS (50.73s); lit 115+5.  Remaining #195 items (separate wrong-value bugs):
 test_27_array_2d, test_36_stack_pressure.
+
+## Session 73s: #195 test_27 fixed (address-taken) + test_36 reclassified (May 25, 2026) — Hard
+
+test_27 (volatile 2D-array sum): SECOND BSS-spill->PUSH/POP defect — when the
++static-stack frame base is materialized into a register (`LD HL,__sfrend_main`,
+array indexed in a loop), slots are read INDIRECTLY via pointers, which the
+direct-load orphan scan misses; it dropped m[0][0]'s store-back -> sum off by one.
+Fix (commit `02e56e81fabb`): refuse the conversion for address-taken frame slots.
+test_27 -static-stack PASS all levels; AES byte-identical; cpnos 2029 B (+1 B) +
+polypascal PASS; lit 116+5.
+
+test_36 (stack_pressure, bit 2 = mutual-recursion chain): RECLASSIFIED as a
+test-mode artifact, NOT a codegen bug.  Without forced +static-stack, AutoStaticStack
+correctly excludes chain_a/b/c (CallGraph SCC>1) and they use the normal stack;
+the -static-stack mode forces +static-stack globally, bypassing that SCC safety,
+so recursive functions wrongly get fixed-address BSS frames.  Production firmware
+is non-recursive, so not a production concern.
+
+**#195 production-config (+static-stack -Os) outcome: 4 real codegen bugs fixed
+(test_166/11/58/27); test_36 = recursion artifact; test_48 = alloca-incompatible;
+test_01/04/15/28/54 = O0-only (production uses -Os).**  Both BSS-spill->PUSH/POP
+defects (loop-carried-reload + address-taken) closed.  Validated in the production
++static-stack config (AES byte-identical, cpnos +1 B over baseline, polypascal PASS).
