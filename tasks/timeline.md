@@ -18,6 +18,17 @@ Commit `ecf6e39e6b6a`.  Filed **ravn/llvm-z80 #189** (regalloc i32-split gate)
 and **#190** (dynamic_alloca); backlog task added to `unpark-2026-05-22.md`;
 full writeup `session73s-issue112-iy-summary.md`.
 
+**Deeper dig (instruction trace) reframed it:** the crc miscompile is an i32
+select+shift+xor loop-carried-spill defect, NOT fundamentally IY.  #189 corrected
+to an SP-relative-store-vs-push aliasing bug (non-static-stack).  Discovered
+**#192**: the SAME loop pattern miscompiles under **`+static-stack` `-O1`/`-Os`
+with IY reserved** -- a latent PRODUCTION-config bug, returns `0xB6662D3D` vs
+`0x2D02EF8D`.  The test-runner never built `+static-stack`, so it was invisible;
+added a `cargo run -- clang -static-stack` mode (commit `2d6ccd4`) that reproduces
+it via `test_168` (`_ss`, FAIL O1/Os).  Also filed **#191** (llvm-objdump can't
+auto-detect Z80 ELFs -- `ELFObjectFile::getArch` has no `EM_Z80` case; e_machine
+8080 IS the correct LLVM `EM_Z80`).  New repros test_166-170.
+
 ## Session 73s: #112/#14 ROOT-CAUSED + FIXED -- IX/IY transfer peephole liveness guard (May 25, 2026) — Hard
 
 The long-standing #14 "PUSH/POP for IY copies crashes when IY is allocatable"
