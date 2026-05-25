@@ -7355,3 +7355,17 @@ config is under-tested -- some are real bugs (e.g. test_166 i32 popcount loop, t
 #192 i32-select-loop family), some are likely `+static-stack`-incompatible test
 patterns (recursion/dynamic-alloca: test_48 even fails on a missing `alloca.h`).
 Needs a future triage pass; left as a noted finding, not filed half-triaged.
+
+## Session 73s: build-determinism check + +static-stack triage (#195) (May 25, 2026) — Medium
+
+Two follow-ups after the late-opt audit.  (1) **Build determinism**: `llc` is
+run-to-run DETERMINISTIC (5/5 identical on AES) — the genuinely-bad flaky form is
+absent; the cpnos 2027↔2028 flux was build-to-build (±1 B, ~19 B margin),
+deprioritized.  (2) **+static-stack triage (#195 filed)**: the new `-static-stack`
+mode surfaces multiple failures in the PRODUCTION config.  Triaged by opt-level
+dependence (layout/reentrancy = opt-independent; codegen bugs = opt-dependent):
+real production-opt-level (`-Os`) codegen bugs = test_166 (i32 popcount loop),
+test_11 (f32/i64), test_27 (2D array), test_36, test_38; O0-only = test_01/04/15/
+28/54; layout/incompatible = test_58, test_48 (alloca).  cpnos/BIOS/AES build+boot
+(don't hit the exact shapes) but these are latent in the shipped `-Os +static-stack`
+compiler.  Each needs a focused root-cause like #192.  All session-73s work pushed.
