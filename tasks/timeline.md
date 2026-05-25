@@ -7334,3 +7334,24 @@ when the project reaches a stated goal.
 | run_test.sh | Full CP/NET test orchestration |
 | chksum.asm | CP/M file checksum utility (16-bit sum) |
 | bin2ihex.py | Binary to Intel HEX converter for serial transfer |
+
+## Session 73s: crash investigation — #193 fixed; zero compiler crashes remain (May 25, 2026) — Medium
+
+Investigated compiler crashes (user request).  **#193** (Z80LateOptimization
+EXC_BAD_ACCESS) root-caused via code-reading + confirmed via lldb on the
+assertions build: the "BSS spill->PUSH/POP" peephole did `MII = erase(store)` then
+erased the matching-load iterators then `--MII`; when the reload was adjacent to
+the store, MII dangled and `--MII` dereferenced freed memory (also UB at MBB
+begin()).  Fixed (commit `25fa914f662d`) by anchoring resumption to the inserted
+PUSH and erasing the store last.  Oracle: ZERO compiler crashes (`grep signal`=0)
+across the FULL default AND new `-static-stack` suites (1020 tests each); AES
+byte-identical; cpnos PROM1 2028->2027 B (one more safety-checked conversion) and
+polypascal-test PASS (PRIMES->29989, 50.79 s); lit 114+5; default 720/37/56.
+Lit guard `bss-spill-pushpop-crash-193.ll`.
+
+Separate finding (NOT crashes): the `-static-stack` sweep surfaced ~60 runtime
+FAILs + a few emulator-timeouts (test_166/test_54).  The production `+static-stack`
+config is under-tested -- some are real bugs (e.g. test_166 i32 popcount loop, the
+#192 i32-select-loop family), some are likely `+static-stack`-incompatible test
+patterns (recursion/dynamic-alloca: test_48 even fails on a missing `alloca.h`).
+Needs a future triage pass; left as a noted finding, not filed half-triaged.
