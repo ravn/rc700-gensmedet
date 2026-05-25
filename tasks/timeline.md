@@ -1,5 +1,21 @@
 # RC700-SYSGEN Project Timeline
 
+## Session 73s: #112 full oracle with IY default-ON -> NOT clean (regalloc-class blockers remain) (May 25, 2026) — Medium
+
+After the peephole fix, flipped `-z80-unreserve-iy` default ON and ran the full
+oracle.  **Not shippable** -- reverted to OFF (production byte-identical).
+IY-on regressions beyond the fixed loop-carried bug: **AES production target
+MISCOMPILES** (deterministic C010=00); test-runner 696->694 pass (real:
+test_48_dynamic_alloca FATAL all levels, test_40_hash_crc, test_38; rest is
+known test_90/91 #136 noise); lit 3 codegen-shift FAILs.  Dig-in with reliable
+repros (test_167_iy_crc32, test_168_iy_crc_inner) + `-print-after-all`: the crc
+reduction-loop miscompile is a **register-allocation class** bug (allocator
+shuffles a split 32-bit value through expensive `push iy`/`pop hl` round-trips
+and corrupts it) -- the z80-late-opt copy removals there are LEGAL.  This is the
+Phase-3 regalloc cost-model work #112 was always gated on; dynamic_alloca is a
+separate frame-pointer class.  Loop-carried peephole fix stays shipped.
+Commit `ecf6e39e6b6a`.
+
 ## Session 73s: #112/#14 ROOT-CAUSED + FIXED -- IX/IY transfer peephole liveness guard (May 25, 2026) — Hard
 
 The long-standing #14 "PUSH/POP for IY copies crashes when IY is allocatable"
