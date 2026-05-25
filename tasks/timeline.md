@@ -16,7 +16,7 @@ Phase-3 regalloc cost-model work #112 was always gated on; dynamic_alloca is a
 separate frame-pointer class.  Loop-carried peephole fix stays shipped.
 Commit `ecf6e39e6b6a`.  Filed **ravn/llvm-z80 #189** (regalloc i32-split gate)
 and **#190** (dynamic_alloca); backlog task added to `unpark-2026-05-22.md`;
-full writeup `session73s-issue112-iy-summary.md`.
+full writeup `session73s-issue112-iy-summary.md`.  **#192 FIXED** (commit 25656201a41d, #173 read-guard; AES + cpnos byte-identical, oracle clean); **#193** filed (separate pre-existing +static-stack Z80LateOptimization segfault on test_40 xorshift16).
 
 **Deeper dig (instruction trace) reframed it:** the crc miscompile is an i32
 select+shift+xor loop-carried-spill defect, NOT fundamentally IY.  #189 corrected
