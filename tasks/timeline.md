@@ -7369,3 +7369,19 @@ test_11 (f32/i64), test_27 (2D array), test_36, test_38; O0-only = test_01/04/15
 28/54; layout/incompatible = test_58, test_48 (alloca).  cpnos/BIOS/AES build+boot
 (don't hit the exact shapes) but these are latent in the shipped `-Os +static-stack`
 compiler.  Each needs a focused root-cause like #192.  All session-73s work pushed.
+
+## Session 73s: #195 — BSS-spill->PUSH/POP drops loop-carried store-back (3 prod bugs fixed) (May 25, 2026) — Hard
+
+Root-caused the top production `-Os +static-stack` bug (test_166 i32 popcount loop
+HANG).  The BSS-spill->PUSH/POP peephole converted the high-half store+reload
+(`LD (slot),BC ... LD BC,(slot)`) to PUSH/POP, dropping the store -- but the loop
+also reads that slot at the top via the back-edge reload (`LD HL,(slot)`), which
+the peephole's checks miss (forward-only orphan scan; 'used elsewhere' skips the
+current block + same-class only).  So the slot was never written, the high half
+never decreased -> infinite loop.  Fix (commit `c2bbe80d4623`): bail when the slot
+is read earlier in the same block, before the matched store (loop-carried-reload
+signature); surgical, cpnos byte-neutral.  **One fix resolved THREE production
+items: test_166, test_11 (f32/i64), test_58 (fixed_point)** -- all now PASS all
+opt levels under `-static-stack`.  AES byte-identical; cpnos 2028 B + polypascal
+PASS (50.73s); lit 115+5.  Remaining #195 items (separate wrong-value bugs):
+test_27_array_2d, test_36_stack_pressure.
