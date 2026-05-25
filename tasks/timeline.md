@@ -14,7 +14,9 @@ shuffles a split 32-bit value through expensive `push iy`/`pop hl` round-trips
 and corrupts it) -- the z80-late-opt copy removals there are LEGAL.  This is the
 Phase-3 regalloc cost-model work #112 was always gated on; dynamic_alloca is a
 separate frame-pointer class.  Loop-carried peephole fix stays shipped.
-Commit `ecf6e39e6b6a`.
+Commit `ecf6e39e6b6a`.  Filed **ravn/llvm-z80 #189** (regalloc i32-split gate)
+and **#190** (dynamic_alloca); backlog task added to `unpark-2026-05-22.md`;
+full writeup `session73s-issue112-iy-summary.md`.
 
 ## Session 73s: #112/#14 ROOT-CAUSED + FIXED -- IX/IY transfer peephole liveness guard (May 25, 2026) — Hard
 
