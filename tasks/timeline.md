@@ -7435,3 +7435,21 @@ and put the certainty discipline + a proactive "survey the toolbox" rule into AG
 across all repos.
 
 Summary: `llvm-z80/tasks/session73s-198-verifier-summary.md`.
+
+## Session 73s cont. (2026-05-26) — #38 IY size-gate + verify-clean cluster [Hard]
+
+**#38 IY size-gate LANDED.** Un-reserve IY as a 4th 16-bit pair at -Os/-Oz +static-stack
+only (size win, ~+0.1% tstate cost so reserved for speed). z80IsIYAllocatable(MF) threaded
+through getReservedRegs/getLargestLegalSuperClass/Z80NarrowNoIndex. Production byte win:
+cpnos 2033->2026, autoload 1483->1478, BIOS 5920->5897 (~33 B), in the hot functions
+(_specc, _scroll_lines, _main_relocated). 0 undoc ops, cpnos boots, autoload boots to A>.
+
+**Two latent miscompiles fixed en route:** (1) BSS-spill->PUSH/POP peephole was blind to
+explicit SP writes (ld sp,hl) -> push/pop bracket spanning a call-arg cleanup popped the
+wrong slot (test_58_fixed_point -O0 +static-stack); added an SP-write guard. (2) ISel built
+tied INC16 as `%t = INC16 %t` (SSA multiple-def) -> miscompiled test_38_sort_search at O1;
+gave it a fresh dst vreg. Both with MIR/lit regression tests.
+
+**Verify-clean cluster (#197): 2 of 4 classes cleared** (illegal-vreg #201, multiple-vreg-defs
+INC16); #194 (liveins) + #200 (SPILL_GR16) remain. Filed rc700#100 (autoload stale clang
+banner check -- harness bug, boot fine). Summary: llvm-z80/tasks/session73s-iy-sizegate-summary.md.
