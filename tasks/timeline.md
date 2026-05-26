@@ -7408,3 +7408,30 @@ is non-recursive, so not a production concern.
 test_01/04/15/28/54 = O0-only (production uses -Os).**  Both BSS-spill->PUSH/POP
 defects (loop-carried-reload + address-taken) closed.  Validated in the production
 +static-stack config (AES byte-identical, cpnos +1 B over baseline, polypascal PASS).
+
+## Session 73s cont. (2026-05-26) — #198 fix + -verify surface triage [Hard]
+
+**#198 (real -O2 miscompile) FIXED + closed.**  MachineCSE on AES `rj_sb_inv`
+triggered a same-class BSS-spill->PUSH/POP peephole (Z80LateOptimization ~4470)
+whose cross-block guard matched only the spilled pair's own opcodes; a cross-class
+reader (`LD_DE_nnind` of a BC-spilled slot) in another block was orphaned ->
+read a slot PUSH never wrote -> garbage.  Fix: widen the cross-block guard to any
+register class (`isAnyBssLoad||isAnyBssStore`), matching the sibling peephole.
+Root-caused via `-opt-bisect-limit` + per-pass MIR (verified, not inferred).
+New MIR regression test (PASS-with/FAIL-without).  Full oracle green; cpnos PROM1
+2028->2036 B (12 B free), autoload +10 B, BIOS unchanged; cpnos polypascal PASS.
+
+**`-verify-machineinstrs` -O2 surface triaged (171/174) -> 3 classes:** #112/#189
+(illegal-vreg, GR16NoIR pseudos), #194 (undefined-physreg liveins, gf_log), #200
+(SPILL_GR16 too-few-operands, new).  All invalid-MIR-that-runs; tracked under #197
+(CI-hardening), with the test-runner `clang -verify` flag landed.  Stood up an
+assertions build (`build-macos-asserts`) for bug-hunting.
+
+**Process:** filed #199 as a duplicate of pre-existing #194 (didn't search issues
+first) -> closed it, hardened `feedback_grep_repo_docs_before_deriving` to cover
+issue-filing.  Corrected two overclaimed root-cause statements after the source
+contradicted them -> hardened `feedback_state_certainty` (HARD; familiarity != fact)
+and put the certainty discipline + a proactive "survey the toolbox" rule into AGENTS.md
+across all repos.
+
+Summary: `llvm-z80/tasks/session73s-198-verifier-summary.md`.
