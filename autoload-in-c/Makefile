@@ -121,7 +121,12 @@ sw1-test: prom
 
 mame: prom mamesym
 	@awk '{printf "comadd %s,%s\n", $$1, $$2}' $(COMPILER)/prom0_mame.sym > $(COMPILER)/prom0_debug.cmd
-	$(eval EXPECT := $(if $(filter sdcc,$(COMPILER)),RC700 ROA375,RC700 CL))
+	@# clang banner is "RC700 ROA375 CL <date> <hash>/<user>"; SDCC banner is
+	@# "RC700 ROA375 <date>..." (no CL tag).  Match the full distinguishing
+	@# prefix per compiler -- the old clang EXPECT "RC700 CL" was never a
+	@# substring of the real banner (ROA375 sits between), so it always FAILed
+	@# even on a correct boot (ravn/rc700-gensmedet#100).
+	$(eval EXPECT := $(if $(filter sdcc,$(COMPILER)),RC700 ROA375,RC700 ROA375 CL))
 	EXPECT_BANNER="$(EXPECT)" $(MAME_RUN)
 	@cat /tmp/boot_test_result.txt
 	@grep -q '^PASS' /tmp/boot_test_result.txt
