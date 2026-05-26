@@ -105,12 +105,17 @@ ifeq ($(COMPILER),clang)
   OBJDUMP = $(CLANG_BUILD)/llvm-objdump
   NM      = $(CLANG_BUILD)/llvm-nm
 
+  # ravn/llvm-z80#177: -disable-machine-licm / -disable-machine-cse were
+  # dropped from CFLAGS -- they are redundant.  MachineLICM, EarlyMachineLICM
+  # and MachineCSE are disablePass-ed globally in the Z80 backend (#128,
+  # Z80TargetMachine.cpp), so the flags never changed codegen.  Removal
+  # verified byte-identical on the uncompressed payload (2026-05-26).
+  # -disable-lsr is kept: LSR is IR-level (still runs), and on cpnos the
+  # flag is marginally beneficial via better ZX0 compressibility.
   CFLAGS = --target=z80 -std=c23 -Oz -nostdlib -g \
            -ffunction-sections -fdata-sections \
            -Xclang -target-feature -Xclang +static-stack \
            -mllvm -disable-lsr \
-           -mllvm -disable-machine-licm \
-           -mllvm -disable-machine-cse \
            -DENABLE_FDC=$(ENABLE_FDC) \
            -DMIRROR_SIOB=$(MIRROR_SIOB) \
            -DBOOT_MARK_ENABLED=$(BOOT_MARK_ENABLED) \
