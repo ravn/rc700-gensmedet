@@ -7590,3 +7590,21 @@ expandPostRAPseudo Z80InstrInfo.cpp:1010); the verifier runs between PEI and tha
 expansion.  Asymmetry: large-offset path expands at PEI, small-offset leaves the
 survivor.  Fix options A (expand at PEI) / B (variadic decl) posted; deferred (deep, benign).
 Remaining Cluster 3: #200 (fix), #194 (stale liveness, delicate), #125 (-O0 crash), #197 (meta).
+
+### Session 73s-cont2 (2026-05-27) — Cluster 3 verifier sweep (#197). Medium.
+Cleared 4 root-cause classes of the `-O2 -verify-machineinstrs` red surface, each
+fully gated (lit + diff-opt + native-oracle + cpnos/AES where bytes moved).
+**#200 CLOSED** (fix C: restore the folded `$offset` operand as a 0 placeholder in
+the small-offset SPILL/RELOAD FI survivor path; the 2-op form was intended but
+under-counted vs the 3-op decl — neutral, `47db108`).  **#194 CLOSED** (two
+Z80LateOptimization peepholes left stale `$a` liveness: cross-block `LD A,r`
+removal -> addLiveIn; `LD A,#0`->`XOR A` -> undef use — neutral, `46fbafb`).
+**#209 filed+fixed** (don't-care-read family): `PUSH AF` stack reserve (frame
+lowering, neutral, `99ee190`) + `EX DE,HL` one-way copy dest (`copyPhysReg`,
+`8ff4208`).  The EX DE,HL one is NOT neutral — undef-dest let the optimizer drop
+dead dest-defs: **cpnos PROM1 2028 -> 2022 B (-6 B, 26 B free)**, polypascal PASS
+50.65 s, AES enc/dec PASS (ts 11516046 unchanged).  Lit 123+5 -> 127+5.
+Remaining #197 surface (next): `aes_mixColumns` `PUSH_HL` undef `$hl` — frame-index
+SP-relative scratch save guarded by `isRegLiveAt(HL)`, a liveness-reconciliation
+issue (not a clean undef) + the #112/#189 GR16NoIR class.  Entry point:
+`llvm-z80/tasks/session73s-cont2-verifier-sweep-2026-05-27.md`.  All on `main`, NOT pushed.
