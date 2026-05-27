@@ -200,3 +200,9 @@
 
 ## 2026-05-27
 - "start cluster 1 fresh — small peephole wins"
+- "open #42 in a browser"
+- "all, keep going as long as you can" (Cluster 4: #42/#4/#133)
+- "i want #42 to be fixed in a way that allows the same rcbios source file for both sdcc and clang without ifdefs"
+- "would the intrinsic.h file be HAL enough for this?"
+- "i want the intrinsic.h file to live in the compiler, not in the project, so the same source compiles with clang and sdcc"
+- "build it for rcbios and verify it boots"
