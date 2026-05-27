@@ -7567,3 +7567,16 @@ with its dead isStore out-param).  Behavior-preserving: cpnos payload BYTE-IDENT
 oracles 0/0, lit 123+5.  −35 net lines (−77 across step 1+2).  NOT pushed.
 Remaining #203: the forward-scan guards (orphan/stackdepth/SP-write) are interleaved
 with load-collection — the harder factor-out, deferred.
+
+### #203 step 3 (SP-write) + #139 closed (2026-05-27)
+
+#203 step 3: extracted the explicit-SP-write guard (#198 family) into shared
+`z80IsExplicitSPWrite`.  Behavior-preserving (cpnos byte-identical, oracles 0/0,
+lit 123+5).  llvm-z80 main `4bdeea1`.  All historically drift-prone SHARED guards
+of the spill->PUSH/POP family now single-sourced (predicates, UsedElsewhere,
+loop-carried, address-taken, SP-write).  #203 stays open only for the forward-scan
+orphan/stack-depth (interleaved with per-peephole load-collection — a restructure).
+
+#139 CLOSED: stale diagnostic — its cpnos-rom `_snios_rcvmsg_c` candidate was removed
+(cpnos-rom parked/superseded); the cross-MBB peephole is now comprehensively guarded
++ oracle-verified, so a candidate not firing is correct guard behavior, not a bug.
