@@ -42,7 +42,7 @@ static inline void intrinsic_im_2(void) {}
  * ================================================================ */
 
 #define __naked
-#define __critical
+#define __critical __attribute__((z80_critical))
 #define __interrupt(n) __attribute__((interrupt))
 #define __sdcccall(x)
 

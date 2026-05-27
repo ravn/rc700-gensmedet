@@ -7527,3 +7527,16 @@ Verified both compilers on the SAME source (no #ifdef):
   as precise side-effects vs the opaque `__asm__ volatile` barrier.  MAME boot:
   signon "RC700 56k CP/M 2.2 C-bios/clang", A> prompt, disk ERR=0 across 77 tracks.
 - SDCC BIOS 6091 B builds clean (uses z88dk's <intrinsic.h>, untouched).
+
+### #4 CLOSED: rcbios __critical now real (z80_critical attribute) (2026-05-27)
+
+clang/intrinsic.h: `#define __critical __attribute__((z80_critical))` (was a
+silent no-op).  The backend's pre-existing Z80FrameLowering DI/EI handling is
+now reachable from C.  rcbios's `__critical __interrupt` SIO ISRs: DI suppressed
+(HW disables on entry), EI;RETI unchanged -> clang BIOS 5897 B (unchanged), di
+count 21 (no spurious DI).  MAME boot: signon + A> + disk ERR=0 across 77 tracks.
+Compiler side: llvm-z80 main 736f83f.
+
+Note: cpnos final-bin size wobbles 2026<->2027 B purely from the embedded cold-init
+build date+githash string (byte 585 = a timestamp digit) compressing differently;
+the uncompressed payload (compiled code) is byte-identical -- #4/#42 are codegen-neutral.
