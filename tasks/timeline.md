@@ -7500,3 +7500,30 @@ Verify-first pass through the Cluster-1 candidates (`llvm-z80/tasks/issue-closeo
 - **#122 ruled out as miscompile:** the suspicious `and 254` for a `& 0xFF` source at threshold 10 is value-preserving demanded-bits folding (threshold 11 drops the mask entirely). The 8-bit load already happens; only the 16-bit subtract tail is suboptimal (the marginal/risky #122 size win, deferred).
 
 Open Cluster-1 remainder: #117 (i16 EQ/NE neither-in-HL, ~1 B, risky compare-lowering), #122 (8-bit CP fast path, marginal), #146 (epilog `pop;inc sp;inc sp;push;ret` -> `pop hl; ex (sp),hl`, narrow), #173 (8-bit BSS spill via A, medium).
+
+## Session 73s (cont.) — #42 CLOSED: compiler ships <intrinsic.h> (same source clang+SDCC) (2026-05-27)  [Medium]
+
+User directive refined the fix: "the same rcbios source must compile under clang AND sdcc without ifdefs" and "the intrinsic.h file must live in the compiler, not the project."
+
+Delivered at the compiler level (llvm-z80 main `81b46fe614d8`):
+- **clang now ships `<intrinsic.h>`** (clang/lib/Headers/intrinsic.h -> lib/clang/<v>/include/). `#include <intrinsic.h>` resolves to clang's copy under clang, z88dk's under SDCC — identical `intrinsic_*` API, no -I, no #ifdef in source.
+- Two new intrinsics `llvm.z80.im2` / `llvm.z80.set.i` + selection (IM 2 / move-to-A + LD I,A) + legalizer whitelist.
+- Six clang builtins `__builtin_z80_di/ei/halt/nop/im2/set_i`: BuiltinsZ80.td, tablegen wiring (CMakeLists + TargetBuiltins.h), Z80TargetInfo::getTargetBuiltins, EmitZ80BuiltinExpr (TargetBuiltins/Z80.cpp), CGBuiltin dispatch.
+- Shipped header mirrors z88dk's API (di/ei/halt/nop + im_2 z80-only). `set_i` (LD I,A) stays a clang-only builtin (z88dk has no such intrinsic) — fixes the rcbios bios_hw_init.c inline-`ld i,a` mis-fire that needed an asm shim.
+
+Clang path is now inline-asm-free; optimizer models the side effects precisely.
+
+Verified: lit intrinsics.ll + clang/test/CodeGen/z80-builtins.c + clang/test/Headers/z80-intrinsic.c (Z80 suite 122+5); end-to-end `clang --target=z80 -S` with NO -I emits `di; im 2; halt; ei`; codegen-neutral (cpnos PROM1 2026 B, two builds byte-identical, polypascal PASS 51.87 s); differential oracles 0 DIFFOPT/0 NATIVE (default + static-stack).
+
+### rcbios adoption of the compiler-shipped <intrinsic.h> (2026-05-27)
+
+rcbios-in-c/clang/intrinsic.h now `#include_next <intrinsic.h>` (under __z80__) to
+pull intrinsic_di/ei/halt/nop/im_2 from the COMPILER instead of defining them via
+inline asm; keeps only host-CLion stubs + SDCC keyword stubs.  Realizes "the
+intrinsic.h file lives in the compiler, not the project."
+
+Verified both compilers on the SAME source (no #ifdef):
+- clang BIOS **5922 -> 5897 B (-25 B)** — intrinsics let the optimizer treat DI/EI
+  as precise side-effects vs the opaque `__asm__ volatile` barrier.  MAME boot:
+  signon "RC700 56k CP/M 2.2 C-bios/clang", A> prompt, disk ERR=0 across 77 tracks.
+- SDCC BIOS 6091 B builds clean (uses z88dk's <intrinsic.h>, untouched).

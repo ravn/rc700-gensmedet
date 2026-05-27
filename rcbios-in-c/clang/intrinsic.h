@@ -1,30 +1,31 @@
 /*
- * intrinsic.h — Clang/LLVM-Z80 equivalents of SDCC <intrinsic.h>
- *               plus SDCC keyword compatibility stubs.
+ * intrinsic.h — clang-side SDCC keyword-compatibility shim.
  *
- * For SDCC builds, the system <intrinsic.h> is used instead.
- * For clang builds, this file is found via -Iclang_z80.
+ * The Z80 privileged-instruction intrinsics (intrinsic_di/ei/halt/nop/im_2)
+ * now live IN THE COMPILER: clang ships <intrinsic.h> in its resource dir
+ * (ravn/llvm-z80#42).  This shim chains to it via #include_next, so the
+ * definitions come from the compiler — exactly as SDCC gets them from z88dk's
+ * <intrinsic.h>.  The SAME source therefore compiles under both toolchains
+ * with no #ifdef and no inline assembly on the clang path.
  *
- * The __asm__(x) macro neutralizes SDCC-syntax inline asm in naked
- * functions.  These become empty stubs, removed by --gc-sections.
- * Note: __asm__(x) (function-like) does NOT match __asm__ volatile(x)
- * (keyword followed by qualifier), so this file's own intrinsics work.
+ * This file only adds what is NOT an intrinsic:
+ *   - host-clang (CLion indexing) no-op stubs, since the shipped header
+ *     #error's on non-Z80 targets;
+ *   - SDCC keyword stubs (__naked/__critical/__interrupt/__sdcccall) and the
+ *     __asm__(x) neutralizer for SDCC-syntax inline asm in naked bodies.
  */
 
 #ifndef _INTRINSIC_H
 #define _INTRINSIC_H
 
 /* ================================================================
- * Z80 intrinsic functions (via inline asm volatile)
- * Host clang (CLion) gets no-op stubs — only Z80 clang emits asm.
+ * Z80 privileged-instruction intrinsics — sourced from the compiler.
+ * Host clang (CLion) gets no-op stubs; only Z80 clang chains to the
+ * shipped <intrinsic.h>.
  * ================================================================ */
 
 #ifdef __z80__
-static inline void intrinsic_di(void)   { __asm__ volatile("di"); }
-static inline void intrinsic_ei(void)   { __asm__ volatile("ei"); }
-static inline void intrinsic_halt(void) { __asm__ volatile("halt"); }
-static inline void intrinsic_nop(void)  { __asm__ volatile("nop"); }
-static inline void intrinsic_im_2(void) { __asm__ volatile("im 2"); }
+#include_next <intrinsic.h>
 #else
 static inline void intrinsic_di(void)   {}
 static inline void intrinsic_ei(void)   {}
