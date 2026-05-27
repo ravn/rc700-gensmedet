@@ -7453,3 +7453,38 @@ gave it a fresh dst vreg. Both with MIR/lit regression tests.
 **Verify-clean cluster (#197): 2 of 4 classes cleared** (illegal-vreg #201, multiple-vreg-defs
 INC16); #194 (liveins) + #200 (SPILL_GR16) remain. Filed rc700#100 (autoload stale clang
 banner check -- harness bug, boot fine). Summary: llvm-z80/tasks/session73s-iy-sizegate-summary.md.
+
+## Session 73s cont. (2026-05-26/27) — differential oracles + 3 miscompiles closed [Hard]
+
+**IX un-reserve investigated, reverted, #12 documented.** Mirrored the #38 IY size-gate to
+IX; rigorous A/B showed it's a REGRESSION (BIOS +91 B) because IX is callee-saved (PUSH/POP
+tax), and the greedy CSR cost model can't even reach neutral (+18 B perturbation floor). All
+3 firmware images have ZERO frame-pointer functions, so the only IX win is making it
+caller-saved -- which needs FP-elimination (#12). Reverted; full write-up on #12. rc700#100
+(autoload banner check) fixed + CLOSED.
+
+**Three real miscompiles found, fixed, CLOSED:**
+- #202 -- cross-block BSS-spill->PUSH/POP peephole dropped a loop-carried store-back (read
+  before store across a back-edge). Unified the loop-carried guard across all 4 spill
+  peepholes.
+- #204 -- FOUND BY THE NEW NATIVE ORACLE: address-taken slot's store converted to PUSH (a
+  double-pointer swap read it via a pointer). Unified the address-taken guard across all 4
+  peepholes. (#203 tracks the remaining structural guards; OPEN.)
+- #136 -- the long-standing "38 mystery O1 fixtures". Root-caused via the cross-opt-level
+  oracle + opt-bisect to Z80LoopIdiomFill emitting an OVERLAPPING memcpy (UB) that InstCombine
+  inlines to a wide load+store at -O1, breaking the LDIR forward-propagation. Fixed with a
+  one-line `volatile` (forces LDIR lowering). All 3 fixes production byte-identical.
+
+**Built two differential test oracles** (`test-runner`):
+- `-diff-opt` -- every opt level of a program must return the same value (cross-opt-level);
+  caught #202/#15, found nothing the expect-directive didn't for #136 until paired with...
+- `-native-oracle` -- compares each test's Z80 result to the HOST C compiler's (computed
+  reference, doesn't trust hand-written `expect`s); found #204, confirmed #136's wrong side.
+  Both now sit at a CLEAN baseline (0 DIFFOPT / 0 NATIVE) in default AND +static-stack configs
+  -- ready as a CI gate. SKIP-IF gained `+feature` support; test_36 (recursion, invalid under
+  non-reentrant +static-stack) skipped there.
+
+**Discipline:** hardened AGENTS.md + memory -- certainty in *filed issue diagnoses* (a root
+cause is a hypothesis until checked; #202 was filed with a wrong cause), "baseline before you
+change", and "a bug found by luck is a bug in your oracle" (audit the detector, not just the
+cause). Lit 121+5 throughout. Summary: llvm-z80/tasks/issue12-ix-unreserve-measurement-2026-05-26.md.
