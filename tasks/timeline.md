@@ -7540,3 +7540,19 @@ Compiler side: llvm-z80 main 736f83f.
 Note: cpnos final-bin size wobbles 2026<->2027 B purely from the embedded cold-init
 build date+githash string (byte 585 = a timestamp digit) compressing differently;
 the uncompressed payload (compiled code) is byte-identical -- #4/#42 are codegen-neutral.
+
+### Cluster 2 started: #203 step 1 (predicate unification) landed (2026-05-27)
+
+Verify-first: #155/#143/#140 already CLOSED; remaining open Cluster-2 = #203 (guard
+unification) + #139 (diagnostic) + #188 (meta) + #20 (deferred).
+
+#203 **step 1 (predicates)** — llvm-z80 main `f3282df`.  The four BSS-spill->PUSH/POP
+peepholes each had drift-prone copies of isAnyBssLoad/Store/isAnyPush/Pop/sameAddress;
+added shared z80IsAnyPush/z80IsAnyPop and aliased every copy to the file-scope z80*
+helpers (opcode sets diffed identical first).  Behavior-preserving: lit 123+5, cpnos
+payload BYTE-IDENTICAL, oracles 0/0.  −42 net lines.  NOT pushed.
+
+#203 **step 2 (sequences)** scoped + deferred: the four `UsedElsewhere` blocks genuinely
+diverge (peephole #3 has the #155 dominator-relaxation; #1/#2/#4 are strict), so unifying
+is a behavior-CHANGING semantic reconciliation needing runtime verification — a focused
+session, not tail-end work (peephole-safety discipline).
