@@ -7488,3 +7488,15 @@ caller-saved -- which needs FP-elimination (#12). Reverted; full write-up on #12
 cause is a hypothesis until checked; #202 was filed with a wrong cause), "baseline before you
 change", and "a bug found by luck is a bug in your oracle" (audit the detector, not just the
 cause). Lit 121+5 throughout. Summary: llvm-z80/tasks/issue12-ix-unreserve-measurement-2026-05-26.md.
+
+## Session 73s (cont.) — Cluster 1 small-peephole wins: #18 fixed, #151/#152 closed (2026-05-27)  [Easy]
+
+Verify-first pass through the Cluster-1 candidates (`llvm-z80/tasks/issue-closeout-plan-2026-05-27.md`), then one real fix landed.
+
+- **#151 CLOSED (already fixed):** sext(icmp eq/ne) lowers to clean `sub 1; sbc a,a; ld e,a; ld d,a` — the old `and 1; rrca; sbc a,a` residual is gone. Verified, no code change.
+- **#152 CLOSED (implemented + tested):** the #147 SET/RES-on-memory peephole already handles intervening A-readers via the `LD A,(HL)` form (`u8 t=g; port=t; g|=8` -> `ld hl,_g; ld a,(hl); ld (_port),a; set 3,(hl)`). Lit `issue-152-set-res-with-a-reader.ll` PASS. Was open but done.
+- **#18 FIXED:** new per-MBB peephole in Z80LateOptimization — `LD r,n` -> `LD r,A` when A already holds the constant (from `xor a`/`sub a`=0 or `ld a,n`). Saves 1 B/fire; reads A only (value+flags preserved; fires consecutively). Within-block tracking, invalidated by any A def incl. CALL RegMask clobber. llvm-z80 main `bfce0fff25db`.
+  - Oracle: lit 122+5; differential oracles 0 DIFFOPT/0 NATIVE (default + static-stack); cpnos PROM1 **2028 -> 2026 B** (-2 B, 22 B free); cpnos-polypascal-test PASS 51.17 s.
+- **#122 ruled out as miscompile:** the suspicious `and 254` for a `& 0xFF` source at threshold 10 is value-preserving demanded-bits folding (threshold 11 drops the mask entirely). The 8-bit load already happens; only the 16-bit subtract tail is suboptimal (the marginal/risky #122 size win, deferred).
+
+Open Cluster-1 remainder: #117 (i16 EQ/NE neither-in-HL, ~1 B, risky compare-lowering), #122 (8-bit CP fast path, marginal), #146 (epilog `pop;inc sp;inc sp;push;ret` -> `pop hl; ex (sp),hl`, narrow), #173 (8-bit BSS spill via A, medium).
