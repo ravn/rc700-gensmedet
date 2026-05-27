@@ -207,3 +207,4 @@
 - "i want the intrinsic.h file to live in the compiler, not in the project, so the same source compiles with clang and sdcc"
 - "build it for rcbios and verify it boots"
 - "start cluster 2"
+- "analyse, raise issues and tasks, summarize and commit. Prepare for a fresh session."
