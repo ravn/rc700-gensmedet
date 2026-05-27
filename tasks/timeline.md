@@ -7556,3 +7556,14 @@ payload BYTE-IDENTICAL, oracles 0/0.  −42 net lines.  NOT pushed.
 diverge (peephole #3 has the #155 dominator-relaxation; #1/#2/#4 are strict), so unifying
 is a behavior-CHANGING semantic reconciliation needing runtime verification — a focused
 session, not tail-end work (peephole-safety discipline).
+
+### #203 step 2 landed: UsedElsewhere unified + predicate aliasing completed (2026-05-27)
+
+llvm-z80 main `f009ab4`.  Extracted the four hand-mirrored `UsedElsewhere` orphan
+guards into one parameterized `z80SlotUsedElsewhere` (SkipBlocks/SkipMIs/MDT params
+capture the #1/#2 whole-block-skip, #3 #155 dominator-relaxation, #173 MI-skip
+variants); completed the predicate aliasing step 1 missed (sameAddr ×2, isAnyBssAccess
+with its dead isStore out-param).  Behavior-preserving: cpnos payload BYTE-IDENTICAL,
+oracles 0/0, lit 123+5.  −35 net lines (−77 across step 1+2).  NOT pushed.
+Remaining #203: the forward-scan guards (orphan/stackdepth/SP-write) are interleaved
+with load-collection — the harder factor-out, deferred.
