@@ -7580,3 +7580,13 @@ orphan/stack-depth (interleaved with per-peephole load-collection — a restruct
 #139 CLOSED: stale diagnostic — its cpnos-rom `_snios_rcvmsg_c` candidate was removed
 (cpnos-rom parked/superseded); the cross-MBB peephole is now comprehensively guarded
 + oracle-verified, so a candidate not firing is correct guard behavior, not a bug.
+
+### Cluster 3 started: test_48 fixed, #200 root-caused (2026-05-27)
+
+test_48_dynamic_alloca: `<alloca.h>` -> `__builtin_alloca` (freestanding, #35) — builds
++ PASSES O0-Oz default, removes 6 FATALs (#190 test-setup part).  llvm-z80 `6589e2a`.
+#200 fully root-caused: the 2-op `SPILL_GR16 $de,-2` is INTENDED (expanded by
+expandPostRAPseudo Z80InstrInfo.cpp:1010); the verifier runs between PEI and that
+expansion.  Asymmetry: large-offset path expands at PEI, small-offset leaves the
+survivor.  Fix options A (expand at PEI) / B (variadic decl) posted; deferred (deep, benign).
+Remaining Cluster 3: #200 (fix), #194 (stale liveness, delicate), #125 (-O0 crash), #197 (meta).
