@@ -432,28 +432,17 @@ void resident_handoff(uint16_t entry) {
          *    JPs to NDOS+3 (COLDST). */
         __builtin_memcpy((void *)BIOS_JT_COPY_ADDR, bios_boot, 51);
 
-        /* Copy zp_init_data (8 B in resident RODATA) to RAM 0x0000.
-         * Without this copy NDOS COLDST jumps via uninitialised ZP
-         * and the slave hangs after BOOT_MARK 'P'.
+        /* Copy zp_init_data (8 B in resident RODATA) to RAM 0x0000 (the CP/M
+         * zero page).  Without this NDOS COLDST jumps via uninitialised ZP and
+         * the slave hangs after BOOT_MARK 'P'.
          *
-         * IMPORTANT: do NOT use `__builtin_memcpy((void *)0, src, n)`.
-         * Writing through a literal NULL pointer is undefined behaviour
-         * per ISO C; clang's optimizer detects the UB and treats every
-         * path that reaches it as unreachable, silently eliding this
-         * if-block, the BIOS-JT memcpy above, AND the enter_coldst()
-         * call -- breaking the slave boot under clang (symptom: 25
-         * netboot dots then silence; resident_handoff shrinks to 18 B,
-         * _enter_coldst becomes dead code).  SDCC's non-aggressive
-         * optimizer compiles it fine, hiding the bug.  A `volatile
-         * uint8_t *` local doesn't help -- clang still propagates the
-         * constant 0 across the assignment.  Inline asm is the cleanest
-         * portable expression; both compilers accept the syntax. */
-        ASM_VOLATILE(
-            "ld   hl, _zp_init_data\n\t"
-            "ld   de, 0\n\t"
-            "ld   bc, 8\n\t"
-            "ldir\n\t"
-        );
+         * Address 0 is real RAM on the Z80, but clang historically treated a
+         * write through a literal NULL pointer as UB and elided the whole
+         * if-block (ravn/rc700-gensmedet#49/#81), which forced an inline-asm
+         * LDIR.  The Z80 toolchain now defaults to -fno-delete-null-pointer-
+         * checks (null pointer valid on bare-metal page 0), so plain portable
+         * C is correct under both clang and SDCC. */
+        __builtin_memcpy((void *)0, zp_init_data, 8);
 
         BOOT_MARK(18, 'J');             /* about to JP NDOS COLDST */
         enter_coldst();
