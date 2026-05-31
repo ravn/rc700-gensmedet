@@ -969,9 +969,26 @@ _check-mame-irq:
 .PHONY: _kill-mpm
 _kill-mpm:
 	-@screen -S mpm -X quit >/dev/null 2>&1 || true
-	-@pkill -f 'login -pflq ravn ./mpm-net2' >/dev/null 2>&1 || true
-	-@pkill -f cpmsim >/dev/null 2>&1 || true
-	@sleep 0.5
+	@# Ensure the NEXT `screen -dmS mpm ./mpm-net2` creates a genuinely
+	@# fresh master.  A stale cpmsim from a crashed/interrupted run can
+	@# survive in a non-LISTEN socket state (e.g. CLOSE_WAIT left by a
+	@# dead MAME) while still holding disk locks on mpm-net2-1.dsk.  The
+	@# old narrow `login -pflq ravn ./mpm-net2` pattern + a LISTEN-only
+	@# port check missed it, so a new master would bind :4002 yet fail
+	@# the CP/NET handshake (slave never reaches E>).  Match the master
+	@# broadly (the mpm-net2 launcher AND the cpmsim it execs), escalate
+	@# TERM -> KILL, and verify the PROCESS is gone -- not just the port.
+	@for sig in TERM TERM KILL; do \
+	    pkill -$$sig -f mpm-net2 >/dev/null 2>&1 || true; \
+	    pkill -$$sig -f cpmsim   >/dev/null 2>&1 || true; \
+	    sleep 0.5; \
+	    pgrep -f cpmsim >/dev/null 2>&1 || break; \
+	done
+	@if pgrep -f cpmsim >/dev/null 2>&1; then \
+	    echo "ERROR: cpmsim master process survived _kill-mpm:"; \
+	    pgrep -lf cpmsim; \
+	    exit 1; \
+	fi
 	@if lsof -nP -iTCP:4002 -sTCP:LISTEN 2>/dev/null | grep -q .; then \
 	    echo "ERROR: port 4002 still bound after _kill-mpm:"; \
 	    lsof -nP -iTCP:4002 -sTCP:LISTEN; \
