@@ -28,6 +28,39 @@ local addrs = dofile(compiler .. "/cpnos_polypascal_addrs.lua")
 local KBD_HEAD = addrs.kbd_head
 local KBD_RING = addrs.kbd_ring
 
+-- ravn/llvm-z80#150 follow-up: the cpnos prom1-lineprog is a single dual build;
+-- the runtime transport is chosen by SW1 bit 2 (S03), NOT by the TRANSPORT make
+-- var (which only changes the banner).  The harness previously left the DIP at
+-- its default (S03=On=PIO), so `TRANSPORT=sio` ran PIO and never exercised SIO.
+-- Set S03 to match TRANSPORT at startup so the test actually validates the
+-- intended transport.  S03: On=0x00=PIO, Off=0x04=SIO (rc702.cpp DSW port).
+local transport = os.getenv("TRANSPORT") or "pio-irq"
+local function select_transport_dip()
+    local ok, err = pcall(function()
+        local dsw = manager.machine.ioport.ports[":DSW"]
+        if not dsw then error(":DSW port not found") end
+        local f = dsw.fields["S03 cpnos transport (On=PIO, Off=SIO)"]
+        if not f then error("S03 field not found") end
+        -- S03: On=0x00=PIO, Off=0x04=SIO (rc702.cpp DSW port).
+        local want = (transport == "sio") and 0x04 or 0x00
+        if f.set_value then f:set_value(want) else f.user_value = want end
+        local log = io.open("/tmp/cpnos_polypascal_log.txt", "a")
+        if log then
+            log:write(string.format("[transport] SW1 S03=0x%02X => %s (TRANSPORT=%s)\n",
+                want, (want == 0x04) and "SIO" or "PIO", transport))
+            log:close()
+        end
+    end)
+    if not ok then
+        local log = io.open("/tmp/cpnos_polypascal_log.txt", "a")
+        if log then log:write("[transport] WARN: DIP set failed: " .. tostring(err) .. "\n"); log:close() end
+    end
+end
+-- Autoboot scripts load AFTER machine start, so register_start never fires;
+-- run the DIP-set once from the periodic (frame 1, long before cpnos cold-init
+-- reads SW1 at install_transport()).
+local dip_set_done = false
+
 -- Tap writes to ROW only (0x4003) so we can see the PC of every
 -- cursor-row bump after handoff.  In-memory buffer flushed once at
 -- PASS/FAIL — per-write file I/O slowed MAME down enough that the
@@ -137,6 +170,7 @@ local function pass(reason)
 end
 
 emu.register_periodic(function()
+    if not dip_set_done then dip_set_done = true; select_transport_dip() end
     if prog == nil then
         local cpu = manager.machine.devices[":maincpu"]
         if cpu == nil then return end

@@ -244,6 +244,10 @@ SERVER_CFLAGS =
 #
 # Used by `make pio-irq-smoke`, `make sio-smoke`, etc.
 TRANSPORT ?= pio-irq
+# Export so polypascal_test.lua can read it (os.getenv) and set the MAME SW1
+# S03 DIP to actually select the intended transport at runtime (ravn/llvm-z80
+# #150 follow-up — the prom1-lineprog binary is transport-agnostic; SW1 chooses).
+export TRANSPORT
 ifeq ($(TRANSPORT),pio-irq)
 TRANSPORT_DEFSYMS = --defsym=_xport_send_byte=_transport_pio_send_byte \
                     --defsym=_xport_recv_byte=_transport_pio_recv_byte
