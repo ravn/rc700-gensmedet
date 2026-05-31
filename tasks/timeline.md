@@ -7608,3 +7608,38 @@ Remaining #197 surface (next): `aes_mixColumns` `PUSH_HL` undef `$hl` — frame-
 SP-relative scratch save guarded by `isRegLiveAt(HL)`, a liveness-reconciliation
 issue (not a clean undef) + the #112/#189 GR16NoIR class.  Entry point:
 `llvm-z80/tasks/session73s-cont2-verifier-sweep-2026-05-27.md`.  All on `main`, NOT pushed.
+
+## Session 75 (cont.) — cpnos polypascal SIO harness fix + clean both-transport pass (2026-05-31) [Medium]
+
+Root-caused the "clang `TRANSPORT=sio` cpnos polypascal is broken" report to a
+**test-harness config gap, NOT a clang bug**.  The prom1-lineprog is a single
+dual build: `TRANSPORT=pio-irq` and `=sio` produce a **byte-identical** payload
+(`TRANSPORT_NAME` only feeds the two-PROM server banner).  The runtime transport
+is chosen by `install_transport()` reading **SW1 bit 2 (S03)** at cold-init, and
+the polypascal test/lua **never set the MAME DIP** — so `TRANSPORT=sio` ran PIO
+under the default DIP (S03=On) and the "failure" (boots to banner, no E>) just
+meant SIO was never selected.  (Wiring was already transport-correct: pio uses
+`-bitb3` PIO-B↔MP/M `:4002`, sio uses `-rs232a -bitb1` SIO-A↔MP/M.)
+
+**Fix** (`51deb4e`, pushed to main): `cpnos-shared/mame/polypascal_test.lua`
+sets the `:DSW` S03 field from `$TRANSPORT` (Off/0x04=SIO, On/0x00=PIO) at the
+first periodic tick — autoboot scripts load *after* machine start so
+`register_start` never fires, but the periodic runs frame-1, before cold-init
+reads SW1.  `cpnos-in-c/Makefile` exports `TRANSPORT` so the lua sees it.
+
+**Clean back-to-back both-transport PASS (proper MP/M hygiene, no mid-run
+`pkill mame`):**
+
+  | TRANSPORT | DIP set        | result                                    |
+  |-----------|----------------|-------------------------------------------|
+  | pio-irq   | SW1 S03=0x00 PIO | PASS — PPAS PRIMES 29989, Q→E>           |
+  | sio       | SW1 S03=0x04 SIO | PASS — PPAS PRIMES 29989, Q→E>           |
+
+So **clang-SIO was always correct — it was simply never selected**; the
+`cpnos-polypascal-test` now genuinely exercises BOTH transports.  Back-to-back
+runs remain subject to the known intermittent stage-1 E> MP/M flake
+(`feedback_polypascal_stage1_flake`) — both pass on retry/clean hygiene.
+Diagnostic note: `BOOT_MARK` instrumentation of this path is blocked (enabling
+it overflows the `.init` 640 B region by 61 B — the build is at the size edge).
+Context: this was a follow-up to the llvm-z80 #150 ship (i16 EQ/NE HighByteZero
+sub_lo extraction; cpnos −8 B RAM) which surfaced the sio cell.
