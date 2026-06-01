@@ -4,9 +4,10 @@ Real-world C workload for measuring clang/llvm-z80 vs zsdcc codegen
 efficiency on a non-trivial program. Complements the synthetic
 `sccz80-oracle-corpus/` micro-corpus.
 
-Source: http://z80.eu/downloads/aes256.zip — byte-oriented AES-256 by
-Ilya O. Levin (literatecode.com), with CP/M-compat tweaks by Peter
-Dassow (z80.eu).
+Source: Peter Dassow's Z80 C-compiler comparison page
+http://www.z80.eu/c-compiler.html (download: http://z80.eu/downloads/aes256.zip)
+— byte-oriented AES-256 by Ilya O. Levin (literatecode.com), with CP/M-compat
+tweaks by Peter Dassow (z80.eu).
 
 The reference DEMO.COM in `aes256-original.zip` is 9216 B as built by
 Peter Dassow's CP/M-targeted compiler (probably HiTech zc; provenance
