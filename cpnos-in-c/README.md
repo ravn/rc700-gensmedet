@@ -224,14 +224,17 @@ through every change.
   resident-region bounds, BSS/cold-init split.
 - [`PORT_OUTPUTS.md`](PORT_OUTPUTS.md) — RC702 I/O port map.
 
-## Files (as Phase 0 adds them)
+## Files (post-two-PROM-cleanup 2026-06-03)
 
-- `Makefile` — build targets, size check, PROM image split
-- `cpnos_rom.ld` — linker script, 4KB ROM region + high-RAM runtime region
-- `reset.s` — reset vector, minimum init before C
-- `cpnos_main.c` — cold-boot driver: copy runtime to RAM, disable PROM, netboot
-- `snios.asm` — ported from `../cpnet/snios.asm`, relocated entry points
-- `netboot.asm` — ported from `../../cpnet-z80/src/netboot.asm`
+- `Makefile` — build targets, size check; `make prom1-lineprog` is the
+  production target (also the default).  Two-PROM build removed
+  2026-06-03; see `tasks/TWO_PROM_PARKED.md`.
+- `clang-prom1lineprog/payload.ld` + `prom1.ld` — linker scripts for
+  the PROM1-only ZX0-compressed image.
+- `src/cpnos_main.c` — cold-boot driver: copy runtime to RAM, disable
+  PROM, netboot.
+- `src/snios.s` / `src/snios_c.c` — CP/NET 1.2 framing (asm + C halves).
+- `src/transport_pio.c` / `src/transport_sio.c` — wire transports.
 - `bios_jt.c` — BIOS jump table (stubs for NOS, real bodies for FDC build)
 - `console.c` — CONIN/CONOUT/CONST on SIO-B
 - `fdc.c`, `deblock.c`, `dpb_maxi.c` — only compiled when `ENABLE_FDC=1`

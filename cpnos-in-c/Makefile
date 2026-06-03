@@ -216,11 +216,17 @@ else ifeq ($(PIO_LOOPBACK_TEST),1)
 CFLAGS += -DPIO_LOOPBACK_TEST
 endif
 
+# Default goal: pin BEFORE the common.mk include below, otherwise the
+# first non-pattern target inside common.mk ($(MAME_PROM0) ...) wins
+# as `make` (no args) → MAME-ROM install.  After the two-PROM removal
+# 2026-06-03, that install path's prereqs are dead (prom0_padded.ic66
+# is no longer generated), so the wrong default broke `make`.
+.DEFAULT_GOAL := all
+
 # Pull in shared MAME-install / burn / verify recipes.  See
 # $(SHARED)/common.mk for the variables it defaults and the targets it
-# provides.  Must come AFTER BUILDDIR / COMPILER are resolved so
-# $(BUILDDIR)/cpnos.bin prereqs expand correctly.  cpnos-in-asm/Makefile
-# includes the same fragment to inherit identical install semantics.
+# provides.  Must come AFTER BUILDDIR / COMPILER are resolved.
+# cpnos-in-asm/Makefile (parked) includes the same fragment.
 include $(SHARED)/common.mk
 
 # Slave talks CP/NET 1.2 (DRI MP/M protocol) to the master via the
@@ -294,39 +300,26 @@ endif
 # with the inconv/outcon choice in cpnos-build/gen_locale_prefix.py.
 CPNOS_LOCALE_TAG ?= da_US
 
-# ---- Payload (linked at 0xED00, no PROM knowledge) ----------------
-# The payload is the single contiguous blob of everything that runs
-# at runtime.  The payload linker doesn't know about the two EPROMs;
-# a separate relocator stitches it back together at cold boot.
+# ---- Payload object list -----------------------------------------
+# The same set of objects is linked by both clang and SDCC into the
+# PROM1-only line program (see PROM1ONLY_* rules below; build dirs
+# clang-prom1lineprog/ and sdcc-prom1lineprog/).  The two-PROM build
+# was removed 2026-06-03 (TWO_PROM_PARKED → deleted).
 PAYLOAD_OBJS = $(BUILDDIR)/runtime.o $(BUILDDIR)/bios_jt.o \
                $(BUILDDIR)/cpnos_main.o \
                $(BUILDDIR)/resident.o $(BUILDDIR)/init.o \
                $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o \
                $(BUILDDIR)/snios.o $(BUILDDIR)/snios_c.o
-PAYLOAD_LD = $(BUILDDIR)/payload.ld
 
-# Preprocess payload.ld through cpp so source-level comments and any
-# future build-time conditionals are flattened into a clean linker
-# script.  ld.lld doesn't run cpp on linker scripts itself.
-$(BUILDDIR)/payload.ld: $(SHARED)/ld/payload.ld $(BUILDDIR)/transport_stamp
-	@mkdir -p $(BUILDDIR)
-	$(CC) --target=z80 -E -P -x c $(SERVER_CFLAGS) -o $@ $<
+ALL_OBJS = $(PAYLOAD_OBJS) $(SDCC_C_OBJS) $(SDCC_AUDIT_S)
 
-# ---- Relocator (PROM0 reset + #embed'd payload halves) -----------
-# Tiny: reset.s for stack setup, relocator.c with two #embed arrays,
-# plus a generated payload_header_data.s that carries metadata the
-# relocator reads at boot (chunk sizes, BSS extents, cold entry, etc.)
-# in lieu of the previous --defsym injection.  See
-# $(SHARED)/scripts/gen_payload_header.py and payload_header.h.
-RELOC_OBJS = $(BUILDDIR)/reset.o $(BUILDDIR)/relocator.o $(BUILDDIR)/payload_header_data.o
-RELOC_LD = $(SHARED)/ld/relocator.ld
-
-ALL_OBJS = $(PAYLOAD_OBJS) $(RELOC_OBJS) $(SDCC_C_OBJS) $(SDCC_AUDIT_S)
-
-.PHONY: all cpnos cpnos-size cpnos-burn cpnos-disasm cpnos-clean \
+.PHONY: all cpnos-size cpnos-burn cpnos-disasm cpnos-clean \
         integration-test test cpnos-polypascal-test
 
-all: cpnos
+# Production target = autoload-in-c (PROM 0) + cpnos PROM1-only line program
+# (PROM 1).  The two-PROM build was removed 2026-06-03; the only supported
+# slave topology is `make prom1-lineprog`.  See finishing-checklist.md.
+all: prom1-lineprog
 
 # Integration test: full E2E with z80pack mpm-net2 + MAME running CP/NOS
 # slave + PolyPascal compiling and running PRIMES.PAS.  Catches the
@@ -338,13 +331,6 @@ integration-test test: cpnos-polypascal-test
 # Backwards-compatible alias for the old `make cpnos-ppas-test` name.
 .PHONY: cpnos-ppas-test
 cpnos-ppas-test: cpnos-polypascal-test
-
-# `make cpnos` builds AND auto-installs the MAME PROMs (cpnos-mame-install).
-# This closes the stale-ROM-in-MAME bug class: `make cpnos` followed by
-# any MAME launch (Make-driven or direct via `regnecentralend`) is
-# guaranteed to load the just-built code.  Use `cpnos-install` for the
-# full install including cpmsim disk-side cpnos.com.
-cpnos: $(BUILDDIR)/cpnos.bin cpnos-mame-install cpnos-size cpnos-lis
 
 # Flag changes (e.g. -DRC702_SLAVEID=) must invalidate all objects.
 $(ALL_OBJS): Makefile $(BUILDDIR)/transport_stamp $(BUILDDIR)/toolchain_stamp
@@ -397,10 +383,6 @@ endif
 $(BUILDDIR)/toolchain_stamp: ;
 
 # ---- Compile ------------------------------------------------------
-
-$(BUILDDIR)/reset.o: reset.s
-	@mkdir -p $(BUILDDIR)
-	$(CC) $(ASFLAGS) -c $< -o $@
 
 $(BUILDDIR)/runtime.o: runtime.s
 	@mkdir -p $(BUILDDIR)
@@ -521,183 +503,11 @@ $(BUILDDIR)/transport_pio.o: transport_pio.c transport.h hal.h compiler/compat.h
 #
 # Relocator compile flags: same as CFLAGS but without the
 # `-Xclang -target-feature -Xclang +static-stack` sequence.  The
-# relocator stack is at SP=0xED00 (RAM) and stack-allocated C
-# locals work fine; +static-stack would put them in .bss, which
-# relocator.ld discards — link fails on .bss relocation.
-CFLAGS_RELOC = $(subst -Xclang -target-feature -Xclang +static-stack,,$(CFLAGS))
-
-# ---- clang-specific relocator chain ------------------------------
-# Two-stage link: first payload.elf (resident), then relocator.elf
-# (PROM-image with relocator code + payload header + chunk bytes
-# embedded via #include ".inc").  The SDCC pipeline below uses a
-# single-stage link instead and provides its own relocator-build
-# rules.
-ifeq ($(COMPILER),clang)
-
-# Generated .inc files — re-emitted whenever the .bin or the
-# converter script changes.
-$(BUILDDIR)/%.inc: $(BUILDDIR)/%.bin $(SHARED)/scripts/bin2inc.py
-	python3 $(SHARED)/scripts/bin2inc.py $< $@
-
-$(BUILDDIR)/relocator.o: relocator.c $(SHARED)/include/payload_header.h \
-                   $(BUILDDIR)/init.inc $(BUILDDIR)/payload_a.inc $(BUILDDIR)/payload_b.inc
-	@mkdir -p $(BUILDDIR)
-	@# CPNOS_HAS_P1_HEADER: tells the relocator that
-	@# gen_payload_header emits a duplicate PROM1-byte-0 header (.payload_header_p1),
-	@# so the cross-PROM mismatch memcmp gate is enabled.  SDCC build doesn't
-	@# define this flag (yet -- see dual-header-plan-2026-05-08.md), so
-	@# its relocator skips the memcmp and continues the same as before.
-	$(CC) $(CFLAGS_RELOC) -DCPNOS_HAS_P1_HEADER -c $< -o $@
-
-# Generate payload_header_data.s from the linked payload.elf.  Carries
-# the metadata the relocator reads at boot (chunk sizes, BSS extents,
-# cold entry, etc.) in lieu of --defsym injection.  Re-emit whenever
-# payload.elf or the generator script changes.
-$(BUILDDIR)/payload_header_data.s: $(BUILDDIR)/payload.elf $(BUILDDIR)/payload.bin \
-                                   $(BUILDDIR)/cpnos_buildinfo.h \
-                                   $(SHARED)/scripts/gen_payload_header.py
-	@# Extract BUILD_DATE_STR from cpnos_buildinfo.h so the header's
-	@# build_date_str field carries the same string the resident
-	@# banner prints later.  Single source of truth, no drift.
-	@BUILD_DATE_STR=$$(awk -F'"' '/BUILD_DATE_STR/{print $$2; exit}' \
-	    $(BUILDDIR)/cpnos_buildinfo.h); \
-	 python3 $(SHARED)/scripts/gen_payload_header.py \
-	    --syntax=clang \
-	    --payload-elf=$(BUILDDIR)/payload.elf \
-	    --payload-bin=$(BUILDDIR)/payload.bin \
-	    --chunk-a-size=$(PROM0_TAIL_SIZE) \
-	    --llvm-nm=$(NM) \
-	    --include-ivt \
-	    --build-date-str="$$BUILD_DATE_STR" \
-	    --out=$@
-
-$(BUILDDIR)/payload_header_data.o: $(BUILDDIR)/payload_header_data.s
-	$(CC) --target=z80 -c $< -o $@
-
-# ---- Link payload (no PROM awareness) ----------------------------
-
-$(BUILDDIR)/payload.elf: $(PAYLOAD_OBJS) $(PAYLOAD_LD) cpnos-build/d/cpnos.sym
-	@# Extract NDOS load address from cpnos.sym and pass cpnos.com end
-	@# (NDOS + 0xC80) as a linker symbol so payload.ld's stack/cpnos
-	@# overlap ASSERTs can fire.  Catches the Option β bring-up bug
-	@# (stack at 0xED00 colliding with raised cpnos.com top) at link
-	@# time instead of as silent boot-time RAM corruption.
-	@N=$$(perl -ne 'while (/([0-9A-Fa-f]{4})\s+NDOS\b/g) { print "$$1"; last }' cpnos-build/d/cpnos.sym); \
-	 [ -n "$$N" ] || { echo "ERROR: NDOS symbol missing from cpnos.sym"; exit 1; }; \
-	 NEND=$$(printf '0x%X' $$(( 0x$$N + 0xC80 ))); \
-	 echo "payload.elf: __cpnos_load_end = $$NEND (NDOS 0x$$N + 0xC80)"; \
-	 $(LD) --gc-sections --emit-relocs -T $(PAYLOAD_LD) \
-	    --defsym=__cpnos_load_end=$$NEND \
-	    $(TRANSPORT_DEFSYMS) $(PAYLOAD_OBJS) -o $@
-
-$(BUILDDIR)/payload.bin: $(BUILDDIR)/payload.elf cpnos-build/patch_payload_checksum.py
-	$(OBJCOPY) -O binary --only-section=.payload $< $@
-	# Patch the payload integrity checksum into the last 2 bytes
-	# of the resident image.  See patch_payload_checksum.py /
-	# payload.ld (.payload_checksum section).
-	python3 cpnos-build/patch_payload_checksum.py $@
-
-# Init image: .init output section -- runs in place from PROM 0
-# at 0x0100, never copied to RAM.  Init/resident split, step 3.
-$(BUILDDIR)/init.bin: $(BUILDDIR)/payload.elf
-	$(OBJCOPY) -O binary --only-section=.init $< $@
-
-# Split resident payload.bin into the two chunks the relocator
-# #embed's.  Split point = relocator.ld's .prom0_tail base.  After
-# the init/resident split (step 3) PROM 0 layout is:
-#   0x0000 reset (0x0F)
-#   0x0010 relocator code + payload header (~0x200 B, capped at 0x200)
-#   0x02A0 init.bin (.init runs in place, up to 0x520)
-#   0x0520 .prom0_tail = first PROM0_TAIL_SIZE bytes of resident
-#   0x2032 .prom1     = remaining resident bytes (after dup-header)
-# PROM0_TAIL_SIZE = 0x800 - 0x520 = 0x2E0 = 736 bytes.  History:
-#   1024 (initial) -> 768 (2026-05-07 .init bump 0x100->0x200 for
-#                           data-driven relocator code budget)
-#                  -> 736 (2026-05-08 .prom0_init bump 0x280->0x2A0 +
-#                           .prom0_tail bump 0x500->0x520 to fit the
-#                           relocator's display-init port sequence).
-# PROM1 absorbs the difference each time, well within capacity (1998 B
-# after dup-header at PROM1 byte 0).
-PROM0_TAIL_SIZE = 736
-$(BUILDDIR)/payload_a.bin $(BUILDDIR)/payload_b.bin: $(BUILDDIR)/payload.bin
-	dd if=$< of=$(BUILDDIR)/payload_a.bin bs=1 count=$(PROM0_TAIL_SIZE) status=none
-	dd if=$< of=$(BUILDDIR)/payload_b.bin bs=1 skip=$(PROM0_TAIL_SIZE) status=none
-
-# ---- Link relocator ----------------------------------------------
-# The relocator reads its metadata from the payload header (emitted by
-# $(SHARED)/scripts/gen_payload_header.py into payload_header_data.s and
-# linked into RELOC_OBJS).  Only `__stack_top` still needs --defsym
-# injection — that one is consumed by reset.s, not by relocator.c, and
-# reset.s runs BEFORE the relocator could read the header.
-#
-# Six previous --defsym lines (`_cpnos_cold_entry`, `_bios_boot`,
-# `__scratch_bss_*`, `__pio_rx_bss_*`) were dropped 2026-05-07 when
-# the relocator became header-driven — see plan
-# /Users/ravn/.claude/plans/harmonic-sleeping-spring.md and
-# memory feedback_relink_dependencies_atomically.md for why this
-# four-way coupling was a structural problem.
-
-$(BUILDDIR)/relocator.elf: $(RELOC_OBJS) $(RELOC_LD) $(BUILDDIR)/payload.elf
-	@stack=$$($(NM) $(BUILDDIR)/payload.elf | awk '/ __stack_top$$/ {print "0x"$$1}'); \
-	 test -n "$$stack" || { echo "ERROR: __stack_top not found in payload"; exit 1; }; \
-	 echo "relocator: __stack_top=$$stack (other metadata via payload_header)"; \
-	 $(LD) --gc-sections -T $(RELOC_LD) \
-	       --defsym=__stack_top=$$stack \
-	       $(RELOC_OBJS) -o $@
-
-# ---- Produce prom0.bin / prom1.bin (clang only) -------------------
-# SDCC provides its own cpnos.bin recipe at the bottom of this file.
-
-$(BUILDDIR)/cpnos.bin: $(BUILDDIR)/relocator.elf
-	$(OBJCOPY) -O binary --gap-fill=0xFF --pad-to=0x2800 $< $(BUILDDIR)/cpnos.raw
-	dd if=$(BUILDDIR)/cpnos.raw of=$(BUILDDIR)/prom0.bin bs=2048 count=1 status=none
-	dd if=$(BUILDDIR)/cpnos.raw of=$(BUILDDIR)/prom1.bin bs=2048 skip=4 count=1 status=none
-	cat $(BUILDDIR)/prom0.bin $(BUILDDIR)/prom1.bin > $@
-	@# Pad prom0.bin to 4 KB as MAME's roa375.ic66 socket image.
-	@# Mirrors the SDCC recipe so the prom0_padded.ic66 -> roa375.ic66
-	@# install dependency fires for clang too — without this the
-	@# install rule sees a stale prom0_padded.ic66 (older than the
-	@# MAME ROM in place) and skips, leaving MAME with a PROM0 from
-	@# whichever build last touched it.  Mismatched PROM0 + PROM1 ->
-	@# relocator's word-additive checksum fails -> "BAD CHECKSUM" on
-	@# the display.  Symptom seen 2026-05-08 when running clang trace
-	@# after a fresh SDCC build.
-	@P0=$$(wc -c < $(BUILDDIR)/prom0.bin | tr -d ' '); \
-	 { cat $(BUILDDIR)/prom0.bin; perl -e "print \"\\xff\" x (4096 - $$P0)"; } \
-	   > $(BUILDDIR)/prom0_padded.ic66
-
-endif  # ifeq ($(COMPILER),clang)
-
-# ---- Size check ---------------------------------------------------
-
-cpnos-size: $(BUILDDIR)/cpnos.bin
-	@P0=$$(wc -c < $(BUILDDIR)/prom0.bin | tr -d ' '); \
-	 P1=$$(wc -c < $(BUILDDIR)/prom1.bin | tr -d ' '); \
-	 PLD=$$(wc -c < $(BUILDDIR)/payload.bin | tr -d ' '); \
-	 TOTAL=$$(wc -c < $(BUILDDIR)/cpnos.bin | tr -d ' '); \
-	 echo "payload:  $$PLD bytes (linked at 0xED00)"; \
-	 echo "PROM0:    $$P0 / 2048 bytes"; \
-	 echo "PROM1:    $$P1 / 2048 bytes"; \
-	 echo "TOTAL:    $$TOTAL / 4096 bytes"; \
-	 test $$TOTAL -eq 4096 || { echo "ERROR: image not exactly 4096 bytes"; exit 1; }
-	@echo "--- payload section sizes ---"
-	@$(OBJDUMP) --headers $(BUILDDIR)/payload.elf | awk '/\.(payload|scratch)/ { printf "%-16s 0x%s VMA=0x%s\n", $$2, $$3, $$4 }'
-	@echo "--- top payload symbols ---"
-	@$(NM) --numeric-sort --size-sort --reverse-sort $(BUILDDIR)/payload.elf | head -10
-	@echo "--- actual code bytes in PROM0 (non-0xFF) ---"
-	@od -An -tx1 $(BUILDDIR)/prom0.bin | tr -s ' ' '\n' | grep -v '^$$' | grep -v '^ff$$' | wc -l | awk '{ printf "%d non-padding bytes\n", $$1 }'
-
-# ---- CP/M .COM loader (test PROMs without burning) ---------------
-#
-# Produces a ~4 KB .COM that, when executed from the CP/M prompt,
-# copies prom0.bin into 0x0000 and prom1.bin into 0x2000 then JPs
-# to 0x0000 — mimicking a cold boot against new PROM payloads
-# without touching physical EPROMs.  See build_loader.py for layout.
-
-cpnos-loader: $(BUILDDIR)/cpnos.bin
-	python3 build_loader.py $(BUILDDIR)/prom0.bin $(BUILDDIR)/prom1.bin $(BUILDDIR)/cpnos_loader.com
-	cp $(BUILDDIR)/cpnos_loader.com $(SHARED)/testutil/cpnosldr.com
-	@echo "staged $(SHARED)/testutil/cpnosldr.com (run 'cpnosldr' from CP/M A>)"
+# ---- Size check (PROM1-only line program) ------------------------
+# Print the lineprog size + cap status; defers to the prom1-lineprog
+# rule for the actual size enforcement (errors over 2048 B for clang).
+cpnos-size: prom1-lineprog
+	@echo "(see 'PROM1 line program: ... B (... B free; hard cap 2048 B)' above)"
 
 # ---- Split for burner --------------------------------------------
 #
@@ -739,10 +549,8 @@ cpnos-loader: $(BUILDDIR)/cpnos.bin
 
 # ---- Inspection --------------------------------------------------
 
-cpnos-disasm: $(BUILDDIR)/payload.elf $(BUILDDIR)/relocator.elf
-	$(OBJDUMP) -d --triple=z80 $(BUILDDIR)/payload.elf
-	@echo '=== relocator ==='
-	$(OBJDUMP) -d --triple=z80 $(BUILDDIR)/relocator.elf
+cpnos-disasm: prom1-lineprog
+	$(OBJDUMP) -d --triple=z80 $(BUILDDIR)-prom1lineprog/prom1-lineprog.elf
 
 # ---- MAME boot test ----------------------------------------------
 #
@@ -823,24 +631,17 @@ cpnos-build/d/cpnos.com: $(wildcard cpnos-build/src/*.asm cpnos-build/src/*.s) c
 # pre-flight check; this Makefile change closes the loop on the most
 # common path (anyone running `make cpnos` gets fresh MAME PROMs).
 
-# prom0_padded.ic66 / prom1.bin are MAME's loaded ROM files.  Both
-# are side-effects of cpnos.bin's recipe (which generates prom0.bin,
-# prom1.bin, and pads prom0.bin to 4 KB as prom0_padded.ic66 in one
-# pass).  Declared here as targets of cpnos.bin's recipe so make's
-# dep chain can propagate cpnos.bin updates → MAME ROM updates.
-# Empty rule (no recipe) — the actual generation lives in the
-# cpnos.bin recipe further down.
-$(BUILDDIR)/prom0_padded.ic66 $(BUILDDIR)/prom1.bin: $(BUILDDIR)/cpnos.bin
-	@:
+# Unified lineprog binary path (depends on COMPILER) — used by the
+# wire-mode preflight checks below and by anything else that wants to
+# inspect the just-built PROM1 line program.  BUILDDIR-prom1lineprog/
+# is the layout convention: clang-prom1lineprog/ vs sdcc-prom1lineprog/.
+LINEPROG_BIN = $(BUILDDIR)-prom1lineprog/prom1-lineprog.bin
 
-# MAME PROM install rules ($(MAME_PROM0), $(MAME_PROM1)),
-# cpnos-mame-install, and verify-mame-roms-current provided by
-# $(SHARED)/common.mk.  Mirroring into MAME_IRQ is conditional on
-# MAME_IRQ being set (this Makefile sets it further down for the
-# polypascal-test targets).
-
-# Full install: MAME PROMs + cpmsim disk-side cpnos.com.
-cpnos-install: cpnos-mame-install cpnos-disk-install
+# Full install: autoload-PROM0 + cpnos PROM1-lineprog into MAME +
+# cpmsim disk-side cpnos.com.  prom1-lineprog-install (defined below)
+# chains autoload-prom-install + prom1-lineprog-mame-install +
+# cpnos-disk-install.
+cpnos-install: prom1-lineprog-install
 
 # ---- cpnet-smoke: end-to-end test against live MP/M ---------------
 #
@@ -904,16 +705,16 @@ endif
 
 # Slave was built with TRANSPORT=pio-irq (banner contains " PIO ")
 _check-tag-pio-irq:
-	@if ! strings $(BUILDDIR)/cpnos.bin 2>/dev/null | grep -q ' PIO '; then \
-	    echo "FAIL: cpnos.bin does not contain wire-mode tag ' PIO '."; \
+	@if ! strings $(LINEPROG_BIN) 2>/dev/null | grep -q ' PIO '; then \
+	    echo "FAIL: $(LINEPROG_BIN) does not contain wire-mode tag ' PIO '."; \
 	    echo "      This target requires a TRANSPORT=pio-irq build."; \
 	    exit 1; \
 	fi
 
 # Slave was NOT built for pio-irq (cpnet-smoke wires SIO-A, not PIO-B)
 _check-tag-not-pio-irq:
-	@if strings $(BUILDDIR)/cpnos.bin 2>/dev/null | grep -q ' PIO '; then \
-	    echo "FAIL: cpnos.bin reports wire-mode ' PIO ' but this target"; \
+	@if strings $(LINEPROG_BIN) 2>/dev/null | grep -q ' PIO '; then \
+	    echo "FAIL: $(LINEPROG_BIN) reports wire-mode ' PIO ' but this target"; \
 	    echo "      wires SIO-A only.  Either rebuild cpnos with"; \
 	    echo "      TRANSPORT=sio or use 'make pio-irq-smoke' instead."; \
 	    exit 1; \
@@ -1528,9 +1329,11 @@ SDCC_LP_ASM_SRCS = $(SDCC_LP_DIR)/sections.asm \
                    sdcc/bios_jt.asm sdcc/snios.asm sdcc/hal.asm \
                    sdcc/runtime.asm
 
-# Exclude relocator.o -- bootstrap.asm replaces it for PROM1-only.
-# relocator.c references _payload_header which we drop.
-SDCC_LP_C_OBJS = $(filter-out $(BUILDDIR)/relocator.o,$(SDCC_C_OBJS))
+# SDCC PROM1-lineprog uses the same C-object list as the (now-removed)
+# two-PROM SDCC build — bootstrap.asm replaces what relocator.o used
+# to do, and relocator.o was dropped from SDCC_C_OBJS in the 2026-06-03
+# two-PROM cleanup.
+SDCC_LP_C_OBJS = $(SDCC_C_OBJS)
 
 # prom1-lineprog binding for COMPILER=sdcc: same target name as the
 # clang path above; SDCC pipeline is below.  Two legacy aliases kept
@@ -1717,11 +1520,13 @@ CFLAGS += -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RESIDENT_RODATA"
 SDCC_RESIDENT_CFLAGS := $(CFLAGS)
 SDCC_PRE_CFLAGS := $(filter-out -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RESIDENT_RODATA",$(CFLAGS)) \
                    -Cs"--codeseg RESIDENT_PRE_CODE" -Cs"--constseg RESIDENT_PRE_RODATA"
-# relocator.c lives in INIT_CODE/INIT_RODATA (PROM0 0x0000 anchor group,
-# packed by z88dk after RESET).  This is the SDCC equivalent of the
-# clang relocator.ld putting it in the relocator-side ELF.
-SDCC_INIT_CFLAGS := $(filter-out -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RESIDENT_RODATA",$(CFLAGS)) \
-                    -Cs"--codeseg INIT_CODE" -Cs"--constseg INIT_RODATA"
+# Two-PROM-only SDCC bits (INIT_CFLAGS for relocator.o, the relocator.o
+# compile rule, payload_header_data.s generation, sdcc/reset.asm,
+# cpnos.cim/cpnos.bin recipes) were removed 2026-06-03 along with the
+# rest of the two-PROM build.  SDCC's production path is now SDCC
+# PROM1-only line program (sdcc-prom1lineprog/), which has its own
+# bootstrap.asm in place of reset.asm and embeds payload metadata
+# differently.  See TWO_PROM_PARKED.md (and its removal).
 # init.c is the merged cold-init TU (cfgtbl + hardware bring-up +
 # netboot_mpm + cold orchestrator).  Its code runs once before
 # resident_handoff's `OUT (0x18),A` disables the PROMs and is never
@@ -1730,64 +1535,23 @@ SDCC_INIT_CFLAGS := $(filter-out -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RES
 # bytes, mirroring clang's `.init` section.  cfgtbl's BSS variable
 # stays in bss_compiler regardless -- only the cold-init code/rodata
 # moves to PROM-only.
+SDCC_INIT_CFLAGS := $(filter-out -Cs"--codeseg RESIDENT_CODE" -Cs"--constseg RESIDENT_RODATA",$(CFLAGS)) \
+                    -Cs"--codeseg INIT_CODE" -Cs"--constseg INIT_RODATA"
 $(BUILDDIR)/init.o:           CFLAGS := $(SDCC_INIT_CFLAGS)
 $(BUILDDIR)/transport_sio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
 # transport_pio.c absorbed isr.c in Phase 60 — both halves shared
 # RESIDENT_PRE_CODE so the merge was free.
 $(BUILDDIR)/transport_pio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
-$(BUILDDIR)/relocator.o:      CFLAGS := $(SDCC_INIT_CFLAGS) -DCPNOS_HAS_P1_HEADER
 
-# Standard SDCC C-object compile rule for relocator.c.  No .inc deps
-# (those are clang-only embeds; the SDCC build is single-link and the
-# resident bytes already live in their RESIDENT_* sections).
-# -DCPNOS_HAS_P1_HEADER turns on the cross-PROM mismatch memcmp gate
-# in relocator.c, parallel to the clang-side definition in the
-# clang relocator.o recipe (#62).
-$(BUILDDIR)/relocator.o: relocator.c $(SHARED)/include/payload_header.h compiler/compat.h
-	@mkdir -p $(BUILDDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Generate payload_header_data.s in symbolic mode -- emits `defw _sym`
-# references for everything resolvable by the linker (resident_dest,
-# cold_entry, scratch/pio_rx BSS extents, chunk_b_size).  Chunk LMAs
-# (0x0400 / 0x2000) are build-script constants matching build_prom_image.py.
-$(BUILDDIR)/payload_header_data.s: $(SHARED)/scripts/gen_payload_header.py \
-                                   $(SHARED)/include/payload_header.h Makefile \
-                                   $(BUILDDIR)/cpnos_buildinfo.h
-	@mkdir -p $(BUILDDIR)
-	@# Dual-header at PROM1 byte 0 (#62): sdcc/sections.asm anchors
-	@# PAYLOAD_HEADER_P1 at LMA 0x2000, gen_payload_header.py emits
-	@# the duplicate section.  Chunk B starts at PROM1 + sizeof(header)
-	@# = 0x2000 + 0x32 = 0x2032; the dd-split in the cpnos.bin recipe
-	@# places resident chunk B at PROM1 byte 0x32, after the header.
-	@# (Header size 0x32 is the link-time __PAYLOAD_HEADER_size; if
-	@# the BSS-pair list grows the header expands, chunk_b_src must
-	@# follow -- check_sdcc_layout.py's PROM1 audit catches drift.)
-	@BUILD_DATE_STR=$$(awk -F'"' '/BUILD_DATE_STR/{print $$2; exit}' \
-	    $(BUILDDIR)/cpnos_buildinfo.h); \
-	 python3 $(SHARED)/scripts/gen_payload_header.py \
-	    --syntax=sdcc --symbolic \
-	    --chunk-a-src=0x0520 --chunk-b-src=0x2032 \
-	    --include-ivt \
-	    --build-date-str="$$BUILD_DATE_STR" \
-	    --out=$@
-
-# .c objects (single-link: relocator.c + payload_header_data.s + the
-# resident sources all link in one z88dk pass).  No runtime.s / no
-# payload.elf / no payload_checksum.c -- those are clang-only artifacts
-# from the two-stage clang pipeline.
+# Per-compiler PAYLOAD_OBJS list.  No relocator.o in the SDCC list now
+# — the PROM1-lineprog build uses bootstrap.asm + dzx0_standard.asm.
 SDCC_C_OBJS = $(BUILDDIR)/cpnos_main.o \
               $(BUILDDIR)/resident.o $(BUILDDIR)/init.o \
               $(BUILDDIR)/snios_c.o \
-              $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o \
-              $(BUILDDIR)/relocator.o
+              $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o
 
 # Hand-written z88dk asm files (live in sdcc/ as tracked source).
-# prom_loader.asm dropped 2026-05-07 -- replaced by relocator.c
-# compiled under SDCC into INIT_CODE.  The unified relocator reads
-# its metadata from the payload header instead of from hardcoded
-# literals in prom_loader.asm.
-SDCC_ASM_SRCS = sdcc/sections.asm sdcc/reset.asm \
+SDCC_ASM_SRCS = sdcc/sections.asm \
                 sdcc/bios_jt.asm sdcc/snios.asm sdcc/hal.asm \
                 sdcc/runtime.asm
 
@@ -1874,165 +1638,12 @@ $(BUILDDIR)/cpnos_layout.asm: cpnos-build/d/cpnos.sym
 	   echo ";   or move the SP literal into reset.asm directly."; \
 	} > $@
 
-# Frame-pointer audit: produce a .s for every C source we compile so
-# the audit script can grep for IX+/IY+ stack-frame addressing (which
-# --fomit-frame-pointer is supposed to eliminate but in practice does
-# not, because SDCC spills to the stack when register pressure is
-# high).  See $(SHARED)/scripts/check_no_frame_ptr.py.
-SDCC_AUDIT_DIR = $(BUILDDIR)/audit
-SDCC_C_SRCS    = $(notdir $(SDCC_C_OBJS:.o=.c))
-SDCC_AUDIT_S   = $(addprefix $(SDCC_AUDIT_DIR)/,$(SDCC_C_SRCS:.c=.s))
-
-# `-S` produces only the .s (no .o), so this is a separate compile pass.
-# Mirror the same per-target codeseg overrides as the .o build so the
-# audit sees the same generated code.
-$(SDCC_AUDIT_DIR)/relocator.s:    SDCC_AUDIT_CFLAGS = $(SDCC_INIT_CFLAGS)
-$(SDCC_AUDIT_DIR)/init.o-codeseg-marker: ;
-$(foreach f,init netboot_mpm transport_sio transport_pio isr cfgtbl, \
-  $(eval $(SDCC_AUDIT_DIR)/$f.s: SDCC_AUDIT_CFLAGS = $(SDCC_PRE_CFLAGS)))
-
-# Audit %.s depends on the .c source + cpnos_addrs.h (stable; only
-# regenerates when cpnos.com gets new addresses).  Does NOT depend on
-# cpnos_buildinfo.h -- only cpnos_main.c uses BUILD_DATE_STR /
-# GIT_HASH_STR / BUILD_INFO_STR (banner string), so only the cpnos_main
-# audit .s needs the rebuild trigger.  Without this split, every
-# `make` regenerated cpnos_buildinfo.h's timestamp and re-ran the
-# audit pass on all 9 sources -- 5-9 minutes of wasted work.
-$(SDCC_AUDIT_DIR)/%.s: %.c $(BUILDDIR)/cpnos_addrs.h
-	@mkdir -p $(SDCC_AUDIT_DIR)
-	$(CC) $(if $(SDCC_AUDIT_CFLAGS),$(SDCC_AUDIT_CFLAGS),$(SDCC_RESIDENT_CFLAGS)) -S $< -o $@
-
-# Per-target extra dep: cpnos_main.s also re-runs when the banner
-# changes.  Same logic as cpnos_main.o's dep on cpnos_buildinfo.h.
-$(SDCC_AUDIT_DIR)/cpnos_main.s: $(BUILDDIR)/cpnos_buildinfo.h
-
-$(BUILDDIR)/cpnos.cim: $(SDCC_C_OBJS) $(SDCC_ASM_SRCS) $(BUILDDIR)/xport_aliases.asm \
-                       $(BUILDDIR)/cpnos_layout.asm \
-                       $(BUILDDIR)/payload_header_data.s \
-                       $(SDCC_AUDIT_S) \
-                       $(SHARED)/scripts/check_sdcc_layout.py \
-                       $(SHARED)/scripts/check_no_frame_ptr.py \
-                       tasks/check_no_frame_ptr_baseline.txt \
-                       $(SHARED)/scripts/check_no_helper_calls.py \
-                       $(SHARED)/scripts/check_unreferenced_publics.py \
-                       tasks/check_unreferenced_publics_allowlist.txt
-	@mkdir -p $(BUILDDIR)
-	@# Audit BEFORE the link so a regression fails fast.
-	python3 $(SHARED)/scripts/check_no_frame_ptr.py \
-	    tasks/check_no_frame_ptr_baseline.txt $(SDCC_AUDIT_S)
-	@# HARD GATE: --sdcccall 1 + any arch-helper call = silent miscompile
-	@# under z88dk's stock sdcc stdlib (helpers are sdcccall-0 only).
-	@# Production survives by being helper-free; this gate enforces it.
-	@# See $(SHARED)/scripts/check_no_helper_calls.py for full background.
-	python3 $(SHARED)/scripts/check_no_helper_calls.py $(SDCC_AUDIT_S)
-	@# zcc wants to write outputs alongside the named -o file.  Run
-	@# from $(BUILDDIR) so per-section .bin files land there.
-	cd $(BUILDDIR) && $(CC) $(ZFLAGS_BASE) $(SDCC_ZLFLAGS) \
-	    $(addprefix ../,$(SDCC_ASM_SRCS)) \
-	    xport_aliases.asm \
-	    cpnos_layout.asm \
-	    payload_header_data.s \
-	    $(notdir $(SDCC_C_OBJS)) \
-	    -o cpnos
-	@# HARD GATE: every public symbol must resolve into a section
-	@# whose VMA is inside a region the loader actually populates.
-	@# z88dk silently auto-places library sections (`code_string`,
-	@# `code_clib`, `code_l_sccz80`, ...) into address gaps, which
-	@# can land them outside the resident PROM-loaded range.  This
-	@# audit fires the moment any symbol is mis-placed (including
-	@# section overlaps).  It is a build-failure gate, not advisory.
-	python3 $(SHARED)/scripts/check_sdcc_layout.py $(BUILDDIR)/cpnos.map \
-	    $(BUILDDIR)/cpnos_RESET.bin
-	@# HARD GATE: any user-tracked PUBLIC in sdcc/*.asm with zero
-	@# textual references in .s/.asm sources is dead and gets linked
-	@# in for free under z88dk (no function-level DCE).  Caught a 33 B
-	@# silent regression during #77 — see #79.
-	python3 $(SHARED)/scripts/check_unreferenced_publics.py \
-	    tasks/check_unreferenced_publics_allowlist.txt \
-	    $(BUILDDIR)/cpnos.map \
-	    $(SDCC_AUDIT_S) $(BUILDDIR)/payload_header_data.s $(SDCC_ASM_SRCS)
-	@touch $@
-
-# Override $(BUILDDIR)/cpnos.bin for SDCC: assemble PROM0 + PROM1 from
-# z88dk's per-section .bin outputs.  Single `org 0xED00` for resident
-# (matches clang's _bios_boot=0xED00 placement so cpnos.com's hardcoded
-# NIOS=0xED33 lands on _snios_jt).  z88dk emits one binary file
-# (cpnos_RESIDENT_JUMPTABLE.bin) that we dd-split: bytes 0..0x3FF →
-# PROM0 tail (RAM 0xED00..0xF0FF), bytes 0x400..0xAFF → PROM1
-# (RAM 0xF100..0xF7FF, capped at 1792 B to clear display memory).
-$(BUILDDIR)/cpnos.bin: $(BUILDDIR)/cpnos.cim $(SHARED)/scripts/build_prom_image.py \
-                       cpnos-build/patch_payload_checksum.py
-	@# Patch the resident image so its 16-bit word-additive sum
-	@# equals PAYLOAD_CHECKSUM_MAGIC (0xCAFE).  The relocator
-	@# verifies this AFTER copying both chunks to RAM and zeroing
-	@# the BSS extents -- a runaway BSS-clear or a missing PROM1
-	@# surfaces as "BAD CHECKSUM" rather than silent JP-0.
-	@# Patches the last 2 bytes (RAM 0xF7FE..0xF7FF), which are
-	@# snios.asm's MSGADR-high + RETCNT scratch -- both code paths
-	@# (SNDMSG / RCVMSG) overwrite those before reading, so the
-	@# link-time initial values don't matter.
-	@# patch_payload_checksum.py requires an even-sized image (word-
-	@# additive arithmetic).  Even-alignment is enforced at link time
-	@# by `align 2` in sdcc/sections.asm's RESIDENT_CHECKSUM section
-	@# (#59); the linker emits 0 or 1 fill bytes between RESIDENT_DATA
-	@# and RESIDENT_CHECKSUM as needed, and __payload_chunk_b_size is
-	@# computed from the post-align section tail.  No post-link pad
-	@# fixup needed.
-	python3 cpnos-build/patch_payload_checksum.py $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin
-	@# Phase 51A.2: chunk A starts at PROM0 0x0520 (was 0x0400) to mirror
-	@# clang's layout — extra 288 B of INIT_CODE budget absorbs the
-	@# cpnos_cold.c content moved out of cpnos_main.c (see Phase 51A.2
-	@# split).  PROM0 init region 0x0000..0x051F = 1312 B; chunk A
-	@# 0x0520..0x07FF = 736 B.
-	@RES_TOTAL=$$(wc -c < $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin | tr -d ' '); \
-	 RES_A=736; \
-	 if [ $$RES_TOTAL -lt 736 ]; then RES_A=$$RES_TOTAL; fi; \
-	 RES_B=$$((RES_TOTAL - RES_A)); \
-	 dd if=$(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin of=$(BUILDDIR)/resident_a.bin \
-	    bs=1 count=$$RES_A status=none; \
-	 if [ $$RES_B -gt 0 ]; then \
-	    dd if=$(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin of=$(BUILDDIR)/resident_b.bin \
-	        bs=1 skip=$$RES_A count=$$RES_B status=none; \
-	 else : > $(BUILDDIR)/resident_b.bin; fi
-	python3 $(SHARED)/scripts/build_prom_image.py $(BUILDDIR)/prom0.bin 2048 \
-	    0x000:$(BUILDDIR)/cpnos_RESET.bin \
-	    0x520:$(BUILDDIR)/resident_a.bin
-	@# PROM1: PAYLOAD_HEADER_P1 (50 B) at byte 0, resident chunk B at
-	@# byte 0x32.  Header offset must match --chunk-b-src=0x2032 in
-	@# the gen_payload_header.py invocation (#62).
-	python3 $(SHARED)/scripts/build_prom_image.py $(BUILDDIR)/prom1.bin 2048 \
-	    0x000:$(BUILDDIR)/cpnos_PAYLOAD_HEADER_P1.bin \
-	    0x032:$(BUILDDIR)/resident_b.bin
-	cat $(BUILDDIR)/prom0.bin $(BUILDDIR)/prom1.bin > $@
-	@# Generate prom0_padded.ic66 (4 KB image MAME loads) here so all
-	@# PROM file outputs come from one recipe.  prom0.bin is 2 KB; pad
-	@# with 0xFF to 4 KB.  Earlier this was inside cpnos-install's
-	@# recipe; moved here so cpnos.bin's dep chain can propagate to
-	@# MAME ROM files automatically (no stale-ROM-in-MAME bug class).
-	@P0=$$(wc -c < $(BUILDDIR)/prom0.bin | tr -d ' '); \
-	 { cat $(BUILDDIR)/prom0.bin; perl -e "print \"\\xff\" x (4096 - $$P0)"; } \
-	   > $(BUILDDIR)/prom0_padded.ic66
-	@P0_RESET=$$(wc -c < $(BUILDDIR)/cpnos_RESET.bin | tr -d ' '); \
-	 RES_TOTAL=$$(wc -c < $(BUILDDIR)/cpnos_RESIDENT_JUMPTABLE.bin | tr -d ' '); \
-	 RES_A=$$(wc -c < $(BUILDDIR)/resident_a.bin | tr -d ' '); \
-	 RES_B=$$(wc -c < $(BUILDDIR)/resident_b.bin | tr -d ' '); \
-	 echo "PROM0:    reset+loader $$P0_RESET B + resident chunk A $$RES_A B / 1024"; \
-	 echo "PROM1:    resident chunk B $$RES_B B / 1792"; \
-	 echo "Resident: $$RES_TOTAL B total in RAM 0xED00..0xF7FF"; \
-	 test $$RES_B -le 1792 || { echo "ERROR: resident overflows 1.75 KB (would clobber display memory at 0xF800)"; exit 1; }
-
-# Override cpnos-size for SDCC (no payload.bin / payload.elf).
-cpnos-size: $(BUILDDIR)/cpnos.bin
-	@P0=$$(wc -c < $(BUILDDIR)/prom0.bin | tr -d ' '); \
-	 P1=$$(wc -c < $(BUILDDIR)/prom1.bin | tr -d ' '); \
-	 TOTAL=$$(wc -c < $(BUILDDIR)/cpnos.bin | tr -d ' '); \
-	 echo "PROM0:    $$P0 / 2048 bytes"; \
-	 echo "PROM1:    $$P1 / 2048 bytes"; \
-	 echo "TOTAL:    $$TOTAL / 4096 bytes"; \
-	 test $$TOTAL -eq 4096 || { echo "ERROR: image not exactly 4096 bytes"; exit 1; }
-
-# cpnos-lis is a no-op for SDCC (no llvm-objdump; .lst is per-file from zcc).
-cpnos-lis: $(BUILDDIR)/cpnos.bin
-	@echo "(cpnos-lis: SDCC build emits per-file .lst; see $(BUILDDIR)/cpnos.map)"
-
+# The SDCC audit / cpnos.cim / cpnos.bin two-PROM rules were removed
+# 2026-06-03 along with the rest of the two-PROM build.  SDCC's
+# production path is `make prom1-lineprog COMPILER=sdcc` (single 4 KB
+# MAME-only artefact in sdcc-prom1lineprog/prom1-lineprog.bin).
+# Note: SDCC code-quality audits (check_no_frame_ptr / no_helper_calls
+# / sdcc_layout / unreferenced_publics) were attached to the deleted
+# cpnos.cim rule; consider re-adding them as a gate on the SDCC
+# prom1-lineprog target as a finishing-checklist follow-up.
 endif
