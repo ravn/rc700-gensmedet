@@ -1,5 +1,22 @@
 # cpnos-in-c — finishing checklist (2026-06-03)
 
+> **STATUS 2026-06-04: PARKED — awaiting physical Z80-PIO parallel cable.**
+> All MAME oracles are green (cpnos-polypascal-test PASS 51.37 s clang ×
+> {PIO, SIO}; PROM1 2029 / 2048 B; PPAS confirms +256 B TPA via Data top
+> 0xDA86).  The remaining "finished" gate — real-hardware confirmation of
+> the PIO transport on the user's RC702 — needs a physical cable to a
+> CP/NET master.  Until the cable arrives, do NOT chase further cpnos
+> compiler/code shrink (19 B PROM headroom + 46 B payload-grow budget
+> make blind churn risky, and MAME already says PASS).
+>
+> Out of scope for the park: cpnos dependencies (llvm-z80 backend, z88dk
+> sdcc) keep advancing.  In scope: the cpnos source tree, cpnos-specific
+> docs, the polypascal-test harness, anything gated on PIO real-hardware
+> behavior.
+>
+> Unpark trigger: user signals the cable arrived.  Memory rule:
+> `tasks/memory/project_cpnos_parked_awaiting_parallel_cable.md`.
+
 What's left to call cpnos "finished" per the four-component long-term goal
 (`tasks/memory/project_finishing_firmware_components.md`).  Round 1 audit;
 pair with the other three component checklists.
