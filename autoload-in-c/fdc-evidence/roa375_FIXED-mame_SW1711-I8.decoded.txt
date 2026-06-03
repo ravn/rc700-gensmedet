@@ -1,0 +1,32 @@
+# FDC decoded µPD765 transactions — GENUINE roa375 | FIXED mame | SW1711-I8.imd
+# Result bytes for read/write/scan/format/read-id: ST0 ST1 ST2 C H R N
+# Result bytes for Sense Interrupt: ST0 PCN.  Sense Drive: ST3.
+#
+[t=  0.8110] CMD Specify                op=03 params=[4F 20]  (no result phase)
+[t=  1.2658] CMD Sense Drive Status     op=04 params=[00]  RESULT=[38]
+[t=  1.2660] CMD Recalibrate            op=07 params=[00]  (no result phase)
+[t=  1.2661] CMD Sense Interrupt Status op=08  RESULT=[20 00] (after Seek head=0 cyl=0)
+[t=  1.2697] CMD Seek                   op=0F params=[04 00]  (no result phase)
+[t=  1.2699] CMD Sense Interrupt Status op=08  RESULT=[20 00] (after Seek head=1 cyl=0)
+[t=  1.2735] CMD Read ID                op=0A params=[04]  RESULT=[44 25 00 DF FF 7B 7A]
+[t=  1.3441] CMD Seek                   op=0F params=[04 00]  (no result phase)
+[t=  1.3443] CMD Sense Interrupt Status op=08  RESULT=[20 00] (after Seek head=1 cyl=0)
+[t=  1.3479] CMD Read ID                op=4A params=[04]  RESULT=[04 00 00 00 01 04 01]
+[t=  1.3557] CMD Seek                   op=0F params=[00 00]  (no result phase)
+[t=  1.3559] CMD Sense Interrupt Status op=08  RESULT=[20 00] (after Seek head=0 cyl=0)
+[t=  1.3596] CMD Read ID                op=0A params=[00]  RESULT=[00 00 00 00 00 05 00]
+[t=  1.3640] CMD Seek                   op=0F params=[00 00]  (no result phase)
+[t=  1.3642] CMD Sense Interrupt Status op=08  RESULT=[20 00] (after Seek head=0 cyl=0)
+[t=  1.3682] CMD Read Data              op=06 params=[00 00 00 01 00 1A 07 80]  RESULT=[00 00 00 01 00 01 00]
+[t=  1.6573] CMD Seek                   op=0F params=[04 00]  (no result phase)
+[t=  1.6576] CMD Sense Interrupt Status op=08  RESULT=[20 00] (after Seek head=1 cyl=0)
+[t=  1.6612] CMD Read ID                op=0A params=[04]  RESULT=[44 25 00 DF FF 7B 7A]
+[t=  1.6752] CMD Seek                   op=0F params=[04 00]  (no result phase)
+[t=  1.6754] CMD Sense Interrupt Status op=08  RESULT=[20 00] (after Seek head=1 cyl=0)
+[t=  1.6791] CMD Read ID                op=4A params=[04]  RESULT=[04 00 00 00 01 03 01]
+[t=  1.6835] CMD Seek                   op=0F params=[04 00]  (no result phase)
+[t=  1.6837] CMD Sense Interrupt Status op=08  RESULT=[20 00] (after Seek head=1 cyl=0)
+[t=  1.6877] CMD Read Data              op=46 params=[04 00 01 01 01 1A 0E 80]  RESULT=[04 00 00 01 01 01 01]
+[t=  2.0293] CMD Specify                op=03 params=[DF 28]  (no result phase)
+#
+# SUMMARY: 0 Read-Track ST1-ND hits (bug A), 0 Sense-Int ST0-HD hits (bug B)

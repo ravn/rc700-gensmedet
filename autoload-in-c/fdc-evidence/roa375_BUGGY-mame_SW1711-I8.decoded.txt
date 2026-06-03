@@ -1,0 +1,19 @@
+# FDC decoded µPD765 transactions — GENUINE roa375 | BUGGY mame (seek/recal &7) | SW1711-I8.imd
+# Result bytes for read/write/scan/format/read-id: ST0 ST1 ST2 C H R N
+# Result bytes for Sense Interrupt: ST0 PCN.  Sense Drive: ST3.
+#
+[t=  0.8110] CMD Specify                op=03 params=[4F 20]  (no result phase)
+[t=  1.2658] CMD Sense Drive Status     op=04 params=[00]  RESULT=[38]
+[t=  1.2660] CMD Recalibrate            op=07 params=[00]  (no result phase)
+[t=  1.2661] CMD Sense Interrupt Status op=08  RESULT=[20 00] (after Seek head=0 cyl=0)
+[t=  1.2697] CMD Seek                   op=0F params=[04 00]  (no result phase)
+[t=  1.2699] CMD Sense Interrupt Status op=08  RESULT=[24 00] (after Seek head=1 cyl=0)   ** BUG B: ST0=24 has HD bit (0x04) set after Seek/Recal **
+[t=  1.2735] CMD Seek                   op=0F params=[00 00]  (no result phase)
+[t=  1.2736] CMD Sense Interrupt Status op=08  RESULT=[20 00] (after Seek head=0 cyl=0)
+[t=  1.2773] CMD Read ID                op=0A params=[00]  RESULT=[00 00 00 00 00 14 00]
+[t=  1.2851] CMD Seek                   op=0F params=[00 00]  (no result phase)
+[t=  1.2852] CMD Sense Interrupt Status op=08  RESULT=[20 00] (after Seek head=0 cyl=0)
+[t=  1.2892] CMD Read Data              op=06 params=[00 00 00 01 00 1A 07 80]  RESULT=[00 00 00 01 00 01 00]
+[t=  1.5427] CMD Specify                op=03 params=[DF 28]  (no result phase)
+#
+# SUMMARY: 0 Read-Track ST1-ND hits (bug A), 1 Sense-Int ST0-HD hits (bug B)

@@ -2,8 +2,36 @@
 
 ## 1. C autoload hangs in FDC detect, never hands off to BIOS
 
-**Status:** open as of 2026-05-04.  Hand-assembled `roa375/roa375.rom`
-boots rcbios end-to-end; C reimplementation does not.
+**Status:** RESOLVED / not reproducing (2026-06-03 — final).
+ravn/llvm-z80#215 filed then CLOSED the same day.
+
+**Verified:** autoload-in-c floppy boot reaches `A>` (CP/M loaded) on BOTH
+the standard rcbios test disk (`bios_c_test.imd`) AND the unpatched
+`SW1711-I8.imd` (original DRI rel. 2.3 BIOS), on the d0a7dcd MAME.  In
+under 5s of emulated time the BIOS reaches `A>` and writes
+"RC700 56k CP/M vers.2.2 rel. 2.3" + cursor at the canonical BIOS display
+address 0xF800.
+
+**The "hang" was a harness limitation, not a system bug.**  Two layered
+issues in `mame_boot_test.lua` previously masked the success:
+
+  1. **`screen:snapshot()` with no arg** — newer MAME's lua API requires a
+     filename string; old call signature throws "stack index 2, expected
+     string, received no value" ~20× per run and made the harness look
+     broken.  Fixed: `pcall + filename`.
+
+  2. **Single-display-base scan** — the lua derived the live display base
+     from DMA ch2 writes (correctly capturing autoload's 0x7A00 framebuffer)
+     and ONLY scanned there.  Once the DRI BIOS takes over it uses its own
+     canonical display at 0xF800, but our DMA tap doesn't always capture
+     the BIOS reprogramming cleanly (different write order; 8237
+     flip-flop sequence).  So `A>` was on screen at 0xF800 from t<5s,
+     but the lua was looking at 0x7A00 and reported "no A>" for 45s.
+     Fixed: `screen_find()` now scans BOTH the DMA-derived base AND 0xF800.
+
+The original 2026-05-04 codegen analysis below was probably accurate at
+the time (the C source built then to a hanging binary); the issue does
+not reproduce with current clang (build-macos, 2026-05-31) on either disk.
 
 **Symptom:** with `mame/roms/rc702/roa375.ic66` set to autoload-in-c's
 `clang/prom.bin` (padded to 4096 B, install via `make prom`):

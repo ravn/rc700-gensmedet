@@ -1,0 +1,30 @@
+FAIL: timeout — no A> (see display)
+frame=4100 (82.0s emulated)
+display base (DMA ch2) = 0x7800
+
+--- display ---
+ RC700
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

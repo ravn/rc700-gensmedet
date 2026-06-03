@@ -47,7 +47,7 @@ MAME_RUN = $(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
 RC700 = ../../rc700
 FLOPPY = $(HOME)/Downloads/SW1711-I8.imd
 
-.PHONY: all prom mame mamesym rc700 clean \
+.PHONY: all prom mame mamesym rc700 clean fdc-log \
         clang_asm clang_disasm clang_src_lis clang_symbols clang_mamesym
 
 all: prom
@@ -113,7 +113,7 @@ sw1-test: prom
 	    >/tmp/autoload_sw1_mame.log 2>&1
 	@echo "=== restoring PROM1 ==="
 	@if [ -f "$(SW1_PROM1_BACKUP)" ]; then cp "$(SW1_PROM1_BACKUP)" "$(SW1_PROM1)"; rm -f "$(SW1_PROM1_BACKUP)"; fi
-	@echo "--- display memory rows 0..2 (read from RAM at 0x7A00) ---"
+	@echo "--- display rows 0..3 (base taken from DMA ch2, see dump header) ---"
 	@cat $(SW1_DUMP) 2>/dev/null || { echo "no dump produced"; exit 1; }
 	@grep -qE "^row00: .*SW1 12345678: [01]{8}" $(SW1_DUMP) \
 	    && echo "PASS: SW1 status present on row 0 (right side)" \
@@ -130,6 +130,35 @@ mame: prom mamesym
 	EXPECT_BANNER="$(EXPECT)" $(MAME_RUN)
 	@cat /tmp/boot_test_result.txt
 	@grep -q '^PASS' /tmp/boot_test_result.txt
+
+# ================================================================
+# FDC (µPD765) transaction logger — upstream bug evidence capture
+# ================================================================
+# Boots autoload-in-c with a floppy present so the boot PROM runs its disk
+# auto-detect (recalibrate / seek to head 1 / read track) and logs every
+# upd765a command + result byte via passive I/O taps (mame_fdc_log.lua).
+# Flags the Read-Track ST1-ND (bug A) and Sense-Int ST0-HD (bug B) signatures.
+# Override FDC_FLOPPY to point at a bootable CP/M image for a fuller trace.
+FDC_FLOPPY      ?= $(CURDIR)/test-disks/SW1711-I8.imd
+FDC_RAW_LOG     ?= /tmp/autoload_fdc_raw.txt
+FDC_DECODED_LOG ?= /tmp/autoload_fdc_decoded.txt
+FDC_LOG_SECONDS ?= 20
+
+fdc-log: prom
+	@rm -f $(FDC_RAW_LOG) $(FDC_DECODED_LOG)
+	@echo "=== MAME FDC logger: $(COMPILER) PROM, $(FDC_LOG_SECONDS)s, floppy=$(notdir $(FDC_FLOPPY)) ==="
+	-FDC_RAW_LOG="$(FDC_RAW_LOG)" FDC_DECODED_LOG="$(FDC_DECODED_LOG)" \
+	 FDC_LOG_SECONDS="$(FDC_LOG_SECONDS)" \
+	 FDC_LOG_LABEL="$(COMPILER) autoload-in-c | MAME $(notdir $(MAME)) | $(notdir $(FDC_FLOPPY))" \
+	 $(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run $$(($(FDC_LOG_SECONDS) + 8)) \
+	    -autoboot_script mame_fdc_log.lua \
+	    -snapname autoload_fdc \
+	    -flop1 "$(FDC_FLOPPY)" \
+	    >/tmp/autoload_fdc_mame.log 2>&1
+	@echo "--- decoded FDC transactions ($(FDC_DECODED_LOG)) ---"
+	@cat $(FDC_DECODED_LOG) 2>/dev/null || { echo "no decoded log (see /tmp/autoload_fdc_mame.log)"; exit 1; }
 
 mamesym:
 ifeq ($(COMPILER),clang)

@@ -1,0 +1,30 @@
+FAIL: no A> — PROM error/halt (see display)
+frame=2000 (40.0s emulated)
+display base (DMA ch2) = 0x7800
+
+--- display ---
+ **NO SYSTEM FILES**
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

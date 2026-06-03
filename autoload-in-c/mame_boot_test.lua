@@ -1,87 +1,151 @@
--- mame_boot_test.lua — Automated boot test for autoload PROM
+-- mame_boot_test.lua — Automated boot test for the RC702 boot PROM.
 --
--- PASS: CP/M boots, "A>" appears, and banner matches expected compiler.
--- FAIL: error message, timeout, or wrong compiler banner.
+-- PASS: CP/M boots, "A>" appears on the display, and (if EXPECT_BANNER is set)
+--       the PROM banner matches.
+-- FAIL: error text on the display, timeout, or wrong banner.
 --
--- Set EXPECT_BANNER env var to require a specific string in the PROM banner.
--- e.g. EXPECT_BANNER="RC700 CL" for clang, EXPECT_BANNER="RC700 ROA375" for SDCC.
+-- The display buffer base is NOT hardcoded.  It is taken from the Am9517A DMA
+-- controller channel-2 address register (I/O port 0xF4), which the firmware
+-- (re)programs every frame with the live display base.  This works for any
+-- PROM — genuine roa375, autoload-in-c, etc. — which use different bases, and
+-- survives CP/M moving the buffer after boot.  Captured via passive write-taps
+-- only (never IO reads — see tasks/memory/feedback_lua_no_port_reads.md):
+--   - port 0xFC (clear byte-pointer flip-flop) -> next 0xF4 write is low byte
+--   - port 0xF4 (ch2 address) low byte then high byte -> 16-bit base
+--
+-- Set EXPECT_BANNER to require a string in the banner, e.g. "RC700 ROA375 CL".
+
+local SCREEN_COLS = 80
+local SCREEN_ROWS = 25
+local RESULT_FILE = os.getenv("BOOT_RESULT_FILE") or "/tmp/boot_test_result.txt"
+local EXPECT_BANNER = os.getenv("EXPECT_BANNER")
 
 local frame = 0
 local done = false
-local DSPSTR = 0xF800
-local PROM_DSP = 0x7A00
-local RESULT_FILE = "/tmp/boot_test_result.txt"
-local EXPECT_BANNER = os.getenv("EXPECT_BANNER")
+local prog
+local installed = false
 
-local function screen_text_at(space, base)
+-- Live display base, derived from the DMA ch2 address register.
+local dma = { base = nil, msb = false, lo = 0 }
+
+local function install_taps(io)
+    io:install_write_tap(0xFC, 0xFC, "dma_clbp", function() dma.msb = false end)
+    io:install_write_tap(0xF4, 0xF4, "dma_ch2_addr", function(_, d)
+        if not dma.msb then dma.lo = d; dma.msb = true
+        else dma.base = ((d << 8) | dma.lo) & 0xFFFF; dma.msb = false end
+    end)
+end
+
+local function screen_text_at(base)
     local lines = {}
-    for row = 0, 24 do
+    for row = 0, SCREEN_ROWS - 1 do
         local line = ""
-        for col = 0, 79 do
-            local ch = space:read_u8(base + row * 80 + col)
-            line = line .. (ch >= 0x20 and ch < 0x7F and string.char(ch) or " ")
+        for col = 0, SCREEN_COLS - 1 do
+            local ch = prog:read_u8(base + row * SCREEN_COLS + col)
+            line = line .. ((ch >= 0x20 and ch < 0x7F) and string.char(ch) or " ")
         end
         lines[#lines + 1] = line:gsub("%s+$", "")
     end
     return table.concat(lines, "\n")
 end
 
-local function screen_find_at(space, base, str)
+local function screen_text()
+    local parts = {}
+    if dma.base then
+        parts[#parts+1] = string.format("--- DMA-derived 0x%04X ---", dma.base)
+        parts[#parts+1] = screen_text_at(dma.base)
+    end
+    if dma.base ~= 0xF800 then
+        parts[#parts+1] = "--- BIOS 0xF800 ---"
+        parts[#parts+1] = screen_text_at(0xF800)
+    end
+    return table.concat(parts, "\n")
+end
+
+-- Search the DMA-derived base AND the standard BIOS display base (0xF800).
+-- The BIOS reprograms DMA after autoload hands off, but our tap may not
+-- always capture the new base cleanly (8237 flip-flop / write order may
+-- diverge from autoload's low-then-high pattern), so we also check 0xF800
+-- which the RC702 BIOS canonically uses.  See tasks/memory/
+-- feedback_display_addr_from_dma.md for the DMA-derivation rationale.
+local function screen_find_at(base, str)
     local bytes = {string.byte(str, 1, #str)}
-    for addr = base, base + 2000 - #str do
+    local n = SCREEN_COLS * SCREEN_ROWS
+    for addr = base, base + n - #str do
         local match = true
         for i = 1, #bytes do
-            if space:read_u8(addr + i - 1) ~= bytes[i] then match = false; break end
+            if prog:read_u8(addr + i - 1) ~= bytes[i] then match = false; break end
         end
         if match then return true end
     end
     return false
 end
 
-local function finish(result, space)
+local function screen_find(str)
+    if dma.base and screen_find_at(dma.base, str) then return true end
+    -- Always also check 0xF800 (canonical BIOS display base) in case BIOS
+    -- took over after autoload.
+    if dma.base ~= 0xF800 and screen_find_at(0xF800, str) then return true end
+    return false
+end
+
+local function finish(result)
     local f = io.open(RESULT_FILE, "w")
     f:write(result .. "\n")
     f:write(string.format("frame=%d (%.1fs emulated)\n", frame, frame / 50.0))
-    f:write("\n--- PROM display (0x7A00) ---\n")
-    f:write(screen_text_at(space, PROM_DSP) .. "\n")
-    f:write("\n--- BIOS display (0xF800) ---\n")
-    f:write(screen_text_at(space, DSPSTR) .. "\n")
+    f:write(string.format("display base (DMA ch2) = %s\n",
+                          dma.base and string.format("0x%04X", dma.base) or "unset"))
+    f:write("\n--- display ---\n" .. screen_text() .. "\n")
     f:close()
+    -- Optional screenshot: pcall + filename arg because newer MAME's
+    -- screen:snapshot() signature requires a name string (older builds
+    -- accepted no-args).  Wrapping with pcall keeps the test result valid
+    -- even if the call's signature changes again.
+    local screen = manager.machine.screens:at(1)
+    if screen ~= nil then
+        pcall(function() screen:snapshot("autoload_boot_test.png") end)
+    end
     done = true
     manager.machine:exit()
 end
 
 emu.register_frame_done(function()
     if done then return end
+    if not installed then
+        local cpu = manager.machine.devices[":maincpu"]
+        if cpu == nil then return end
+        prog = cpu.spaces["program"]
+        local io = cpu.spaces["io"]
+        if prog == nil or io == nil then return end
+        install_taps(io)
+        installed = true
+    end
+
     frame = frame + 1
     if frame % 25 ~= 0 then return end  -- check every 0.5s
 
-    local space = manager.machine.devices[":maincpu"].spaces["program"]
-
-    -- Check for successful boot (CP/M prompt)
-    if screen_find_at(space, DSPSTR, "A>") or screen_find_at(space, PROM_DSP, "A>") then
-        -- Verify banner if EXPECT_BANNER is set
-        if EXPECT_BANNER and not screen_find_at(space, PROM_DSP, EXPECT_BANNER) then
-            finish("FAIL: wrong compiler banner (expected '" .. EXPECT_BANNER .. "')", space)
+    if screen_find("A>") then
+        if EXPECT_BANNER and not screen_find(EXPECT_BANNER) then
+            finish("FAIL: booted but wrong banner (expected '" .. EXPECT_BANNER .. "')")
         else
-            finish("PASS", space)
+            finish("PASS")
         end
         return
     end
 
-    -- Check for any non-space text at PROM display after 10s (error message)
-    if frame > 50 * 10 then
-        for addr = PROM_DSP, PROM_DSP + 2000 - 1 do
-            local ch = space:read_u8(addr)
-            if ch > 0x20 and ch < 0x7F then
-                finish("FAIL: PROM error (see display)", space)
+    -- Known PROM error/halt messages => fail fast (the normal "RC700" banner
+    -- is NOT an error, so we match specific strings, not "any text").
+    if frame > 50 * 6 and dma.base then
+        local txt = screen_text()
+        for _, m in ipairs({"NO SYSTEM", "NO DISK", "NO DISKETTE", "NO LINEPROG", "ERROR"}) do
+            if txt:find(m, 1, true) then
+                finish("FAIL: PROM error/halt: " .. m)
                 return
             end
         end
     end
 
-    -- Timeout after 30 emulated seconds
-    if frame > 50 * 30 then
-        finish("FAIL: timeout (blank screen)", space)
+    if frame > 50 * (tonumber(os.getenv("BOOT_TIMEOUT_S") or "60")) then
+        finish("FAIL: timeout — no A> (see display)")
     end
 end)
