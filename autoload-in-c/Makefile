@@ -47,7 +47,7 @@ MAME_RUN = $(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
 RC700 = ../../rc700
 FLOPPY = $(HOME)/Downloads/SW1711-I8.imd
 
-.PHONY: all prom mame mamesym rc700 clean fdc-log \
+.PHONY: all prom mame floppy-boot-test mamesym rc700 clean fdc-log \
         clang_asm clang_disasm clang_src_lis clang_symbols clang_mamesym
 
 all: prom
@@ -128,6 +128,20 @@ mame: prom mamesym
 	@# even on a correct boot (ravn/rc700-gensmedet#100).
 	$(eval EXPECT := $(if $(filter sdcc,$(COMPILER)),RC700 ROA375,RC700 ROA375 CL))
 	EXPECT_BANNER="$(EXPECT)" $(MAME_RUN)
+	@cat /tmp/boot_test_result.txt
+	@grep -q '^PASS' /tmp/boot_test_result.txt
+
+# End-to-end production-path oracle: autoload boots the unpatched
+# `test-disks/SW1711-I8.imd` (in-tree, committed) through the DRI
+# rel.2.3 BIOS to the CP/M `A>` prompt.  Mirrors `mame` but uses the
+# in-tree disk + drops the autoload-banner check -- the assertion
+# here is "the floppy boot path reaches A>", not "the autoload
+# banner identifies".  Verified by screenshot 2026-06-03; this target
+# turns that into a repeatable / CI-hookable check.
+.PHONY: floppy-boot-test
+floppy-boot-test: prom mamesym
+	@awk '{printf "comadd %s,%s\n", $$1, $$2}' $(COMPILER)/prom0_mame.sym > $(COMPILER)/prom0_debug.cmd
+	FLOPPY=$(CURDIR)/test-disks/SW1711-I8.imd $(MAME_RUN)
 	@cat /tmp/boot_test_result.txt
 	@grep -q '^PASS' /tmp/boot_test_result.txt
 
@@ -264,11 +278,18 @@ clang/prom.clang.bin: $(CLANG_OBJS) $(CLANG_ZX0_OBJS) clang/rc700_prom.ld
 	# without needing to rebuild clang).
 	$(RUN) $(CLANG_OBJDUMP) -d -S --triple=z80 clang/prom.clang.elf > clang/prom.clang.lis
 
-clang/banner.h:
+# Force-regen on every build so the banner reflects the moment this
+# PROM was burnt (matches rcbios-in-c/builddate.h pattern).  The cmp
+# dance avoids retouching the file (and rebuilding clang/boot.o) when
+# neither the date nor the git hash changed since last build.
+clang/banner.h: FORCE
 	@HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "????"); \
 	 BANNER=" RC700 ROA375 CL $$(date '+%Y-%m-%d %H.%M') $$HASH/$$(whoami)"; \
-	 echo "#define BUILD_BANNER \"$$BANNER\"" > $@; \
-	 echo "#define BUILD_BANNER_LENGTH $${#BANNER}" >> $@
+	 { echo "#define BUILD_BANNER \"$$BANNER\""; \
+	   echo "#define BUILD_BANNER_LENGTH $${#BANNER}"; } > $@.$$$$; \
+	 cmp -s $@.$$$$ $@ 2>/dev/null && rm -f $@.$$$$ || mv $@.$$$$ $@
+
+FORCE:
 
 clang/boot.o: boot_rom.c rom.h clang/banner.h $(CLANG_COMPILER)
 	$(RUN) $(CLANG_CC) $(CLANG_CFLAGS) -c $< -o $@

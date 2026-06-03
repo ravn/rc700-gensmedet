@@ -1,69 +1,87 @@
 # RC702 ROA375 autoload PROM in C
 
-Full rewrite of the ROA375 autoload PROM (boot ROM) in C using z88dk with
-sdcc backend.  The ROM initializes hardware, auto-detects floppy disk
-format, reads Track 0, and boots the system — tested with CP/M.
+Full rewrite of the ROA375 autoload PROM (boot ROM) in C.  The ROM
+initializes hardware (PIO/CTC/DMA/CRT/SEM702/FDC), auto-detects floppy
+disk format, reads Track 0, and boots either the floppy CP/M BIOS or
+the cpnos-in-c PROM1 line program.
 
-See `BOOT_SEQUENCE.md` for the full invocation order from power-on to `A>`.
-See `ZSDCC_NOTES.md` for sdcc/z88dk quirks and optimization techniques.
+**Production compiler is clang (llvm-z80).**  SDCC + z88dk is kept as a
+parity / parked path; the production binary always ships from clang.
+
+See `BOOT_SEQUENCE.md` for the full invocation order from power-on to
+`A>`.  See `ZSDCC_NOTES.md` for SDCC/z88dk quirks (relevant only to the
+parity path).  See `docs/production-verification.md` for the canonical
+oracle commands + expected screenshots.
 
 ## Current status
 
-PROM size: 1843 bytes (BOOT 104 + CODE 1739) out of 4096 (debug mode) with DSCC.  llvm-z80 now fits in 2K PROm.
-MAME boot test passes at 100% and 10% speed.
-CP/M and ID-COMAL boot verified.
+PROM size: **1658 / 2048 B (390 B free, 19 % headroom)** under clang
+with ZX0 compression — comfortably below the hardware-fixed 2 KB cap
+(user's RC702 has 2716 sockets, no A11 bridge for 2732).
+
+Two production boot paths verified:
+
+| Path | What it boots | Oracle |
+|------|---------------|--------|
+| Floppy CP/M | DRI rel.2.3 BIOS on the in-tree `test-disks/SW1711-I8.imd` → `A>` | `make floppy-boot-test` |
+| cpnos slave | cpnos-in-c PROM1 line program → CP/NET via MP/M master | `cd ../cpnos-in-c && make cpnos-polypascal-test` |
+
+The autoload banner also displays the SW1 status on its own dispatch
+buffer (0x7A00), then the chosen BIOS takes over the canonical RC702
+display at 0xF800.  Boot path canonical screenshot:
+`snap/autoload_sw1711_boot.png` (2026-06-03).
 
 ## PROM size history
 
 ```
-Date        BOOT  CODE  Total  Change  Description
-----------  ----  ----  -----  ------  -----------
-2026-03-20    68  1987   2055          Starting point (pure C rewrite)
-2026-03-21    68  1972   2040    -15   Peephole rules + tail-call fall-through
-2026-03-21    68  1914   1982    -58   Remove dead vars, inline crt_refresh
-2026-03-21    68  1889   1957    -25   Manual inlining, remove DMA Ch3
-2026-03-21    68  1865   1933    -24   Remove fdc_busy + floppy_wait, structs
-2026-03-21   104  1800   1904    -29   NMI handler, move functions to BOOT
-2026-03-21   104  1785   1889    -15   Format table struct, rename labels
-2026-03-21   104  1778   1882     -7   Banner string in BOOT, timestamp
-2026-03-21   104  1761   1865    -17   Remove write-only fdc_busy + floppy_wait
-2026-03-21   104  1739   1843    -22   Split disk_bits, combined format table
-                                ----
-                         Total: -212 bytes (-10.3%)
+Date        Size  Change  Description
+----------  ----  ------  -----------
+2026-03-20  2055          Starting point (pure C rewrite, SDCC)
+2026-03-21  1843    -212  Multi-step SDCC shrink (peepholes, dead vars,
+                          inlining, BOOT-pad reuse, format-table fold)
+2026-04..   1995          clang first build (no ZX0; +152 vs SDCC)
+2026-05..   1658    -337  clang + ZX0 compression on text section
+                          (production path)
+                  ------
+                          Net vs starting point: −397 B (−19.3 %)
 ```
 
-Key optimization techniques:
-- **Dead variable removal** — variables set but never read (-58 bytes)
-- **DMA Ch3 removal** — boot ROM never scrolls, Ch3 unnecessary (-44 bytes)
-- **Manual inlining** — sdcc has no inlining; `static inline` leaves dead code (-25 bytes)
-- **BOOT section utilization** — fill 0xFF padding before NMI with code + data
-- **Peephole rules** — 22 rules from rcbios-in-c (dead code, branch inversion)
-- **Tail-call fall-through** — reorder functions so `jp` becomes no-op (-9 bytes)
-- **Split packed bitfields** — separate bytes cheaper than bit shifting (-22 bytes)
-- **Combined format table** — 3D array `[is_mini][N][side]` vs ternary select (-6 bytes)
+Key SDCC-era techniques captured in this codebase (still useful as
+reference): dead-variable removal, DMA Ch3 removal, manual inlining,
+BOOT-section pad reuse, 22 custom peephole rules, tail-call
+fall-through, split packed bitfields, combined format tables.
+
+clang inherits all of the above structurally and adds **ZX0 text
+compression** (the 337 B saving from 2026-05) — text gets streamed
+through `dzx0_standard` at boot time before relocation.
 
 ## PROM image layout (prom0.ic66 → roa375.ic66)
 
 ```
-Offset  Size  Section  Source         Contents
-------  ----  -------  ------------- ----------------------------------------
-0x0000    31  BOOT     boot_rom.c    begin(): DI, SP, memcpy CODE to RAM, JP
-0x001F    27  BOOT     boot_rom.c    init_fdc(): FDC Specify command
-0x003A    41  BOOT     boot_rom.c    banner_string: " RC700 ROA375 date/user"
-0x0063     3  BOOT     boot_rom.c    0xFF padding + RETN (NMI handler at 0x66)
-0x0068  1778  CODE     intvec.c      IVT: 16 function pointers (32 bytes)
-                       rom.c         All C code: boot, FDC, init, ISRs, fmt
-                                     Read-only data: messages, format tables
-                                     BSS: variables (zeroed by ROM copy)
-                       rom.c         code_end sentinel (1 byte)
-0x0802   pad                         0xFF fill to 4096 bytes
+Offset  Size   Section          Contents
+------  ----   ---------------  ----------------------------------------
+0x0000  ~50    .boot            begin(): DI, SP, ZX0 unpack, JP into CODE
+0x0050  ~12    .boot            banner_string (clang-side; SDCC banner lives in CODE)
+0x005C  ~10    .boot            0xFF pad
+0x0066  ~2     .nmi             RETN at the Z80 NMI vector
+0x0068  ~70    .zx0_decoder     dzx0_standard decompressor (clang only)
+0x00AE  ~1.5K  .text_compressed ZX0-compressed payload:
+                                  IVT (intvec.c), HAL, init (PIO/CTC/DMA/
+                                  CRT/SEM702/FDC), boot, ISRs, format
+                                  tables, banner_string (SDCC), sentinel
+0x067F  pad    —                0xFF fill to 4096 B for roa375.ic66 slot
 ```
+
+The high 2 KB of the 4 KB roa375.ic66 file is unused (0xFF) on the
+user's RC702 — there's no A11 bridge, so the chip is electrically only
+the low 2 KB.
 
 ## Runtime memory map (after self-relocation)
 
-begin() copies CODE from ROM to RAM at 0x7000.  BSS variables are
-inside CODE, so they start as zero.  After prom_disable(), Track 0
-is loaded at 0x0000 and ROM is no longer accessible.
+`begin()` unpacks the ZX0-compressed payload to RAM at 0x7000.  BSS
+variables are inside the payload and start zeroed.  After
+`prom_disable()` (port 0x18), Track 0 is loaded at 0x0000 and ROM is
+no longer accessible.
 
 ```
 Address         Size   Contents
@@ -83,64 +101,71 @@ Address         Size   Contents
 | File | Section | Description |
 |------|---------|-------------|
 | `sections.asm` | — | Section ORGs and ordering (linker scaffolding) |
-| `boot_rom.c` | BOOT | begin(), init_fdc(), banner_string, NMI handler |
-| `intvec.c` | CODE | IVT: const function-pointer array (`#pragma constseg CODE`) |
-| `rom.c` | CODE | All CODE-section C: HAL, init, FDC, format, boot, ISRs |
+| `boot_rom.c` | BOOT | begin(), banner_string, NMI handler |
+| `intvec.c` | CODE | IVT: const function-pointer array |
+| `rom.c` | CODE | All CODE-section C: HAL, init, FDC, format, boot, ISRs, SEM702 chargen init |
 | `rom.h` | — | Types, constants, port I/O macros, struct defs, declarations |
-| `peephole.def` | — | 22 custom sdcc peephole optimization rules |
-| `CMakeLists.txt` | — | CLion project (indexing only, build via Makefile) |
+| `clang/banner.h` | — | Build-stamp header, auto-regenerated each build (clang) |
+| `peephole.def` | — | 22 custom SDCC peephole optimization rules (parity path) |
+| `clang/dzx0_standard.s` | — | ZX0 decompressor (clang path only) |
 
 ## Key design decisions
 
 - **Unity build**: `rom.c` is the single CODE translation unit, enabling
   cross-function optimization, tail-call fall-through, and dead code
-  elimination.  `intvec.c` is compiled separately — `#pragma constseg`
-  is file-global, and IVT must be linked first for 0x7000 placement.
+  elimination.  `intvec.c` is compiled separately so its
+  `#pragma constseg CODE` doesn't propagate.
 
-- **BOOT section padding**: Functions only used before `prom_disable()`
-  (`init_fdc`) and the banner string are placed in BOOT to fill the
-  gap between `begin()` and the NMI handler at 0x66.  Saves total PROM
-  size by using space that would otherwise be 0xFF padding.
+- **BOOT section padding**: Banner string + ZX0 entry occupy what would
+  otherwise be 0xFF gap between `begin()` and the Z80 NMI vector at
+  0x0066.
 
-- **FDC command block struct**: `fdc_command_block` ensures the 7 bytes
-  (C, H, R, N, EOT, GPL, DTL) are contiguous.  `fdc_write_full_cmd()`
-  sends them via `((byte *)&fdc_cmd)[i]` with `sizeof(fdc_cmd)`.
+- **SEM702 chargen init runs always**: `rom.c::define_sextants()`
+  programs the 64 sextant glyphs into RAM-backed character generator
+  ports 0xD1/0xD2/0xD3.  Real ROA327-equipped hardware silently ignores
+  these writes (no IC82 RAM to address), so this is a safe no-op on
+  baseline machines; no SW1 gating.
 
-- **FDC result struct**: `fdc_result_block` with named fields (`.st0`,
-  `.st1`, `.st2`, `.cylinder`, `.head`, `.sector`, `.size_code`,
-  `.dma_status`) replaces magic array indices.
+- **FDC command + result blocks** are typed structs (`fdc_command_block`,
+  `fdc_result_block`) so the 7-byte sequences are contiguous + named
+  rather than magic array indices.
 
-- **BSS inside CODE**: Variables are in `bss_compiler` subsection of
-  CODE.  The PROM contains zeros at these positions.  `begin()` copies
-  everything to RAM, so variables start zeroed — no explicit init needed.
-  `get_floppy_ready()` only sets non-zero values.
+- **BSS inside CODE / payload**: BSS lives in the compressed payload.
+  The ROM contains zero bytes there; `begin()` unpacks them to RAM, so
+  variables start zeroed without explicit init.
 
-- **No recursion**: All 30+ functions form a pure DAG.  File-scope
-  globals are safe.  No stack frames needed (`--fomit-frame-pointer`).
+- **No recursion**: All ~30 functions form a pure DAG.  File-scope
+  globals are safe.  No stack frames needed
+  (`--fomit-frame-pointer` on the SDCC path).
 
-- **Tail-call fall-through**: Functions placed in source order so sdcc's
-  `jp _target` becomes a no-op when target immediately follows.  Chains:
-  `fdc_select_drive_cylinder_head` → `verify_seek_result`,
-  `main` → `get_floppy_ready` → `boot_from_floppy_or_jump_prom1`.
+- **Banner regeneration**: `clang/banner.h` is rebuilt every `make prom`
+  (via the `FORCE` dep), matching `rcbios-in-c/builddate.h`.  A cmp
+  dance skips touching the file when neither the date nor git hash
+  changed.
 
-- **Manual inlining**: sdcc's `static inline` leaves dead standalone
-  copies (no `--gc-sections`).  Single-call functions are manually
-  inlined for size.  See `ZSDCC_NOTES.md`.
-
-- **Binary constants**: All bitmask operations use `0b` notation for
-  clarity.  Port initialization values stay hex.
-
-- **Payload size at runtime**: `&code_end - &intvec + 1` computed at
-  runtime (8 extra bytes).  DEFC could compute it at link time — noted
-  as future optimization.
+- **No A11 bridge → 2 KB hard cap**: build fails the size check above
+  2048 B (clang) / 4096 B (SDCC parity path; MAME-only).
 
 ## Building
 
 ```bash
-make              # clean + build (default target)
-make rom_parts    # build Z80 binary (requires z88dk in ../z88dk)
-make prom         # assemble PROM image + install to emulators
-make mame         # build, install, boot test in MAME (auto PASS/FAIL)
-make rc700        # build and launch rc700 emulator
-make clean        # remove build artifacts
+make                 # build + install prom0.ic66 to MAME (clang)
+make prom            # just the build (clang default)
+make floppy-boot-test  # end-to-end: autoload + DRI rel.2.3 floppy -> A>
+make mame            # boot test with autoload banner check
+make sw1-test        # verify SW1 status appears on row 0
+make fdc-log         # capture + decode µPD765 transactions during boot
+make rc700           # build + launch jbox rc700 emulator
+make clean           # remove build artifacts
+
+# SDCC parity path (Docker required; production is clang)
+make COMPILER=sdcc prom
 ```
+
+## Dependencies
+
+- **clang (production)**: native llvm-z80 toolchain at
+  `../../llvm-z80/build-macos/bin/` (`make toolchain` in workspace
+  root).
+- **MAME**: ravn/mame fork submodule at `../../mame/`; rc702 driver.
+- **SDCC parity (optional)**: Docker + `z88dk:2.4` image.
