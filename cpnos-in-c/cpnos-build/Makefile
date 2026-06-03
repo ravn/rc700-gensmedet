@@ -1,5 +1,6 @@
 # Build CP/NOS from cpnet-z80 sources via VirtualCpm (DRI RMAC+LINK).
-# Produces d/cpnos.com (4KB monolithic image).
+# Produces d/cpnos.sys (4KB monolithic image; LINK writes cpnos.COM,
+# recipe renames immediately — see d/cpnos.sys rule below).
 #
 # Prereqs:
 #   - java on PATH
@@ -62,8 +63,20 @@ LOCAL_SRC := src
 #   CODE 0xDD80..0xE9FF   NDOS DD83, ends 256 B earlier
 #   DATA 0xD980..0xDD7F   NDOSRL D980, BDOSDS DB6A
 # TPA = 0x0100..0xD97F = 0xD880 = 55424 B (54.125 KB; CPNOS_TPA_KB ~53).
-CODE_BASE ?= LDD80
-DATA_BASE ?= DD980
+#
+# Path 7 (2026-06-04): TPA-grow.  CODE_BASE bumped 0xDD80 -> 0xDE80,
+# DATA_BASE 0xD980 -> 0xDA80.  Resident BIOS shifts up 0xED00 -> 0xEE00
+# in cpnos-in-c/clang-prom1lineprog/payload.ld, freeing 256 B below the
+# new IVT (0xEB00) for cpnos.com to grow into, and giving user programs
+# 256 B more TPA (BDOS dispatch moves 0xE716 -> 0xE816).  CFGTBL packed
+# into IVT tail to make room for the resident shift.  cpnios-shim.asm
+# NIOS=0xEE33 matches the new _snios_jt.
+#   CODE 0xDE80..0xEAFF   NDOS DE83, BDOS E816 (program-visible top)
+#   DATA 0xDA80..0xDE7F   NDOSRL DA80
+# TPA = 0x0100..0xDA7F = 0xD980 = 55680 B (~54.4 KB; +256 B for user
+# programs).
+CODE_BASE ?= LDE80
+DATA_BASE ?= DDA80
 
 export CPMDrive_D := $(CURDIR)/d
 export CPMDrive_A := $(CURDIR)/a
@@ -72,7 +85,7 @@ export CPMDefault := d:
 MODULES := cpndos cpnios cpbdos
 
 .PHONY: all clean
-all: d/cpnos.com
+all: d/cpnos.sys
 
 # Named-shim override: src/cpnios-shim.asm is our thin JP-to-0xEA00
 # trampoline into cpnos-rom's resident SNIOS.  RMAC+LINK still needs
@@ -95,17 +108,21 @@ d/%.asm: $(SRC)/%.asm
 d/%.rel: d/%.asm
 	cd $(CURDIR) && $(VCPM) rmac $* 2>&1 | tail -3
 
-# Phase 2B (2026-04-26): cpnos.asm entry stub deleted.  cpnos.com now
+# Phase 2B (2026-04-26): cpnos.asm entry stub deleted.  cpnos.sys now
 # starts directly at NDOS+0 (cpndos's first byte = JP NDOSE).  PROM C
 # (cpnos-rom/cpnos_main.c::nos_handoff) sets ZP[5..7] = JP BDOS using
 # an address extracted from cpnos.sym at PROM build time, then enters
 # at 0xD003 (NDOS+3 = COLDST).
 #
 # `cpnos=cpndos,...` is DRI LINK's explicit destination-filename
-# syntax — output goes to cpnos.com regardless of which module is
-# first in the input list.
-d/cpnos.com: $(addsuffix .rel,$(addprefix d/,$(MODULES)))
+# syntax — LINK writes cpnos.COM (CP/M-toolchain default extension);
+# the recipe immediately renames to cpnos.sys so the rest of the
+# pipeline doesn't carry the misleading .COM extension (the file is
+# a network-loaded OS image, NOT a CP/M executable).  See cpnos-in-c/
+# memory_map.md for the build-pipeline overview.  Renamed 2026-06-04.
+d/cpnos.sys: $(addsuffix .rel,$(addprefix d/,$(MODULES)))
 	cd $(CURDIR) && $(VCPM) link 'cpnos=cpndos,cpnios,cpbdos[$(CODE_BASE),$(DATA_BASE)]' 2>&1 | tail -15
+	@mv d/cpnos.com d/cpnos.sys
 
 clean:
 	rm -f d/*.rel d/*.prn d/*.sym d/*.com d/tiny*.* d/test.*

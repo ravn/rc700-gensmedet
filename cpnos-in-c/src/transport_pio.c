@@ -25,6 +25,48 @@
  * corrupt that state on every interrupt.  None of the ISR bodies use
  * IX/IY.
  *
+ * Speed budget — isr_pio_par is throughput-critical:
+ *
+ *   PIO-B Mode 1 handshake holds /BRDY low until the CPU reads the
+ *   PIO data register; the master cannot strobe the next byte until
+ *   /BRDY is reasserted.  isr_pio_par's roundtrip latency is therefore
+ *   the wall on CP/NET RX byte-rate.
+ *
+ *   Current happy-path cost (Z80 @ 4 MHz):
+ *     IM2 acceptance (push PC, vector fetch):  ~19 T
+ *     ISR body (not-drop path):                 184 T
+ *     Total per byte:                          ~203 T ≈ 51 µs
+ *     Steady-state max RX rate:                ~19.6 kbyte/s
+ *
+ *   PolyPascal source load, CP/NET BDOS reads, and CCP-driven file
+ *   copies all bottleneck on this rate.  cpnos-polypascal-test
+ *   (currently ~51 s end-to-end) is approximately linear in 1 / ISR
+ *   latency.
+ *
+ *   Optimization candidates — NOT YET APPLIED (preserve discipline:
+ *   measure happy-path T-states before AND after every change, and
+ *   gate on the `.resident.isr` section size budget):
+ *
+ *     1. Stash byte in B or E instead of `push af` — saves the
+ *        `push af` / `pop af` stash pair (−21 T).
+ *
+ *     2. Combine head/tail BSS read into one 16-bit `ld hl, (head)`
+ *        (head, tail must be placed adjacent and order-pinned).
+ *        Saves the second `ld hl, _pio_rx_tail` (−10 T) plus a
+ *        compare-prep step.
+ *
+ *     3. Reorganise so old_head stays in a register through the
+ *        ring write instead of dec-A after the store — saves the
+ *        `dec a ; ld l, a` reload (~−8 T).
+ *
+ *     Estimated total achievable: ~−40 T ≈ 25 % improvement in
+ *     steady-state max RX rate.  Each saving must clear the
+ *     shadow-register-safety constraint above.
+ *
+ *   Do NOT remove the `ei` before `reti` — `reti` does NOT
+ *   re-enable interrupts on Z80, only signals the daisy chain;
+ *   without `ei` the slave goes deaf to subsequent IRQs.
+ *
  * Cross-compiler note: inline asm uses globally-unique labels (e.g.
  * `_isr_crt_no_dirty`) instead of GAS-style numeric local labels —
  * z80asm rejects `1:`/`1f` syntax.  Labels start with `_` so they
@@ -433,6 +475,10 @@ void isr_pio_kbd(void) __naked {
  * `ld h, _pio_rx_buf_page; ld l, head` builds &ring[head] without BC.
  * Userspace BC/DE/shadow registers all stay intact across the IRQ. */
 SECTION_RESIDENT_ISR
+/* THROUGHPUT-CRITICAL — see "Speed budget" in the file header.
+ * Happy-path body currently 184 T-states / ~46 µs @ 4 MHz; bounds CP/NET
+ * RX byte-rate at ~19.6 kbyte/s.  Optimization candidates documented at
+ * the file header — measure before/after every change. */
 void isr_pio_par(void) __naked {
     ASM_VOLATILE(
         "push af\n\t"

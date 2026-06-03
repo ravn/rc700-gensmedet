@@ -1,205 +1,284 @@
 # cpnos slave runtime memory map
 
-Snapshot taken from a `MIRROR_SIOB=1 BOOT_MARK_ENABLED=1` build at
-commit `c3e0c2d`.  All numbers will shift slightly with future
-shrinkage but the *structure* is stable.
+**Refreshed 2026-06-03** (post-two-PROM removal, PROM1-only-lineprog is
+the sole topology).
 
-> **2026-04-30 — Phase A + B + init/resident split + Option β:**
->
-> | Region          | Pre-A         | Post-B        | Post-β (current) |
-> |-----------------|---------------|---------------|------------------|
-> | NDOSRL (DATA)   | 0xCC00        | 0xDAA0        | 0xDC80           |
-> | NDOS  (CODE)    | 0xD000        | 0xDEA0        | 0xE080           |
-> | cpnos.com end   | 0xDC80        | 0xEB20        | 0xED00           |
-> | scratch_bss     | 0xEA20..0xEC00| split LO + HI | 0xF524..0xF6FF   |
-> | IVT             | 0xEC00        | 0xEC00        | 0xF500           |
-> | Stack (SP top)  | 0xED00        | 0xED00        | 0xF500           |
-> | NIOS jump table | 0xEA00 (copy) | 0xED33 (pin)  | 0xED33 (pin)     |
-> | Init code       | in resident @ 0xED00 | same  | PROM 0 0x0100, in place |
-> | Resident size   | 2438 B        | 2438 B        | 1808 B           |
-> | TPA reported    | 52 K          | 55 K          | 56 K             |
->
-> Init/resident split (commits c6c00a4, 03a4248): init-only code
-> (init_hardware, cfgtbl_init, print_banner, netboot_mpm) tagged
-> `((section(".init.text/.init.rodata")))` and runs in place from
-> PROM 0 0x0100..0x0375.  Resident shrank by 630 B.
->
-> Option β (commit e131c16): freed RAM consolidated above resident;
-> stack moved from 0xED00 to 0xF500 to clear cpnos.com's lifted top;
-> scratch_bss + IVT moved up; cpnos.com CODE_BASE bumped to 0xE080.
-> Layout asserts in `payload.ld` catch stack/cpnos/scratch overlaps
-> at link time (`__cpnos_load_end`, `__stack_top`, `__stack_low`).
->
-> Run `make cpnos && llvm-nm --numeric-sort clang/payload.elf` for
-> live addresses.  See `tasks/timeline.md` Phase 30 + `tasks/todo.md`
-> "Init/resident split" for path-α vs β reasoning.
+This doc snapshots the cpnos slave's RAM layout at the moment **after**
+the PROM1 ZX0-decoded resident has been copied to its runtime VMA, init
+has finished hardware bring-up, and the IVT is installed — **but
+before** `netboot_mpm` has driven the CP/NET LOGIN/OPEN/READ exchange
+that loads `cpnos.com` (CCP+BDOS+NDOS) from the master into TPA.
 
-Authoritative sources:
+## Authoritative sources
 
-- `cpnos-rom/clang/payload.elf` (via `llvm-nm --numeric-sort`)
-- `cpnos-rom/cpnos-build/d/cpnos.sym`
-- `cpnos-rom/payload.ld`
-- `cpnos-rom/cpnos_main.c` (zero-page seed in `nos_handoff()`)
+| Concern | File |
+|---|---|
+| RAM layout (resident, IVT, SCRATCH, PIO_RX, CFGTBL, stack) | `cpnos-in-c/clang-prom1lineprog/payload.ld` |
+| PROM1 image layout (lineprog header, ZX0 decoder, init.zx0, payload.zx0) | `cpnos-in-c/clang-prom1lineprog/prom1.ld` |
+| ZX0 decode destinations (bootstrap.s constants) | `cpnos-in-c/clang-prom1lineprog/bootstrap.s` |
+| Zero-page setup at cold boot | `cpnos-in-c/src/init.c` (`zp_init`) |
+| Per-section assignment (`.resident.*`, `.init.text`, `.bss.cfgtbl`, …) | `cpnos-in-c/compiler/compat.h` + `__attribute__((section(...)))` in `.c` sources |
+| cpnos.com (CCP+BDOS+NDOS) layout — applies after server-load | `cpnos-in-c/cpnos-build/d/cpnos.sym` |
 
-```
-+----------------------------------------------------------------------+
-| addr     |  size  |  region                                          |
-+----------+--------+--------------------------------------------------+
-|  0x0000  |    8 B |  CP/M zero page seed (cpnos_main.c ZP_INIT)      |
-|          |        |    0x0000..0x0002  JP 0xCF03  (NDOS BIOS-JT walk)|
-|          |        |    0x0003          IOBYTE = 0                    |
-|          |        |    0x0004          CDISK   = 4 (boot at E:)      |
-|          |        |    0x0005..0x0007  JP NDOSE = 0xD122 after COLDST|
-|  0x0008  |   58 B |  Z80 RST vectors / unused (Z80 0x08..0x40)       |
-|  0x0040  |  192 B |  more low-RAM scratch (CP/M reserved 0x040..0x0FF|
-|          |        |    contains FCB2 @ 0x6c, command tail @ 0x80,    |
-|          |        |    default DMA buffer @ 0x80..0xFF)              |
-+----------+--------+--------------------------------------------------+
-|  0x0100  | 51.7K  |  TPA  (52 K reported by STAT-style tools)        |
-|          |        |    upper bound = NDOSE (0xD122 - 0x100 = 0xD022) |
-|          |        |    strict safe top = NDOSRL (0xCC00 - 1 = 0xCBFF)|
-+----------+--------+--------------------------------------------------+
-|  0xCC00  | 0x400  |  NDOSRL  -- NDOS relocatable data segment        |
-|  0xCDEA  |        |    BDOSDS (BDOS data) inside NDOSRL block        |
-|  0xD000  |        |  NDOS    -- NDOS code start (= cpnos.com IMG_BASE|
-|  0xD003  |        |    NDOS+3 = COLDST entry (enter_coldst() target) |
-|  0xD006  |        |    NDOSA  = BDOS dispatch entry analogue         |
-|  0xD122  |        |    NDOSE  = the entry hidden behind ZP[0x0006]   |
-|  0xD996  |        |    BDOS                                          |
-|  0xDC80  |        |  cpnos.com end (file is 3200 B from 0xD000)      |
-+----------+--------+--------------------------------------------------+
-|  0xDC80  | 3.4 K  |  ** GAP ** (3456 B unused -- biggest single hole)|
-+----------+--------+--------------------------------------------------+
-|  0xEA00  |  24 B  |  NIOS  (SNIOS jump table -- DRI ABI fixed addr)  |
-|          |        |    nos_handoff() memcpy 24 B from snios_jt(0xED33)|
-|  0xEA18  |   8 B  |  gap                                             |
-+----------+--------+--------------------------------------------------+
-|  0xEA20  |  416 B |  .scratch_bss (zero-init, runtime-populated)     |
-|  0xEA20  |        |    _pio_par_byte, _pio_par_count                 |
-|  0xEA22  |        |    static frames for cpnos_cold_entry            |
-|  0xEA24  |        |    _kbd_head, _kbd_tail                          |
-|  0xEA26  |        |    _curx, _cury, _xflg, _xy_first                |
-|  0xEA2A  |  16 B  |    _kbd_ring                                     |
-|  0xEA3A  |        |    _cur_dirty                                    |
-|  0xEA3B  |        |    static frames for resident.c CRT helpers      |
-|  0xEA44  | 173 B  |    _cfgtbl  (DRI CFGTBL: NETST, SLAVEID, drives  |
-|          |        |               16x2 B, console, list, FMT, DID,   |
-|          |        |               SID, FNC, SIZ, MSG[1+128] = MSGBUF)|
-|  0xEAF1  |        |    _pio_b_dir                                    |
-|  0xEAF2  |        |    _pio_rx_tail, _pio_rx_head                    |
-|  0xEAF4  |        |    static frame for transport_pio_recv_byte      |
-|  0xEAF6  | 200 B  |    _msg  (cpnet message scratch buffer)          |
-|  0xEBBE  |        |    static frame for netboot_mpm                  |
-|  0xEBC0  |  64 B  |  scratch tail (unused, room to grow)             |
-+----------+--------+--------------------------------------------------+
-|  0xEC00  |  36 B  |  IVT (Z80 IM2 vector page; 18 vectors x 2 B)     |
-|  0xEC24  | 220 B  |  ** GAP ** (free RAM below resident BIOS)        |
-+----------+--------+--------------------------------------------------+
-|  0xED00  |  ~2.4K |  RAM-RESIDENT PAYLOAD (relocator copy target)    |
-|  0xED00  |  51 B  |    bios_jt   (17 entries x 3 B JP, BIOS ABI)     |
-|  0xED33  |  24 B  |    snios_jt (SNIOS ABI, copied to 0xEA00 at boot)|
-|  0xED4B  |        |    snios_sndmsg_c, snios_rcvmsg_c, SNDMSG body,  |
-|          |        |    RCVMSG body, ENQ/ACK/SOH/EOT envelope         |
-|  0xEEFE  |        |    init helpers (set_i_reg, enable_im2, EI/DI)   |
-|  0xEF09  |        |    isr_noop, isr_crt, isr_pio_kbd, isr_pio_par   |
-|  0xEFB9  |        |    impl_const, impl_conin, impl_conout, specc,   |
-|          |        |    cursor_*, scroll_up, clear_screen, etc.       |
-|  0xF2E9  |        |    transport_pio_send_byte / _recv_byte (byte    |
-|          |        |    transport, --defsym aliased to _xport_*)      |
-|  0xF33B  |        |    cpnos_cold_entry (init code -- runs once)     |
-|  0xF3B1  |        |    bios_*_shim (sdcccall(1) <-> CP/M ABI shims)  |
-|  0xF3CA  |        |    cfgtbl_init                                   |
-|  0xF3FE  |        |    init_hardware                                 |
-|  0xF46C  |        |    netboot_mpm + cpnet_xact (init code)          |
-|  0xF5A7  |        |    static rodata (banner, ZP_INIT, FCB_HEAD)     |
-|  0xF668  |   2 B  |    payload_checksum (recomputed by relocator)    |
-|  0xF66A  | 150 B  |    gap before pio_rx_buf                         |
-+----------+--------+--------------------------------------------------+
-|  0xF700  | 256 B  |  pio_rx_buf  (page-aligned PIO-B IRQ ring)       |
-+----------+--------+--------------------------------------------------+
-|  0xF800  | 2000 B |  DISPLAY MEMORY (HARDWARE FIXED -- 80 x 25)      |
-|  0xFFCF  |        |    last displayed cell (row 24, col 79)          |
-|  0xFFD0  |  44 B  |  unused tail (DMA word-count is 2000)            |
-|  0xFFFC  |   4 B  |  CRT 32-bit frame counter (incremented by isr_crt|
-|          |        |  every VRTC; wraps at ~993 days; mirrors rcbios's|
-|          |        |  RTC location)                                   |
-+----------+--------+--------------------------------------------------+
-```
+**If the linker script or symbol map disagrees with this doc, the
+sources win.**  ASSERTs in `payload.ld` (16+ of them) catch most
+drift at build time; the rest is cosmetic in this doc.
 
-## ROM image layout
+## Three boot phases
 
-The two physical 2 KB EPROMs hold the bytes that the relocator
-reconstructs at `0xED00`.  Until `OUT (0x18)` runs, **both** PROMs
-are mapped at `0x0000..0x07FF` and `0x2000..0x27FF` respectively;
-after PROM-disable, the underlying RAM is exposed.
+1. **Boot from PROM (~0x0000 / 0x2000)** — autoload-in-c (PROM0) checks the
+   PROM1 signature, jumps to `bootstrap_entry` at 0x2008.
+2. **PROM1 lineprog bootstrap** — `bootstrap.s` disables interrupts, sets
+   SP, calls `dzx0_standard` twice (init.zx0 → 0xC000, payload.zx0 →
+   0xEE00), then jumps to `_cpnos_cold_entry` at 0xC000.
+3. **Init in PROM1 INIT region (0xC000)** — runs `cpnos_cold_entry()`
+   (locale pre-fill + sentinel stamp), then standard cold init
+   (`init_hardware`, `cfgtbl_init`, `print_banner`, `netboot_mpm` setup),
+   disables PROMs via `OUT (0x18)`, hands off to the resident at 0xEE00.
+
+**This doc captures the state at the end of phase 3.**
+
+## PROM1 image layout (the physical 2 KB EPROM)
+
+Static contents of the burned PROM1, loaded by MAME into `prom1.ic65`
+and on real hardware into the IC65 2716 socket.  All addresses are the
+runtime CPU view (PROM1 maps at 0x2000..0x27FF until `OUT (0x18)`
+disables both PROMs in phase 3).
+
+Sizes from the most recent clang build (2026-06-03; will shift ±2 B
+per commit due to buildinfo banner in `payload.bin` — see commit
+`72e38a6` for the ZX0-sensitivity analysis).
 
 ```
-+----------+--------+----------------------------------------------+
-| LMA      | size   | content                                       |
-+----------+--------+----------------------------------------------+
-|  0x0000  | 0x88   | relocator entry (`reset.s` -> `relocator.c`) |
-|  0x0088  |        | -- gap padded 0xFF up to 0x80 --              |
-|  0x00C0  | 1856 B | payload_a (first chunk of .payload)          |
-|  0x07FF  |        | end of PROM 0 (2 KB)                          |
-|  0x2000  |  554 B | payload_b (rest of .payload)                  |
-|  0x2226  |        | -- 0xFF padding to 0x27FF --                  |
-|  0x27FF  |        | end of PROM 1 (2 KB)                          |
-+----------+--------+----------------------------------------------+
+0x2000 ┌────────────────────────────────────────────────┐
+       │ .lineprog_header   (8 B)                        │  layout:
+       │   0x2000  DW bootstrap_entry  (= 0x2008)        │  - jump-target word
+       │   0x2002  " RC702"            (6 B signature)   │  - signature autoload
+       │                                                 │    checks at 0x2002
+0x2008 ├────────────────────────────────────────────────┤
+       │ .lineprog_entry  (25 B)                         │  bootstrap_entry:
+       │   bootstrap_entry:                              │    DI; LD SP, ...;
+       │     - DI, set SP                                │    LD HL,.init_zx0
+       │     - call dzx0_standard(.init_zx0  → 0xC000)   │    LD DE,0xC000
+       │     - call dzx0_standard(.payload_zx0→0xEE00)   │    CALL dzx0_standard;
+       │     - jp _cpnos_cold_entry  (= 0xC000)          │    (and again for
+       │                                                 │     payload); JP 0xC000
+0x2021 ├────────────────────────────────────────────────┤
+       │ .zx0_decoder  (69 B)                            │  dzx0_standard
+       │   Einar Saukas's tiny ZX0 decoder               │  by Einar Saukas
+       │   Entry: HL=src, DE=dst → expands inline        │  (Standard variant;
+       │                                                 │   dzx0s_literals,
+       │                                                 │   dzx0s_copy,
+       │                                                 │   dzx0s_new_offset,
+       │                                                 │   dzx0s_elias_*)
+0x2066 ├────────────────────────────────────────────────┤
+       │ .init_zx0  (527 B compressed)                   │  __init_zx0_start
+       │   ZX0-compressed init.bin (605 B uncompressed)  │  → __init_zx0_end =
+       │   Decoder target: 0xC000  (RAM PROM1 INIT)      │    0x2275
+       │   Contents: cpnos_cold_entry, init_hardware,    │
+       │             cfgtbl_init, print_banner,          │
+       │             netboot_mpm setup, ZP init, jumps   │
+0x2275 ├────────────────────────────────────────────────┤
+       │ .payload_zx0  (1400 B compressed)               │  __payload_zx0_start
+       │   ZX0-compressed payload.bin (2016 B uncompr.)  │  → __payload_zx0_end =
+       │   Decoder target: 0xEE00  (RAM resident)        │    0x27ED
+       │   Contents: BIOS jump table @ +0x00,            │
+       │             SNIOS jump table @ +0x33,           │
+       │             ISRs, BIOS/SNIOS code, rodata,      │
+       │             data, .payload_checksum (last 2 B)  │
+0x27ED ├────────────────────────────────────────────────┤
+       │ (unused, 0xFF padding to 2 KB)  ~19 B           │  __prom1_used = 0x27ED
+0x27FF └────────────────────────────────────────────────┘  PROM1 total = 2048 B
+                                                            (ASSERT __prom1_used
+                                                             <= 0x2800)
 ```
 
-Combined: 0x80 reloc + 0x96A payload = 2538 B used out of 4096 B
-(default build with `MIRROR_SIOB=1`).  Headroom: 1558 B unused.
+**Total used: 2029 / 2048 B (19 B free; hard cap 2048 B = 2716 EPROM).**
 
-## Where the gaps are (TPA-grow targets, lowest first)
+Authoritative source: `cpnos-in-c/clang-prom1lineprog/prom1.ld`.
 
-| Gap                | Size   | Notes                                   |
-|--------------------|--------|-----------------------------------------|
-| 0xDC80..0xE9FF     | 3.4 KB | between cpnos.com end and NIOS at 0xEA00 |
-| 0xEC24..0xECFF     | 220 B  | between IVT and resident BIOS at 0xED00 |
-| 0xF66A..0xF6FF     | 150 B  | between resident BIOS end and PIO ring  |
-| 0xEBC0..0xEBFF     |  64 B  | tail of scratch BSS                     |
-| 0xFFD0..0xFFFB     |  44 B  | between display end and frame counter   |
-| 0xEA18..0xEA1F     |   8 B  | between NIOS and scratch BSS            |
+### PROM0 reference (autoload-in-c, not in this doc's scope)
 
-All RAM gaps total: **~3.85 KB**.  PROM gap: **~1.55 KB**.
+PROM0 (IC66, 2716) holds autoload-in-c, which boots, reads SW1 to choose
+between floppy boot and PROM1-lineprog mode, then jumps to PROM1's
+bootstrap when SW1 selects lineprog.  See
+`rc700-gensmedet/autoload-in-c/docs/` for autoload's PROM0 layout.
 
-## Where to look in source
+## RAM map (state: ready to start CP/NET LOGIN)
 
-| File                                | What it places                                |
-|-------------------------------------|-----------------------------------------------|
-| `cpnos-rom/payload.ld`              | resident payload section, scratch BSS, IVT, PIO ring |
-| `cpnos-rom/relocator.ld`            | (similar) relocator linker script              |
-| `cpnos-rom/cpnos_main.c`            | ZP_INIT, snios_jt copy, JP NDOSE seed         |
-| `cpnos-rom/cpnos-build/`            | cpnos.com (DRI RMAC+LINK build of NDOS+CCP+BDOS) |
-| `cpnos-rom/init.c`                  | merged cold-init TU: cfgtbl struct (210 B), msg buffer (aliased over cfgtbl.fmt+0..170), IVT setup, port_init, netboot_mpm |
-| `cpnos-rom/transport_pio.c`         | _pio_rx_buf (256 B page-aligned)              |
-| `cpnos-rom/resident.c`              | _kbd_ring (16 B), _curx/_cury, ISR-touched BSS |
-| `cpnos-rom/hal.h`                   | DISPLAY_ADDR (0xF800), 8275/DMA port consts   |
+**Post-TPA-grow layout** (2026-06-04).  Slave-resident bottom edge shifted
+up $100; CFGTBL packed into IVT-page tail to make room.  Net for user
+programs: +256 B TPA (BDOS dispatch 0xE716 → 0xE816).
 
-## Things worth knowing
+```
+0x0000 ┌────────────────────────────────────────────────┐
+       │ Zero page                                       │  set by zp_init at cold boot
+       │   0x0000  JP WBOOT                              │
+       │   0x0005  JP BDOS  ← placeholder until NDOS loads
+       │   0x0008..0x00FF  unused                        │
+0x0100 ├────────────────────────────────────────────────┤
+       │ TPA — FREE  (+256 B vs pre-TPA-grow)            │  cpnos.com lands here
+       │  ~58.25 KB of empty RAM                         │  after server-load
+       │                                                 │  completes (see "Post-
+       │  (0xC000..0xC27F briefly held the PROM1 INIT    │   server-load delta"
+       │   region used by phase 3; reclaimed as TPA      │   below)
+       │   once init returns)                            │
+0xEB00 ├────────────────────────────────────────────────┤
+       │ IVT  (18 IM2 vectors × 2 B = 36 B in use)       │  I = 0xEB
+0xEB24 ├────────────────────────────────────────────────┤
+       │ CFGTBL  (210 B; packed into IVT-page tail to    │  CP/M CFGTBL drive entries:
+       │  free upper-region space for the move-up)       │  NET_DRV(...) for H:,
+       │                                                 │  0x0000 for unmounted slots
+0xEBF6 ├────────────────────────────────────────────────┤
+       │ IVT-page slack  (10 B)                          │
+0xEC00 ├────────────────────────────────────────────────┤
+       │ SCRATCH BSS  (256 B)                            │  cpnos-internal scratch
+0xED00 ├────────────────────────────────────────────────┤
+       │ PIO_RX ring buffer  (256 B, page-aligned)       │  SPSC ring for IRQ-driven
+       │                                                 │  PIO-B byte input.
+       │                                                 │  Page-aligned so isr_pio_par
+       │                                                 │  forms ring[head] as
+       │                                                 │  `ld h,_pio_rx_buf_page; ld l,head`
+       │                                                 │  (4 B / 18 T) instead of
+       │                                                 │  full base+index (8 B / 39 T).
+       │                                                 │  isr_pio_par is THROUGHPUT-
+       │                                                 │  CRITICAL — its ~51 µs round-
+       │                                                 │  trip caps CP/NET RX at
+       │                                                 │  ~19.6 kbyte/s.  See speed-
+       │                                                 │  budget section at top of
+       │                                                 │  src/transport_pio.c.
+0xEE00 ├────────────────────────────────────────────────┤
+       │ .payload — resident BIOS + SNIOS  (~2016 B)     │
+       │   0xEE00  _bios_boot      (BIOS jump table)     │  17 CP/M BIOS entries
+       │   0xEE0C  _bios_conout                          │  (+12 from _bios_boot)
+       │   0xEE30  _bios_sectran                         │  (+48 from _bios_boot)
+       │   0xEE33  _snios_jt       (SNIOS jump table)    │  NDOS jumps via NIOS = 0xEE33
+       │   ...     ISRs, code, rodata, data              │
+       │  ~0xF5DE  __payload_checksum  (word-additive    │  patched to == 0xCAFE so
+       │                                = 0xCAFE)        │  bootstrap can verify after
+       │  ~0xF5DF  __payload_end                          │  ZX0 decode + BSS clear
+0xF5E0 ├────────────────────────────────────────────────┤
+       │ payload-growth budget  (~46 B)                  │  ceiling at 0xF60E
+0xF60E ├────────────────────────────────────────────────┤
+       │ Stack workspace  (~114 B, SP grows down from    │  __stack_top = 0xF680
+       │  0xF680; __stack_low = 0xF60E → max ~114 B)     │  __stack_low = 0xF60E
+0xF680 ├────────────────────────────────────────────────┤
+       │ Locale tables  (384 B)                          │  outcon[128] + inconv[256]
+       │   outcon[128]   US-ASCII output translation     │  pre-filled by
+       │   inconv[256]   Danish keyboard input mapping   │  cpnos_cold_entry; locale
+       │                                                 │  prefix loaded into here
+       │                                                 │  from cpnos.img on first
+       │                                                 │  server read
+0xF800 ├────────────────────────────────────────────────┤
+       │ Display memory  (2000 chars = 80 × 25)          │  driven by i8275 CRTC via
+       │                                                 │  Am9517A DMA channel 2
+0xFFCF ├────────────────────────────────────────────────┤
+       │ i8275 row table + control area  (48 B)          │
+0xFFFF └────────────────────────────────────────────────┘
+```
 
-- **Symbols in cpnos.sym are partially absolute**: `NDOSRL`, `NDOS`,
-  `BDOSDS`, `NIOS` are all linked to fixed addresses by the DRI
-  RMAC/LINK build, NOT by our payload.ld.  Moving any of them
-  requires rebuilding cpnos-build (and updating init.c's
-  `IMG_BASE`, cpnos_main.c's `NDOS_SNIOS_ADDR`, and the JP target
-  in ZP[0x0006..0x0007]).
+## Link-time ASSERTs (in `payload.ld`)
 
-- **The biggest single hole (3.4 KB at 0xDC80..0xE9FF)** is from
-  cpnos.com originally being ~6 KB; modern shrinking left a gap.
-  Closing it would let `NDOSRL` move from 0xCC00 up to ~0xD980,
-  growing TPA by ~3.4 KB (51 KB -> 54 KB strict, ~55 KB reported).
+The build fails with a clear message if any of these don't hold:
 
-- **Display memory is the hard ceiling** at 0xF800.  Anything above
-  0xF800 except the 4 B counter at 0xFFFC is video RAM seen by the
-  i8275 on every refresh -- writes there flicker on screen.
+| Symbol / region | ASSERT |
+|---|---|
+| `_bios_boot` | `== 0xEE00` (BIOS JT pinned) |
+| `__init_end` (via `__init_size`) | `≤ 0xC280` (NEVER overlap cpnos.com NDOSRL=0xDA80 — see "init vs cpnos.com" below) |
+| `_bios_conout - _bios_boot` | `== 12` (CONOUT entry offset) |
+| `_bios_sectran - _bios_boot` | `== 48` (SECTRAN entry offset) |
+| `_snios_jt` | `== 0xEE33` (matches `cpnos-build/src/cpnios-shim.asm:NIOS EQU`) |
+| `__cfgtbl_bss_end` | `≤ 0xEC00` (CFGTBL fits in IVT-page tail) |
+| `__payload_end` | `≤ 0xF60E` (would clobber stack/locale) |
+| `__payload_end` | `≤ 0xF800` (would clobber display) |
+| `__payload_size` | `≤ 0x1000` (4 KB budget) |
+| `__init_size` | `≤ 0x0280` (640 B INIT region budget) |
+| `__scratch_bss_end` | `≤ 0xED00` (would clobber PIO_RX) |
+| `__pio_rx_bss_start & 0xFF` | `== 0` (page-aligned for SPSC ring) |
+| `.payload_checksum` size | `== 2 B` (word-additive checksum slot) |
+| `__prom1_used` (in `prom1.ld`) | `≤ 0x2800` (PROM1 hard cap 2 KB; hardware-set, see `project_rc702_2kb_prom_hard_limit`) |
 
-- **`_msg[200]` is the largest oversize buffer.** Worst-case CP/NET
-  payload is the READ-SEQ response: 5 hdr + 1 rc + 36 FCB + 128 data
-  + 1 cks = 171 B.  Could shrink to 175.
+## Free regions at this moment
 
-- **`_pio_rx_buf[256]` page-alignment** is what makes the PIO IRQ
-  hot path use `LD H, _pio_rx_buf_page; LD L, head` instead of
-  `LD HL,addr; ADD HL,head` -- shrinking would force back to the
-  add-then-store form.  Trade-off if buffer size matters more than
-  the few bytes saved per ISR call.
+| Region | Size | Notes |
+|---|---:|---|
+| 0x0100..0xEA7F (TPA) | ~58.25 KB | cpnos.com lands here at server-load (+256 B vs pre-TPA-grow) |
+| 0xEBF6..0xEBFF | 10 B | IVT-page slack after CFGTBL |
+| 0xF5E0..0xF60D | ~46 B | `.payload` growth budget before tripping the 0xF60E ASSERT |
+
+## Post-server-load delta
+
+Once CP/NET LOGIN/OPEN/READ has fetched `cpnos.com` (~3200 B) from the
+master and NDOS hands off, the TPA region is occupied by (from
+`cpnos-build/d/cpnos.sym`, build-dependent):
+
+| Symbol | Address | Description |
+|---|---:|---|
+| `NDOSRL` | 0xDA80 | NDOS DATA region base |
+| `BDOSDS` | 0xDC6A | BDOS DATA segment |
+| `NDOS` | 0xDE80 | NDOS CODE base |
+| `BDOS` | 0xE816 | BDOS dispatch (TPA top for user programs) |
+| `NIOS` | 0xEE33 | SNIOS jump table (= `_snios_jt` in resident) |
+
+cpnos.com fits below the IVT at 0xEB00 with **0 B clearance** (tail at
+0xEAFF) per the build's `cpnos.com fits below IVT:` report.  The
+NIOS=0xEE33 pin is what ties the loaded NDOS to the link-time resident
+SNIOS jump table.
+
+**TPA-grow history** (2026-06-04): CODE_BASE/DATA_BASE bumped 0x100
+higher (NDOS 0xDD80→0xDE80, NDOSRL 0xD980→0xDA80; BDOS 0xE716→0xE816 =
+**+256 B user-visible TPA**).  Resident shifted up to match (BIOS
+0xED00→0xEE00); CFGTBL relocated into IVT-page tail to release the
+upper-region space needed for the move.  Trade-off: payload growth
+budget halved from 92 B to 46 B.
+
+## Init region vs cpnos.com payload (invariant)
+
+**`.init` (decompressed at phase 2 to 0xC000) MUST NOT overlap with
+`cpnos.com` (loaded from the master, lowest byte at NDOSRL).**  If
+init grew above NDOSRL, the netboot LDIR that lands cpnos.com bytes
+would overwrite the still-running init code during the same boot — a
+silent corruption class that's hard to root-cause from logs.
+
+Today's geometry (verified by `cpnos_addrs.h` rule):
+
+| Boundary | Address | Constraint |
+|---|---|---|
+| `.init` floor | 0xC000 | `INIT ORIGIN` in `payload.ld` |
+| `.init` ceiling | 0xC280 | `INIT LENGTH = 0x0280` ASSERT in `payload.ld` |
+| (free) | 0xC280..0xDA7F | guaranteed ≥ 6144 B (= 6 KB) |
+| `cpnos.com` NDOSRL | 0xDA80 | `DATA_BASE = DDA80` in `cpnos-build/Makefile` |
+
+Defended at build time: the `$(BUILDDIR)/cpnos_addrs.h` rule extracts
+NDOSRL from `cpnos-build/d/cpnos.sym` and fails the build if it falls
+below the 0xC280 INIT ceiling.  Either reducing `DATA_BASE` (lowers
+NDOSRL) or expanding `INIT LENGTH` (raises init ceiling) in a way that
+violates the inequality fails fast with a clear error pointing at both
+levers.
+
+## How to refresh this doc
+
+Numbers may shift on any change to `payload.ld` / `cpnos-build` / cpnos
+source.  To re-derive:
+
+```
+cd cpnos-in-c
+make prom1-lineprog            # gets you cpnos-build/d/cpnos.sym + .ld
+# RAM regions:
+awk '/^MEMORY/,/^}/' clang-prom1lineprog/payload.ld
+# PROM1 image section addresses:
+../../llvm-z80/build-macos/bin/llvm-nm \
+    clang-prom1lineprog/prom1-lineprog.elf \
+  | grep -E ' (bootstrap_entry|dzx0_standard|__(init|payload)_zx0_(start|end)|__prom1_used)$'
+# cpnos.com (CCP+BDOS+NDOS) addresses (post-server-load):
+grep -E '^[0-9A-F]+ (NDOSRL|NDOS|BDOSDS|BDOS|NIOS|BIOSEND)' \
+    cpnos-build/d/cpnos.sym
+```
+
+## Stale-doc inventory (as of 2026-06-03)
+
+| Path | Status |
+|---|---|
+| `cpnos-shared/docs/MEMORY_MAP.md` | **STALE.** Last touched 2026-05-16; ~20 references to the parked `cpnos-rom/` predecessor and to `payload.ld`/`relocator.ld`/`cpnos_rom.ld` deleted in the two-PROM cleanup.  Now a pointer to this doc. |
+| `cpnos-in-c/docs/memory_map.md` | **THIS DOC.**  Authoritative current snapshot. |
+| `cpnos-in-c/tasks/memory-layout-investigation-2026-05-06.md` | **HISTORICAL** — analysis doc, dated; not a current reference. |

@@ -404,7 +404,7 @@ $(BUILDDIR)/snios.o: snios.s
 # itself, replacing cpnos-build's deleted cpnos.asm entry stub.
 # BDOS's address is link-time-determined inside cpnos.com; extract it
 # from cpnos.sym into a generated header.
-$(BUILDDIR)/cpnos_addrs.h: cpnos-build/d/cpnos.com
+$(BUILDDIR)/cpnos_addrs.h: cpnos-build/d/cpnos.sys
 	@mkdir -p $(BUILDDIR)
 	@perl -ne 'while (/([0-9A-Fa-f]{4})\s+BDOS\b/g) { print "#define CPNOS_BDOS_ADDR 0x$$1\n"; last }' \
 	    cpnos-build/d/cpnos.sym > $@.tmp
@@ -430,22 +430,54 @@ $(BUILDDIR)/cpnos_addrs.h: cpnos-build/d/cpnos.com
 	@grep -q '^#define CPNOS_NDOSRL_ADDR' $@.tmp || \
 	    { echo "ERROR: NDOSRL symbol missing from cpnos.sym"; rm -f $@.tmp; exit 1; }
 	@# IVT-clobber guard: cpnos.com loads at NDOS and the slave's IVT
-	@# starts at 0xEA00 (head of SCRATCH_BSS).  If cpnos.com grows past
-	@# (0xEA00 - NDOS) bytes, its tail clobbers the IVT during netboot's
-	@# LDIR -- silent until an IRQ fires after handoff and jumps to
-	@# garbage.  Adjacent today (3200 B at 0xDE80 ends at 0xEAFF, exactly
-	@# one byte before IVT).  Fail the build before we lose hours to
-	@# random ISR crashes.
-	@N=$$(perl -ne 'while (/([0-9A-Fa-f]{4})\s+NDOS\b/g) { print "$$1"; last }' cpnos-build/d/cpnos.sym); \
+	@# starts at IVT_BASE (head of the slave-resident envelope).  If
+	@# cpnos.com grows past (IVT_BASE - NDOS) bytes, its tail clobbers
+	@# the IVT during netboot's LDIR -- silent until an IRQ fires after
+	@# handoff and jumps to garbage.  Adjacent today (3200 B at 0xDE80
+	@# ends at 0xEA9F, with ~95 B clearance below the new IVT=0xEB00).
+	@# Fail the build before we lose hours to random ISR crashes.
+	@#
+	@# IVT_BASE post-TPA-grow 2026-06-04: 0xEB00 (was 0xEA00).  Source
+	@# of truth is the IVT ORIGIN in clang-prom1lineprog/payload.ld; the
+	@# guard mirrors it as a constant here because cpnos.sym is built
+	@# before the lineprog ELF exists.
+	@IVT_BASE=0xEB00; \
+	 N=$$(perl -ne 'while (/([0-9A-Fa-f]{4})\s+NDOS\b/g) { print "$$1"; last }' cpnos-build/d/cpnos.sym); \
 	 NV=$$((0x$$N)); \
-	 SZ=$$(wc -c < cpnos-build/d/cpnos.com); \
-	 MAX=$$(( 0xEA00 - NV )); \
+	 SZ=$$(wc -c < cpnos-build/d/cpnos.sys); \
+	 MAX=$$(( $$IVT_BASE - NV )); \
 	 if [ "$$SZ" -gt "$$MAX" ]; then \
-	     echo "ERROR: cpnos.com is $$SZ B at NDOS=0x$$N -> tail at $$(printf '0x%04X' $$((NV + SZ - 1)))" \
-	          " would clobber IVT at 0xEA00 (max $$MAX B)"; \
+	     echo "ERROR: cpnos.sys is $$SZ B at NDOS=0x$$N -> tail at $$(printf '0x%04X' $$((NV + SZ - 1)))" \
+	          " would clobber IVT at $$(printf '0x%04X' $$IVT_BASE) (max $$MAX B)"; \
 	     rm -f $@.tmp; exit 1; \
 	 fi; \
-	 echo "cpnos.com fits below IVT: $$SZ B at 0x$$N (tail $$(printf '0x%04X' $$((NV + SZ - 1))), $$(($$MAX - SZ)) B clearance)"
+	 echo "cpnos.sys fits below IVT ($$(printf '0x%04X' $$IVT_BASE)): $$SZ B at 0x$$N (tail $$(printf '0x%04X' $$((NV + SZ - 1))), $$(($$MAX - SZ)) B clearance)"
+	@# INIT-vs-cpnos.com overlap guard (user-flagged invariant 2026-06-04):
+	@# .init runs in place at 0xC000..0xC000+__init_size and is reclaimed
+	@# as TPA after handoff.  cpnos.com's lowest byte is NDOSRL.  If the
+	@# init region ever grew above NDOSRL the server LDIR would land
+	@# bytes into the still-running init code -- silent corruption.
+	@# Today: init is 605 B (max 640 B per payload.ld INIT LENGTH), cpnos
+	@# NDOSRL is 0xDA80, so guaranteed gap is at least 6144 B = 6 KB.  Lock
+	@# the invariant against silent drift: an edit to INIT LENGTH in
+	@# payload.ld or to DATA_BASE in cpnos-build/Makefile that breaks the
+	@# inequality fails the build here.
+	@#
+	@# Source of truth for the init ceiling is the INIT LENGTH in
+	@# payload.ld (0x0280 = 0xC000..0xC27F).  Mirrored as a constant here
+	@# because the lineprog ELF that holds __init_end isn't built yet at
+	@# cpnos_addrs.h generation time; the linker still ASSERTs init <=
+	@# 0x0280 independently as backup.
+	@INIT_CEIL=$$((0xC280)); \
+	 NDOSRL=$$(perl -ne 'while (/([0-9A-Fa-f]{4})\s+NDOSRL\b/g) { print "$$1"; last }' cpnos-build/d/cpnos.sym); \
+	 NV=$$((0x$$NDOSRL)); \
+	 if [ "$$NV" -lt "$$INIT_CEIL" ]; then \
+	     echo "ERROR: cpnos.sys NDOSRL=0x$$NDOSRL is below INIT ceiling $$(printf '0x%04X' $$INIT_CEIL)"; \
+	     echo "       — cpnos.sys payload load would corrupt init region."; \
+	     echo "       Bump cpnos-build/Makefile DATA_BASE up, or shrink payload.ld INIT LENGTH."; \
+	     rm -f $@.tmp; exit 1; \
+	 fi; \
+	 echo "init region (max $$(printf '0x%04X' $$INIT_CEIL)) clear of cpnos.sys NDOSRL (0x$$NDOSRL): $$((NV - INIT_CEIL)) B gap"
 	@mv $@.tmp $@
 	@echo "cpnos_addrs.h: $$(grep -E 'BDOS_ADDR|NDOS_ADDR|NDOSE_ADDR|TPA_KB' $@ | tr '\n' ' ')"
 
@@ -563,13 +595,13 @@ cpnos-disasm: prom1-lineprog
 # cpnetsmk-1.dsk if present, so updating only mpm-net2-1.dsk silently
 # fails to take effect — both must be refreshed.
 MPM_DISK_LIB = ../z80pack/cpmsim/disks/library
-cpnos-disk-install: cpnos-build/d/cpnos.com
-	@echo "=== stamping cpnos.com + prepending 384 B locale prefix ==="
-	@python3 cpnos-build/stamp_cpnos.py cpnos-build/d/cpnos.com $(BUILDDIR)/cpnos_stamped.com \
+cpnos-disk-install: cpnos-build/d/cpnos.sys
+	@echo "=== stamping cpnos.sys + prepending 384 B locale prefix ==="
+	@python3 cpnos-build/stamp_cpnos.py cpnos-build/d/cpnos.sys $(BUILDDIR)/cpnos_stamped.sys \
 	    --locale $(CPNOS_LOCALE_TAG)
 	@python3 cpnos-build/gen_locale_prefix.py $(BUILDDIR)/locale_prefix.bin
-	@cat $(BUILDDIR)/locale_prefix.bin $(BUILDDIR)/cpnos_stamped.com > $(BUILDDIR)/cpnos_with_locale.img
-	@echo "  cpnos.img = 384 B prefix + $$(wc -c < $(BUILDDIR)/cpnos_stamped.com) B stamped cpnos.com = $$(wc -c < $(BUILDDIR)/cpnos_with_locale.img) B"
+	@cat $(BUILDDIR)/locale_prefix.bin $(BUILDDIR)/cpnos_stamped.sys > $(BUILDDIR)/cpnos_with_locale.img
+	@echo "  cpnos.img = 384 B prefix + $$(wc -c < $(BUILDDIR)/cpnos_stamped.sys) B stamped cpnos.sys = $$(wc -c < $(BUILDDIR)/cpnos_with_locale.img) B"
 	@cpmrm -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk 0:cpnos.img 2>/dev/null || true
 	cpmcp -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk \
 	    $(BUILDDIR)/cpnos_with_locale.img 0:cpnos.img
@@ -588,13 +620,13 @@ cpnos-disk-install: cpnos-build/d/cpnos.com
 # through the tables.  Two-PROM slaves cannot consume this image
 # (their pio_rx_buf is at 0xF700; LDIR would corrupt the IRQ ring)
 # -- they must use plain `cpnos-disk-install` instead.
-cpnos-disk-install-with-locale: cpnos-build/d/cpnos.com
-	@echo "=== stamping cpnos.com + prepending 384 B locale prefix ==="
-	@python3 cpnos-build/stamp_cpnos.py cpnos-build/d/cpnos.com $(BUILDDIR)/cpnos_stamped.com \
+cpnos-disk-install-with-locale: cpnos-build/d/cpnos.sys
+	@echo "=== stamping cpnos.sys + prepending 384 B locale prefix ==="
+	@python3 cpnos-build/stamp_cpnos.py cpnos-build/d/cpnos.sys $(BUILDDIR)/cpnos_stamped.sys \
 	    --locale $(CPNOS_LOCALE_TAG)
 	@python3 cpnos-build/gen_locale_prefix.py $(BUILDDIR)/locale_prefix.bin
-	@cat $(BUILDDIR)/locale_prefix.bin $(BUILDDIR)/cpnos_stamped.com > $(BUILDDIR)/cpnos_with_locale.img
-	@echo "  cpnos.img = 384 B prefix + $$(wc -c < $(BUILDDIR)/cpnos_stamped.com) B stamped cpnos.com = $$(wc -c < $(BUILDDIR)/cpnos_with_locale.img) B"
+	@cat $(BUILDDIR)/locale_prefix.bin $(BUILDDIR)/cpnos_stamped.sys > $(BUILDDIR)/cpnos_with_locale.img
+	@echo "  cpnos.img = 384 B prefix + $$(wc -c < $(BUILDDIR)/cpnos_stamped.sys) B stamped cpnos.sys = $$(wc -c < $(BUILDDIR)/cpnos_with_locale.img) B"
 	@cpmrm -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk 0:cpnos.img 2>/dev/null || true
 	cpmcp -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk \
 	    $(BUILDDIR)/cpnos_with_locale.img 0:cpnos.img
@@ -609,7 +641,7 @@ cpnos-disk-install-with-locale: cpnos-build/d/cpnos.com
 
 # Force cpnos.com to rebuild whenever any of its sources change.
 .PHONY: cpnos-disk-install
-cpnos-build/d/cpnos.com: $(wildcard cpnos-build/src/*.asm cpnos-build/src/*.s) cpnos-build/Makefile
+cpnos-build/d/cpnos.sys: $(wildcard cpnos-build/src/*.asm cpnos-build/src/*.s) cpnos-build/Makefile
 	$(MAKE) -C cpnos-build all
 
 # Install prom0.bin into MAME (4KB slot, pad with 0xFF).  PROM1 at

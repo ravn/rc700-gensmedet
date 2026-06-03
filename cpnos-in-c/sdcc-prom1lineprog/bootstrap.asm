@@ -9,7 +9,7 @@
 ;
 ; Boot flow:
 ;   1. DI + set SP (per linker symbol __stack_top).
-;   2. ZX0-decompress resident payload to RAM 0xED00.
+;   2. ZX0-decompress resident payload to RAM 0xEE00.
 ;   3. ZX0-decompress init code to RAM 0xC000.
 ;   4. JP 0xC000 -> cpnos_cold_entry; that function pre-fills outcon
 ;      + arms _prom1_only_sentinel at the C side (shared with two-
@@ -39,10 +39,10 @@ bootstrap_entry:
     di
     ld   sp, 0xF680             ; matches clang-prom1lineprog stack top
 
-    ; Decompress resident payload to 0xED00.  Must happen first
+    ; Decompress resident payload to 0xEE00.  Must happen first
     ; because init code (decompressed next) calls resident helpers.
     ld   hl, __payload_zx0_start
-    ld   de, 0xED00
+    ld   de, 0xEE00
     call _dzx0_standard
 
     ; Decompress init at 0xC000.  cpnos_cold_entry is the first

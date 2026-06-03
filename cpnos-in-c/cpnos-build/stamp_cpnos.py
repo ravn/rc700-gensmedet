@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Stamp a 32-byte build line + locale tag into the trailing 0x1A
-padding of cpnos.com.  Output is byte-identical to input except the
-last 32 bytes, which the cpnos-rom netboot prints after the READ-SEQ
-loop so operators see exactly which build of the cpnos monolith
-landed AND which locale tables travel with it.
+padding of cpnos.sys (the cpnos OS image; renamed from cpnos.com
+2026-06-04 — see cpnos-build/Makefile rule for d/cpnos.sys).  Output
+is byte-identical to input except the last 32 bytes, which the
+cpnos-rom netboot prints after the READ-SEQ loop so operators see
+exactly which build of the cpnos monolith landed AND which locale
+tables travel with it.
 
 Usage:
-    stamp_cpnos.py <input.com> <output.com> [<stamp>] [--locale TAG]
+    stamp_cpnos.py <input.sys> <output.sys> [<stamp>] [--locale TAG]
 
 If <stamp> is omitted, build it as 'YYYY-MM-DD HH:MM <git-hash>' from
 the current LOCAL time and the working tree's git HEAD.  Local time

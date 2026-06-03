@@ -6,11 +6,11 @@
 ;
 ; Boot flow:
 ;   1. DI + set SP (same as cpnos-in-asm's slave_entry).
-;   2. ZX0-decompress payload to RAM 0xED00 (resident JT live).
+;   2. ZX0-decompress payload to RAM 0xEE00 (resident JT live).
 ;   3. ZX0-decompress init to RAM 0xC000 (init code live).
 ;   4. Jump to 0xC000 -- cpnos_cold_entry runs hw bring-up, netboot,
 ;      and tail-calls resident_handoff which OUTs RAMEN and lands
-;      execution in NDOS at 0xDD80.
+;      execution in NDOS at 0xDE80 (post-TPA-grow 2026-06-04).
 
 	.section .lineprog_header,"a",@progbits
 	; 0x2000: jump target read by autoload-in-c (.word = 2 B little-endian)
@@ -25,11 +25,11 @@ bootstrap_entry:
 	di
 	ld	sp, 0xF680		; PROM1-only-v3 stack top (was 0xF700;
 					; layout moved it to free locale region)
-	; Decompress payload first -- resident at 0xED00 must be live
+	; Decompress payload first -- resident at 0xEE00 must be live
 	; before init runs, because init.c calls into resident-side
 	; helpers (impl_conout, snios_*, isr_*, set_i_reg, etc.).
 	ld	hl, __payload_zx0_start
-	ld	de, 0xED00
+	ld	de, 0xEE00
 	call	dzx0_standard
 	; Decompress init at 0xC000.  cpnos_cold_entry is the first
 	; symbol in .init (objdump confirms _cpnos_cold_entry sits at
@@ -43,5 +43,6 @@ bootstrap_entry:
 	; the PROM1-only (this bootstrap) and two-PROM (relocator.c)
 	; cold paths, and on both compilers (clang + SDCC).
 	; Tail-call into init.  cpnos_cold_entry is NORETURN; it ends
-	; with resident_handoff which RAMENs and JPs to NDOS at 0xDD80.
+	; with resident_handoff which RAMENs and JPs to NDOS at 0xDE80
+	; (post-TPA-grow 2026-06-04; was 0xDD80).
 	jp	0xC000
