@@ -235,7 +235,10 @@ static void define_sextants(void)
              * software sources we have (this routine, ultimately from
              * PHE358A.MAC's LDGEN, and the Comal80 example in
              * docs/RC702tech.txt) do so; no evidence the chip
-             * auto-increments. */
+             * auto-increments.
+             * TODO(physical-machine): verify on real SEM702 hardware
+             * whether ALINE auto-increments after AWR; MAME's strict-latch
+             * model can't distinguish the two behaviours. */
             port_out(chargen_dot, (byte)((line + 1) & 0x0F));
         }
     }
