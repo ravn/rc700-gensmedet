@@ -4,11 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This repository contains Z80 assembly source code for the RC702 computer system, focusing on:
-- **SYSGEN.COM** - Modified CP/M SYSGEN utility for RC702 multi-density 8" floppy support
-- **ROA375** - RC702 autoload PROM (boot ROM) source reconstruction
-
-The goal is to recreate byte-exact source code for these RC702-specific components that were missing from Michael Ringgård's RC702 emulator project (http://www.jbox.dk/rc702/).
+RC702 computer system sources. Originally byte-exact reconstruction of components missing from Michael Ringgård's RC702 emulator project (http://www.jbox.dk/rc702/) — SYSGEN.COM and the ROA375 autoload PROM — since grown into the production firmware workspace: **rcbios, autoload-in-c, CP/NET, cpnos-in-c** (the four components being brought to a finished state; strategy, sizes, and session history live in the workspace-root `CLAUDE.md`).
 
 **See `RC702_HARDWARE_TECHNICAL_REFERENCE.md` for comprehensive hardware documentation including I/O ports, memory maps, disk formats, and controller specifications.**
 
@@ -29,7 +25,7 @@ Contains the RC702 autoload PROM:
 - `rob358.mac` - RC703 version source (reference/inspiration)
 
 ### autoload-in-c/
-C rewrite of the ROA375 autoload PROM using z88dk with sdcc backend:
+C rewrite of the ROA375 autoload PROM, dual-compile: clang (llvm-z80, production PROM) and z88dk/sdcc (4 KB MAME-only):
 - `rom.h` - Single header (types, constants, port I/O macros, declarations)
 - `rom.c` - CODE-section C source (HAL, init, FDC, format, boot, ISR)
 - `boot_rom.c` - BOOT section (entry point, timestamp, init_fdc, clear_screen, NMI handler)
@@ -97,7 +93,7 @@ The tool maps `.cim` bytes sequentially onto Track 0 sectors (sorted by sector n
 
 ### zmac/
 Z80 macro assembler toolchain:
-- `bin/zmac` - Compiled assembler binary for macOS
+- `bin/zmac` - Compiled assembler binary (built per-host; `make` in zmac/ if missing)
 - Built from http://48k.ca/zmac.zip
 
 ## Building/Assembling
@@ -190,7 +186,7 @@ This multi-density format required extensive SYSGEN modifications:
 - **FDC**: NEC µPD765 (or Intel 8272) floppy disk controller
 - **DMA**: AMD Am9517A-4 (or Intel 8237-2) for disk transfers
 - **CRT**: Intel 8275 programmable CRT controller
-- **Display**: 80×24 characters at memory address 0x7800
+- **Display**: 80×24 characters; base address is set per-PROM via DMA ch2 (roa375 0x7800, autoload-in-c 0x7A00) — read it from the DMA registers, never hardcode (memory rule `feedback_display_addr_from_dma`)
 
 ### Boot Process
 The autoload PROM (ROA375) bootstraps the system:
