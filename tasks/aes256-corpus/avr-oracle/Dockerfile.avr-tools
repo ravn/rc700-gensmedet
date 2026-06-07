@@ -1,0 +1,15 @@
+FROM ubuntu:24.04 AS builder
+RUN apt-get update -qq && apt-get install -y -qq \
+  git build-essential libelf-dev pkg-config && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth=1 https://github.com/buserror/simavr.git /simavr
+RUN make -C /simavr/simavr -j$(nproc) RELEASE=1
+RUN mkdir -p /install/usr/bin /install/usr/lib && \
+    cp /simavr/simavr/run_avr /install/usr/bin/simavr && \
+    cp -P /simavr/simavr/obj-*-linux-*/libsimavr.* /install/usr/lib/ && \
+    cp -r /simavr/simavr/sim/avr /install/usr/include/
+
+FROM ubuntu:24.04
+RUN apt-get update -qq && apt-get install -y -qq \
+  binutils-avr avr-libc gcc-avr libelf1 && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /install/usr /usr
+RUN ldconfig
