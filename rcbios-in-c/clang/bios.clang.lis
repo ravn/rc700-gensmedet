@@ -8,7 +8,7 @@ Disassembly of section .boot:
        8: 20 52 43 37 30 32 20 43          RC702 C
       10: 2d 42 49 4f 53 20 32 30         -BIOS 20
       18: 32 36 2d 30 36 2d 30 38         26-06-08
-      20: 20 31 33 3a 31 34 20 2f          13:14 /
+      20: 20 31 33 3a 35 36 20 2f          13:56 /
       28: 54 68 6f 72 62 6a 6f 65         Thorbjoe
       30: 72 6e 20 52 61 76 6e 20         rn Ravn 
       38: 41 6e 64 65 72 73 65 6e         Andersen
@@ -479,7 +479,7 @@ Disassembly of section .text:
 ; static __inline__ void intrinsic_ei(void) { __builtin_z80_ei(); }
     dad4: fb           	ei
 ;     puts_p("\x0C"                       /* form feed = clear screen */
-    dad5: 21 31 ec     	ld	hl,$ec31
+    dad5: 21 4d ec     	ld	hl,$ec4d
     dad8: cd ed da     	call	$daed
 ;     if (IOBYTE_CON(iobyte) == IOB_UC1)
     dadb: 3a 03 00     	ld	a,($3)                  ; 0x3 <_boot_header+0x3>
@@ -569,7 +569,7 @@ Disassembly of section .text:
     db57: c3 0b ea     	jp	$ea0b
     db5a: f1           	pop	af
 ;             puts_p("\r\nDisk read error - reset\r\n");
-    db5b: 21 65 ec     	ld	hl,$ec65
+    db5b: 21 31 ec     	ld	hl,$ec31
     db5e: cd ed da     	call	$daed
 ; static __inline__ void intrinsic_halt(void) { __builtin_z80_halt(); }
     db61: 76           	halt
@@ -2991,23 +2991,23 @@ Disassembly of section .text:
 ;     fdc_write(fdc_sector);              /* sector */
     e86b: 3a 6f f1     	ld	a,($f16f)               ; 0xf16f <_fdc_sector>
     e86e: cd 71 da     	call	$da71
+    e871: 11 04 00     	ld	de,$4
 ;     fdc_write(fdfp[1]);            /* N (sector size code) */
-    e871: e1           	pop	hl
-    e872: e5           	push	hl
-    e873: 11 04 00     	ld	de,$4
+    e874: e1           	pop	hl
+    e875: e5           	push	hl
     e876: 19           	add	hl,de
     e877: 7e           	ld	a,(hl)
     e878: cd 71 da     	call	$da71
+    e87b: 11 05 00     	ld	de,$5
 ;     fdc_write(fdfp[2]);            /* EOT (final sector) */
-    e87b: e1           	pop	hl
-    e87c: e5           	push	hl
-    e87d: 11 05 00     	ld	de,$5
+    e87e: e1           	pop	hl
+    e87f: e5           	push	hl
     e880: 19           	add	hl,de
     e881: 7e           	ld	a,(hl)
     e882: cd 71 da     	call	$da71
+    e885: 11 06 00     	ld	de,$6
 ;     fdc_write(fdfp[3]);            /* gap length */
-    e885: e1           	pop	hl
-    e886: 11 06 00     	ld	de,$6
+    e888: e1           	pop	hl
     e889: 19           	add	hl,de
     e88a: 7e           	ld	a,(hl)
     e88b: cd 71 da     	call	$da71
