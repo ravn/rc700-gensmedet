@@ -21,6 +21,14 @@
  * Workload class: array permutations, swap-heavy, integer arithmetic
  * + nested-loop bookkeeping.  Different shape from sieve (which is
  * memory-bound) and AES (register-bound XOR chains).
+ *
+ * XFAIL under zsdcc (sweep.sh EXPECTED_FAIL set, 2026-06-08): zsdcc
+ * computes checksum=40 instead of the mathematically-correct 228;
+ * maxFlipsCount is right under both compilers.  Suspected: signed-int
+ * overflow UB in checksum accumulation, or zsdcc codegen bug in the
+ * `(p%2==0) ? f : -f` pattern.  Investigation deferred -- see
+ * tasks/zsdcc-bench-divergence-2026-06-08.md for the full writeup,
+ * hypotheses, and reduction strategy.
  */
 
 #define N      7

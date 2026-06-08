@@ -25,6 +25,12 @@
  *   - Split init into pi_init() with noinline -- workaround for
  *     ravn/llvm-z80#182 (SCEV crash when two loops over the same
  *     array are visible to the optimizer in one function).
+ *
+ * XFAIL under zsdcc (sweep.sh EXPECTED_FAIL set, 2026-06-08): zsdcc
+ * returns 0 instead of the computed checksum.  Suspected: --sdcccall 1
+ * + sdcc_iy + uint32_t interaction, similar to known z88dk#5/#6.
+ * Investigation deferred -- see tasks/zsdcc-bench-divergence-2026-06-08.md
+ * for the full writeup, hypotheses, and reduction strategy.
  */
 
 typedef unsigned char  uint8_t;

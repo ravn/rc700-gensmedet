@@ -24,6 +24,10 @@ _start:
     jr .bss_clear_loop
 .bss_done:
     call _main
+    ; Safety net: test_main.c traps to ticks inside main() before
+    ; returning.  If for any reason main() returns here, hit the
+    ; same ED FE trap so ticks still exits cleanly (with whatever
+    ; A holds -- harness will see a non-zero exit code).
 _done:
-    halt
-    jp _done
+    xor a               ; A = CMD_EXIT (0)
+    .byte 0xED, 0xFE    ; ticks syscall trap -> cmd_exit -> exit(L)

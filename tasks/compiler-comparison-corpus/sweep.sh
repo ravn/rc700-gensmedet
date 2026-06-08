@@ -29,11 +29,29 @@ TICKS=$Z88DK/bin/z88dk-ticks
 ZCC_ENV="ZCCCFG=$Z88DK/lib/config PATH=$Z88DK/bin:$PATH"
 ZCC="$Z88DK/bin/zcc"
 
-# llvm-z80 production flags (matches aes256-corpus 09_Oz_prod_like)
+# llvm-z80 production flags (matches aes256-corpus 09_Oz_prod_like).
+# NOTE the in-tree disablePass(LICM/CSE) is already in effect via the
+# Z80 backend — passing `-mllvm -disable-machine-licm/cse` here is
+# belt-and-suspenders.  The investigation toggles (#23) use
+# `-mllvm -z80-enable-licm` / `-mllvm -z80-enable-cse` which override
+# the in-tree disable.  CLANG_EXTRA env var injects extra flags into
+# every cell; used by the per-investigation wrapper scripts.
 LLVM_FLAGS=(-Oz -Xclang -target-feature -Xclang +static-stack
-            -mllvm -disable-lsr -mllvm -disable-machine-licm
-            -mllvm -disable-machine-cse
+            -mllvm -disable-lsr
             -ffunction-sections -fdata-sections)
+# Historical belt-and-suspenders flag `-mllvm -disable-machine-licm/cse`
+# was here; removed 2026-06-08 because the Z80 backend's in-tree
+# disablePass(LICM/CSE) already covers it (Z80PassConfig), and the
+# explicit flag would defeat the `-mllvm -z80-enable-licm/-cse`
+# investigation toggle.
+if [ -n "${CLANG_EXTRA:-}" ]; then
+  # split on whitespace into array elements
+  read -r -a CLANG_EXTRA_ARR <<< "$CLANG_EXTRA"
+  LLVM_FLAGS+=("${CLANG_EXTRA_ARR[@]}")
+fi
+# Optional cell-label suffix so cells with different flag sets don't
+# clash on prefix names in sweep/.  Default empty.
+CELL_TAG="${CELL_TAG:-}"
 
 # zsdcc production flags (matches aes256-corpus 01_baseline_prod)
 ZSDCC_FLAGS=(+z80 -compiler=sdcc -clib=sdcc_iy
@@ -43,10 +61,36 @@ ZSDCC_FLAGS=(+z80 -compiler=sdcc -clib=sdcc_iy
              '-Cs--fomit-frame-pointer'
              -create-app)
 
-BENCHES=(sieve fannkuch pi)
+BENCHES=(sieve fannkuch pi word_fill licm_pessimize)
 # Filtered by env-var BENCH if set
 if [ -n "${BENCH:-}" ]; then BENCHES=("$BENCH"); fi
 ONLY="${ONLY:-both}"
+
+# Known-failing (bench, compiler) cells -- pre-existing, documented, deferred
+# upstream investigation.  See tasks/zsdcc-bench-divergence-2026-06-08.md for
+# the per-bench writeup (clang return vs zsdcc return, hypothesis, repro
+# strategy, upstream filing prep).  Convention: FAIL -> XFAIL (silent), PASS
+# on a known-failing cell -> XPASS (loud -- upstream may have landed a fix).
+EXPECTED_FAIL=" fannkuch:zsdcc pi:zsdcc "
+is_expected_fail() {
+  # $1=bench $2=compiler
+  case "$EXPECTED_FAIL" in *" $1:$2 "*) return 0 ;; *) return 1 ;; esac
+}
+classify_verify() {
+  # $1=bench $2=compiler $3=rc (ticks exit code)
+  local b=$1 c=$2 rc=$3
+  if is_expected_fail "$b" "$c"; then
+    case "$rc" in
+      0) printf 'XPASS(unexpected_pass)' ;;
+      *) printf 'XFAIL(exit=%s)' "$rc" ;;
+    esac
+  else
+    case "$rc" in
+      0) printf 'PASS' ;;
+      *) printf 'FAIL(exit=%s)' "$rc" ;;
+    esac
+  fi
+}
 
 TSV="results.tsv"
 printf 'bench\tcompiler\tbin\ttext\ttstates\tverify\n' > "$TSV"
@@ -72,22 +116,22 @@ run_llvm_z80() {
     $LLVM_Z80/lib/z80/z80_rt.a
   $LLVMOBJCOPY -O binary ${prefix}.elf ${prefix}.bin
 
-  local bin text done_addr tstates verify
+  local bin text tstates verify rc out
   bin=$(wc -c < ${prefix}.bin | tr -d ' ')
   text=$($LLVMNM --print-size --size-sort ${prefix}_bench.o 2>/dev/null | \
     python3 -c "import sys; t=sum(int(p[1],16) for p in (l.split() for l in sys.stdin) if len(p)>=4 and p[2] in 'tT'); print(t)")
-  done_addr=$($LLVMNM ${prefix}.elf | awk '$3=="_done"{print "0x" $1; exit}')
-  python3 ../fill_with_jp_done.py ${prefix}.bin ${prefix}.filled.bin "$done_addr"
-  tstates=$(perl -e 'alarm 90; exec @ARGV' \
-    $TICKS -mz80 -end $done_addr -counter 200000000 \
-    -output ${prefix}.ram ${prefix}.filled.bin 2>&1 | tail -1 || true)
-  verify="?"
-  if [ -f ${prefix}.ram ]; then
-    verify=$(python3 -c "d=open('${prefix}.ram','rb').read(); v=d[0xC000:0xC007]; \
-      r=v[0]|(v[1]<<8); e=v[2]|(v[3]<<8); \
-      print('PASS' if (v[4]==1 and v[6]==0xA5) else f'FAIL(r={r} e={e} v4={v[4]} v6={v[6]:02x})')")
-  fi
-  printf '%s\tllvm-z80\t%s\t%s\t%s\t%s\n' "$bench" "$bin" "$text" "${tstates:-?}" "$verify" >> "$TSV"
+  # test_main.c traps to ticks via ED FE after writing the sentinel; ticks
+  # prints "Ticks: <N>" to stdout and exits with L (Unix: 0=PASS, 1=FAIL).
+  # No -end / -output needed.  -counter is a safety net.
+  # `|| rc=$?` shields set -e from non-zero (FAIL) exits.
+  rc=0
+  out=$(perl -e 'alarm 90; exec @ARGV' \
+    $TICKS -mz80 -counter 200000000 ${prefix}.bin 2>&1) || rc=$?
+  # awk without exit (don't SIGPIPE the upstream printf under pipefail).
+  tstates=$(printf '%s\n' "$out" | awk '/^Ticks:/{ts=$2} END{print ts}')
+  verify=$(classify_verify "$bench" llvm-z80 "$rc")
+  : "${tstates:=?}"
+  printf '%s\tllvm-z80\t%s\t%s\t%s\t%s\n' "$bench" "$bin" "$text" "$tstates" "$verify" >> "$TSV"
   printf '%-20s llvm-z80    bin=%5s text=%5s ts=%10s %s\n' "$bench" "$bin" "$text" "$tstates" "$verify"
 }
 
@@ -105,26 +149,19 @@ run_zsdcc() {
     return
   fi
 
-  local bin text tstates verify done_addr
+  local bin text tstates verify rc out
   bin=$(wc -c < ${prefix}.bin | tr -d ' ')
-  # text size: not directly comparable since SDCC link is different;
-  # use total bin size + total .lis-derived breakdown later.
+  # text size not extracted for SDCC (different map format); see word_fill
+  # baseline doc for the manual counting approach when needed.
   text="n/a"
-  # _done is the halt label inside our test_main; need addr from sdcc map.
-  # zcc emits a .map file; grep for the symbol.
-  done_addr=$(awk '/_main|main_/{print}' ${prefix}.map 2>/dev/null | head -1 || echo "")
-  # For zsdcc the program runs until HALT in CRT.  ticks counts until -counter limit
-  # OR -end matches.  We use _exit / __EXIT or just rely on counter timeout.
-  tstates=$(perl -e 'alarm 90; exec @ARGV' \
-    $TICKS -mz80 -counter 200000000 \
-    -output ${prefix}.ram ${prefix}.bin 2>&1 | tail -1 || true)
-  verify="?"
-  if [ -f ${prefix}.ram ]; then
-    verify=$(python3 -c "d=open('${prefix}.ram','rb').read(); v=d[0xC000:0xC007]; \
-      r=v[0]|(v[1]<<8); e=v[2]|(v[3]<<8); \
-      print('PASS' if (v[4]==1 and v[6]==0xA5) else f'FAIL(r={r} e={e} v4={v[4]} v6={v[6]:02x})')")
-  fi
-  printf '%s\tzsdcc\t%s\t%s\t%s\t%s\n' "$bench" "$bin" "$text" "${tstates:-?}" "$verify" >> "$TSV"
+  # test_main.c traps to ticks via ED FE; same protocol as clang path.
+  rc=0
+  out=$(perl -e 'alarm 90; exec @ARGV' \
+    $TICKS -mz80 -counter 200000000 ${prefix}.bin 2>&1) || rc=$?
+  tstates=$(printf '%s\n' "$out" | awk '/^Ticks:/{ts=$2} END{print ts}')
+  verify=$(classify_verify "$bench" zsdcc "$rc")
+  : "${tstates:=?}"
+  printf '%s\tzsdcc\t%s\t%s\t%s\t%s\n' "$bench" "$bin" "$text" "$tstates" "$verify" >> "$TSV"
   printf '%-20s zsdcc       bin=%5s ts=%10s %s\n' "$bench" "$bin" "$tstates" "$verify"
 }
 
