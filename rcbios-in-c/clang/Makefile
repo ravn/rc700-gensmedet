@@ -42,6 +42,9 @@ CFLAGS = --target=z80 -Oz -g -nostdlib -ffreestanding -std=c23 \
 	 -Wimplicit-int-conversion \
 	 -DMSIZE=$(MSIZE) \
 	 $(if $(filter B,$(KBDPORT)),-DKBD_PIO_B)
+# Investigation hook (ravn/llvm-z80#23): inject extra clang flags via
+# `make CLANG_EXTRA="-mllvm -z80-enable-licm -mllvm -z80-enable-cse"`.
+CFLAGS += $(CLANG_EXTRA)
 
 OBJS = boot_block.o boot_confi.o boot_entry.o bios_hw_init.o \
        bios_jump_vector_table.o bios.o bios_shims.o runtime.o

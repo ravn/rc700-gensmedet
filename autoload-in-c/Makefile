@@ -233,6 +233,9 @@ CLANG_CFLAGS = --target=z80 -Oz -g -nostdlib \
 	       -Wno-gcc-compat \
 	       -Wno-declaration-after-statement \
 	       -Wno-pre-c11-compat
+# Investigation hook (ravn/llvm-z80#23): inject extra clang flags via
+# `make CLANG_EXTRA="-mllvm -z80-enable-licm -mllvm -z80-enable-cse"`.
+CLANG_CFLAGS += $(CLANG_EXTRA)
 # -g enables DWARF debug info; binary unchanged because objcopy -O binary
 # only emits ALLOC sections and .debug_* are non-ALLOC.  The DWARF info
 # is what makes the source-annotated listing (clang/prom.clang.lis)

@@ -7643,3 +7643,47 @@ Diagnostic note: `BOOT_MARK` instrumentation of this path is blocked (enabling
 it overflows the `.init` 640 B region by 61 B — the build is at the size edge).
 Context: this was a follow-up to the llvm-z80 #150 ship (i16 EQ/NE HighByteZero
 sub_lo extraction; cpnos −8 B RAM) which surfaced the sio cell.
+
+## Session 2026-06-08 — #23 LICM/CSE workaround retired + sweep harness modernized
+
+Two intertwined work threads, same session.
+
+**Compiler-comparison-corpus harness (early):** the sweep was masking
+zsdcc bench failures behind a -counter cap (zsdcc CRT never terminated
+cleanly, so ts hit 200M).  Switched termination to the canonical
+z88dk-ticks ED FE syscall trap (A=CMD_EXIT, L=verify status), discovered
+via `z88dk/test/suites/make.config` after ~40 min of derivation from
+ticks source.  Memory rule `[[reference_ticks_canonical_exit_trap]]`
+pins the mechanism.  Added `EXPECTED_FAIL` set: fannkuch zsdcc + pi
+zsdcc XFAIL (pre-existing, deferred at commit time per `0ca7d3c`); full
+writeup `tasks/zsdcc-bench-divergence-2026-06-08.md`.  New bench
+`bench_word_fill.c` targets the ravn/llvm-z80#99 XFAIL with a clean
+i16-counter + walking-pointer shape; clang measured +63 % slower than
+zsdcc on the predicted shape (`tasks/compiler-comparison-corpus/word_fill_baseline_2026-06-08.md`).
+
+**#23 LICM/CSE revalidation (late):** historical
+`disablePass(LICM + EarlyLICM + CSE)` workaround in `Z80PassConfig`,
+shipped for ~2 months on (a) cpnos/AES size pessimization grounds
+(#128 / #177 Task 3) and (b) -O2 MachineCSE miscompile correctness
+guard (#198), was re-measured today on a clean rebuild after the user
+flagged stale-build risk.  Re-measurement (byte-identical to
+incremental rebuild, sound) inverted both grounds: AES -Oz LICM+CSE on
+saves 13 B + 8.9 % tstates; -O2 saves 118 B + 9.2 % tstates and the
+#198 miscompile no longer reproduces (verifier clean, 854 PASS / 0 FAIL
+across O0..Oz).  User direction "don't let short-term size block
+structural fixes" cleared the autoload +64 B raw / +25 B compressed
+short-term regression; cpnos PROM1 -15 B (improves); rcbios +7 B
+(marginal).  Workaround retired by flipping `-mllvm -z80-enable-licm`
+/ `-mllvm -z80-enable-cse` defaults FALSE -> TRUE; flags preserved as
+escape hatches.  `Z80InstrInfo::shouldHoist` heuristic added (refuses
+hoist when loop body contains a CALL) — gated by
+`-mllvm -z80-licm-block-on-call`, default OFF awaiting count-based
+refinement (see `[[B11]]` in `llvm-z80/tasks/known-suboptimal-codegen.md`).
+Session writeup: `llvm-z80/tasks/session-2026-06-08-issue23-licm-cse-revalidation.md`.
+
+Memory rules added this session: `[[feedback_check_memory_before_coding]]`
+(HARD: scan at task start, name applicable rules, then code),
+`[[feedback_revalidate_historical_compiler_claims]]` (HARD: re-validate
+on clean rebuild before acting on a historical perf claim — this session
+is the pinned example), `[[reference_ticks_canonical_exit_trap]]` (ED FE
+syscall trap is the canonical z88dk-ticks termination).

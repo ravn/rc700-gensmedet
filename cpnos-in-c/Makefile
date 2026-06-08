@@ -137,6 +137,9 @@ ifeq ($(COMPILER),clang)
            -Wno-missing-variable-declarations \
            -Wno-missing-noreturn \
            -Wno-sign-conversion
+  # Investigation hook (ravn/llvm-z80#23): inject extra clang flags via
+  # `make CLANG_EXTRA="-mllvm -z80-enable-licm -mllvm -z80-enable-cse"`.
+  CFLAGS += $(CLANG_EXTRA)
 
   ASFLAGS = --target=z80 -g
 
