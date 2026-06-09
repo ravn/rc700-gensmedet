@@ -2035,7 +2035,15 @@ Notable pages in `RC702tech.pdf`:
 | 8" DS/DD Trk 0 | 1 | 2 | FM/MFM | 26 | 128/256 | 10 KB |
 | 8" DS/DD Trk 1-77 | 77 | 2 | MFM | 15 | 512 | 1.2 MB |
 
-### Interrupt Vector Table (Mode 2)
+### Interrupt Vector Table (Mode 2) — autoload-PROM era (ROA375)
+
+**This table is the autoload-PROM IVT layout (I = 0xA0, CTC1 base vector
+0x10).**  In CP/M-context with the rcbios-in-c BIOS, the IVT layout is
+different: `bios_hw_init.c` sets the CTC1 base vector to **0x00**, so the
+display ISR lands at slot **0x04**, not 0x14.  IVT origin is also
+different (`0xF600` or `0xEC00` per `project_rc702_ivt_page_constraint`,
+not 0xA000).  See `rcbios-in-c/bios_hw_init.c` lines 79-103 for the
+authoritative CP/M-context layout (#101).
 
 | Vector | Offset | Handler | Source |
 |--------|--------|---------|--------|
