@@ -7735,3 +7735,64 @@ between fork-local and upstream-intrinsic paths.
 `[[feedback_no_upstream_issues]]`, `[[feedback_upstream_routing_two_targets]]`,
 `[[project_z80_upstream_goal]]` (staged collaboration: fork-of-record
 first, mainline later).
+
+### Z80LoopIdiomFill → Z80PatternFillRecognize + LoopIdiomRecognize-extensibility analysis (2026-06-09)
+
+Same-day follow-up to the memset.pattern hook work above.  User asked
+whether the pass was correctly named and whether `LoopIdiomRecognize`
+could be made overridable.
+
+**Rename** (llvm-z80 commit `65cb811`, pushed): the pass's body is
+target-agnostic (SCEV add-rec recognition, store-slot partition
+validation, loop-invariant value guards) — the `Z80` prefix was tracking
+where it lives, not what it knows.  `Fill` was also ambiguous (single-byte
+memset vs multi-byte K-pattern).  Renamed to `Z80PatternFillRecognize`,
+mirroring upstream `LoopIdiomRecognize::recognize*` shape.  Touched:
+file (`git mv`), class, legacy-pass class, `create*` factory,
+`initialize*Pass*` registrar, `DEBUG_TYPE`, pipeline name, display name,
+all callers (`Z80.h`, `CMakeLists.txt`, `Z80TargetMachine.cpp`,
+`Z80LegalizerInfo.cpp` comments, `IntrinsicsZ80.td` comment), three lit
+tests, design doc, RFC issue body.  Header notes preserve the original
+name as a greppable rename-history marker.
+
+**Verification post-rename:** Z80 CodeGen lit 151 PASS + 5 XFAIL
+(identical pass count); autoload **1669 B** unchanged; cpnos PROM1
+**2029 B** (-1 from prior 2030, builddate-timestamp ZX0-compression
+noise; uncompressed payload byte-identical); BIOS **5905 B** exact.
+Rename functionally inert as expected.
+
+**LoopIdiomRecognize-overridability analysis** (new design doc §7.3):
+the symmetric extensibility hook would be `TTI::tryRecognizeCustomLoopIdiom`
+called from `LoopIdiomRecognize::runOnLoop` before the built-in matchers.
+**Deliberately NOT proposed**:
+1. Recognition contracts are open-ended (preserved-analyses + delete-
+   permission matrix is large; spec surface big).
+2. No rule-of-three second consumer — extensibility hooks need ≥3 would
+   -be users; today only Z80's recogniser exists.
+3. The lowering hook this RFC already proposes
+   (`shouldExpandExperimentalMemSetPattern`) plus a future direct
+   addition of K-pattern recognition to upstream `LoopIdiomRecognize`
+   cover the same ground without any extensibility surface —
+   recognition becomes uniformly upstream-owned; lowering stays
+   target-driven.
+
+Status-quo de-facto extensibility is `TargetPassConfig::addIRPasses`
+(our parallel pass); costs zero today because upstream
+`LoopIdiomRecognize` doesn't match our K-byte shape at all.
+
+**New findings landed in the project:**
+- `llvm-z80/tasks/upstream-coherence-map-2026-05-22.md` Tier I — new
+  row "memset-pattern-hook (2026-06-09)" cross-refs the RFC body +
+  design doc + POC commit.
+- `tasks/memory/feedback_fork_local_pass_naming.md` (new) — reusable
+  rule: fork-local pass naming is upstream-candidacy honesty; if the
+  body is target-agnostic, name with the operation
+  (`*Recognize`/`*Combine`), record the upstream debt in the coherence
+  map, carry a one-line rename-history note in the header.  Sister
+  Z80-prefixed passes worth auditing under this lens: any whose `.cpp`
+  doesn't dereference `Z80Subtarget` / `Z80TargetMachine` /
+  `Z80InstrInfo`.
+
+**Rules:** `[[feedback_fork_local_pass_naming]]` (new — fork-local pass
+naming is upstream-candidacy honesty), `[[project_z80_upstream_goal]]`,
+`[[feedback_explain_before_filing]]`.
