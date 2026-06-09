@@ -7687,3 +7687,51 @@ Memory rules added this session: `[[feedback_check_memory_before_coding]]`
 on clean rebuild before acting on a historical perf claim — this session
 is the pinned example), `[[reference_ticks_canonical_exit_trap]]` (ED FE
 syscall trap is the canonical z88dk-ticks termination).
+
+### memset.pattern target hook: POC verified, RFC issue body ready (2026-06-09)
+
+User asked to "finish the work on retire Z80LoopIdiomFill"; chose
+"doc + issue body + prototype branch" via AskUserQuestion.  Discovered the
+prototype was already committed to llvm-z80 main as
+`6839ebc4bcbf [Z80][PROOF-OF-CONCEPT] TTI hook for experimental_memset_pattern`
+— implements stages 1–5+7+8 of the design doc's implementation plan
+(TTI hook default-true, PreISelIntrinsicLowering consumer, Z80 TTI
+override for K∈{1,2,4}, Z80LegalizerInfo new arm, idiom pass emits
+upstream intrinsic, new `experimental-memset-pattern.ll` lit test).
+Stage 6 (delete fork-local `llvm.z80.pattern.fill`) deferred — K=3 still
+routes to the fork intrinsic because the upstream `iN`-typed pattern
+would need i24 generalisation in the seed-store path.  Z80LoopIdiomFill
+retirement itself is out of scope: it requires upstream `LoopIdiomRecognize`
+to grow multi-byte pattern-fill recognition (different pass, different
+review audience).
+
+**Verification on macbook native build:** Z80 CodeGen lit 151 PASS + 5
+XFAIL (incl. new test + existing pattern-fill tests; the one MC failure
+is pre-existing host-build tooling gap, not a regression).
+`Transforms/PreISelIntrinsicLowering` supported subset 8/8 PASS.
+Production binaries vs current CLAUDE.md headlines: autoload **1669 B**
+(−4 B from the #221 DJNZ `-g` fix, not the POC), cpnos PROM1 **2030 B**
+(exact), BIOS **5905 B** (exact).  K=2 lowering shape byte-identical
+between fork-local and upstream-intrinsic paths.
+
+**Artefacts** (llvm-z80 commit `d953651`):
+- `tasks/design-upstream-memset-pattern-target-hook-2026-06-09.md` →
+  DRAFT → v1; section 7 now maps each stage to the POC commit; new
+  section 7.1 (K=3 deferral rationale) + 7.2 (what still anchors
+  `Z80LoopIdiomFill` to the fork); section 8 carries the verification
+  numbers above.
+- `tasks/upstream-memset-pattern-issue-body.md` → new file; RFC-style
+  body ready to file at `llvm-z80/llvm-z80` with `gh issue create
+  --body-file …`.  Self-contained for an audience that doesn't know
+  the fork's history; five specific questions for @zlfn (in-scope-for-
+  fork, TTI vs TLI, staging order, demonstrating-consumer in same PR
+  vs follow-up, K=3 fate).  Filing **gated** on explicit per-filing
+  go-ahead per HARD rule `[[feedback_explain_before_filing]]`; NO PR
+  alongside the issue (section 6.4 of the design doc — "no PR before
+  substantive response").
+
+**Rules:** `[[feedback_explain_before_filing]]` (per-filing go-ahead),
+`[[feedback_file_bugs_not_fixes]]`, `[[feedback_no_pull_requests]]`,
+`[[feedback_no_upstream_issues]]`, `[[feedback_upstream_routing_two_targets]]`,
+`[[project_z80_upstream_goal]]` (staged collaboration: fork-of-record
+first, mainline later).
