@@ -437,6 +437,28 @@ static uint16_t netboot_mpm(void) {
     if (cpnet_xact(64, 7) != 0) return 0;
     BOOT_MARK(10, 'L');              /* LOGIN ok */
 
+    /* --- Print master wall-clock via FN 105 (custom SERVER.RSP gettod)
+     * Reply: 5 B binary SCB-DAT then 21 B ASCII "YYYY-MM-DD HH:MM:SS\r\n".
+     * KNOWN ISSUE 2026-06-10: server returns neterr (FF 0C) for this FNC
+     * despite gettod being correctly assembled in fnctab[55]/fncptr[17].
+     * See tasks/gettod-dispatch-mystery.md.  Code is left in place so
+     * the print will start working once the dispatch bug is found.
+     * Inline asm to stay under .init's 640 B budget. */
+    cpnet_xact(105, 0);
+    ASM_VOLATILE(
+        "ld   hl, _cfgtbl + 39 + 5 + 5\n\t" /* &msg[DAT+5] */
+        "ld   b, 21\n"
+        "1:\n\t"
+        "ld   a, (hl)\n\t"
+        "push hl\n\t"
+        "push bc\n\t"
+        "call _impl_conout\n\t"
+        "pop  bc\n\t"
+        "pop  hl\n\t"
+        "inc  hl\n\t"
+        "djnz 1b\n"
+    );
+
     /* --- OPEN A:CPNOS.IMG ----------------------------------------- */
     install_fcb();
     /* BDOS OPEN returns directory code 0..3 on success, 0xFF on
