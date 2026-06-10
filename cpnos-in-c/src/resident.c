@@ -164,7 +164,7 @@ uint8_t *get_img_base(void) {
 }
 
 RESIDENT
-uint8_t impl_const(void) {
+static uint8_t impl_const(void) {
     if (IO_READ(SIO_B_CTRL) & SIO_RR0_RX_CHAR_AVAIL) {
         return 0xFF;
     }

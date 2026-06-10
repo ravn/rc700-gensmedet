@@ -238,7 +238,7 @@ static uint8_t try_send_frame(uint8_t *msg) {
  *
  * Per CPNET_WIRE_PROTOCOL.md § SID rewriting, overwrite msg[2] with
  * cfgtbl.slaveid before the first ENQ. */
-uint8_t snios_sndmsg_force(uint8_t *msg) {
+static uint8_t snios_sndmsg_force(uint8_t *msg) {
     uint8_t retry = MAXRETRY;
     msg[2] = cfgtbl.slaveid;
 

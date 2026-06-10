@@ -284,7 +284,7 @@ SECTION_RESIDENT_ISR
 void enable_interrupts(void) { intrinsic_ei(); }
 
 SECTION_RESIDENT_ISR
-void disable_interrupts(void) { intrinsic_di(); }
+static void disable_interrupts(void) { intrinsic_di(); }
 
 /* No-op ISR for unused IM2 slots.  Must use RETI so the daisy-chained
  * interrupt-priority hardware (CTC, PIO) can advance past this device. */
