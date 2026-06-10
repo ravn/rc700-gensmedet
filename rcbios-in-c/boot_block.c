@@ -24,6 +24,20 @@ typedef struct {
     char  buildinfo[114];       /* +0x0E: build timestamp + padding to 128 */
 } BootHeader;
 
+/* boot_header has no in-C user — the boot pointer is referenced only
+ * from the linker script that pins this struct to physical address
+ * 0x0000.  Three attributes keep it alive AND placed across both LTO
+ * and non-LTO builds:
+ *   - `used`           — IR-level DCE keeps it.
+ *   - `retain`         — `--gc-sections` keeps it.
+ *   - `section(".boot")` — lands in a section the linker script can
+ *                          match without per-input-file dependence.
+ *                          (Per-file `*boot_block.o(.rodata*)`
+ *                          matchers in rc700_bios.ld don't fire after
+ *                          LTO collapses everything into one object.)
+ * rc700-gensmedet#89 follow-up.  SDCC ignores unknown attributes so
+ * the same source builds under both compilers. */
+__attribute__((used, retain, section(".boot")))
 const BootHeader boot_header = {
     .boot_ptr  = coldboot,
     .reserved  = { 0 },

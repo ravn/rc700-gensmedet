@@ -37,8 +37,14 @@ SECTIONS {
    * ================================================================ */
 
   /* Boot header: boot pointer, " RC702" signature, timestamp.
-   * Must be exactly at 0x0000. */
+   * Must be exactly at 0x0000.
+   * `.boot` section name is set explicitly via boot_block.c's
+   * `__attribute__((section(".boot")))` so this works under LTO
+   * (where per-input-file matchers don't fire).  The per-file
+   * matchers stay as belt-and-braces for any future boot_block.o
+   * sections that don't carry the attribute. */
   .boot : {
+    KEEP(*(.boot))
     KEEP(*boot_block.o(.rodata*))
     KEEP(*boot_block.o(.text*))
     KEEP(*boot_block.o(.data*))
