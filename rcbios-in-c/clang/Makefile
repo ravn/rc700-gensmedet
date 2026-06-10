@@ -36,12 +36,19 @@ endif
 
 CFLAGS = --target=z80 -Oz -g -nostdlib -ffreestanding -std=c23 \
 	 -ffunction-sections -fdata-sections \
+	 -flto \
 	 -Xclang -target-feature -Xclang +static-stack \
 	 -mllvm -disable-lsr \
 	 -Iclang -I. -Wno-gcc-compat -Wno-return-type \
 	 -Wimplicit-int-conversion \
 	 -DMSIZE=$(MSIZE) \
 	 $(if $(filter B,$(KBDPORT)),-DKBD_PIO_B)
+# -flto default 2026-06-10 (rc700-gensmedet#89): saves 15 B (5905 -> 5890)
+# on the clang BIOS.  ld.lld bitcode-triple plumbing for Z80 shipped in
+# llvm-z80@978fca2; boot_header LTO-safety (used,retain,section(".boot"))
+# in rcbios-in-c@bdd2af2; MAME boot smoke (mame-test, 77-track sweep with
+# ERR=0) verified for the LTO build.  +static-stack is idempotent under
+# LTO; no spills or BSS layout changes observed.
 # Investigation hook (ravn/llvm-z80#23): inject extra clang flags via
 # `make CLANG_EXTRA="-mllvm -z80-enable-licm -mllvm -z80-enable-cse"`.
 CFLAGS += $(CLANG_EXTRA)
