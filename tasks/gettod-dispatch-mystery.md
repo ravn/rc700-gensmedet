@@ -86,7 +86,46 @@ the response IS the standard neterr format.
    before fnctab[55]/fncptr[17] is even consulted. The bug is upstream
    in `valid` (or net0 dispatch), NOT in the gettod handler body.
 
-2. **Investigate `valid`'s rejection of FN 105.**  LOGIN succeeds via
+   **chklog-forced-to-zero test — DONE 2026-06-10**: replaced chklog
+   with `xra a; ret` so it always returns 0 (`found, bit 0`). Result:
+   FN 105 STILL returns neterr (FF 0C) on the wire. So chklog is NOT
+   the gate either. Some other branch in `valid` is returning 0xFF
+   for FN 105 but not for LOGIN.
+
+   **Wire-byte capture via SNETDEBUG — DONE 2026-06-10**: rebuilt
+   cpmsim with `SNETDEBUG` enabled (`z80pack/cpmsim/srcsim/sim.h:39`).
+   Output goes to cpmsim stdout — every CP/NET wire byte is printed
+   with `->` / `<-` direction prefixes.
+
+   FN 105 exchange captured:
+   ```
+   slave -> master: 01 00 00 01 69 00 95
+                    SOH FMT DID SID FNC SIZ HCS  (FNC 0x69 = 105)
+   master -> slave: 01 01 01 00 37 01 c5
+                    SOH FMT DID SID FNC SIZ HCS  (FNC 0x37 = 55 = FOLDED!)
+                    02 ff 0c 03 f0 04
+                    STX MSG[0]=0xFF MSG[1]=0x0C ETX CKS EOT
+   ```
+
+   The reply FNC byte = 55 (the value after val0's `sui 50; mov m,a`
+   fold), confirming val0 executed all the way through fold. Then
+   something between fold and dispatch returned 0xFF. With chklog
+   forced to 0, the failure persists, so the bug is elsewhere in the
+   valid chain or in net0/the dispatcher itself.
+
+2. **cpmsim debug build available — DONE 2026-06-10**: cpmsim is now
+   built with both `SNETDEBUG` (wire-byte dump) and `WANT_ICE`
+   (interactive ICE: hardware/software breakpoints, single-step,
+   memory dump, register inspect, history of last 1000 instructions,
+   modify memory live). Defines in `z80pack/cpmsim/srcsim/sim.h`:
+   `WANT_ICE`, `WANT_TIM`, `HISIZE 1000`, `SBSIZE 10`, `WANT_HB`.
+   Caveat: with WANT_ICE, cpmsim starts in ICE prompt and stdin is
+   shared between ICE (before `g`) and MP/M's CP/M console (after
+   `g`). The mpm-net2 autoexec via $$$.SUB doesn't run cleanly when
+   stdin is a pipe. To use ICE productively, attach via expect/pty or
+   a coproc, or use software breakpoints set from a snapshot.
+
+3. **Investigate `valid`'s rejection of FN 105.**  LOGIN succeeds via
    the early-return path in val0 (`sui loginf; rz`), which **bypasses
    chklog**. FN 105 goes through the full chain: fold via `sui 50`,
    then `call chklog`. If chklog returns 0xFF, valid returns 0xFF →
