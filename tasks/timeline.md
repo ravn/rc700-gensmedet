@@ -7924,3 +7924,154 @@ used anymore.  delete it"):
 - 8 #87 deferred symbols (clear_screen, enable_im2, get_img_base,
   impl_conin, isr_noop, set_i_reg, transport_recv_byte,
   transport_send_byte) — wait for broader cpnos cleanup.
+
+### rc700 issue triage cont. + CP/NET TOD research arc (2026-06-10, same-day continuation) [Medium]
+
+**Header:** triage 5 more open issues; one source-level fix (#53);
+research-arc on CP/NET time-of-day surfaces a gap in MP/M XIOS + a
+4-issue follow-up tree.
+
+**Triage actions (5 closures, 1 fix):**
+
+- **#9 closed not-planned** — MAME rc702mini PIO/SIO loopback
+  emulation (CBL936/CBL998). Out of scope; bare TESTSYSTEM 4 OK / 2
+  FAIL on PIO+SIO is understood (no physical cable).
+- **#45 closed won't-fix** — parallel M80-on-rcbios test deferred.
+  Original investigation already established the root cause
+  source-level (CRLF, ASEG, BDOS HL non-preservation); oracle would
+  be nice but not on the four-firmware finishing path.
+- **#52 closed obsolete** — `cpnos-sub-test 'mac sysgen|load sysgen'`
+  timeout. Targets cpnos-rom harness; cpnos-rom + cpnos-in-asm both
+  parked 2026-05-17, harness gone.
+- **#36 closed won't-fix** — rcbios-in-c RC700 terminal codes state
+  machine. Verified: original 2026-04-22 scope (cursor moves, XY via
+  0x06, line insert/delete, erase EOL/EOS, bell, background-bitmap
+  0x13/0x14/0x15) all implemented in `bios.c` `specc()`, `xyadd()`,
+  `displ()`, BGSTAR bitmap. 2026-06-10 re-target to VT52/VT100
+  layering had no real consumer.
+- **#42 closed obsolete** — stray `python3 netboot_server.py`
+  detection. `netboot_server.py` removed from tree; specific landmine
+  no longer reachable.
+- **#53 FIXED, closed** — `tests/cpnet_bridge/tap.lua` banner check at
+  row 0 instead of row 1 (5-symbol rename `DSPSTR` → `SIGNON_ROW1`).
+  Existing tests still PASSed without it (count-tap and loopback-
+  result-tap don't gate on `boot_seen`); fix unblocks taps that want
+  to wait for boot completion before sending bytes. Commit `701bb39`.
+
+**Open-issue verification sweep:** Explore agent verified all 17
+remaining open issues still describe live concerns against the
+current tree. One outdated (#42, closed above); one partial (#87,
+left open — recent commit 6d9de0d covered 3 of ~11 candidates,
+`clear_screen` and `enter_coldst` still external). All 15 others
+verified RELEVANT; 6 of those are deliberately `parked` with the
+parked scope still describing intended future state.
+
+**CP/NET TOD research arc (#33 → #103 → #104/#105/#106/#107):**
+
+Started from #33 ("can CP/NET support a clock / can MP/M II serve
+time-of-day?"). Verdict, sourced and verified:
+
+- DRI CP/NET 1.2 Reference Manual (local mirror `Downloads/
+  www.unix4fun.org/z80pack/cpnet/cpnet.htm`) documents exactly 7
+  requester-callable protocol functions: 64 LOGIN, 65 LOGOFF, 66
+  SEND MESSAGE, 67 RECEIVE MESSAGE, 70 SET COMPAT, 71 GET SERVER
+  CFG, 106 SET DEFAULT PASSWORD. **No TOD function** — DRI did not
+  put BDOS 104/105 across the wire.
+- `cpnet-z80/dist/mpm/server.asm:233-307` `fnctab[54] = fnctab[55] =
+  0` routes BDOS 104/105 to `neterr` (server.asm:310 + 674-684). This
+  is spec-faithful, not a missing-feature bug.
+- **MP/M's own clock is also unseeded:** `z80pack/cpmsim/srcmpm/
+  bnkxios-net-2.mac` (and the other bnkxios-net-*.mac variants and
+  picosim's MP/M XIOS) read sub-field 0 (GETSEC) only, as a
+  minute-edge detector for XDOS FLAGSET wakeups. The four other
+  sub-field constants (`GETMIN`, `GETHOU`, `GETDAL`, `GETDAH`) are
+  ABSENT from the MP/M sources. SYSTEMINIT never seeds the SCB from
+  the host RTC. Cross-checked all three CP/M 3 BIOSes (cpmsim,
+  picosim, imsaisim) — they DO read the full 5-sub-field set at the
+  BIOS `TIME` entry. So the MP/M XIOS gap is a copy-from-skeleton
+  unfinished port, not a design decision.
+
+**Retraction:** an earlier note speculated about a "Compupro
+NETDATE.COM" vendor extension. Web search + unix4fun mirror inspection
+found no documentation for such a utility. Confabulation; corrected
+on #33.
+
+**Official CP/NET extension mechanism** (per the manual, lines
+568-570 + 1976-1980): Functions 66/67 carry application-defined
+messages discriminated by the FMT byte. DRI reserves FMT 0-127;
+**128-255 is the official extension space**. Path 1 (custom FMT +
+user-process responder) is the DRI-blessed way to add new operations
+without patching SERVER.RSP. Path 2 (custom FNC + patched SERVER.RSP)
+is permitted but unstandardized and breaks stock interoperability.
+
+**Issue tree filed:**
+
+- **#103** — `bnkxios-net-2.mac` SYSTEMINIT extension: read CLKDAT
+  sub-fields 1/2/3/4 in addition to existing 0, seed SCB DAT fields,
+  ~30 LOC. Source-level patch + full MP/M rebuild + `DATE` at MP/M
+  prompt as acceptance test. Scope narrowed to the single variant
+  used in our scenario (the `mpm-net2-1.dsk` build via
+  `z80pack/cpmsim/mpm-net2`).
+- **#104** — rcbios-in-c: widen existing 32-bit BIOS CLOCK vendor
+  extension (jump-table slot `0xDA56`) to 48-bit. Same entry point,
+  `A`-register dispatch: A=0/1 legacy SET/GET 32 (DE+HL), A=2/3 new
+  SET/GET 48 (BCDEHL). Storage widens to 6 bytes at `0xFFFA-0xFFFF`.
+  178k years of headroom from epoch. ISR cost change negligible.
+- **#105** — cpnos-in-c: parity counterpart to #104. 6-byte counter
+  in resident BSS, ISR INC path, `bios_clock` jump-table entry. Same
+  ABI. Budget: ≤30 B PROM1 (current headroom 18 B; fold into existing
+  asm if it overshoots).
+- **#106** — TODSRV.COM master-side TOD service. CP/M `.COM` running
+  alongside SERVER.RSP under MP/M. Listens via BDOS 67 with FMT filter
+  0x80; reads BDOS 105 (correct after #103); replies via BDOS 66 with
+  FMT 0x81 and 26-byte payload (6-byte uint48 LE ticks + 20-byte
+  iso_utc string). Path 1: no SERVER.RSP patch, no protocol
+  violation. Depends on #103.
+- **#107** — cpnos-in-c `snios_get_tod()` slave-side fetch at cold
+  boot after LOGIN. SNDMSG FMT 0x80 → RCVMSG FMT 0x81 → seed local
+  counter via BIOS CLOCK A=2 (SET-48) → print iso_utc as part of
+  cold-boot banner (no BSS storage for the string). On any error:
+  silently skip, no hard failure. Depends on #105 + #106.
+
+**Counter-design evolution within #103:**
+
+1. First sketch: 7-byte payload, no counter. Discarded once user noted
+   the rcbios original has a 32-bit 50 Hz CTC counter (`rcbios/src/
+   BIOS.MAC:803-810`).
+2. 32-bit at 50 Hz: 2.72 years between wraps → forced "recent epoch"
+   choice (2026-01-01 UTC).
+3. 64-bit: kills wrap forever (11.7 B yr) but doesn't pack in Z80
+   registers.
+4. **48-bit (final)**: fits BCDEHL exactly, atomic register-packed
+   read in DI/EI bracket. 178k years headroom. Unix epoch. 6 bytes
+   storage at `0xFFFA-0xFFFF`. ABI extends the existing vendor
+   extension at `0xDA56`, doesn't add a new entry.
+
+**Rules used / reinforced this session:**
+- `[[feedback_revalidate_concern_not_filename]]` — drove the 17-issue
+  relevance sweep (file-path drift ≠ concern dead).
+- `[[feedback_explain_before_filing]]` — all 5 new issues drafted
+  inline + per-filing go-ahead before posting.
+- `[[feedback_no_commit_first_version]]` — #53 tap.lua fix verified
+  in source (5-symbol rename, low-impact) before commit.
+- Retraction discipline — corrected the Compupro NETDATE confabulation
+  on #33 once web search returned nothing.
+
+**Net results (today's continuation block):**
+- rc700 open issues: 22 → 16 closed (#9, #36, #42, #45, #52, #53) +
+  4 new (#104/#105/#106/#107 follow-ups). New count: 20.
+- 1 source-level fix landed (`701bb39` tap.lua).
+- 5 new issues filed for the TOD-research arc (#103 already existed
+  from session start; #104/#105/#106/#107 newly filed today).
+- 1 retraction on #33 (Compupro confabulation).
+
+**Hooks for next session:**
+- #103 awaits implementation: source-level edit to `bnkxios-net-2.mac`
+  + MP/M rebuild + `DATE` verification. Likely needs #20 (z80pack
+  CONIN address bug) resolved first to get a clean rebuild chain.
+- #104-#107 form a dependency chain: #104 (rcbios CLOCK widen) and
+  #105 (cpnos parity) can land independently. #106 (TODSRV) depends
+  on #103. #107 (slave seeding) depends on #105 + #106. End state
+  after the chain closes: slave cold-boot banner shows wall-clock
+  date+time within ±2s of host, local 48-bit counter free-runs at
+  50 Hz.
