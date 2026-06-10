@@ -125,7 +125,30 @@ the response IS the standard neterr format.
    stdin is a pipe. To use ICE productively, attach via expect/pty or
    a coproc, or use software breakpoints set from a snapshot.
 
-3. **Investigate `valid`'s rejection of FN 105.**  LOGIN succeeds via
+3. **AUX port-5 trace attempt — 2026-06-10**: instrumented `valid` with
+   `out 5, A` writes at every branch (entry, DID-fail, val0 entry,
+   LOGIN early-return, val1 entry, chklog-fail, val2 entry, val2-OK,
+   val3) to emit single-character trace markers to `/tmp/.z80pack/
+   cpmsim.auxout` (FIFO).  **Result: cpnos LOGIN itself started
+   failing with the trace shim installed** — slave got past banner
+   but never began READ-SEQ (no dots).  The shim's extra code in
+   `valid` apparently disrupts something timing-sensitive or
+   stack-related.  Reverted; production gettod-only server reinstalled.
+
+4. **PROM checksum verification — gap noted 2026-06-10**: the build
+   chain (`cpnos-build/patch_payload_checksum.py`) computes a
+   word-additive checksum and patches the payload so the sum equals
+   `0xCAFE`.  But neither `autoload-in-c/rom.c` `prom1_if_present()`
+   nor `cpnos-in-c/clang-prom1lineprog/bootstrap.s` verifies it at
+   runtime — `prom1_if_present` only checks the `" RC702"`
+   signature at 0x2002, and `bootstrap_entry` just decompresses +
+   jumps.  Session 30 notes claim "0xCAFE checksum catches
+   missing/corrupt prom1" but that was in the parked cpnos-rom.
+   Cpnos-in-c does NOT have the runtime check.  Not the cause of the
+   current FN 105 failure (cpnos's banner prints fine, so PROM is
+   loading correctly), but a real gap worth fixing separately.
+
+5. **Investigate `valid`'s rejection of FN 105.**  LOGIN succeeds via
    the early-return path in val0 (`sui loginf; rz`), which **bypasses
    chklog**. FN 105 goes through the full chain: fold via `sui 50`,
    then `call chklog`. If chklog returns 0xFF, valid returns 0xFF →
