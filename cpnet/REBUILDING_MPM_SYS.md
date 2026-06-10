@@ -12,7 +12,7 @@ the old SERVER.
 
 ```bash
 cd cpnet-z80/dist/mpm
-./rebuild-mpm-sys.sh
+./rebuild-mpm-sys.sh --install
 ```
 
 That script (see `cpnet-z80/dist/mpm/rebuild-mpm-sys.sh`) does the whole
@@ -20,6 +20,16 @@ loop: rebuild `server.rsp` from source via vcpm, stage all the
 `.RSP`/`.SPR`/`.BRS`/`.DAT` files GENSYS needs, drive `GENSYS.COM`
 under vcpm with the answer-table below, and rewrite a fresh
 `mpm-net2-1.dsk` with the new `MPM.SYS`. Total wall-clock ≈ 10 s.
+
+With `--install`, the rebuilt disk lands in
+`z80pack/cpmsim/disks/local/mpm-net2-1.dsk`. The `mpm-net2` launcher
+prefers `disks/local/` over `disks/library/` so the next launch boots
+the patched image automatically. The pristine `disks/library/` copies
+stay untouched (and tracked in the z80pack submodule); the `local/`
+directory is gitignored (`*/disks/local/` in `z80pack/.gitignore`).
+
+Without `--install`, the script writes to `/tmp/mpm-net2-1.dsk`; pass
+`-o <path>` to write somewhere else.
 
 The rest of this doc explains *what the script does and why* — useful
 when something changes and the script needs updating.
