@@ -87,6 +87,15 @@ running and holding FCBs. GENSYS hits `Bdos Err On D: Open File Limit
 Exceeded` halfway through opening MPMSTAT.BRS, aborts, and leaves an
 incomplete MPM.SYS (~32 KB instead of 42 KB).
 
+> **Aside on the FCB-limit chicken-and-egg.** The relevant limits *are*
+> exposed in the GENSYS dialog — prompt 12 `Maximum open files/process`
+> and prompt 13 `Total open files/system` (defaults `#16` / `#32`).
+> But raising them only affects the *next* `MPM.SYS` being written, not
+> the running MP/M doing the writing. So you can't escape the limit
+> from inside MP/M on a first-cut bootstrap — you'd need a `MPM.SYS`
+> with higher limits *already in flight*. vcpm has no such limit at
+> all, which is why it's the clean answer.
+
 **Use vcpm (VirtualCpm.jar) instead.** It runs CP/M, not MP/M, so
 there are no resident processes and no per-process FCB limit — GENSYS
 walks the dialog without errors and writes a complete, bootable
