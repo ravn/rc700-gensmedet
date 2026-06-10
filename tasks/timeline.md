@@ -7796,3 +7796,131 @@ Status-quo de-facto extensibility is `TargetPassConfig::addIRPasses`
 **Rules:** `[[feedback_fork_local_pass_naming]]` (new — fork-local pass
 naming is upstream-candidacy honesty), `[[project_z80_upstream_goal]]`,
 `[[feedback_explain_before_filing]]`.
+
+### rc700 issue triage + LTO production adoption + cpnos cleanup (2026-06-10, single session)
+
+Started from "list open issues"; spanned issue triage + LTO production
+adoption + #85/#87 investigation + cpnos cleanup.  rc700 open issues
+**42 → 22** (-20 net).
+
+**Issue work** (rc700-gensmedet):
+- **Closed (16):** #18, #21, #25, #27, #29, #37, #48 (FIXED 2026-04-29
+  in code, found during retarget), #50 (memcpy/memmove resolved — 15
+  inline LDIR sites, zero runtime helpers), #82, #83, #85
+  (investigated → structural shim layer is required, projected 30–50 B
+  savings don't materialise), #89 (LTO adopted, default flipped), #90,
+  #92, #93, #95.
+- **Re-targeted (4):** #17 → cpnos-in-c/src/init.c:371 (LOGIN PASSWORD
+  hardcode LIVE in production tree), #20 (file-path corrected:
+  z80pack/cpmsim/srcmpm/), #36 → rcbios-in-c/bios.c:973, #87 partial.
+- **Parked (6):** #7, #17, #31, #32, #34, #84.
+- **Doc fix:** #101 (CLAUDE.md IVT slot table autoload-PROM-era
+  annotated; rcbios CTC base 0x00 → display ISR at slot 0x04, not 0x14;
+  pointer to bios_hw_init.c lines 79-103 as the authoritative
+  CP/M-context source).
+- **8 new labels created and applied** to all 42 originals
+  (cpnos-rom-superseded, cpnos-in-c, rcbios-in-c, cpnos-in-asm-parked,
+  harness, awaiting-hardware, parked, compiler-debt) — previously zero
+  label coverage; sweep doc at workspace
+  `tasks/rc700-issue-reevaluation-2026-06-10.md`.
+
+**Upstream 5-bug queue** (workspace `tasks/upstream-5bug/`):
+- STATUS.md rewritten with AVR-triage verdicts: bug 2 FILED upstream
+  (llvm/llvm-project#202112, OPEN); bug 3 MOVED to fork as
+  ravn/llvm-z80#223 (no in-tree consumer for
+  getPredictableBranchThreshold().isZero() path); bug 4 HOLD
+  (#219 contaminated by icmp-narrow soundness gate); bug 5 v2 reframed
+  consistency-led (draft-bug5-v2.md; awaiting per-filing verdict).
+- Original draft-bug5.md kept as historical record.
+
+**cpnet/server.py decommissioning** (per user "no, server.py is not
+used anymore.  delete it"):
+- Deleted `cpnet/server.py` (1280 lines) and 6 dependents:
+  `run_test.sh`, `setup.lua`, `autotest.lua`, `serial_monitor.lua`,
+  `serial_graph.py`, `bin2ihex.py` (only live caller was run_test.sh).
+- Total: **−2001 LOC dead code removed**.
+- Kept: `build_snios.py`, `cpnet12_client.py`,
+  `polypascal_pio_inject.py` (each has a non-server.py purpose).
+- Closed #23, #28, #30 (cpnet/server.py-specific defects — moot once
+  the file is gone).
+- Doc cleanup deferred (CPNET_SYSTEM.md "Quick Start" still references
+  server.py; flagged in 60a2769 commit for separate scope).
+
+**LLVM-Z80 compiler work**:
+- `[lld][Z80] Map Triple::z80/sm83 to EM_Z80 for LTO bitcode linking`
+  (llvm-z80@978fca2) — 4-line addition to
+  `lld/ELF/InputFiles.cpp::getBitcodeMachineKind` + 1-line addition to
+  `lld/test/lit.cfg.py` target-feature map.  Unblocks any out-of-tree
+  Z80 backend from end-to-end LTO.  New lit test
+  `lld/test/ELF/lto/z80.ll` exercises both triples via
+  split-file + llvm-as + ld.lld + llvm-readobj.  Same upstream-
+  relevance shape as session 77's elf32-z80 auto-detect for
+  llvm-objdump (generic-LLVM tooling plumbing).  Tracked under #186
+  U-LLVM queue.
+
+**rcbios-in-c LTO production adoption** (rc700#89, closed):
+- `[rcbios-in-c] Make boot_header LTO-safe (#89 follow-up)`
+  (rc700@bdd2af2) — `__attribute__((used, retain, section(".boot")))`
+  on `boot_header` + linker-script `KEEP(*(.boot))` first matcher.
+- `[rcbios-in-c][#89] Default clang BIOS to -flto (saves 15 B)`
+  (rc700@bcc9f97) — `-flto` in default CFLAGS.  No-op control: 5905 B
+  exact without -flto (the new attributes are size-invariant in the
+  mode where they should be no-ops).  With -flto: **5905 → 5890 B
+  (-15 B, -0.25 %)**.  MAME boot smoke (mame-test 77-track sweep):
+  baseline `DISK=602B ERR=0` and -flto `DISK=5BDD ERR=0` both PASS.
+  Signature at offset 0x08 = " RC702" preserved.  `+static-stack`
+  idempotent under LTO (no spills, no BSS layout changes).
+- The earlier -143 B claim was an illusion caused by boot_header being
+  DCE'd from a broken bootloader; real saving is -15 B.
+- cpnos PROM1 stays non-LTO: 3-TU cross-file surface too small (±1 B
+  noise; not worth the build-flag asymmetry).
+- CLAUDE.md BIOS headline updated 5905 → 5890.
+
+**#87 partial** (rc700@6d9de0d):
+- 3 symbols marked `static` after 35-symbol audit:
+  - `impl_const` (resident.c, same-file inline-asm caller),
+  - `snios_sndmsg_force` (snios_c.c, same-file C caller),
+  - `disable_interrupts` (transport_pio.c, zero callers — now DCE'd).
+- Uncompressed payload **byte-identical** before/after (2016 B
+  exact); compressed +2 B = pure ZX0 noise.
+- SDCC dual-compile clean.
+- cpnos-polypascal-test PASS at 51.25 s.
+- 8 single-cross-TU-caller candidates deferred (move-and-static needs
+  per-symbol section-attribute work).
+
+**Commits, all pushed:**
+- llvm-z80: 978fca2, b5dc3b4 (Tier I row), 65cb811 (rename),
+  d953651 (design doc), 6839ebc (POC), …
+- rc700-gensmedet: bdd2af2, bcc9f97, 6d9de0d (#87 partial),
+  60a2769 (server.py rm), d35fbdc (server.py deps rm),
+  68c29b9 (#101 doc fix), 6839ebc, dc7ceb9 (timeline).
+- Workspace: 6c149e9 (CLAUDE.md BIOS 5890), afcf18c (#87 bump), and
+  intermediate session bumps.
+
+**Rules used / reinforced this session:**
+- `[[feedback_no_op_control_measurement]]` — every codegen-touching
+  change shipped with a baseline no-op rebuild proving uncompressed
+  byte-identity (catches ZX0 compression noise).
+- `[[feedback_no_commit_first_version]]` — BIOS LTO + #87 statics both
+  gated on MAME oracle (mame-test, polypascal-test) before commit.
+- `[[feedback_revalidate_concern_not_filename]]` — drove the rc700
+  re-evaluation (file-path drift ≠ concern dead; verified each at
+  current source).
+- `[[feedback_state_certainty]]` — corrected the -143 B BIOS LTO claim
+  to -15 B real after discovering the prior measurement was on a
+  broken-bootloader build.
+- `[[feedback_dual_compiler_test]]` — every cpnos source change built
+  with both clang and SDCC before commit.
+- `[[feedback_explain_before_filing]]` — bug 5 v2 reframe + #223
+  fork-internal filing all explained in chat before action.
+- `[[feedback_avr_density_oracle]]` — bug 3 dropped from upstream queue
+  via AVR oracle (no in-tree target sets the threshold to zero).
+
+**Next session hooks** — left ready for the user:
+- `tasks/upstream-memset-pattern-issue-body.md` (RFC for llvm-z80/
+  llvm-z80, awaiting per-filing go-ahead).
+- `tasks/upstream-5bug/draft-bug5-v2.md` (consistency-led reframe,
+  awaiting per-filing go-ahead).
+- 8 #87 deferred symbols (clear_screen, enable_im2, get_img_base,
+  impl_conin, isr_noop, set_i_reg, transport_recv_byte,
+  transport_send_byte) — wait for broader cpnos cleanup.
