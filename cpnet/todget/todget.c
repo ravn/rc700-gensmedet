@@ -34,11 +34,16 @@ int main(void)
     /* Diagnostic banner: confirms main() reached before any BDOS call. */
     printf("TODGET starting...\r\n");
 
-    /* BDOS-12 version check skipped: z88dk's bdos() returns only A, so
-     * we can't see the CP/NET bit (in H) without inline asm.  The asm
-     * probe2 test confirmed BDOS reports HL=0x0222 (CP/M 2.2 + CP/NET
-     * bit) on this hardware.  Just proceed. */
-    (void)ver;
+    /* Read BDOS version word from HL.  z88dk's bdosh() (not bdos())
+     * returns the full HL pair, with H = system type byte (bit 1 set
+     * means CP/NET present) and L = version byte (0x22 = CP/M 2.2). */
+    ver = (unsigned int)bdosh(GETVER, 0);
+    printf("TODGET: BDOS version = 0x%04x (CP/NET = %s)\r\n",
+           ver, (ver & 0x0200) ? "yes" : "NO");
+    if ((ver & 0x0200) == 0) {
+        printf("TODGET: no CP/NET; cannot send FN 105\r\n");
+        return 1;
+    }
 
     /* Our slave NID: from the SCB-style network config.  cpnos's
      * default RC702_SLAVEID is 0x01; let's just use that. */
@@ -55,10 +60,17 @@ int main(void)
     printf("TODGET: sending FMT=%02x DID=%02x SID=%02x FNC=%d SIZ=%d\r\n",
            msg[0], msg[1], msg[2], msg[3], msg[4]);
 
-    /* z88dk's bdos() doesn't reliably surface A; just call and check
-     * the round-trip outcome below by reading the reply buffer. */
+    /* z88dk's bdos()/bdosh() both surface HL on return, but cpnos's
+     * NDOS handler for BDOS-66/67 (NSEND/NRECV) only sets A — HL is
+     * left over from the previous BDOS call.  Drop the return-value
+     * checks and validate via the reply buffer instead (FMT=0x01
+     * means the master sent a response). */
     (void)bdos(NSEND, (int)msg);
     (void)bdos(NRECV, (int)msg);
+    if (msg[0] != 0x01) {
+        printf("TODGET: no response (FMT=%02x)\r\n", msg[0]);
+        return 2;
+    }
 
     printf("TODGET: reply FMT=%02x DID=%02x SID=%02x FNC=%d SIZ=%d (%d bytes)\r\n",
            msg[0], msg[1], msg[2], msg[3], msg[4], msg[4] + 1);
@@ -69,16 +81,34 @@ int main(void)
     }
     printf("\r\n");
 
-    /* If reply size suggests our 26-byte gettod response (SIZ=25),
-     * print the ASCII portion starting at offset 5. */
+    /* Decode the gettod payload (SIZ=25 = 26 byte reply):
+     *   MSG[0..1] = days since MP/M epoch (1978-01-01), little-endian
+     *   MSG[2..4] = hr / min / sec, each BCD-packed
+     *   MSG[5..25] = ASCII "YYYY-MM-DD HH:MM:SS\r\n" (21 bytes)
+     * The binary fields and the ASCII string carry the same instant;
+     * the ASCII is already human-readable so we print it as-is, and
+     * the binary fields are decoded to confirm them.
+     */
     if (msg[4] >= 25) {
-        printf("TODGET: ASCII: ");
-        for (i = 5; i <= msg[4]; i++) {
-            unsigned char c = msg[5 + i];
-            if (c >= 0x20 && c < 0x7F) putchar(c);
-            else if (c == '\r') printf("\\r");
-            else if (c == '\n') printf("\\n");
-            else printf("[%02x]", c);
+        unsigned int days;
+        unsigned char hr, mn, sc, j;
+
+        days = (unsigned int)msg[5] | ((unsigned int)msg[6] << 8);
+        /* BCD -> decimal: high nibble * 10 + low nibble */
+        hr = ((msg[7] >> 4) & 0x0F) * 10 + (msg[7] & 0x0F);
+        mn = ((msg[8] >> 4) & 0x0F) * 10 + (msg[8] & 0x0F);
+        sc = ((msg[9] >> 4) & 0x0F) * 10 + (msg[9] & 0x0F);
+
+        printf("TODGET: binary  : days=%u (since 1978-01-01) %02u:%02u:%02u\r\n",
+               days, hr, mn, sc);
+
+        /* ASCII portion: msg[10..30] = "YYYY-MM-DD HH:MM:SS\r\n".
+         * Print until CR/LF/EOF so the line is clean. */
+        printf("TODGET: master  : ");
+        for (j = 10; j <= 30; j++) {
+            unsigned char c = msg[j];
+            if (c == '\r' || c == '\n' || c < 0x20 || c >= 0x7F) break;
+            putchar(c);
         }
         printf("\r\n");
     }
