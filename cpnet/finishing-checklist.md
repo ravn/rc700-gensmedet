@@ -149,12 +149,15 @@ captures SIO-B CONOUT to file, asserts a `YYYY-MM-DD HH:MM:SS` line
 appears. Build the harness before running; needs `--install` of the
 rebuilt MPM.SYS so the master-side FN-105 handler is live.
 
-**Knock-on, unchanged:** the rcbios CTC-tick ISR's 32-bit
-free-running counter becomes obsolete once callers route TOD through
-the FN-105 helper (whatever shape that takes — a library call from
-applications, not a transparent BDOS-105 intercept). See knock-on
-ticket below; the recipe stays the same, the *what replaces the
-counter* answer changes from "BDOS-105" to "FN-105 helper".
+**Knock-on, retired 2026-06-11:** the original plan was to delete
+rcbios's 32-bit CTC-tick counter once FN-105 was working. That's now
+**wontfix** (closed #111): the `0xDA56` vendor-extension entry is
+part of the rcbios BIOS jump-table ABI, and any compiled CP/M program
+that calls into it would break — including the "stub returns 0xFF"
+shape, since callers expect counter semantics. The counter and ISR
+stay; FN-105 over BDOS-66/67 is a purely additive **recommended**
+path for new programs that want wall-clock time. Time on rcbios is
+two concepts (local counter + FN-105 wire) by design.
 
 **Memory rule context:** decision walkthrough — long-uptime-drift
 vs. per-call round-trip latency — in 2026-06-10 chat. Short version:
