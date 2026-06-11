@@ -8137,3 +8137,58 @@ infrastructure stays in place at zero runtime cost).  Stale
   NDOS-forward → CP/NET → master's existing gettod handler.  Once
   that works, the existing 32-bit free-running counter in rcbios
   can be ripped out (~30 min cleanup).
+
+## Session 2026-06-11 (post-wrap-up) — project-side relocation + new issue tree [Medium]
+
+**Architectural cleanup after the FN 105 e2e milestone.**  The
+patched `server.asm` and `rebuild-mpm-sys.sh` had landed inside the
+upstream-tracked `cpnet-z80/dist/mpm/` during the working arc — wrong
+home, since both encode RC700-emulator-specific knowledge (cpmsim
+host RTC at I/O ports 25/26).  Moved to `cpnet/mpm-server/` in
+rc700-gensmedet; force-rolled `ravn/cpnet-z80` fork back to upstream
+pristine `87f87b6` (durgadas311 master tip).  Distribution stays
+byte-identical to upstream from this point on.
+
+Also documented the launcher-side disk indirection in
+`cpnet/REBUILDING_MPM_SYS.md` — `disks/library/` (pristine, tracked)
+and `disks/local/` (patched, gitignored) are SOURCE locations the
+`mpm-net2` launcher copies from; cpmsim itself only opens
+`disks/drive[a-j].dsk`.
+
+**4 new issues filed for concrete follow-ups:**
+- **#110** — rcbios: forward BDOS-105 to master via CP/NET FN 105.
+  Concrete steps written; master side already in place.  Mirror of
+  the closed cpnos-side arc (#33/#106/#107).
+- **#111** — rcbios: remove the 32-bit CTC-tick free-running
+  counter once #110 lands.  Supersedes the cancelled #104 (48-bit
+  widen).  Blocked on #110.
+- **#112** — harness: smoke-test for `rebuild-mpm-sys.sh + TODGET`
+  round-trip.  Today the verification is manual; the test would
+  catch four flavours of regression (stale MPM.SYS, wrong
+  fnctab[55], wrong wire format, cpmsim RTC port changes).
+- **#113** — periodic sync of `cpnet/mpm-server/server.asm` vs
+  upstream `cpnet-z80/dist/mpm/server.asm`.  Three options laid out
+  (rebase / patch-series / pin-and-ignore); recommended B if
+  upstream changes often.
+
+**Memory rules used / reinforced:**
+- `[[feedback_never_push_or_merge_upstream_remotes]]` — drove the
+  fork-creation + force-rollback to keep cpnet-z80 distribution
+  pristine.  Refined wording captured from this exact incident.
+- `[[feedback_fingerprint_build_after_two_no_change_edits]]` — the
+  earlier-arc rule that made the MPM.SYS-baked trap detectable; new
+  smoke test (#112) institutionalises the fingerprint at CI level.
+
+**State at end of arc:**
+- 4 active GitHub issues from this session arc (#110/#111/#112/#113).
+- All ravn/* repos pushed to origin.
+- cpnet-z80 fork in sync with upstream pristine; no local divergence.
+- cpnos PROM1 build clean at 2033 / 2048 B.
+- end-to-end TODGET still PASSes (`2026-06-11 …`).
+
+**Hooks for next session:**
+- #110 is the obvious next target — small, well-scoped, unblocks
+  #111.  Estimated 2-4 h to land + verify.
+- #112 is independent; could be parallelised.
+- #113 doesn't need immediate action (zero upstream changes between
+  87f87b6 and the start of this arc).
