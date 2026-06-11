@@ -8075,3 +8075,65 @@ is permitted but unstandardized and breaks stock interoperability.
   after the chain closes: slave cold-boot banner shows wall-clock
   date+time within ±2s of host, local 48-bit counter free-runs at
   50 Hz.
+
+## Session 2026-06-10/11 — FN 105 / gettod e2e + MPM.SYS rebuild trap [Hard]
+
+**The trap.**  Yesterday's session ended with FN 105 dispatch returning
+`FF 0C` despite `fnctab[55]/fncptr[17]` in `server.asm` looking
+correct.  After 8 cycles of "edit val0/val1/sndbak/fnctab, no change,"
+added 8 `OUT 3` instructions (cpmsim printer port → `printer.txt`) as
+a fingerprint.  None of them executed.  Scanning `mpm.sys` for the
+trace bytes: zero matches.  Diagnosis: **`mpm.sys` is a baked GENSYS
+snapshot**; `.RSP` edits on disk D: are inert.  Pre-existing session
+note "Solved: MP/M loads patched server.rsp cleanly" was wrong —
+verified-once-then-trusted.
+
+**Resolution.**  Rebuilt MPM.SYS via `GENSYS.COM` under vcpm
+(sidesteps MP/M's runtime FCB limit which fails the in-MP/M path
+halfway through `MPMSTAT.BRS`).  Automated end-to-end:
+`cpnet-z80/dist/mpm/rebuild-mpm-sys.sh` does build server.rsp →
+stage GENSYS inputs from pristine library disk → drive GENSYS via
+vcpm with the 34-prompt answer table → patch fresh boot disk.
+~10 s.  `--install` writes to `z80pack/cpmsim/disks/local/`
+(gitignored sibling of `library/`); the `mpm-net2` launcher now
+hard-fails if `disks/local/mpm-net2-1.dsk` is absent — no silent
+fall-back to the pristine library disk (caught the "rebuild never
+ran" failure mode).
+
+**FN 105 wire format finalized:** `MSG[0..4]` = CP/M 3 SCB-DAT (5 B
+binary: `days_lo, days_hi, hr_BCD, min_BCD, sec_BCD`); `MSG[5..25]`
+= 21 B ASCII `"YYYY-MM-DD HH:MM:SS\r\n"` (project-specific trailer).
+SIZ=25.  Demo: `cpnet/todget/TODGET.COM` (z88dk `bdos()` round-trip)
+prints `2026-06-11 00:35:36` end-to-end.  z88dk lesson: `bdosh()`
+for `GETVER` (returns full HL = version word); `bdos()` for
+NSEND/NRECV, but A→HL doesn't propagate through cpnos's NDOS so
+validate the round-trip via the reply buffer, not the bdos return.
+
+**Decision: cpnos local timekeeping cancelled.**  Now that every
+BDOS-105 call round-trips to the master fresh, the planned widen-of
+rcbios's 32-bit CTC-tick counter to 48-bit (and its cpnos port) is
+moot.  RC702 never operates disconnected from the master, so
+per-call latency beats counter-state correctness risk.  Recorded in
+`cpnet/finishing-checklist.md` ("To do later") + cancellation note.
+
+**rc700 issues:** **closed #33 #106 #107** (all resolved by the FN
+105 work); **wontfix #109** (payload-integrity verify
+structurally ~4 B too fat for the 2 KB PROM cap at its tightest
+inline-asm form; build-side `patch_payload_checksum.py`
+infrastructure stays in place at zero runtime cost).  Stale
+`tasks/gettod-dispatch-mystery.md` pruned.
+
+**Docs / memory landed:**
+- `cpnet/REBUILDING_MPM_SYS.md` — the trap, the GENSYS answer
+  table, the verification recipe, the symptom list.
+- `tasks/memory/feedback_fingerprint_build_after_two_no_change_edits.md`
+  — "after 2 no-change edits, stop and fingerprint before edit #3."
+- `tasks/memory/reference_mpm_sys_baked_via_gensys.md` — one-line
+  domain fact recall.
+
+**Hooks for next session:**
+- rcbios FN 105 path is the deferred follow-up (filed inline in
+  `cpnet/finishing-checklist.md`).  Same wire format, BDOS-105 →
+  NDOS-forward → CP/NET → master's existing gettod handler.  Once
+  that works, the existing 32-bit free-running counter in rcbios
+  can be ripped out (~30 min cleanup).
