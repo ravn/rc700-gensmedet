@@ -11,15 +11,23 @@ the old SERVER.
 **Use the automation:**
 
 ```bash
-cd cpnet-z80/dist/mpm
+cd cpnet/mpm-server
 ./rebuild-mpm-sys.sh --install
 ```
 
-That script (see `cpnet-z80/dist/mpm/rebuild-mpm-sys.sh`) does the whole
-loop: rebuild `server.rsp` from source via vcpm, stage all the
+That script (see `cpnet/mpm-server/rebuild-mpm-sys.sh`) does the whole
+loop: rebuild `server.rsp` from `cpnet/mpm-server/server.asm` (the
+project-side patched copy) via vcpm, stage all the
 `.RSP`/`.SPR`/`.BRS`/`.DAT` files GENSYS needs, drive `GENSYS.COM`
 under vcpm with the answer-table below, and rewrite a fresh
 `mpm-net2-1.dsk` with the new `MPM.SYS`. Total wall-clock ≈ 10 s.
+
+**Project layout note.** The patched `server.asm` (and this script)
+live at `rc700-gensmedet/cpnet/mpm-server/`, not in the
+upstream-tracked `cpnet-z80` submodule. The cpnet-z80 distribution
+stays byte-identical to `durgadas311/cpnet-z80`. The gettod handler
+(FN 105) is RC700-emulator-specific — it reads cpmsim's host RTC at
+I/O ports 25/26 — so it doesn't belong in the upstream distribution.
 
 With `--install`, the rebuilt disk lands in
 `z80pack/cpmsim/disks/local/mpm-net2-1.dsk`. The `mpm-net2` launcher
@@ -36,7 +44,7 @@ when something changes and the script needs updating.
 
 ## The trap, in detail
 
-The first instinct — rebuild `cpnet-z80/dist/mpm/server.rsp`, `cpmcp` it
+The first instinct — rebuild `cpnet/mpm-server/server.rsp`, `cpmcp` it
 onto `disks/library/mpm-net2-2.dsk`, and reboot — looks reasonable
 because the file actually does land on disk:
 
