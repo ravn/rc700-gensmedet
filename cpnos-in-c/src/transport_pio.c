@@ -111,13 +111,29 @@ static uint8_t pio_b_dir;            /* zeroed BSS = INPUT initially */
 #endif
 
 /* SPSC ring buffer between isr_pio_par (push) and
- * transport_pio_recv_byte (pop).  Size 64 = 0x40, mask 0x3F.  Indices
- * are kept masked at write time so the load sites are a single byte
- * fetch with no extra arithmetic.  Empty: head == tail.  Full slots
- * lost silently; under flow-controlled CP/NET this can't happen, so
- * the ISR doesn't bother to detect it.  Replaces the old 0xFF=empty
- * sentinel which conflated a real 0xFF data byte from mpm-net2 with
- * "no byte yet" (#56). */
+ * transport_pio_recv_byte (pop).  Size 256 = one full page so
+ * uint8_t indices wrap freely (no AND-mask) and the ISR builds
+ * `&buf[head]` as `ld h, _pio_rx_buf_page ; ld l, head` with no
+ * arithmetic — both critical for the ISR T-state budget above.
+ *
+ * Empty: head == tail.  Full slots lost silently; under
+ * flow-controlled CP/NET this can't happen, so the ISR doesn't
+ * bother to detect it.  Replaces the old 0xFF=empty sentinel which
+ * conflated a real 0xFF data byte from mpm-net2 with "no byte yet"
+ * (#56).
+ *
+ * **Planned simplification (#115):** PIO-B is dedicated to CP/NET +
+ * cpnos (no other consumer of PIO-B bytes), AND CP/NET BDOS-66/67
+ * already passes the message buffer by reference — caller's MSGBUF
+ * in the TPA is the destination, so SNIOS doesn't need its own
+ * staging buffer.  Future direction is busy-poll INIR straight into
+ * the caller's buffer: one byte for SOH, INIR 7 for header+HCS
+ * (memcpy first 5 to msgbuf), one byte for STX, INIR (SIZ+1)
+ * directly to `msgbuf+5`, then 3 bytes for ETX/CKS/EOT.  Zero
+ * intermediate buffering; this ring + the isr_pio_par ISR body
+ * both go away.  Throughput: ~10x on the worst-case round-trip
+ * (~17 ms ring-path -> ~2 ms INIR for a max-size BDOS response).
+ * Today's two-paths setup remains until that refactor lands. */
 #define PIO_RX_BUF_SIZE 256
 #define PIO_RX_BUF_MASK 0xFF
 /* IRQ ring buffer for byte-level PIO transport. */
