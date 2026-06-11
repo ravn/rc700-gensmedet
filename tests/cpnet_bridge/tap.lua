@@ -65,11 +65,11 @@ emu.register_periodic(function ()
 	-- "RC702 CP/NOS v1.2" (cpnos_main.c::nos_handoff signon, runs
 	-- after netboot completes and just before EI/JP NDOS COLDST).
 	if not boot_seen then
-		if  prog:read_u8(DSPSTR + 0) == 0x52  -- 'R'
-		and prog:read_u8(DSPSTR + 1) == 0x43  -- 'C'
-		and prog:read_u8(DSPSTR + 2) == 0x37  -- '7'
-		and prog:read_u8(DSPSTR + 3) == 0x30  -- '0'
-		and prog:read_u8(DSPSTR + 4) == 0x32  -- '2'
+		if  prog:read_u8(SIGNON_ROW1 + 0) == 0x52  -- 'R'
+		and prog:read_u8(SIGNON_ROW1 + 1) == 0x43  -- 'C'
+		and prog:read_u8(SIGNON_ROW1 + 2) == 0x37  -- '7'
+		and prog:read_u8(SIGNON_ROW1 + 3) == 0x30  -- '0'
+		and prog:read_u8(SIGNON_ROW1 + 4) == 0x32  -- '2'
 		then
 			boot_seen = true
 			local f = io.open(READY_FILE, "w")

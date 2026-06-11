@@ -16,6 +16,11 @@
 ENTRY(bootstrap_entry)
 
 MEMORY {
+  /* 2 KB hard cap (no A11 bridge on user's hardware; see memory rule
+   * project_rc702_2kb_prom_hard_limit).  The payload-integrity verify
+   * (rc700-gensmedet#109) is deferred -- both candidate sites
+   * (uncompressed PROM here, or ZX0-compressed in init.c) overflow
+   * the 2 KB cap; revive when there's PROM headroom. */
   PROM1 (rx) : ORIGIN = 0x2000, LENGTH = 0x0800
 }
 
@@ -46,7 +51,7 @@ SECTIONS {
 
   __prom1_used = .;
   ASSERT(__prom1_used <= 0x2800,
-         "PROM1 line program exceeds 2 KB socket")
+         "PROM1 line program exceeds 2 KB hard cap (no A11 on user's hardware)")
 
   /DISCARD/ : {
     *(.comment)
