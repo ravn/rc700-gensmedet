@@ -122,54 +122,50 @@ cap.  cpnos's transport_pio.c / transport_sio.c contribute to cpnos's
 
 Total ~2 h baseline + #4 cost.
 
-## To do later — FN 105 gettod path for rcbios
+## FN 105 gettod path for rcbios — scope correction 2026-06-11
 
-Status as of 2026-06-11: the FN 105 "Get Time/Date" vendor extension
-is wired end-to-end on the **cpnos** side:
+**Reframed:** the original "add BDOS-105 forwarding to rcbios's NDOS"
+framing was a category error. **This project uses CP/NET 1.2 only**
+(see `tasks/memory/feedback_cpnet_12_only.md`), and BDOS-105 ("Get
+Date & Time") is a CP/M 3 / MP/M II native call that CP/NET 1.2
+predates entirely. Upstream `cpnet-z80/src/ndos3.asm:504` correctly
+reflects this: `db 0 ; 105 - GET DATE & TIME - can't support here,
+use SEND NW MESG`. Nothing CPNETLDR installs understands BDOS-105,
+and under CP/NET 1.2 nothing *can*.
 
-- master SERVER.RSP gettod handler reads cpmsim's host RTC at I/O
-  ports 25/26 and returns the binary SCB-DAT 5-byte block plus a
-  21-byte ASCII trailer (see `cpnet-z80/dist/mpm/server.asm` and
-  `cpnet/REBUILDING_MPM_SYS.md`)
-- cpnos slave: BDOS-105 round-trip via z88dk `bdos()`, demonstrated by
-  `cpnet/todget/TODGET.COM` printing `2026-06-10 23:55:03` end-to-end
+The wire-level path is identical on both slaves: build an FN-105
+vendor-extension message frame, send it via BDOS-66 (NSEND), receive
+the reply via BDOS-67 (NRECV). Upstream NDOS3 already dispatches
+those at `ndos3.asm:518` (`fsdnw`) and `:519` (`frvnw`). So the same
+`cpnet/todget/TODGET.COM` binary that works on cpnos **runs
+unmodified on rcbios+CPNETLDR** — no rcbios change needed for the
+gettod path itself.
 
-**What's missing:** the same path through **rcbios**. When an RC702
-running rcbios CP/M 2.2 connects as a CP/NET slave, BDOS-105 should
-forward through SNIOS as FN 105 the same way it does on cpnos.
-Concrete work:
+**What replaces the original work item:** a regression harness that
+proves it. `cpnet/todget_rcbios_test.sh` mirrors `polypascal_pio_test.sh`:
+patches rcbios into a fresh disk, injects CPNETLDR/LOGIN/TODGET into
+the autoexec, launches MAME against the rebuilt mpm-net2 master,
+captures SIO-B CONOUT to file, asserts a `YYYY-MM-DD HH:MM:SS` line
+appears. Build the harness before running; needs `--install` of the
+rebuilt MPM.SYS so the master-side FN-105 handler is live.
 
-1. Identify where rcbios's NDOS / BDOS shim dispatches function
-   numbers and confirm BDOS-105 is currently rejected (or returns
-   garbage).
-2. Add a BDOS-105 forward path that builds the MSG header
-   `{FMT=0, DID=0, SID=<our_nid>, FNC=105, SIZ=0}` and calls
-   SNDMSG / RCVMSG.
-3. Decide what BDOS-105 returns to the calling program: full
-   26-byte payload (vendor extension callers), 5-byte SCB-DAT
-   only (DRI-compatible callers), or both via a sub-mode byte.
-   Current cpnos test code reads the whole 26-byte payload; if
-   rcbios callers expect only 5 bytes, drop the ASCII trailer at
-   the BDOS-shim boundary instead of at the server.
-4. Mirror the cpnos test: write an rcbios-side TODGET.COM (or
-   reuse the z88dk source as-is once BDOS-105 works), run it
-   through MAME against the mpm-net2 master, expect
-   `2026-MM-DD HH:MM:SS`.
+**Knock-on, unchanged:** the rcbios CTC-tick ISR's 32-bit
+free-running counter becomes obsolete once callers route TOD through
+the FN-105 helper (whatever shape that takes — a library call from
+applications, not a transparent BDOS-105 intercept). See knock-on
+ticket below; the recipe stays the same, the *what replaces the
+counter* answer changes from "BDOS-105" to "FN-105 helper".
 
-**Knock-on cleanup, once this lands:** the rcbios CTC-tick ISR's
-32-bit free-running counter and its vendor-extension read/write
-become obsolete (was on the path to widening to 48-bit; cancel
-that). Each BDOS-105 call now goes over the wire, which is fine
-because every other BDOS call already does. The counter can be
-removed in a follow-up commit; ~30 min.
+**Memory rule context:** decision walkthrough — long-uptime-drift
+vs. per-call round-trip latency — in 2026-06-10 chat. Short version:
+RC702 in this project never operates disconnected from the master,
+so per-call round-trip beats counter-state correctness risk.
 
-**Memory rule context:** decision recorded inline here (project
-fact, not durable rule) so the long-uptime-drift / offline-work
-trade-offs are visible to anyone considering re-adding a local
-counter. See the session 2026-06-10 chat for the trade-off
-walkthrough; short version: RC702 in this project never operates
-disconnected from the master, so per-call round-trip latency
-beats counter-state correctness risk.
+**Explicitly deferred:** "BDOS-105 as a *native intercepted call*
+inside the slave NDOS" only makes sense on cpnos's project-owned C
+NDOS (where we control the dispatch); on rcbios the dispatcher is
+upstream-locked CP/NET-1.2 asm and out of scope. Track as a cpnos
+follow-up only.
 
 ## Not in scope here
 

@@ -8192,3 +8192,46 @@ and `disks/local/` (patched, gitignored) are SOURCE locations the
 - #112 is independent; could be parallelised.
 - #113 doesn't need immediate action (zero upstream changes between
   87f87b6 and the start of this arc).
+
+## 2026-06-11 (#110 scope correction — CP/NET 1.2 has no BDOS-105)
+
+User landed on #110 next-session-hook, asked for the rcbios BDOS-105
+forwarder "in C" — then redirected mid-design: *"You can only use
+CPNET 1.2 not later"*. BDOS-105 is a CP/M 3 / MP/M II native call;
+CP/NET 1.2 predates it entirely. Upstream `cpnet-z80/src/ndos3.asm:504`
+already reflects this correctly: `db 0 ; 105 - GET DATE & TIME -
+can't support here, use SEND NW MESG`. Nothing CPNETLDR installs
+understands BDOS-105, and under 1.2 nothing _can_.
+
+Reframed: the same `cpnet/todget/TODGET.COM` binary that works on
+cpnos runs unmodified on rcbios+CPNETLDR — NDOS3 already dispatches
+BDOS-12 GETVER (line 454 `fgtvr`), BDOS-66 NSEND (line 518 `fsdnw`),
+and BDOS-67 NRECV (line 519 `frvnw`). TODGET drives the FN-105
+vendor extension over those three calls. No NDOS extension needed.
+
+Landed:
+- new harness `cpnet/todget_rcbios_test.sh` mirroring
+  `polypascal_pio_test.sh` structure: patches rcbios into fresh disk,
+  injects CPNETLDR+LOGIN+TODGET, captures SIO-B CONOUT, success
+  predicate is a `YYYY-MM-DD HH:MM:SS` line in capture
+- `cpnet/finishing-checklist.md` "FN 105 gettod path for rcbios"
+  section rewritten as a scope-correction explainer
+- GitHub #110 retitled "rcbios: TODGET.COM end-to-end regression via
+  CPNETLDR" + body rewritten
+- GitHub #111 body adjusted: blocker is now "regression harness lands"
+  not "BDOS-105 forwarding lands"; user-facing TOD idiom is "callers
+  use a TODGET-style FN-105 helper", not "transparent BDOS-105"
+- new memory rule `feedback_cpnet_12_only.md` indexed in §2 of
+  MEMORY.md
+
+Out of scope, deferred:
+- "BDOS-105 as a native intercepted call inside the slave NDOS" only
+  makes sense on cpnos's project-owned C NDOS (where we control the
+  dispatch). On rcbios the dispatcher is upstream-locked CP/NET 1.2
+  asm. Tracked as cpnos-future, not a #110 deliverable.
+
+Not run yet:
+- the harness itself — landed as a source artefact in this commit;
+  first-run verification (clang + sdcc BIOS) deferred to next session,
+  needs `rebuild-mpm-sys.sh --install` to have been run first so the
+  master-side FN-105 handler is baked into the launcher disk.
