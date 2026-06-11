@@ -1906,12 +1906,10 @@ byte ls_port;           /* 0=SIO-A, 1=SIO-B */
 
 /* noinline per-channel: address_space(2) PHI crash workaround (ravn/llvm-z80#44).
  * Inlining merges port pointers across branches → Legalizer crash.
- * SDCC doesn't need noinline — it doesn't merge address_space pointers. */
-#ifdef __clang__
+ * SDCC doesn't need noinline — it doesn't merge address_space pointers,
+ * and bios.h defines __attribute__(x) away under SDCC (#114) so this
+ * expands cleanly to a bare declaration there. */
 #define NOINLINE __attribute__((noinline))
-#else
-#define NOINLINE
-#endif
 /* SIO write-register-5 / read-register-1 for either channel A or B.
  *
  * Clang (with ravn/llvm-z80#44 fixed): emits OUT (C),A for runtime port

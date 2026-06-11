@@ -35,8 +35,11 @@ typedef struct {
  *                          (Per-file `*boot_block.o(.rodata*)`
  *                          matchers in rc700_bios.ld don't fire after
  *                          LTO collapses everything into one object.)
- * rc700-gensmedet#89 follow-up.  SDCC ignores unknown attributes so
- * the same source builds under both compilers. */
+ * rc700-gensmedet#89 follow-up.  bios.h defines `__attribute__(x)`
+ * away under SDCC (see rc700-gensmedet#114) so the same source
+ * builds under both compilers; SDCC just sees a bare declaration
+ * (which is fine — SDCC doesn't do LTO and doesn't garbage-collect
+ * sections the way lld does). */
 __attribute__((used, retain, section(".boot")))
 const BootHeader boot_header = {
     .boot_ptr  = coldboot,

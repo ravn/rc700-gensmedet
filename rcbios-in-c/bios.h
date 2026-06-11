@@ -10,6 +10,26 @@
 
 #include <stdint.h>
 
+/* GNU-style __attribute__((...)) compatibility.
+ *
+ * Clang parses __attribute__((...)) natively.  SDCC --std-sdcc23 does
+ * NOT: its grammar (SDCC.y) supports only the C23 [[...]] form and has
+ * zero references to "__attribute__" / TOK_ATTRIBUTE.  Without this
+ * macro, SDCC treats __attribute__ as an ordinary identifier and emits
+ *   syntax error: token -> '(' ; column 15
+ * at the FIRST '(' of the inner ((...)) group, regardless of which
+ * attributes are listed inside.  Defining __attribute__ to expand to
+ * nothing under SDCC lets the same source compile under both
+ * compilers without per-site #ifdef __clang__ guards.
+ *
+ * (Earlier the codebase guarded each use site with #ifdef __clang__;
+ * commit bdd2af2 added an unguarded site to boot_block.c on the
+ * incorrect assumption "SDCC ignores unknown attributes" and broke
+ * the SDCC build.  See rc700-gensmedet#114 for the investigation.) */
+#ifdef __SDCC
+#define __attribute__(x)
+#endif
+
 typedef uint8_t  byte;
 typedef uint16_t word;
 
