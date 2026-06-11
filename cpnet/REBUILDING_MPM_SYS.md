@@ -39,6 +39,42 @@ directory is gitignored (`*/disks/local/` in `z80pack/.gitignore`).
 Without `--install`, the script writes to `/tmp/mpm-net2-1.dsk`; pass
 `-o <path>` to write somewhere else.
 
+### How the disk indirection actually works
+
+cpmsim itself opens files literally named `drivea.dsk`, `driveb.dsk`,
+…, `drivej.dsk` in `./disks/` relative to its cwd
+(`z80pack/cpmsim/srcsim/simio.c:162-171`). It has no concept of
+`library/` or `local/` — those are conventions sitting one
+indirection above cpmsim's actual disk-open behaviour.
+
+```
+disks/library/mpm-net2-1.dsk    ← z80pack pristine (tracked)
+disks/local/mpm-net2-1.dsk      ← rebuild-mpm-sys.sh --install lands here
+                                  (gitignored)
+        │
+        │  (mpm-net2 launcher copies one of these into…)
+        ↓
+disks/drivea.dsk                ← cpmsim opens THIS file at boot
+```
+
+The `mpm-net2` launcher script makes the choice each time it runs:
+1. Hard-fail with a recovery hint if `disks/local/mpm-net2-1.dsk`
+   is missing.
+2. Otherwise `cp disks/local/mpm-net2-1.dsk disks/drivea.dsk`.
+3. Copy `cpm22-1.dsk` / `cpm22-2.dsk` / `mpm-net2-2.dsk` from
+   `disks/library/` into `disks/driveb.dsk` / `c` / `d`.
+4. Copy the 4 MB hard-disk images from `disks/library/` into
+   `disks/drivei.dsk` / `j` (or create blank E5-fills if missing).
+5. `exec ./cpmsim`, which then opens the freshly-copied
+   `disks/drive[a-d].dsk` + `[i,j].dsk` files.
+
+So `disks/local/` is purely a source location the launcher prefers
+over `disks/library/`. Both `library/` and `local/` are inputs to a
+copy step; cpmsim itself never reads from either directory. To boot
+the patched system without going through the launcher you would
+need to `cp disks/local/mpm-net2-1.dsk disks/drivea.dsk` yourself,
+plus replicate the other drive mappings the launcher does.
+
 The rest of this doc explains *what the script does and why* — useful
 when something changes and the script needs updating.
 
