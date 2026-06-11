@@ -16,12 +16,12 @@
 ENTRY(bootstrap_entry)
 
 MEMORY {
-  /* TEMPORARILY widened to 0x1000 (4 KB) to accommodate the FN 105
-   * gettod print at boot.  Restore to 0x0800 (2 KB hard cap, no A11
-   * bridge on user's hardware) once compiler-side wins recover the
-   * ~5 B compressed-payload overage.  See memory rule
-   * project_rc702_2kb_prom_hard_limit. */
-  PROM1 (rx) : ORIGIN = 0x2000, LENGTH = 0x1000
+  /* 2 KB hard cap (no A11 bridge on user's hardware; see memory rule
+   * project_rc702_2kb_prom_hard_limit).  The payload-integrity verify
+   * (rc700-gensmedet#109) is deferred -- both candidate sites
+   * (uncompressed PROM here, or ZX0-compressed in init.c) overflow
+   * the 2 KB cap; revive when there's PROM headroom. */
+  PROM1 (rx) : ORIGIN = 0x2000, LENGTH = 0x0800
 }
 
 SECTIONS {
@@ -50,8 +50,8 @@ SECTIONS {
   } > PROM1
 
   __prom1_used = .;
-  ASSERT(__prom1_used <= 0x3000,
-         "PROM1 line program exceeds 4 KB socket (temporarily loosened from 2 KB)")
+  ASSERT(__prom1_used <= 0x2800,
+         "PROM1 line program exceeds 2 KB hard cap (no A11 on user's hardware)")
 
   /DISCARD/ : {
     *(.comment)

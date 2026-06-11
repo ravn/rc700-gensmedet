@@ -42,7 +42,16 @@ bootstrap_entry:
 	; cpnos_cold_entry() in init.c so the same C code runs on both
 	; the PROM1-only (this bootstrap) and two-PROM (relocator.c)
 	; cold paths, and on both compilers (clang + SDCC).
+
 	; Tail-call into init.  cpnos_cold_entry is NORETURN; it ends
 	; with resident_handoff which RAMENs and JPs to NDOS at 0xDE80
 	; (post-TPA-grow 2026-06-04; was 0xDD80).
+	;
+	; Payload-integrity verify deferred (rc700-gensmedet#109).  The
+	; 0xCAFE word-additive sum is set in payload.bin at build time
+	; (cpnos-build/patch_payload_checksum.py) but never checked at
+	; runtime -- both attempted call sites (here, uncompressed PROM:
+	; +65 B raw / -47 B free; init.c, ZX0-compressed: +22 B
+	; compressed / 4-21 B over the 2 KB PROM cap) overflow.  Verify
+	; comes back when there's PROM headroom to spend.
 	jp	0xC000
