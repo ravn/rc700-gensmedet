@@ -406,6 +406,11 @@ load-bearing and contradicts the actual-running code.
 
 ## See also
 
+- `cpnos-shared/docs/CPNET_ARCHITECTURE_CLAPP_1983.md` — architectural
+  framing (NDOS/SNIOS vs ISO OSI layers, NDOS dual BDOS+BIOS
+  interception, session-vs-node addressing collision, CP/NET → CP/NOS
+  delta) per Clapp's 1983 ACM SIGSMALL paper.  Complements this
+  byte-level doc with the "why does the slave look like this" view.
 - `rc700-gensmedet/cpnet/snios.asm` — the original zmac-syntax port of DRI's
   binary serial protocol (commit `fa028b6` "Add CP/NET test infrastructure").
 - `cpnos-rom/snios.s` — current clang GAS port (commit `15a3368`).
