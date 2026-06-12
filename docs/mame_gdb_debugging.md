@@ -101,13 +101,36 @@ On Linux, use `--network host` and `localhost`.
 
 GDB prints this on every attach.  Harmless.
 
-MAME's stub advertises its register set under feature
-`<feature name="mame.z80">`, but GDB recognises only
-`<feature name="org.gnu.gdb.z80">` for built-in Z80 register layouts.
-The unrecognised feature name makes GDB reject MAME's XML and fall back
-to its own built-in Z80 target description.  The fallback works because
-the first 12 registers in GDB's built-in match what MAME provides
-(see [§ Register set](#register-set-on-the-stub) below).
+GDB's Z80 target description (`gdb/features/z80-cpu.xml` in GDB's
+source tree, FSF copyright 2020-2024) uses feature name
+`org.gnu.gdb.z80.cpu`.  GDB's `z80_gdbarch_init`
+(`gdb/z80-tdep.c`) explicitly searches the target-supplied
+description for this exact name:
+
+```c
+feature = tdesc_find_feature (tdesc, "org.gnu.gdb.z80.cpu");
+if (feature == NULL)
+    return NULL;           /* rejects the description */
+```
+
+MAME's stub uses feature name `mame.z80` instead — part of a
+uniform `mame.<cpu>` naming scheme across every CPU MAME's gdbstub
+supports (`mame.m6502`, `mame.m6809`, `mame.score7`, etc., see
+`src/osd/modules/debugger/debuggdbstub.cpp`).  Since the names
+differ, `tdesc_find_feature` returns NULL, GDB rejects the
+description, and falls back to its built-in `tdesc_z80` default.
+
+The fallback works because the first 12 registers in GDB's built-in
+match what MAME provides (see [§ Register set](#register-set-on-the-stub)).
+
+Why MAME chose a custom prefix instead of the canonical name:
+likely because (1) MAME's register layout doesn't quite match
+GDB's — MAME's order is af/bc/de/hl/af'/bc'/de'/hl'/ix/iy/sp/pc
+while GDB's canonical is af/bc/de/hl/sp/pc/ix/iy/af'/bc'/de'/hl'/ir;
+(2) MAME's gdbstub predates Z80 support in GDB (2020) and many
+other CPUs MAME emulates have no canonical GDB feature name at all.
+Using a uniform `mame.*` prefix keeps the architecture table in
+`debuggdbstub.cpp` consistent across all supported CPUs.
 
 The only consequence: GDB tries to fetch a 13th register `ir` that MAME
 doesn't expose, producing one error message per `info reg` (see #2).
