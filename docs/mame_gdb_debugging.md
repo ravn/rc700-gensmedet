@@ -123,14 +123,33 @@ description, and falls back to its built-in `tdesc_z80` default.
 The fallback works because the first 12 registers in GDB's built-in
 match what MAME provides (see [§ Register set](#register-set-on-the-stub)).
 
-Why MAME chose a custom prefix instead of the canonical name:
-likely because (1) MAME's register layout doesn't quite match
-GDB's — MAME's order is af/bc/de/hl/af'/bc'/de'/hl'/ix/iy/sp/pc
-while GDB's canonical is af/bc/de/hl/sp/pc/ix/iy/af'/bc'/de'/hl'/ir;
-(2) MAME's gdbstub predates Z80 support in GDB (2020) and many
-other CPUs MAME emulates have no canonical GDB feature name at all.
-Using a uniform `mame.*` prefix keeps the architecture table in
-`debuggdbstub.cpp` consistent across all supported CPUs.
+Why MAME chose a custom prefix instead of the canonical name —
+in the author's own words, from MAME commit `cb8a6b8e`
+(2019-08-11, "gdbstub: add z80 and m6502"):
+
+> Since GDB doesn't support those processors, I made up the
+> features name with "mame.<cpuname>".  I also had to choose
+> the registers to export in the target.xml file, and since I
+> don't have any experience with these processors I don't know
+> if I made the best choice.
+
+Chronology:
+- 2019-08-11: MAME adds Z80 + m6502 to its gdbstub (commit
+  `cb8a6b8e`).  At this point GDB has no Z80 target description.
+- 2020 (per FSF copyright on `gdb/features/z80-cpu.xml`):
+  GDB adds Z80 target description with canonical feature name
+  `org.gnu.gdb.z80.cpu`, defining 13 registers including `ir`,
+  and with PC as 32-bit.
+- Subsequent: MAME's `mame.z80` stays — both for consistency with
+  the `mame.*` scheme its other CPUs follow, and because changing
+  it would break any user workflow that already attached via the
+  custom name.  The register layout would also need to be
+  reconciled with GDB's (different order, missing `ir`,
+  16-bit vs 32-bit PC).
+
+The acknowledged "I don't know if I made the best choice" remains
+visible in MAME's behaviour today — the warning + missing `ir` are
+the cost of that early choice.  Not wrong, just dated.
 
 The only consequence: GDB tries to fetch a 13th register `ir` that MAME
 doesn't expose, producing one error message per `info reg` (see #2).
