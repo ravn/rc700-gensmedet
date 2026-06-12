@@ -44,7 +44,7 @@ extern uint8_t *get_img_base(void);
 extern void isr_crt(void);
 extern void isr_noop(void);
 extern void isr_pio_kbd(void);
-/* isr_pio_par retired #115; PIO-B slot points at isr_noop now. */
+extern void isr_pio_par(void);
 extern void set_i_reg(uint8_t page);
 extern void enable_im2(void);
 extern void enable_interrupts(void);
@@ -268,7 +268,7 @@ static void setup_ivt(void) {
     ivt = (uint16_t *)IVT_ADDR;
     ivt[2] = (uint16_t)(uintptr_t)&isr_crt;
     ivt[IVT_PIO_A] = (uint16_t)(uintptr_t)&isr_pio_kbd;
-    ivt[IVT_PIO_B] = (uint16_t)(uintptr_t)&isr_noop;
+    ivt[IVT_PIO_B] = (uint16_t)(uintptr_t)&isr_pio_par;
     set_i_reg(IVT_ADDR >> 8);
     enable_im2();
 }

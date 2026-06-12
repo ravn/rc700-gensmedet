@@ -110,14 +110,49 @@ static uint8_t pio_b_dir;            /* zeroed BSS = INPUT initially */
 #define RC702_SLAVEID 0x01
 #endif
 
-/* isr_pio_par retired (#115, 2026-06-12) — PIO-B is dedicated to
- * CP/NET, the RX path is now INIR-driven with PIO-B IE permanently
- * off, so there's no work for the ISR.  Single-byte recv (control
- * bytes: ENQ/ACK/SOH/HCS/STX/ETX/CKS/EOT) reads m_input directly via
- * a 1-iteration INIR; the chip handshake ensures m_input holds the
- * next strobed byte by the time the slave reaches the read (peer
- * round-trip on z80sim mpm-net2 is sub-microsecond, far faster than
- * Z80 mainline overhead between protocol steps). */
+/* SPSC ring buffer between isr_pio_par (push) and
+ * transport_pio_recv_byte (pop).  Size 256 = one full page so
+ * uint8_t indices wrap freely (no AND-mask) and the ISR builds
+ * `&buf[head]` as `ld h, _pio_rx_buf_page ; ld l, head` with no
+ * arithmetic — both critical for the ISR T-state budget above.
+ *
+ * Empty: head == tail.  Full slots lost silently; under
+ * flow-controlled CP/NET this can't happen, so the ISR doesn't
+ * bother to detect it.  Replaces the old 0xFF=empty sentinel which
+ * conflated a real 0xFF data byte from mpm-net2 with "no byte yet"
+ * (#56).
+ *
+ * **Planned simplification (#115):** PIO-B is dedicated to CP/NET +
+ * cpnos (no other consumer of PIO-B bytes), AND CP/NET BDOS-66/67
+ * already passes the message buffer by reference — caller's MSGBUF
+ * in the TPA is the destination, so SNIOS doesn't need its own
+ * staging buffer.  Future direction is busy-poll INIR straight into
+ * the caller's buffer: one byte for SOH, INIR 7 for header+HCS
+ * (memcpy first 5 to msgbuf), one byte for STX, INIR (SIZ+1)
+ * directly to `msgbuf+5`, then 3 bytes for ETX/CKS/EOT.  Zero
+ * intermediate buffering; this ring + the isr_pio_par ISR body
+ * both go away.  Throughput: ~10x on the worst-case round-trip
+ * (~17 ms ring-path -> ~2 ms INIR for a max-size BDOS response).
+ * Today's two-paths setup remains until that refactor lands. */
+#define PIO_RX_BUF_SIZE 256
+#define PIO_RX_BUF_MASK 0xFF
+/* IRQ ring buffer for byte-level PIO transport. */
+volatile uint8_t pio_rx_head;   /* ISR writes only */
+volatile uint8_t pio_rx_tail;   /* mainline writes only */
+/* Page-aligned 256-byte ring.  ISR builds `&buf[head]` as `ld h,
+ * _pio_rx_buf_page; ld l, head` — only correct if the buffer is
+ * page-aligned (low byte 0).  Both compilers derive _pio_rx_buf_page
+ * from HIGH(_pio_rx_buf) so the constant cannot drift from the
+ * placement: clang via payload.ld (.pio_rx_bss NOLOAD region at 0xF700);
+ * SDCC via sections.asm (bss_pio_rx section, align 256, defs 256).
+ * The SDCC build defines the symbol in sections.asm, so transport_pio.c
+ * just declares it extern.  Clang allocates here through the section
+ * attribute. */
+#if defined(__clang__) && defined(__z80__)
+SECTION_PIO_RX_BSS volatile uint8_t pio_rx_buf[PIO_RX_BUF_SIZE];
+#else
+extern volatile uint8_t pio_rx_buf[PIO_RX_BUF_SIZE];
+#endif
 
 RESIDENT
 static void pio_b_set_output(void) {
@@ -137,11 +172,15 @@ RESIDENT
 PRESERVES_REGS_CLANG("b", "c", "d", "e", "h", "l")
 static void pio_b_set_input(void) {
     if (pio_b_dir == PIO_DIR_INPUT) return;
-    /* Mode 1 select latches direction.  No IE setup -- isr_pio_par
-     * retired #115; chip IE stays off, the RX path reads m_input
-     * directly via INIR (transport_pio_recv_byte and
-     * pio_b_recv_block_body). */
+    /* Mode 1 select latches direction; ICW 0x97 + mask 0x00
+     * atomically clears m_ip (Mode 0 strobes will have set it).
+     * Final 0x83 re-asserts IE on, so isr_pio_par fires once per
+     * real chip strobe and pushes the latched byte into pio_rx_buf
+     * for snios's transport_pio_recv_byte to pop. */
     IO_WRITE(PIO_B_CTRL, PIO_MODE_INPUT);
+    IO_WRITE(PIO_B_CTRL, PIO_IE_ENABLE_RESET);
+    IO_WRITE(PIO_B_CTRL, PIO_INT_MASK_NONE);
+    IO_WRITE(PIO_B_CTRL, PIO_IE_ENABLE);
     pio_b_dir = PIO_DIR_INPUT;
 }
 
@@ -185,56 +224,17 @@ void transport_pio_send_byte(uint8_t c) {
 }
 
 RESIDENT
-uint16_t transport_pio_recv_byte(uint16_t timeout_ticks __attribute__((unused))) {
+uint16_t transport_pio_recv_byte(uint16_t timeout_ticks) {
     pio_b_set_input();
-    /* IN A,(0x11) reads m_input, clears chip IP, drives /BRDY high
-     * so peer can strobe the next byte.  No timeout — PIO Mode 1
-     * handshake gates the peer on the slave's read, and round-trip
-     * on z80sim mpm-net2 is sub-µs (far shorter than C-mainline
-     * overhead between protocol bytes). */
-    return IO_READ(PIO_B_DATA);
-}
-
-/* INIR-block RX state carrier.  Bridges the C-callable
- * transport_pio_recv_block(dst, count) into the __naked INIR body,
- * which loads the args from these fixed addresses.  Cheaper than
- * cross-compiler inline-asm operand binding (clang's and SDCC's
- * constraint syntaxes differ) and the BSS cost (3 B) is recovered
- * by the per-byte savings inside INIR.  See
- * `cpnos-in-c/tasks/pio-input-busy-wait-and-inir-2026-06-12.md`. */
-/* Default BSS → .scratch_bss (NOLOAD) → no PROM cost.  Non-static so
- * snios_c.c can populate them and call pio_b_recv_block_body directly
- * (saves the transport_pio_recv_block wrapper's ~28 B). */
-volatile uint8_t * volatile pio_block_dst;
-volatile uint8_t  pio_block_count;
-
-/* Block-read body.  Reclaims the 1-byte slot if set (priming byte),
- * then INIRs the remainder directly from the chip with PIO-B IE off.
- *
- * Counter convention: pio_block_count == 0 means 256 (matches INIR's
- * B=0 semantics, used for CP/NET SIZ=255 max-size frames).
- *
- * No DI/EI: the chip-IE write atomically gates isr_pio_par before
- * INIR starts; PIO-A keyboard + CTC ISRs stay armed and fire
- * uninterrupted during a long data block (~1.5 ms for 256 bytes).
- *
- * NO TIMEOUT inside the loop.  Peer death mid-block hangs the slave;
- * the SNIOS outer retry catches dead-peer at frame granularity via
- * the priming single-byte recv's timeout. */
-/* INIR block-read body.  Callers (snios_c.c) populate the globals
- * pio_block_dst and pio_block_count directly, then call this.  No
- * timeout: the priming single-byte recv covers dead-peer detection.
- * count == 0 means 256 (matches INIR's B=0 / SIZ=255 max-frame). */
-RESIDENT
-void pio_b_recv_block_body(void) __naked {
-    ASM_VOLATILE(
-        "ld   hl, (_pio_block_dst)\n\t"
-        "ld   a, (_pio_block_count)\n\t"
-        "ld   b, a\n\t"
-        "ld   c, 0x11\n\t"                   /* PORT_PIO_B_DATA */
-        "inir\n\t"
-        "ret\n\t"
-    );
+    while (timeout_ticks--) {
+        uint8_t t = pio_rx_tail;
+        if (pio_rx_head != t) {
+            uint8_t b = pio_rx_buf[t];
+            pio_rx_tail = (uint8_t)(t + 1);   /* wraps at 256 */
+            return b;
+        }
+    }
+    return TRANSPORT_TIMEOUT;
 }
 
 /* Speed-test BSS variables (legacy harness).  Kept allocated for the
@@ -277,8 +277,11 @@ extern volatile uint8_t kbd_tail;
 extern volatile uint8_t cur_dirty;   /* defined in resident.c */
 extern uint8_t curx;
 extern uint8_t cury;
-/* _pio_rx_buf_page linker-constant retired with the SPSC ring (#115,
- * 2026-06-12).  isr_pio_par now writes to a fixed 1-byte slot. */
+/* Linker-defined constant — value is the high byte of pio_rx_buf
+ * address, used in inline asm via `ld h, _pio_rx_buf_page`.  Declared
+ * here so SDCC emits an asm-level EXTERN directive; the value comes
+ * from sdcc/sections.asm (defc) at link time. */
+extern uint8_t pio_rx_buf_page;
 
 /* Init-time helpers — one-instruction wrappers around the Z80
  * intrinsics.  Plain C — both compilers reduce these to `LD I, A; RET`
@@ -477,8 +480,60 @@ void isr_pio_kbd(void) __naked {
     );
 }
 
-/* isr_pio_par retired #115 (2026-06-12).  PIO-B is dedicated to
- * CP/NET; the RX path is now INIR-driven (transport_pio_recv_byte
- * and pio_b_recv_block_body) with PIO-B chip-IE permanently off.
- * The IVT slot that used to point here now points at isr_noop so the
- * IM2 daisy chain still walks correctly on stray IRQs. */
+/* PIO-B parallel ISR.  Fires once per chip strobe (= once per byte
+ * delivered by the bridge) when chip IE is on.  Reads the latched
+ * byte from PORT_PIO_B_DATA (the IN itself clears chip IP), pushes
+ * into the snios receive ring (pio_rx_buf, head/tail above).
+ *
+ * Registers used: A, F, HL.  Save set: AF + HL (4 bytes of PUSH/POP).
+ * The byte is stashed on the stack between the head/tail check and the
+ * ring write; new_head is carried in A; pio_rx_buf is page-aligned so
+ * `ld h, _pio_rx_buf_page; ld l, head` builds &ring[head] without BC.
+ * Userspace BC/DE/shadow registers all stay intact across the IRQ. */
+SECTION_RESIDENT_ISR
+/* THROUGHPUT-CRITICAL — see "Speed budget" in the file header.
+ * Happy-path body currently 184 T-states / ~46 µs @ 4 MHz; bounds CP/NET
+ * RX byte-rate at ~19.6 kbyte/s.  Optimization candidates documented at
+ * the file header — measure before/after every change. */
+void isr_pio_par(void) __naked {
+    ASM_VOLATILE(
+        "push af\n\t"
+        "push hl\n\t"
+
+        "in   a, (0x11)\n\t"        /* PORT_PIO_B_DATA -> A; clears chip IP */
+        "push af\n\t"               /* stash the byte on the stack */
+
+        /* SPSC ring push for snios.  256-byte buffer at page-aligned
+         * address (0xF700 per payload.ld), so HL = page<<8 | head is
+         * a single 16-bit address.  uint8_t wrap is free — no mask.
+         * new_head = (uint8_t)(head + 1), in A. */
+        "ld   hl, _pio_rx_head\n\t"
+        "ld   a, (hl)\n\t"
+        "inc  a\n\t"
+
+        /* if (new_head == tail) drop — ring full, byte lost. */
+        "ld   hl, _pio_rx_tail\n\t"
+        "cp   (hl)\n\t"
+        "jr   z, _isr_pio_par_drop\n\t"
+
+        /* head = new_head; ring[old_head] = byte.  Page-aligned 256-byte
+         * buf — H = buf>>8 (0xf7) is a constant; L = old_head. */
+        "ld   (_pio_rx_head), a\n\t"
+        "dec  a\n\t"                 /* A = old_head (uint8 wrap) */
+        "ld   l, a\n\t"
+        "ld   h, _pio_rx_buf_page\n\t"
+
+        "pop  af\n\t"                /* recover stashed byte into A */
+        "ld   (hl), a\n\t"           /* ring[old_head] = byte */
+        "jr   _isr_pio_par_done\n\t"
+
+    "_isr_pio_par_drop:\n\t"
+        "pop  af\n\t"                /* drop path: discard the stashed byte */
+    "_isr_pio_par_done:\n\t"
+
+        "pop  hl\n\t"
+        "pop  af\n\t"
+        "ei\n\t"
+        "reti\n\t"
+    );
+}

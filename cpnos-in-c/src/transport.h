@@ -46,14 +46,6 @@ void transport_send_byte(uint8_t c) PRESERVES_REGS_CLANG("d", "e", "h", "l", "b"
  * pointer/counter work through other regs), so declaring would be
  * zero net win.  Cross-references the audit in snios_c.c:96-111. */
 uint16_t transport_recv_byte(uint16_t timeout_ticks);
-/* xport_recv_block(uint8_t *dst, uint8_t count) — block-read helper
- * used by SNIOS for the known-size CP/NET DATA block.  Declared at
- * file scope in snios_c.c to keep init.c's `uint8_t xport_recv_block[]`
- * trampoline-view declaration unambiguous.  PIO impl uses INIR
- * (~10x faster); SIO falls back to a per-byte loop.  Block has no
- * inner timeout — the priming control-byte recv carries it, and the
- * SNIOS outer retry handles frame-level dead-peer cases.  See
- * `tasks/pio-input-busy-wait-and-inir-2026-06-12.md`. */
 
 /* The transport is fixed at build time: SNIOS envelope on top of
  * byte transport (sio / pio-irq via linker --defsym aliases on
