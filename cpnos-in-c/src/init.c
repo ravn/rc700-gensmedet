@@ -512,16 +512,22 @@ static uint16_t netboot_mpm(void) {
  */
 
 /* Banner printed BEFORE netboot so the screen layout is:
- *   row 0 (cursor home): "RC702 CP/NOS NNK WWW-MMM cc yyyy-mm-dd HH:MM hash"
+ *   row 0 (cursor home): "NNK CT yyyy-mm-dd HH:MM hash"
  *   row 1: 25 netboot progress dots followed by CR/LF on EOF
  * Operator sees the OS identity immediately on power-on, then
- * watches dots fill in below it. */
+ * watches dots fill in below it.
+ *
+ * "RC702 CP/NOS" was dropped from the banner -- the PROM is for
+ * RC702 by construction and CP/NOS is the only OS this code boots,
+ * so neither token disambiguates anything.  Compiler+transport are
+ * fused into a 2-char tag (no separator) to reclaim PROM1 headroom. */
 SECTION_INIT_TEXT
 static void print_banner(void) {
     /* NNK = TPA size (CPNOS_TPA_KB, build-time from cpnos.sym).
-     * WWW-MMM = TRANSPORT_NAME literal (Makefile -DTRANSPORT_NAME='"PIO"'/"SIO").
-     * cc = CPNOS_COMPILER_NAME ("clang"/"sdcc"/"hitech"), picked at preprocess time
-     * so the banner unambiguously identifies which build is running.
+     * CT = CPNOS_COMPILER_CH ("C"/"S"/"H") fused with TRANSPORT_CH
+     *      ("P"/"S"), no separator.  CP = clang+PIO, SS = sdcc+SIO, etc.
+     *      Picked at preprocess time / Makefile so the banner
+     *      unambiguously identifies which build is running.
      *
      * The locale tag (da_US / da_DK / ...) intentionally does NOT
      * appear on this banner -- print_banner runs BEFORE netboot, so
@@ -532,8 +538,8 @@ static void print_banner(void) {
 #define _STR(x) #x
 #define STR(x) _STR(x)
     static const SECTION_INIT_RODATA char banner[] =
-        "RC702 CP/NOS " STR(CPNOS_TPA_KB) "K "
-        TRANSPORT_NAME " " CPNOS_COMPILER_NAME " " BUILD_INFO_STR "\r\n";
+        STR(CPNOS_TPA_KB) "K "
+        CPNOS_COMPILER_CH TRANSPORT_CH " " BUILD_INFO_STR "\r\n";
     for (const char *p = banner; *p; ++p) impl_conout((uint8_t)*p);
 #undef STR
 #undef _STR
