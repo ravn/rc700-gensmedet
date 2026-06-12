@@ -34,6 +34,7 @@
 #include <stdint.h>
 #include "cfgtbl.h"
 #include "compiler/compat.h"
+#include "hal.h"            /* IO_READ(SW1) for transport-mode check */
 #include "transport.h"      /* TRANSPORT_TIMEOUT == 0xFFFF */
 
 /* CFGTBL netst flags (mirror of CPNET_WIRE_PROTOCOL.md § Network status byte). */
@@ -93,6 +94,13 @@ extern void xport_send_byte(uint8_t b)
      * future-proofs against the day clang's regalloc finds an HL win. */
     PRESERVES_REGS_CLANG("d", "e", "h", "l", "b", "c");
 extern uint16_t xport_recv_byte(uint16_t timeout_ticks);
+/* PIO-only INIR block read.  Body reads dst+count from globals so
+ * snios populates them directly here (skipping a wrapper saves ~28 B
+ * in the PROM1-only build).  See
+ * `tasks/pio-input-busy-wait-and-inir-2026-06-12.md`. */
+extern volatile uint8_t * volatile pio_block_dst;
+extern volatile uint8_t pio_block_count;
+extern void pio_b_recv_block_body(void);
 /* ravn/llvm-z80#131/#133 NOTE: audit of transport_pio_recv_byte's clang
  * asm body (f11f..f148, 42 B) shows it clobbers A, C (in the normal-
  * return path via `ld c,a`), DE (return value), HL (scratch).  Only B
@@ -342,17 +350,33 @@ static uint8_t try_recv_frame(uint8_t *msg) {
     r = recv_byte_t();
     if (((uint8_t)r & 0x7F) != STX) return RC_RETRY;
 
-    /* (6) receive (SIZ+1) data bytes, accumulate CKS init=STX.
-     * Same store-then-read-back pattern as step (3) -- a named `b`
-     * local would push SDCC's `b` into the IX-frame. */
+    /* (6) receive (SIZ+1) data bytes.  Branch on SW1 S03 (the
+     * transport-select bit; same gate install_transport() reads):
+     * PIO → INIR block read (~10x faster); SIO → per-byte recv.
+     * STX has just been received and ACKed, priming the PIO
+     * handshake for the back-to-back data stream. */
     {
         uint8_t cks = STX;
         uint8_t *p = msg + 5;
         uint8_t k = msg[4];     /* SIZ */
+        if ((IO_READ(SW1) & 0x04) == 0) {
+            /* PIO INIR fast path -- populate globals then jump body. */
+            pio_block_dst = p;
+            pio_block_count = k + 1;  /* k=255 wraps to 0 = INIR's 256 */
+            pio_b_recv_block_body();
+        } else {
+            /* SIO per-byte loop -- count via separate counter so k
+             * survives for the shared cks-compute below. */
+            uint8_t n = (uint8_t)(k + 1);
+            uint8_t *q = p;
+            do {
+                r = recv_byte_t();
+                if (r >= 0x100) return RC_RETRY;
+                *q++ = (uint8_t)r;
+            } while (--n);
+        }
+        /* Common cks compute over the SIZ+1 data bytes. */
         do {
-            r = recv_byte_t();
-            if (r >= 0x100) return RC_RETRY;
-            *p = (uint8_t)r;
             cks += *p++;
         } while (k--);
 

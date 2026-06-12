@@ -44,6 +44,11 @@ uint16_t transport_recv_byte(uint16_t timeout_ticks) {
     return TRANSPORT_TIMEOUT;
 }
 
+/* Block read API not provided for SIO — snios_c.c falls back to a
+ * per-byte recv loop in SIO mode (the existing code path), reserving
+ * the INIR block-read path for PIO only.  Avoids ~50 B of SIO-side
+ * code in the PROM1-only dual-transport build. */
+
 /* Frame-level send/recv: see snios.s for SNDMSG/RCVMSG and the
  * snios_sndmsg_c / snios_rcvmsg_c wrappers.  cpnet_send_msg in
  * transport.h is a #define alias of those; no vtable dispatch. */

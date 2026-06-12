@@ -9,8 +9,7 @@
  *
  * Net layout post-move:
  *   IVT     0xEB00..0xEBFF  (36 B vectors + 210 B CFGTBL in tail + 10 B slack)
- *   SCRATCH 0xEC00..0xECFF  (256 B)
- *   PIO_RX  0xED00..0xEDFF  (256 B; still page-aligned ✓)
+ *   SCRATCH 0xEC00..0xEDFF  (512 B; grew from 256 B post-#115 ring removal)
  *   PAYLOAD 0xEE00..        (resident BIOS + SNIOS; ceiling at 0xF60D)
  *   stack   0xF60E..0xF67F  (~114 B, SP top 0xF680)
  *   locale  0xF680..0xF7FF  (384 B = outcon[128] + inconv[256])
@@ -24,20 +23,16 @@ MEMORY {
   INIT (rx) : ORIGIN = 0xC000, LENGTH = 0x0280
   PAYLOAD (rwx) : ORIGIN = 0xEE00, LENGTH = 0x1000
   IVT (rw) : ORIGIN = 0xEB00, LENGTH = 0x100
-  /* PROM1-only-specific layout (2026-06-04, TPA-grow move):
+  /* PROM1-only-specific layout (post-#115 ring removal, 2026-06-12):
    *   IVT vectors 0xEB00..0xEB23 (36 B)
-   *   CFGTBL      0xEB24..0xEBF5 (210 B; packed into IVT tail to free
-   *                                upper-region space so the slave can
-   *                                shift up by 0x100)
+   *   CFGTBL      0xEB24..0xEBF5 (210 B; packed into IVT tail)
    *   IVT slack   0xEBF6..0xEBFF (10 B)
-   *   SCRATCH     0xEC00..0xECFF (256 B)
-   *   PIO_RX      0xED00..0xEDFF (256 B; page-aligned for ISR speed)
+   *   SCRATCH     0xEC00..0xEDFF (512 B; absorbed PIO_RX region after ring removal)
    *   .payload    0xEE00..__payload_end
    *   stack       __payload_end..0xF67F (SP top 0xF680)
    *   locale      0xF680..0xF7FF (384 B for outcon[128]+inconv[256])
    */
-  SCRATCH (rwx) : ORIGIN = 0xEC00, LENGTH = 0x100
-  PIO_RX (rwx) : ORIGIN = 0xED00, LENGTH = 0x100
+  SCRATCH (rwx) : ORIGIN = 0xEC00, LENGTH = 0x200
 }
 SECTIONS {
   .ivt 0xEB00 (NOLOAD) : {
@@ -106,17 +101,11 @@ SECTIONS {
     KEEP(*(.bss._pio_par_byte))
     KEEP(*(.bss._pio_par_count))
     *(.bss*)
+    *(.pio_rx_bss)              /* legacy section; expected empty post-#115 */
     *(COMMON)
     __scratch_bss_end = .;
   } > SCRATCH
-  ASSERT(__scratch_bss_end <= 0xED00, "scratch_bss overflowed into pio_rx_bss at 0xED00")
-  .pio_rx_bss 0xED00 (NOLOAD) : {
-    __pio_rx_bss_start = .;
-    *(.pio_rx_bss)
-    __pio_rx_bss_end = .;
-  } > PIO_RX
-  _pio_rx_buf_page = (__pio_rx_bss_start >> 8) & 0xFF;
-  ASSERT((__pio_rx_bss_start & 0xFF) == 0, "pio_rx_buf must be page-aligned")
+  ASSERT(__scratch_bss_end <= 0xEE00, "scratch_bss overflowed into payload at 0xEE00")
   /DISCARD/ : {
     *(.comment)
     *(.eh_frame*)
