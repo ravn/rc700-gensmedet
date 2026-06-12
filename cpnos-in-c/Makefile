@@ -1012,6 +1012,39 @@ pio-irq-smoke: cpnos-install _check-tag-pio-irq _check-mame-irq
 	-$(MAKE) _kill-mpm  # exit-side reap; best-effort
 	@$(MAKE) _verify-bench WORKLOAD=$(WORKLOAD)
 
+# Stage PPAS+PRIMES onto master's drive I: (= slave's E:) before the
+# polypascal test launches MP/M.  Slave's CFGTBL maps E:->I: (see
+# init.c cfgtbl_init_template), and the mpm-net2 launcher copies
+# disks/library/mpm-net2-drivei.dsk to disks/drivei.dsk on each
+# restart -- so seeding library/ gives PPAS to every test run, fresh.
+# Without this, master I: is a blank E5-filled image and `PPAS<CR>` at
+# the slave's E> prompt finds nothing.
+.PHONY: stage-drivei-ppas
+stage-drivei-ppas:
+	@echo "=== staging PPAS+PRIMES on master's drive I (slave E:) ==="
+	@which cpmcp cpmls >/dev/null 2>&1 || { \
+	  echo "ERROR: cpmcp/cpmls not in PATH; install cpmtools" >&2; exit 1; }
+	@# mkdskimg writes ./disks/drive<x>.dsk in its CWD -- chdir, run, move.
+	@rm -f $(MPM_DIR)/disks/library/mpm-net2-drivei.dsk
+	@cd $(MPM_DIR) && rm -f disks/drivei.dsk && ./srctools/mkdskimg i
+	@mv $(MPM_DIR)/disks/drivei.dsk $(MPM_DIR)/disks/library/mpm-net2-drivei.dsk
+	@# cpmcp + cpmls segfault on z80pack-hd images after any write
+	@# (writes complete first; cpmls crashes on a non-empty directory).
+	@# Ignore rcs; verify directly by grepping the disk image for the
+	@# CP/M-padded filename pattern in the directory area.  CP/M dir
+	@# entries pad name to 8 chars + type to 3 chars, all spaces.
+	@DSK=$(MPM_DIR)/disks/library/mpm-net2-drivei.dsk; \
+	 for f in PPAS.COM PPAS.ERM PRIMES.PAS; do \
+	   cpmcp -f z80pack-hd "$$DSK" $(SHARED)/e_drive_seed/ppas/$$f 0:$$f \
+	     >/dev/null 2>&1 || true; \
+	 done; \
+	 for pat in 'PPAS    COM' 'PPAS    ERM' 'PRIMES  PAS'; do \
+	   head -c 4096 "$$DSK" | grep -qaF "$$pat" || { \
+	     echo "ERROR: '$$pat' not found in drive I directory after staging" >&2; \
+	     exit 1; }; \
+	 done; \
+	 echo "    staged: PPAS.COM PPAS.ERM PRIMES.PAS"
+
 # PolyPascal regression: drive cpnos through "PPAS PRIMES" / "R" / "Q"
 # (PPAS is the PolyPascal interpreter command), verify primes are
 # printed (looks for the last prime, 29989), and verify Q returns to
@@ -1079,6 +1112,7 @@ cpnos-polypascal-test:
 	$(MAKE) MIRROR_SIOB=1 prom1-lineprog-install
 	@echo "=== 2/5 refreshing disk-side cpnos.img (locale prefix) ==="
 	$(MAKE) MIRROR_SIOB=1 cpnos-disk-install
+	$(MAKE) stage-drivei-ppas
 	@echo "=== 3/5 (re)starting MP/M with fresh disks ==="
 	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
