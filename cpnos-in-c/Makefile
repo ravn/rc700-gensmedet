@@ -268,33 +268,27 @@ TRANSPORT_DEFSYMS = --defsym=_xport_send_byte=_transport_pio_send_byte \
 # the source of truth) and the date+hash in the banner already
 # disambiguates the build.
 TRANSPORT_NAME = PIO
-TRANSPORT_CH   = P
 else ifeq ($(TRANSPORT),sio)
 TRANSPORT_DEFSYMS = --defsym=_xport_send_byte=_transport_send_byte \
                     --defsym=_xport_recv_byte=_transport_recv_byte
 TRANSPORT_NAME = SIO
-TRANSPORT_CH   = S
 else
 $(error TRANSPORT must be 'pio-irq' or 'sio')
 endif
 
-# Banner tags inserted via -D macros -- cpnos's print_banner builds the
-# boot banner as "NNK <CT> <date> <hash>" where <CT> is a 2-char fused
-# tag (compiler char + transport char, no separator):
-#   C = clang, S = sdcc, H = hitech
-#   P = PIO,   S = SIO
-# e.g. "CP" = clang/PIO, "SS" = sdcc/SIO.  TRANSPORT_NAME is kept for
-# log/diagnostic strings where the spelled-out name is useful.
-# Visible at boot on the display + SIO-B mirror.
+# Banner tag inserted via TRANSPORT_NAME macro -- cpnos's
+# print_banner builds the boot banner as
+# "RC702 CP/NOS NNK <NAME> <compiler> <date> <hash>" where <NAME> is
+# this string.  Visible at boot on the display + SIO-B mirror.
 #
 # Quoting differs per compiler: clang accepts -DX='"value"', SDCC's zcc
 # strips the inner quotes — use backslash-escaped form for SDCC.
 ifeq ($(COMPILER),sdcc)
 # zcc -> sdcpp: needs backslash-escaped quotes inside single-quoted shell arg
 # so the literal `\"` reaches sdcpp's -D parser.
-SERVER_CFLAGS += -DTRANSPORT_NAME='\"$(TRANSPORT_NAME)\"' -DTRANSPORT_CH='\"$(TRANSPORT_CH)\"'
+SERVER_CFLAGS += -DTRANSPORT_NAME='\"$(TRANSPORT_NAME)\"'
 else
-SERVER_CFLAGS += -DTRANSPORT_NAME='"$(TRANSPORT_NAME)"' -DTRANSPORT_CH='"$(TRANSPORT_CH)"'
+SERVER_CFLAGS += -DTRANSPORT_NAME='"$(TRANSPORT_NAME)"'
 endif
 
 # Locale tag stamped into cpnos.img (NOT into PROM1).  Format:

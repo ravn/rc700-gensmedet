@@ -114,16 +114,12 @@
  * ================================================================ */
 #if defined(__clang__) && defined(__z80__)
 #define CPNOS_COMPILER_NAME "clang"
-#define CPNOS_COMPILER_CH   "C"
 #elif defined(__SDCC) || defined(__SCCZ80)
 #define CPNOS_COMPILER_NAME "sdcc"
-#define CPNOS_COMPILER_CH   "S"
 #elif defined(__HITECH__) || defined(HI_TECH_C)
 #define CPNOS_COMPILER_NAME "hitech"
-#define CPNOS_COMPILER_CH   "H"
 #else
 #define CPNOS_COMPILER_NAME "host"
-#define CPNOS_COMPILER_CH   "?"
 #endif
 
 /* ================================================================
