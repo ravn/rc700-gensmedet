@@ -53,6 +53,50 @@ behaviour to match real silicon — by the time any peripheral
 strobe-back arrives at the chip, the mode register reflects the new
 mode, just as it does on real hardware.
 
+## Bonus follow-up — does MAME assert Ready on mode entry at all?
+
+A closer re-read of Sections 4.2, 4.3, and 5.0 raises a separate
+question that does **not** affect the validity of the fix above, but
+is worth recording so the analysis isn't lost:
+
+- Section 4.2 specifies when Ready goes high: *"With Mode 0 active,
+  **a data write** from the CPU causes the Ready handshake line of
+  that port to go High to notify the peripheral that data is
+  available."*  The wording emphasises data writes, not control-word
+  (mode-set) writes.
+- Section 4.3 last paragraph says preloading the output register
+  before mode select *"allows the port output lines to become active
+  in a user defined state"* — describing the output drivers becoming
+  active, but silent on Ready behaviour.
+- Section 5.0's Figure 5-1 Output Mode timing diagram shows Ready
+  going high after `/WR*` rising + next Φ falling, but the figure
+  depicts a **data** write while already in Mode 0, not the mode-set
+  itself.
+
+The plausible real-silicon reading is that Ready goes high only on
+data-port writes while Mode 0 is active.  A Mode 0 entry with a
+preloaded output register would make the output lines active
+*without* asserting Ready; the peripheral would then need to wait
+for a subsequent data write before strobing.
+
+MAME's `set_mode(MODE_OUTPUT)` does both `m_out_pX_cb()` and
+`set_rdy(true)` unconditionally on mode entry.  If the manual reading
+above is correct, MAME is spuriously announcing data-available on
+mode entry.
+
+**This does not affect the validity of the fix in this ticket.**
+Even if real silicon does raise Ready on mode entry (i.e. MAME's
+interpretation is correct), the Φ-clock gating between `/WR*` rising
+and Ready going high (≥125 ns at 4 MHz) plus peripheral GPIO
+propagation makes the strobe-back race electrically impossible
+either way — that's the argument above.
+
+Resolving the Ready-on-mode-entry question definitively needs a
+logic-analyser capture from real silicon (e.g. probe BRDY across a
+Mode 1→Mode 0 transition without any subsequent data write, see if
+BRDY goes high).  Recorded as a comment on ravn/mame#11; not filed
+as a separate issue without harder evidence.
+
 ## Status
 
 - Bug filed at [ravn/mame#11](https://github.com/ravn/mame/issues/11)
