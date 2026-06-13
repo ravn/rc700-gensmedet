@@ -76,8 +76,16 @@ local function flush_dot_watch()
     for _, line in ipairs(dot_watch_buf) do f:write(line) end
     f:close()
 end
+-- DOT_WATCH_SKIP=1 skips the tap install entirely.  Set by the
+-- cpnos-polypascal-test-trace Makefile recipe, because under the
+-- MAME-debugger trace + LOG=1 PIO instrumentation each tap invocation
+-- now allocates a fresh sol coroutine (post-ravn/mame 7ff2271
+-- mame#10 fix) and the slave's per-character screen writes burn so
+-- much wall-clock time on the GC that the test deadline slips.  The
+-- dot_watch buffer is diagnostic-only so it's safe to skip.
+local DOT_WATCH_SKIP = os.getenv("DOT_WATCH_SKIP") == "1"
 local function maybe_install_dot_watch()
-    if dot_watch_installed then return end
+    if dot_watch_installed or DOT_WATCH_SKIP then return end
     local cpu = manager.machine.devices[":maincpu"]
     if cpu == nil then return end
     local prog = cpu.spaces["program"]
@@ -149,11 +157,17 @@ local function feed(s)
     logln(string.format("feed: %q", s))
 end
 
+-- Under trace + LOG=1 the slave's wall-clock-bound work (PPAS compile,
+-- PRIMES execution) takes 3-5x longer than the LOG=0 baseline.  The
+-- cpnos-polypascal-test-trace Makefile recipe sets TRACE_DEADLINE_MULT
+-- to scale all per-stage deadlines proportionally so the test
+-- completes naturally instead of tripping a baseline-tuned timeout.
+local DEADLINE_MULT = tonumber(os.getenv("TRACE_DEADLINE_MULT")) or 1
 local function start_stage(n, deadline_secs, msg)
     stage = n
     stage_at = emu.time()
-    timeout_s = deadline_secs
-    logln(string.format("=== stage %d (deadline %ds): %s", n, deadline_secs, msg))
+    timeout_s = deadline_secs * DEADLINE_MULT
+    logln(string.format("=== stage %d (deadline %ds): %s", n, timeout_s, msg))
 end
 
 local function fail(reason)

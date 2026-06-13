@@ -253,6 +253,13 @@ SERVER_CFLAGS =
 #
 # Used by `make pio-irq-smoke`, `make sio-smoke`, etc.
 TRANSPORT ?= pio-irq
+
+# Default emulated-time cap for polypascal-test variants.  Baseline (LOG=0,
+# no debugger trace) PASS lands at ~53 sim sec, so 240 is generous.  The
+# -trace targets override to 1200 because LOG=1 + MAME debugger trace +
+# the post-mame#10 invoke() coroutine overhead push wall-clock work per
+# simulated second up by ~5x.
+SECONDS_TO_RUN_POLYPASCAL ?= 240
 # Export so polypascal_test.lua can read it (os.getenv) and set the MAME SW1
 # S03 DIP to actually select the intended transport at runtime (ravn/llvm-z80
 # #150 follow-up — the prom1-lineprog binary is transport-agnostic; SW1 chooses).
@@ -1079,7 +1086,7 @@ cpnos-polypascal-test-no-mirror:
 	$(CURDIR)/../scripts/mame_capture.sh polypascal_no_mirror_$(COMPILER)_$(TRANSPORT) -- \
 	    rc702 -rompath $(MAME)/roms \
 	    -nothrottle -window -skip_gameinfo \
-	    -seconds_to_run 240 \
+	    -seconds_to_run $(SECONDS_TO_RUN_POLYPASCAL) \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
 	    -piob cpnet_bridge \
 	    -bitb3 socket.127.0.0.1:4002 \
@@ -1372,7 +1379,7 @@ ifeq ($(TRANSPORT),sio)
 	$(CURDIR)/../scripts/mame_capture.sh inirprobe_$(COMPILER)_$(TRANSPORT) -- \
 	    rc702 -rompath $(MAME)/roms \
 	    -nothrottle -window -skip_gameinfo \
-	    -seconds_to_run 240 \
+	    -seconds_to_run $(SECONDS_TO_RUN_POLYPASCAL) \
 	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
 	    -autoboot_script $(SHARED)/mame/inir_probe.lua
@@ -1382,7 +1389,7 @@ else
 	$(CURDIR)/../scripts/mame_capture.sh inirprobe_$(COMPILER)_$(TRANSPORT) -- \
 	    rc702 -rompath $(MAME)/roms \
 	    -nothrottle -window -skip_gameinfo \
-	    -seconds_to_run 240 \
+	    -seconds_to_run $(SECONDS_TO_RUN_POLYPASCAL) \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
 	    -piob cpnet_bridge \
@@ -1462,7 +1469,7 @@ ifeq ($(TRANSPORT),sio)
 	$(CURDIR)/../scripts/mame_capture.sh polypascal_$(COMPILER)_$(TRANSPORT) -- \
 	    rc702 -rompath $(MAME)/roms \
 	    -nothrottle -window -skip_gameinfo \
-	    -seconds_to_run 240 \
+	    -seconds_to_run $(SECONDS_TO_RUN_POLYPASCAL) \
 	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
 	    $(TRACE_ARGS) \
@@ -1473,7 +1480,7 @@ else
 	$(CURDIR)/../scripts/mame_capture.sh polypascal_$(COMPILER)_$(TRANSPORT) -- \
 	    rc702 -rompath $(MAME)/roms \
 	    -nothrottle -window -skip_gameinfo \
-	    -seconds_to_run 240 \
+	    -seconds_to_run $(SECONDS_TO_RUN_POLYPASCAL) \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
 	    -piob cpnet_bridge \
@@ -1496,6 +1503,23 @@ endif
 # heavy CP/NET load.
 .PHONY: cpnos-polypascal-test-trace
 cpnos-polypascal-test-trace: TRACE_ARGS = -debug -debugger none -debugscript /tmp/inir.ds
+# DOT_WATCH_SKIP=1 disables the dot_watch install_write_tap in
+# polypascal_test.lua.  Under -debug + LOG=1 the tap fires for every
+# slave-side screen-char write, and each invocation now allocates a
+# fresh sol coroutine (post mame#10 fix, ravn/mame 7ff2271).  Thousands
+# of writes per simulated second pushes the PolyPascal compile past
+# its deadline.  The dot_watch buffer is diagnostic-only; skipping it
+# is fine here -- the per-instruction Z80 trace + Z80PIO logerror
+# stream is the actual race-investigation signal.
+cpnos-polypascal-test-trace: export DOT_WATCH_SKIP = 1
+# Scale all per-stage Lua deadlines because under LOG=1 + per-
+# instruction trace the slave's CP/NET RX rate drops from ~2.2 kB/sec
+# baseline to ~1.1 kB/sec (~2x slowdown), AND the trace I/O occasion-
+# ally blocks the emu thread, so PPAS load + execution takes a lot
+# longer.  20x covers the worst case empirically; the test still
+# PASSes well under the 1200 sim-sec MAME cap.
+cpnos-polypascal-test-trace: export TRACE_DEADLINE_MULT = 20
+cpnos-polypascal-test-trace: SECONDS_TO_RUN_POLYPASCAL = 1200
 cpnos-polypascal-test-trace: _gen_trace_debugscript cpnos-polypascal-test
 	@echo "--- trace tail ---"
 	@wc -l /tmp/z80_trace.txt 2>/dev/null
