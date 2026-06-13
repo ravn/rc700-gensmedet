@@ -52,7 +52,11 @@ AVI_TMP="$MAME_VIDEO_DIR/$STEM.avi"
 MP4_OUT="$MAME_VIDEO_DIR/$STEM.mp4"
 
 echo "[mame_capture] AVI staging -> $AVI_TMP"
-"$MAME_BIN" -aviwrite "$AVI_TMP" "$@"
+# -sound none: motor sounds annoy the user AND CoreAudio's pipe
+# semantics cause SIGPIPE (exit 141) crashes under sustained
+# background-test load.  No test in this project evaluates audio.
+# See tasks/memory/feedback_disable_audio_in_tests.md.
+"$MAME_BIN" -sound none -aviwrite "$AVI_TMP" "$@"
 RC=$?
 
 if [ -s "$AVI_TMP" ]; then

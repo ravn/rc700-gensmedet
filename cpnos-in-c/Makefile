@@ -1196,6 +1196,13 @@ _gen_trace_debugscript:
 	@# output inline with the instruction trace.
 	@printf 'trace /tmp/z80_trace.txt,0,logerror\ngo\n' > /tmp/inir.ds
 	@rm -f /tmp/z80_trace.txt
+	@# Earlier experiment tried `ln -sf /dev/null error.log` to test
+	@# whether MAME's -log fprintfs were the source of polypascal-test-
+	@# trace flakiness.  Ruled out by trace evidence (mpm-net2 itself
+	@# goes silent at sim 4 s, not the slave); see commit 93de84e + the
+	@# rc700-gensmedet#flakiness investigation in tasks/.  Reverted to
+	@# a real file so MAME's `-log` writes succeed normally.
+	@rm -f error.log
 
 # INIR-refactor instrumentation via GDB stub (issue #115 phase 0).
 #
@@ -1502,7 +1509,13 @@ endif
 # ~35 MB /tmp/z80_trace.txt.  Use for INIR/ISR race diagnosis under
 # heavy CP/NET load.
 .PHONY: cpnos-polypascal-test-trace
-cpnos-polypascal-test-trace: TRACE_ARGS = -debug -debugger none -debugscript /tmp/inir.ds
+# -oslog: send logerror() output to stderr (in addition to error.log)
+# -verbose: enable MAME's startup + shutdown verbose logging
+# These let us see WHY MAME exits early (which it's been doing
+# without writing a stage result) -- the relevant info shows up on
+# stderr instead of being silently dropped between MAME and the
+# mame_capture.sh wrapper.
+cpnos-polypascal-test-trace: TRACE_ARGS = -debug -debugger none -debugscript /tmp/inir.ds -oslog -verbose
 # DOT_WATCH_SKIP=1 disables the dot_watch install_write_tap in
 # polypascal_test.lua.  Under -debug + LOG=1 the tap fires for every
 # slave-side screen-char write, and each invocation now allocates a
