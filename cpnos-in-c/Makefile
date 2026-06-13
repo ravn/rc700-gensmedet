@@ -1539,6 +1539,45 @@ cpnos-polypascal-test-trace: _gen_trace_debugscript cpnos-polypascal-test
 	@grep -c '(interrupted' /tmp/z80_trace.txt 2>/dev/null \
 	  | awk '{ print "(interrupted at) annotations:", $$1 }'
 
+# Targeted-window variant.  Boot + most of the test runs untracked
+# (~300 % real-time, mpm-net2 stays in sync), then polypascal_test.lua
+# enables `trace ...` at TRACE_STAGE_START and disables it at
+# TRACE_STAGE_STOP.  The default window covers stage 25 (the L PRIMES
+# load -- ~1.5 sim sec of CP/NET-heavy RX, exactly the path INIR
+# variant H is targeting) and turns trace off as soon as stage 3
+# (PRIMES execution -- CPU-bound, no protocol activity) begins.
+#
+# Why not trace the whole run: the per-instruction logerror cost drops
+# MAME to ~5-10 % real-time, while mpm-net2 keeps wall-clock pace ->
+# master frame-level timeouts fire mid-PPAS-load and the master
+# wedges.  A short window doesn't accumulate enough wall-clock skew
+# to push mpm-net2 out of state.
+#
+# Override the window via env, e.g.:
+#   make cpnos-polypascal-test-trace-window TRACE_STAGE_START=2 TRACE_STAGE_STOP=25
+# would trace the initial PPAS load instead.  Stage numbers come from
+# cpnos-shared/mame/polypascal_test.lua: 1=E>, 2=PPAS startup,
+# 25=L PRIMES load, 3=primes output, 4=post-Run >>, 5=back to E>.
+.PHONY: cpnos-polypascal-test-trace-window
+cpnos-polypascal-test-trace-window: TRACE_ARGS = -debug -debugger none -debugscript /tmp/inir_window.ds -oslog -verbose
+cpnos-polypascal-test-trace-window: export DOT_WATCH_SKIP = 1
+cpnos-polypascal-test-trace-window: export TRACE_STAGE_START ?= 25
+cpnos-polypascal-test-trace-window: export TRACE_STAGE_STOP  ?= 3
+cpnos-polypascal-test-trace-window: SECONDS_TO_RUN_POLYPASCAL = 300
+cpnos-polypascal-test-trace-window: _gen_window_debugscript cpnos-polypascal-test
+	@echo "--- trace tail ---"
+	@wc -l /tmp/z80_trace.txt 2>/dev/null
+	@grep -c '(interrupted' /tmp/z80_trace.txt 2>/dev/null \
+	  | awk '{ print "(interrupted at) annotations:", $$1 }'
+	@echo "--- window:  stage $(TRACE_STAGE_START) -> stage $(TRACE_STAGE_STOP) ---"
+
+.PHONY: _gen_window_debugscript
+_gen_window_debugscript:
+	@# Init script does NOT enable trace -- polypascal_test.lua toggles
+	@# it at the stage boundaries via manager.machine.debugger:command().
+	@printf 'go\n' > /tmp/inir_window.ds
+	@rm -f /tmp/z80_trace.txt
+
 # BIOS-JT register-state trace (issue #60, task #36).  Hooks every JP
 # entry in the resident BIOS jump table (0xED00..0xED32), the resident
 # SNIOS jump table (0xED33..0xED4A), and the NDOS-patched BIOS-JT

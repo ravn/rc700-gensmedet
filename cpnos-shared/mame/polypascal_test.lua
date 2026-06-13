@@ -163,7 +163,42 @@ end
 -- to scale all per-stage deadlines proportionally so the test
 -- completes naturally instead of tripping a baseline-tuned timeout.
 local DEADLINE_MULT = tonumber(os.getenv("TRACE_DEADLINE_MULT")) or 1
+
+-- Targeted trace-window support: when TRACE_STAGE_START is set, lua
+-- issues the debugger `trace ...` command at the moment that stage
+-- begins, and `trace off` at TRACE_STAGE_STOP.  This keeps the
+-- per-instruction logerror cost out of the boot + PPAS-load window
+-- (where mpm-net2 wedges if the slave runs >>1 wall-sec/sim-sec),
+-- and confines it to a narrow window of interest -- usually the
+-- PRIMES load (stage 25 -> 3) where the INIR-relevant CP/NET RX
+-- happens.  Requires MAME launched with `-debug -debugger none` so
+-- the debugger engine is live but headless.
+local TRACE_STAGE_START = tonumber(os.getenv("TRACE_STAGE_START"))
+local TRACE_STAGE_STOP  = tonumber(os.getenv("TRACE_STAGE_STOP"))
+local TRACE_FILE        = os.getenv("TRACE_WINDOW_FILE") or "/tmp/z80_trace.txt"
+local trace_active = false
+local function dbg_cmd(cmd)
+    local ok, err = pcall(function()
+        local dbg = manager.machine.debugger
+        if dbg == nil then error("debugger not active (need -debug)") end
+        dbg:command(cmd)
+    end)
+    if not ok then logln("dbg_cmd FAIL ("..cmd.."): "..tostring(err)) end
+    return ok
+end
+
 local function start_stage(n, deadline_secs, msg)
+    if TRACE_STAGE_START and n == TRACE_STAGE_START and not trace_active then
+        logln(string.format("[trace-window] enabling trace -> %s", TRACE_FILE))
+        if dbg_cmd(string.format('trace %s,0,logerror', TRACE_FILE)) then
+            trace_active = true
+        end
+    end
+    if TRACE_STAGE_STOP and n == TRACE_STAGE_STOP and trace_active then
+        logln("[trace-window] disabling trace")
+        dbg_cmd('trace off')
+        trace_active = false
+    end
     stage = n
     stage_at = emu.time()
     timeout_s = deadline_secs * DEADLINE_MULT
@@ -354,6 +389,10 @@ emu.register_periodic(function()
     -- feedback_screenshot_to_verify.md -- PASS log lines aren't enough),
     -- pause one second so the result file fully flushes, then exit.
     if stage == 99 and t > stage_at + 1.0 then
+        -- Defensive: if a trace window was still open (TRACE_STAGE_STOP
+        -- never reached because of an earlier FAIL), close it now so the
+        -- trace file flushes cleanly before MAME exits.
+        if trace_active then dbg_cmd('trace off'); trace_active = false end
         pcall(function() manager.machine.video:snapshot() end)
         -- Dump JIFFY (0xF406..0xF409) and LAST_CURSOR (0xF404..0xF405)
         -- so we can see whether the 50 Hz CTC-CH2 ISR is firing and
