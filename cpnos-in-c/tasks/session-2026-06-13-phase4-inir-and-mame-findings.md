@@ -240,6 +240,83 @@ experiments is captured in this writeup.
    mamedev/mame regardless of which slave-side path is chosen — it's
    a real bug.
 
+## Instrumentation refinement (post-session, 2026-06-13)
+
+The Phase 0 instrumentation plan from the session writeup originally
+called for either Lua taps (now known-broken — ravn/mame#10) or the
+GDB stub (~25× slowdown, doesn't survive PolyPascal load).  An
+end-of-session survey of MAME's native debugging facilities turned up
+a far better path that uses **only what MAME already ships**:
+
+1. **`z80pio.cpp:25`** has `#define LOG 0`.  Flipping to `1` and
+   recompiling unlocks ~25 pre-existing `logerror` calls that already
+   cover every state change relevant to the race:
+   - IE / IP / IUS bit changes
+   - Ready (ARDY/BRDY) transitions
+   - Strobe edges
+   - Mode changes (Input / Output / Bit / Bidirectional)
+   - INT signal transitions
+   - Interrupt ACK and RETI
+2. **MAME debugger `trace`** (`src/emu/debug/debugcpu.cpp:2051`):
+   ```
+   trace /tmp/trace.txt z80cpu logerror
+   ```
+   Emits per-instruction PC + disassembly with `(interrupted at PC,
+   IRQ N)` annotations AND inlines `logerror` output interleaved with
+   the instruction stream.  Cost ~5-10 %.
+3. **`-debugscript /tmp/inir.ds`** (`emuopts.h:158`) lets the harness
+   inject the `trace` command non-interactively at startup.
+4. **`-log`** dumps `logerror` to `error.log` (separate from the
+   debugger trace).
+5. **`-nothrottle`** removes the wall-clock cap (already standard in
+   the test harnesses).
+
+cpnet_bridge.cpp has zero `logerror` calls today (we wrote it this
+session).  Add 4-5 covering `read()` entry, `write()` entry,
+`m_input_count` after refill, and BRDY transitions — trivial.
+
+End-to-end recipe:
+
+```sh
+# One-line patch + rebuild
+sed -i '' 's/#define LOG 0/#define LOG 1/' \
+    /Users/ravn/z80/mame/src/devices/machine/z80pio.cpp
+cd /Users/ravn/z80/mame
+make REGENIE=1 SOURCES=src/mame/regnecentralen/rc702.cpp -j8
+
+# Debug script
+cat > /tmp/inir.ds <<EOF
+trace /tmp/trace.txt z80cpu logerror
+go
+EOF
+
+# Run with the standard test harness + the new flags
+mame ... -log -nothrottle -debug -debugscript /tmp/inir.ds </dev/null
+```
+
+Total emulation overhead ~8 %, no Lua VM, no GDB round-trip, runs
+PolyPascal to completion in normal wall-clock time.
+
+**Smoking-gun signal we're hunting** during a failing variant-H run:
+search `/tmp/trace.txt` and `error.log` for `(interrupted at` lines
+landing between two `INIR` instruction fetches inside the data-block
+read range, with PIO `Strobe` / `Ready` events nearby.  That
+sequence is the suspected ISR-firing-mid-INIR race directly.
+
+If interrupts DO fire between INIR iters → race confirmed; fix is
+the chip-IE-off + DI bracket already analysed in [[variant B]] and
+the next puzzle is why Variant B itself broke netboot.
+
+If interrupts do NOT fire between INIR iters but the data still
+corrupts → race is in MAME's simulator path (m_input pollution at
+the chip layer or the bridge's buffered-byte handoff), not in the
+firmware.  Path forward is real-hardware testing via the Pi/Pico
+parking ticket.
+
+This replaces the original Phase 0 plan's Lua-tap + GDB approach and
+the custom "trace port 0xFD" suggestion that surfaced mid-session;
+both are reinventing what MAME already ships.
+
 ## Design refinement (post-session, 2026-06-13)
 
 Once Phase 2 lands, the ring buffer no longer carries data-block
