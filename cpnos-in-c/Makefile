@@ -1091,6 +1091,289 @@ cpnos-polypascal-test-no-mirror:
 	@cat /tmp/cpnos_polypascal_result.txt 2>/dev/null || echo '(no result file)'
 	@grep -q '^PASS' /tmp/cpnos_polypascal_result.txt 2>/dev/null
 
+# Fast CP/NET smoke test for iterating on #115 Phase 2: boot the slave
+# to E> prompt and run DIR.  ~15s end-to-end vs polypascal's ~50s.
+# DIR walks BDOS-66/67 SEARCH-FIRST/NEXT — exercises snios_rcvmsg_c
+# enough that a broken INIR refactor will surface here too.
+#
+# Usage:
+#   make cpnos-dir-test COMPILER=clang TRANSPORT=pio-irq
+#   make cpnos-dir-test COMPILER=clang TRANSPORT=sio
+.PHONY: cpnos-dir-test
+cpnos-dir-test:
+	@echo "========================================================="
+	@echo "  cpnos-dir-test  COMPILER=$(COMPILER)  TRANSPORT=$(TRANSPORT_NAME)"
+	@echo "========================================================="
+	@echo "=== 1/5 building prom1-lineprog ($(COMPILER)) + installing ==="
+	$(MAKE) MIRROR_SIOB=1 prom1-lineprog-install
+	@echo "=== 2/5 refreshing disk-side cpnos.img (locale prefix) ==="
+	$(MAKE) MIRROR_SIOB=1 cpnos-disk-install
+	$(MAKE) stage-drivei-ppas
+	@echo "=== 3/5 (re)starting MP/M with fresh disks ==="
+	$(MAKE) _kill-mpm
+	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	@echo "=== 4/5 waiting for MP/M CP/NET server on :4002 ==="
+	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
+	@sleep 2
+	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
+	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt
+	@echo "=== 5/5 generating addr file ($(BUILDDIR)) ==="
+ifeq ($(COMPILER),sdcc)
+	@KH=$$(awk '/^_kbd_head[ \t]+=[ \t]+\$$/ {gsub(/.*\$$|[ \t].*/,"",$$0); print $$0}' \
+	         $(BUILDDIR)/cpnos_lp.map | head -1); \
+	 KR=$$(awk '/^_kbd_ring[ \t]+=[ \t]+\$$/ {gsub(/.*\$$|[ \t].*/,"",$$0); print $$0}' \
+	         $(BUILDDIR)/cpnos_lp.map | head -1); \
+	 printf 'return {\n  kbd_head = 0x%s,\n  kbd_ring = 0x%s,\n}\n' "$$KH" "$$KR" \
+	   > $(BUILDDIR)/cpnos_polypascal_addrs.lua
+else
+	@KH=$$($(NM) $(PROM1ONLY_PAYLOAD_ELF) | awk '/_kbd_head$$/{print $$1}'); \
+	 KR=$$($(NM) $(PROM1ONLY_PAYLOAD_ELF) | awk '/_kbd_ring$$/{print $$1}'); \
+	 printf 'return {\n  kbd_head = 0x%s,\n  kbd_ring = 0x%s,\n}\n' "$$KH" "$$KR" \
+	   > $(BUILDDIR)/cpnos_polypascal_addrs.lua
+endif
+	@echo "=== launching MAME with dir_test.lua autoboot (~30s budget) ==="
+ifeq ($(TRANSPORT),sio)
+	-COMPILER=$(COMPILER) \
+	MAME_BIN=$(MAME)/regnecentralend \
+	$(CURDIR)/../scripts/mame_capture.sh dir_$(COMPILER)_$(TRANSPORT) -- \
+	    rc702 -rompath $(MAME)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run 60 \
+	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
+	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
+	    -autoboot_script $(SHARED)/mame/dir_test.lua
+else
+	-COMPILER=$(COMPILER) \
+	MAME_BIN=$(MAME)/regnecentralend \
+	$(CURDIR)/../scripts/mame_capture.sh dir_$(COMPILER)_$(TRANSPORT) -- \
+	    rc702 -rompath $(MAME)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run 60 \
+	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
+	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
+	    -piob cpnet_bridge \
+	    -bitb3 socket.127.0.0.1:4002 \
+	    -log \
+	    -autoboot_script $(SHARED)/mame/dir_test.lua
+	-cp -f error.log /tmp/cpnos_dir_bridge.log 2>/dev/null
+endif
+	-$(MAKE) _kill-mpm
+	@echo "--- dir-test log tail ---"
+	@tail -20 /tmp/cpnos_polypascal_log.txt 2>/dev/null
+	@echo "--- result ---"
+	@cat /tmp/cpnos_polypascal_result.txt 2>/dev/null || echo '(no result file)'
+	@grep -q '^PASS' /tmp/cpnos_polypascal_result.txt 2>/dev/null
+
+# INIR-refactor instrumentation via GDB stub (issue #115 phase 0).
+#
+# A Lua-based probe was attempted first (target `cpnos-inir-baseline`
+# below + cpnos-shared/mame/inir_probe.lua) but MAME's Lua tap
+# callbacks are unreliable in this build: program-space
+# install_write_tap callbacks die after the autoload PROM disable, and
+# reading state["PC"].value from any tap callback crashes MAME in the
+# chained-dofile arrangement.  See docs/mame_gdb_debugging.md for the
+# verified GDB-stub setup this target uses instead.
+#
+# Output trace: /tmp/cpnos_inir_trace.log on the host (mounted into the
+# z80-gdb docker container as /trace).
+#
+# Usage:
+#   make cpnos-inir-baseline-gdb COMPILER=clang TRANSPORT=pio-irq
+#
+# Prerequisites:
+#   - docker image `z80-gdb` (build with: docker build -t z80-gdb -f
+#     scripts/z80-gdb.Dockerfile scripts/)
+.PHONY: cpnos-inir-baseline-gdb
+cpnos-inir-baseline-gdb:
+	@echo "========================================================="
+	@echo "  cpnos-inir-baseline-gdb  COMPILER=$(COMPILER)  TRANSPORT=$(TRANSPORT_NAME)"
+	@echo "========================================================="
+	@echo "=== 1/6 verifying z80-gdb docker image ==="
+	@docker image inspect z80-gdb >/dev/null 2>&1 || { \
+	  echo "ERROR: z80-gdb docker image missing.  Build with:"; \
+	  echo "  docker build -t z80-gdb -f scripts/z80-gdb.Dockerfile scripts/"; \
+	  exit 1; }
+	@echo "=== 2/6 building prom1-lineprog ($(COMPILER)) + installing ==="
+	$(MAKE) MIRROR_SIOB=1 prom1-lineprog-install
+	@echo "=== 3/6 refreshing disk-side cpnos.img (locale prefix) ==="
+	$(MAKE) MIRROR_SIOB=1 cpnos-disk-install
+	$(MAKE) stage-drivei-ppas
+	@echo "=== 4/6 (re)starting MP/M with fresh disks ==="
+	$(MAKE) _kill-mpm
+	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	@echo "=== 5/6 waiting for MP/M CP/NET server on :4002 ==="
+	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
+	@sleep 2
+	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
+	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt \
+	       /tmp/cpnos_inir_trace.log
+	@touch /tmp/cpnos_inir_trace.log
+	@echo "=== 5b/6 generating addr files (clang) ==="
+	@KH=$$($(NM) $(PROM1ONLY_PAYLOAD_ELF) | awk '/_kbd_head$$/{print $$1}'); \
+	 KR=$$($(NM) $(PROM1ONLY_PAYLOAD_ELF) | awk '/_kbd_ring$$/{print $$1}'); \
+	 printf 'return {\n  kbd_head = 0x%s,\n  kbd_ring = 0x%s,\n}\n' "$$KH" "$$KR" \
+	   > $(BUILDDIR)/cpnos_polypascal_addrs.lua
+	@echo "=== 6/6 launching MAME (gdbstub on :23946) + gdb client ==="
+	@# MAME starts with -debug -debugger gdbstub.  Z80 pauses at PC=0
+	@# waiting for GDB.  We launch MAME in the background, wait for the
+	@# stub port to listen, then attach gdb-multiarch in docker.
+	@( COMPILER=$(COMPILER) \
+	   MAME_BIN=$(MAME)/regnecentralend \
+	   $(CURDIR)/../scripts/mame_capture.sh inirgdb_$(COMPILER)_$(TRANSPORT) -- \
+	     rc702 -rompath $(MAME)/roms \
+	     -nothrottle -window -skip_gameinfo \
+	     -seconds_to_run 240 \
+	     -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
+	     -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
+	     -piob cpnet_bridge \
+	     -bitb3 socket.127.0.0.1:4002 \
+	     -debug -debugger gdbstub \
+	     -debugger_host 0.0.0.0 -debugger_port 23946 \
+	     -autoboot_script $(SHARED)/mame/polypascal_test.lua ) &
+	@# Sleep a few seconds for MAME to come up + bind the stub.  DO NOT
+	@# probe the stub port with `nc -z` first: MAME's gdbstub accepts
+	@# only ONE connection per run, and the probe's open-then-close
+	@# consumes that single accept slot, leaving gdb-multiarch hanging.
+	@# Sleep is the safe wait.
+	@MAME_PID=$$!; \
+	 echo "MAME PID=$$MAME_PID; sleeping 5s for gdbstub to come up"; \
+	 sleep 5; \
+	 echo "attaching gdb-multiarch in docker"; \
+	 docker run --rm \
+	     -v $(CURDIR)/clang-prom1lineprog:/elf \
+	     -v /tmp:/trace \
+	     -v $(CURDIR)/../scripts:/gdbscript \
+	     z80-gdb \
+	     gdb-multiarch -batch -x /gdbscript/inir_gdb.gdb \
+	     2>&1 | tee /tmp/cpnos_inir_gdb_stdout.log; \
+	 wait $$MAME_PID 2>/dev/null || true
+	-$(MAKE) _kill-mpm  # exit-side reap; best-effort
+	@echo "--- polypascal-test log tail ---"
+	@tail -30 /tmp/cpnos_polypascal_log.txt 2>/dev/null
+	@echo "--- result ---"
+	@cat /tmp/cpnos_polypascal_result.txt 2>/dev/null || echo '(no result file)'
+	@echo "--- inir trace event count ---"
+	@wc -l /tmp/cpnos_inir_trace.log 2>/dev/null
+	@echo "--- inir trace tail (last 20 lines) ---"
+	@tail -20 /tmp/cpnos_inir_trace.log 2>/dev/null
+	@grep -q '^PASS' /tmp/cpnos_polypascal_result.txt 2>/dev/null
+
+# INIR-refactor instrumentation probe (issue #115 phase 0).
+#
+# Runs the same polypascal-test workload but with inir_probe.lua as
+# the autoboot script, which attaches memory + I/O watch taps to the
+# PIO-B receive path and dumps a per-event trace to
+# /tmp/cpnos_inir_trace.log.  The probe chains into polypascal_test.lua
+# at the bottom, so this target generates BOTH the polypascal addrs
+# (for the keystroke driver) AND the inir addrs (for the watch taps).
+#
+# Usage:
+#   make cpnos-inir-baseline COMPILER=clang TRANSPORT=pio-irq
+#
+# After two reproducible green runs, save:
+#   cp /tmp/cpnos_inir_trace.log tasks/inir-baseline-trace-$(date +%F).log
+cpnos-inir-baseline:
+	@echo "========================================================="
+	@echo "  cpnos-inir-baseline  COMPILER=$(COMPILER)  TRANSPORT=$(TRANSPORT_NAME)"
+	@echo "========================================================="
+	@echo "=== 1/5 building prom1-lineprog ($(COMPILER)) + installing ==="
+	$(MAKE) MIRROR_SIOB=1 prom1-lineprog-install
+	@echo "=== 2/5 refreshing disk-side cpnos.img (locale prefix) ==="
+	$(MAKE) MIRROR_SIOB=1 cpnos-disk-install
+	$(MAKE) stage-drivei-ppas
+	@echo "=== 3/5 (re)starting MP/M with fresh disks ==="
+	$(MAKE) _kill-mpm
+	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	@echo "=== 4/5 waiting for MP/M CP/NET server on :4002 ==="
+	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
+	@sleep 2
+	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
+	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt \
+	       /tmp/cpnos_inir_trace.log
+	@echo "=== 5/5 generating addr files ($(BUILDDIR)) ==="
+ifeq ($(COMPILER),sdcc)
+	@# z88dk's prom1-lineprog map `sdcc/cpnos_lp.map` lines look like:
+	@#   _kbd_head    = $ED10 ; addr, public, ...
+	@KH=$$(awk '/^_kbd_head[ \t]+=[ \t]+\$$/ {gsub(/.*\$$|[ \t].*/,"",$$0); print $$0}' \
+	         $(BUILDDIR)/cpnos_lp.map | head -1); \
+	 KR=$$(awk '/^_kbd_ring[ \t]+=[ \t]+\$$/ {gsub(/.*\$$|[ \t].*/,"",$$0); print $$0}' \
+	         $(BUILDDIR)/cpnos_lp.map | head -1); \
+	 [ -n "$$KH" ] && [ -n "$$KR" ] || { \
+	   echo "ERROR: kbd_head/kbd_ring missing from $(BUILDDIR)/cpnos_lp.map"; exit 1; }; \
+	 printf 'return {\n  kbd_head = 0x%s,\n  kbd_ring = 0x%s,\n}\n' "$$KH" "$$KR" \
+	   > $(BUILDDIR)/cpnos_polypascal_addrs.lua
+	@PH=$$(awk '/^_pio_rx_head[ \t]+=[ \t]+\$$/ {gsub(/.*\$$|[ \t].*/,"",$$0); print $$0}' \
+	         $(BUILDDIR)/cpnos_lp.map | head -1); \
+	 PT=$$(awk '/^_pio_rx_tail[ \t]+=[ \t]+\$$/ {gsub(/.*\$$|[ \t].*/,"",$$0); print $$0}' \
+	         $(BUILDDIR)/cpnos_lp.map | head -1); \
+	 IP=$$(awk '/^_isr_pio_par[ \t]+=[ \t]+\$$/ {gsub(/.*\$$|[ \t].*/,"",$$0); print $$0}' \
+	         $(BUILDDIR)/cpnos_lp.map | head -1); \
+	 TR=$$(awk '/^_transport_pio_recv_byte[ \t]+=[ \t]+\$$/ {gsub(/.*\$$|[ \t].*/,"",$$0); print $$0}' \
+	         $(BUILDDIR)/cpnos_lp.map | head -1); \
+	 SR=$$(awk '/^_snios_rcvmsg_c[ \t]+=[ \t]+\$$/ {gsub(/.*\$$|[ \t].*/,"",$$0); print $$0}' \
+	         $(BUILDDIR)/cpnos_lp.map | head -1); \
+	 [ -n "$$PH" ] && [ -n "$$PT" ] && [ -n "$$IP" ] && [ -n "$$TR" ] && [ -n "$$SR" ] || { \
+	   echo "ERROR: one of pio_rx_head/pio_rx_tail/isr_pio_par/transport_pio_recv_byte/snios_rcvmsg_c missing from $(BUILDDIR)/cpnos_lp.map"; exit 1; }; \
+	 printf 'return {\n  pio_rx_head = 0x%s,\n  pio_rx_tail = 0x%s,\n  isr_pio_par = 0x%s,\n  transport_pio_recv_byte = 0x%s,\n  snios_rcvmsg_c = 0x%s,\n}\n' \
+	   "$$PH" "$$PT" "$$IP" "$$TR" "$$SR" \
+	   > $(BUILDDIR)/cpnos_inir_addrs.lua
+else
+	@KH=$$($(NM) $(PROM1ONLY_PAYLOAD_ELF) | awk '/_kbd_head$$/{print $$1}'); \
+	 KR=$$($(NM) $(PROM1ONLY_PAYLOAD_ELF) | awk '/_kbd_ring$$/{print $$1}'); \
+	 [ -n "$$KH" ] && [ -n "$$KR" ] || { \
+	   echo "ERROR: kbd_head/kbd_ring missing from $(PROM1ONLY_PAYLOAD_ELF)"; exit 1; }; \
+	 printf 'return {\n  kbd_head = 0x%s,\n  kbd_ring = 0x%s,\n}\n' "$$KH" "$$KR" \
+	   > $(BUILDDIR)/cpnos_polypascal_addrs.lua
+	@PH=$$($(NM) $(PROM1ONLY_PAYLOAD_ELF) | awk '/ _pio_rx_head$$/{print $$1}'); \
+	 PT=$$($(NM) $(PROM1ONLY_PAYLOAD_ELF) | awk '/ _pio_rx_tail$$/{print $$1}'); \
+	 IP=$$($(NM) $(PROM1ONLY_PAYLOAD_ELF) | awk '/ _isr_pio_par$$/{print $$1}'); \
+	 TR=$$($(NM) $(PROM1ONLY_PAYLOAD_ELF) | awk '/ _transport_pio_recv_byte$$/{print $$1}'); \
+	 SR=$$($(NM) $(PROM1ONLY_PAYLOAD_ELF) | awk '/ _snios_rcvmsg_c$$/{print $$1}'); \
+	 [ -n "$$PH" ] && [ -n "$$PT" ] && [ -n "$$IP" ] && [ -n "$$TR" ] && [ -n "$$SR" ] || { \
+	   echo "ERROR: one of pio_rx_head/pio_rx_tail/isr_pio_par/transport_pio_recv_byte/snios_rcvmsg_c missing from $(PROM1ONLY_PAYLOAD_ELF)"; exit 1; }; \
+	 printf 'return {\n  pio_rx_head = 0x%s,\n  pio_rx_tail = 0x%s,\n  isr_pio_par = 0x%s,\n  transport_pio_recv_byte = 0x%s,\n  snios_rcvmsg_c = 0x%s,\n}\n' \
+	   "$$PH" "$$PT" "$$IP" "$$TR" "$$SR" \
+	   > $(BUILDDIR)/cpnos_inir_addrs.lua
+endif
+	@echo "--- polypascal addrs ---"
+	@cat $(BUILDDIR)/cpnos_polypascal_addrs.lua
+	@echo "--- inir addrs ---"
+	@cat $(BUILDDIR)/cpnos_inir_addrs.lua
+	@echo "=== launching MAME with inir_probe.lua autoboot (max ~4 min) ==="
+ifeq ($(TRANSPORT),sio)
+	-COMPILER=$(COMPILER) \
+	MAME_BIN=$(MAME)/regnecentralend \
+	$(CURDIR)/../scripts/mame_capture.sh inirprobe_$(COMPILER)_$(TRANSPORT) -- \
+	    rc702 -rompath $(MAME)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run 240 \
+	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
+	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
+	    -autoboot_script $(SHARED)/mame/inir_probe.lua
+else
+	-COMPILER=$(COMPILER) \
+	MAME_BIN=$(MAME)/regnecentralend \
+	$(CURDIR)/../scripts/mame_capture.sh inirprobe_$(COMPILER)_$(TRANSPORT) -- \
+	    rc702 -rompath $(MAME)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run 240 \
+	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
+	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
+	    -piob cpnet_bridge \
+	    -bitb3 socket.127.0.0.1:4002 \
+	    -autoboot_script $(SHARED)/mame/inir_probe.lua
+endif
+	-$(MAKE) _kill-mpm  # exit-side reap; best-effort
+	@echo "--- polypascal-test log tail ---"
+	@tail -30 /tmp/cpnos_polypascal_log.txt 2>/dev/null
+	@echo "--- result ---"
+	@cat /tmp/cpnos_polypascal_result.txt 2>/dev/null || echo '(no result file)'
+	@echo "--- inir trace head (first 50 lines) ---"
+	@head -50 /tmp/cpnos_inir_trace.log 2>/dev/null || echo '(no trace file)'
+	@echo "--- inir trace event count ---"
+	@wc -l /tmp/cpnos_inir_trace.log 2>/dev/null || echo '(no trace file)'
+	@grep -q '^PASS' /tmp/cpnos_polypascal_result.txt 2>/dev/null
+
 cpnos-polypascal-test:
 	@# PROM1-only topology (session 73j-end onwards): autoload-in-c
 	@# ROA375 in PROM0 + cpnos-in-c PROM1 line program in PROM1.  The
