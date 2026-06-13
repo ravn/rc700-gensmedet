@@ -43,35 +43,79 @@ the 256-byte SPSC ring never overflows under flow-controlled CP/NET.
 
 ## Findings
 
-### F1 — recv_byte is already near-optimal as-is
+### F1 — slave per-byte ISR cost IS the bridge throughput ceiling (corrected 2026-06-14)
 
-`_transport_pio_recv_byte` spins ~1.04 loop iterations per byte on
-average.  The ISR pre-fills the ring before the mainline pop happens
-in 96 % of cases.  Eliminating the ring + ISR would save the busy-
-poll cost (~37 K instr in this window — 4.6 % of total CPU), AND the
-ISR cost (~36 K, also 4.4 %).  Combined ~9 % CPU win, NOT the
-99 % win that an "ISR-free INIR" framing might suggest.
+Initial read of this trace concluded `_transport_pio_recv_byte`
+busy-poll spinning ~1.04 iter/byte meant the slave had spare CPU.
+**That was wrong.**
 
-**Action:** when scoping INIR (#115), don't sell it on per-byte
-recv cost — that's not the bottleneck.  The win is in `snios_rcvmsg`
-control flow (no per-byte ISR latency, no head/tail bookkeeping)
-and in code size (ring + ISR + busy-poll all go away).
+The bridge's STB cycle is gated by the chip's BRDY rising-edge
+callback (`cpnet_bridge::rdy_w`), which fires only AFTER the Z80
+ACKs the previous byte by completing `_isr_pio_par`.  So the burst
+rate is set by the slave's ISR cycle time, not by mpm-net2.
 
-### F2 — Dominant CPU sink is `_impl_conin`, not the RX path
+Measured intra-burst spacing (1834 read events from the trace):
 
-~75 % of the window's instructions hide inside `_impl_conin`'s
-busy-poll (compressed as `(loops for ~11132 instructions)` between
-VRTC IRQs).  This is BDOS's idle loop while waiting for the next
-CP/NET response — between F_READ requests, control returns through
-BDOS-CONST/CONIN which scans `kbd_head/kbd_tail` and the SIO-B
-status port.
+| Gap bucket (us) | Count |
+|-----------------|-------|
+| 50..59          | 1541  |
+| 60..69          | 71    |
+| 70..89          | 144   |
+| <50 (outliers)  | 46    |
+| mean            | 54.6  |
 
-**Action:** any "speed up CP/NET RX" investigation needs to
-distinguish RX-active CPU (~10 %) from BDOS-idle CPU (~75 %).  The
-INIR refactor (#115) addresses the former.  The latter is a
-CP/M-architectural concern (BDOS calls CONST during idle waits) and
-isn't fixable without restructuring the wait path — likely out of
-scope.
+`_isr_pio_par` body = 183 T-states + Z80 IRQ-ack ~19 T = ~200 T =
+50 us at 4 MHz.  The 54.6 us measured spacing IS the ISR cycle —
+the slave is essentially at 100 % CPU during bursts.  The busy-poll
+doesn't spin because the ring drains as fast as it fills, and that
+shared rate IS the ceiling.
+
+**Per-byte CPU breakdown during bursts:**
+
+| Source                    | T-states | us/byte | Bridge rate |
+|---------------------------|----------|---------|-------------|
+| ISR body + IRQ ack        | ~200     | 50      | ~20 kB/s    |
+| Hypothetical INIR loop    | ~21      | 5       | ~190 kB/s   |
+
+**Window time accounting:**
+
+- Intra-burst transfer time: 1834 byte gaps × 54.6 us = 100 ms = 14 % of window
+- Inter-frame idle time: 623 ms = 86 % of window (slave in conin, see F2)
+
+Per-byte CPU savings under INIR = ~90 % of intra-burst time = ~12 %
+of stage-25 wall-clock.  That's a measurable speedup of L PRIMES
+load itself.
+
+**More importantly:** lifts the per-byte ceiling from ~20 kB/s to
+~190 kB/s, which is necessary for real Pi/Pico bridge hardware
+(task #11) where the bridge could otherwise push bytes faster than
+the slave can drain them — a regime where the current ISR-based
+design would silently lose bytes (chip's m_input overwritten before
+Z80 reads it).
+
+**Action:** INIR refactor (#115) is justified on per-byte CPU cost
+AFTER ALL.  The pitch is correct as originally framed; my initial
+read of the busy-poll fanout was the error.  Re-prioritise #115
+to track this measured ceiling explicitly.
+
+### F2 — Inter-frame idle hides in `_impl_conin`, ~86 % of window
+
+~600 K of the window's ~808 K instructions are compressed loops
+preceded by `_impl_conin` PCs (F1A6..F1B1) — BDOS's idle loop
+between CP/NET responses.  This is the ~30 ms inter-frame gap × 12
+frames = ~360 ms, plus some during the initial wait for the first
+frame.
+
+This is the EXPECTED CP/M behaviour — BDOS-CONST polls during
+network waits so the user can still type ahead.  The win here would
+require a structural BDOS change (HLT until IRQ + smarter CONST gate),
+NOT addressable by the INIR refactor.
+
+**Action:** out of scope for #115.  Mention in task #21's
+cross-correlation: a no-CP/NET stage-3 window should show ~100 %
+conin (every IRQ between VRTC fires = pure idle), which would
+confirm conin is the slave's universal idle loop, not specifically
+a CP/NET-induced cost.
 
 ### F3 — Frame cadence: 12 frames in 723 ms = 60 ms/frame
 
@@ -104,14 +148,15 @@ needed.
 
 See harness TaskList for tracking — entries created in this session:
 
-- T-A: INIR refactor scoping update — re-frame the win as control-flow
-  + code-size, NOT per-byte CPU.  Update issue #115 narrative.
+- T-A (REVISED): Update #115 narrative with the measured ~50 us/byte
+  ISR ceiling.  Pitch is correct as originally framed -- per-byte
+  CPU IS the bottleneck.  Add measured numbers (20 kB/s vs 190 kB/s
+  ceiling) so the priority is visible.
 - T-B: Document the windowed-trace pattern in `cpnos-shared/docs/`
   so future race investigations don't re-derive it.
-- T-C: Cross-correlate the conin busy-poll cost against a longer
-  trace (full PRIMES execution stage 3, no CP/NET) to confirm F2's
-  CP/M-architectural framing — should see same ~75 % conin even
-  without CP/NET activity.
+- T-C: Cross-correlate against a no-CP/NET stage-3 window — should
+  show conin even MORE dominant (no RX bursts at all), confirming
+  conin is the universal idle loop.
 
 ## Not raised
 
