@@ -1141,6 +1141,7 @@ ifeq ($(TRANSPORT),sio)
 	    -seconds_to_run 60 \
 	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
+	    $(TRACE_ARGS) \
 	    -autoboot_script $(SHARED)/mame/dir_test.lua
 else
 	-COMPILER=$(COMPILER) \
@@ -1154,6 +1155,7 @@ else
 	    -piob cpnet_bridge \
 	    -bitb3 socket.127.0.0.1:4002 \
 	    -log \
+	    $(TRACE_ARGS) \
 	    -autoboot_script $(SHARED)/mame/dir_test.lua
 	-cp -f error.log /tmp/cpnos_dir_bridge.log 2>/dev/null
 endif
@@ -1163,6 +1165,30 @@ endif
 	@echo "--- result ---"
 	@cat /tmp/cpnos_polypascal_result.txt 2>/dev/null || echo '(no result file)'
 	@grep -q '^PASS' /tmp/cpnos_polypascal_result.txt 2>/dev/null
+
+# Same as cpnos-dir-test, but injects MAME's debugger trace command so the
+# instruction stream + (interrupted at PC, IRQ N) annotations get
+# interleaved with the LOG=1 z80pio/cpnet_bridge logerror output.  Used
+# for diagnosing INIR/ISR races (rc700-gensmedet#115 Phase 0).  Cost:
+# ~20% additional emulation slowdown; test still completes in ~16s.
+# Requires regnecentralend built with z80pio.cpp LOG=1 — see
+# rc700-gensmedet/cpnos-in-c/tasks/session-2026-06-13-phase4-inir-and-mame-findings.md.
+.PHONY: cpnos-dir-test-trace
+cpnos-dir-test-trace: TRACE_ARGS = -debug -debugger none -debugscript /tmp/inir.ds
+cpnos-dir-test-trace: _gen_trace_debugscript cpnos-dir-test
+	@echo "--- trace tail ---"
+	@wc -l /tmp/z80_trace.txt 2>/dev/null
+	@grep -c '(interrupted' /tmp/z80_trace.txt 2>/dev/null \
+	  | awk '{ print "(interrupted at) annotations:", $$1 }'
+
+.PHONY: _gen_trace_debugscript
+_gen_trace_debugscript:
+	@# MAME debugger trace command takes COMMA-separated args:
+	@#   trace <filename>,<CPU>,[noloop|logerror][,<action>]
+	@# CPU index 0 = first/main Z80; logerror flag interleaves logerror
+	@# output inline with the instruction trace.
+	@printf 'trace /tmp/z80_trace.txt,0,logerror\ngo\n' > /tmp/inir.ds
+	@rm -f /tmp/z80_trace.txt
 
 # INIR-refactor instrumentation via GDB stub (issue #115 phase 0).
 #
@@ -1439,6 +1465,7 @@ ifeq ($(TRANSPORT),sio)
 	    -seconds_to_run 240 \
 	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
+	    $(TRACE_ARGS) \
 	    -autoboot_script $(SHARED)/mame/polypascal_test.lua
 else
 	-COMPILER=$(COMPILER) \
@@ -1451,7 +1478,10 @@ else
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
 	    -piob cpnet_bridge \
 	    -bitb3 socket.127.0.0.1:4002 \
+	    -log \
+	    $(TRACE_ARGS) \
 	    -autoboot_script $(SHARED)/mame/polypascal_test.lua
+	-cp -f error.log /tmp/cpnos_dir_bridge.log 2>/dev/null
 endif
 	-$(MAKE) _kill-mpm  # exit-side reap; best-effort
 	@echo "--- polypascal-test log tail ---"
@@ -1459,6 +1489,18 @@ endif
 	@echo "--- result ---"
 	@cat /tmp/cpnos_polypascal_result.txt 2>/dev/null || echo '(no result file)'
 	@grep -q '^PASS' /tmp/cpnos_polypascal_result.txt 2>/dev/null
+
+# Same as cpnos-polypascal-test, but with debugger trace.  See
+# cpnos-dir-test-trace.  Estimated runtime ~90 s wall-clock; produces
+# ~35 MB /tmp/z80_trace.txt.  Use for INIR/ISR race diagnosis under
+# heavy CP/NET load.
+.PHONY: cpnos-polypascal-test-trace
+cpnos-polypascal-test-trace: TRACE_ARGS = -debug -debugger none -debugscript /tmp/inir.ds
+cpnos-polypascal-test-trace: _gen_trace_debugscript cpnos-polypascal-test
+	@echo "--- trace tail ---"
+	@wc -l /tmp/z80_trace.txt 2>/dev/null
+	@grep -c '(interrupted' /tmp/z80_trace.txt 2>/dev/null \
+	  | awk '{ print "(interrupted at) annotations:", $$1 }'
 
 # BIOS-JT register-state trace (issue #60, task #36).  Hooks every JP
 # entry in the resident BIOS jump table (0xED00..0xED32), the resident
