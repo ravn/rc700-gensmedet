@@ -239,3 +239,41 @@ experiments is captured in this writeup.
 4. **The MAME `set_mode` order fix** is worth upstreaming to
    mamedev/mame regardless of which slave-side path is chosen — it's
    a real bug.
+
+## Design refinement (post-session, 2026-06-13)
+
+Once Phase 2 lands, the ring buffer no longer carries data-block
+bytes (they go through INIR direct to `msg+5`).  Its job shrinks to
+"buffer control bytes between mainline reads."
+
+**The ring should be sized for the largest contiguous control-byte
+burst, not the data block.**
+
+Max contiguous control burst in CP/NET 1.2 RX:
+
+| Burst | Bytes |
+|---|---|
+| ACK after slave's ENQ | 1 |
+| SOH + 5-byte header + HCS | 7 |
+| STX | 1 |
+| ETX + CKS + EOT | 3 |
+
+Worst case = 7 (SOH+header+HCS) + 1 (post-INIR latched-but-not-yet-ISR'd
+byte, see chip IE off/on race window discussion) = **8 bytes**.
+
+Pick 16 for slack — still a power of two for cheap `& 0x0F`
+wraparound, plus 100 % headroom over the high-water mark.
+
+Reclaims **240 B** from the current PIO_RX region (256 B page at
+0xED00; `payload.ld` lines 113-118).  That memory can:
+
+- Shift the resident-area bottom edge up by ~256 B (IVT/SCRATCH/
+  PIO_RX compact into ~512 B instead of 768 B), growing TPA by one
+  more page — same payoff shape as the 2026-06-04 TPA-grow move.
+- Or fold into SCRATCH for any other resident BSS that needs room.
+
+Cost: head/tail need explicit `& mask` instead of free uint8_t
+overflow.  ~6-8 B extra ISR body.  Negligible.
+
+When Phase 2 finally lands, the ring shrink + TPA grow should be
+bundled in the same commit so the layout migration happens once.
