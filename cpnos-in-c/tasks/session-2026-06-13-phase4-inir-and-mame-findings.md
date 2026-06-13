@@ -317,6 +317,68 @@ This replaces the original Phase 0 plan's Lua-tap + GDB approach and
 the custom "trace port 0xFD" suggestion that surfaced mid-session;
 both are reinventing what MAME already ships.
 
+### Empirical verification (2026-06-13)
+
+Flipped `z80pio.cpp:25` to `LOG 1`, rebuilt `regnecentralend`, ran
+`make cpnos-dir-test COMPILER=clang TRANSPORT=pio-irq`.  Test passed
+in 13 s wall-clock as usual; `error.log` captured **192,641 Z80PIO
+lines** with the following event histogram (per 13-second run):
+
+| Event | Count |
+|---|---|
+| IE/IP/IUS bit-state dumps (at every change) | 95,948 |
+| INT signal transitions (0 ↔ 1) | 55,682 |
+| Strobe edges (0 ↔ 1) | 27,736 |
+| Ready transitions (0 ↔ 1) | 27,735 |
+| Interrupt ACK / RETI | 20,728 |
+| Transfer Mode Interrupt Pending | 10,750 |
+| Output register writes | 3,117 |
+| Interrupt Enable toggle | 1,160 |
+| Mode transitions (Input/Output) | 781 |
+
+**Verdict: partially sufficient.**  Capture is rich and complete for
+state-machine reconstruction; both Port A (keyboard SIO emulation)
+and Port B (cpnet_bridge) come through tagged distinctly.  Two real
+gaps blocking direct race diagnosis:
+
+1. **No timestamps on `[:pio]` lines.**  cpnet_bridge logerror calls
+   carry `[N us]` prefixes (we added those this session) but the
+   stock z80pio.cpp does not.  Without timestamps you can't
+   time-align PIO state changes with bridge byte events.  Fix:
+   one-line prefix `[%lld us] ` in z80pio.cpp logerror calls using
+   `machine().time().as_attoseconds()` / 1e12.  Trivial.
+2. **No PC context.**  We see "Interrupt Acknowledge" but not which
+   Z80 instruction was interrupted.  Determining whether the IRQ
+   landed mid-INIR needs the MAME debugger's `trace <file> 0
+   logerror` command, which prefixes each instruction with PC +
+   disassembly and emits `(interrupted at PC, IRQ N)` lines
+   inline with the logerror output.  Tried wiring it into the
+   dir-test harness this session; needs the autoboot script's
+   addrs file regenerated first, deferred.
+
+**Filtering layers** (asked: "there might also be a log filter"):
+
+- *Compile-time*: split `#define LOG` into per-event-class constants
+  (`LOG_MODE`, `LOG_STROBE`, `LOG_RDY`, `LOG_INT`, `LOG_IE_STATE`).
+  Most efficient: turning off `LOG_IE_STATE` alone cuts ~50 % of
+  log volume because the IE/IP/IUS dump fires at every IRQ
+  transition.
+- *Runtime via debugger*: `trace … logerror` plus `tracelog` and
+  trace conditionals.
+- *Post-hoc*: text grep.
+
+**Next-session shopping list** to make this actually diagnose the
+variant-H race:
+
+1. Prefix `[N us]` to z80pio.cpp logerror lines (~5 minutes).
+2. Wire `-debug -debugger none -debugscript /tmp/inir.ds` into the
+   `cpnos-dir-test` and `cpnos-polypascal-test` targets, with the
+   debugscript doing `trace /tmp/trace.txt 0 logerror; go`.  Needs
+   the auto-generated addrs file path to live next to the trace
+   output so the debugger doesn't fail to open it.
+3. Optional volume reduction: split `LOG` into `LOG_MODE | LOG_STROBE
+   | LOG_RDY | LOG_INT | LOG_IE` and default `LOG_IE = 0`.
+
 ## Design refinement (post-session, 2026-06-13)
 
 Once Phase 2 lands, the ring buffer no longer carries data-block
