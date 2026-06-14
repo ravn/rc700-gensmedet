@@ -314,10 +314,6 @@ void isr_noop(void) __naked {
 
 /* CRT refresh ISR.  On each VRTC interrupt:
  *   - ack CRT status read
- *   - mask DMA display+attr channels, clear byte-pointer FF
- *   - (re)load display base address + word count
- *   - (re)load attribute word count = 0 (no attributes used)
- *   - unmask DMA channels
  *   - re-arm CTC ch2 for next frame
  *   - bump 32-bit frame counter at 0xFFFC..0xFFFF (MAME probes read
  *     the low byte to verify the ISR fired; mainline code reads all 4
@@ -325,6 +321,16 @@ void isr_noop(void) __naked {
  *   - if cur_dirty: push 8275 cursor regs, clear flag (defers per-char
  *     8275 writes from impl_conout to once-per-frame here, eliminating
  *     visible flicker on netboot banner / CCP DIR / etc.)
+ *
+ * DMA refresh is NOT re-programmed here.  init.c programs ch2 in
+ * autoinit mode (0x5A — bit 4 set), so the 8237 reloads its base
+ * source address (0xF800) and word count (0x07CF) on terminal count
+ * automatically at the end of each frame.  Stripping the per-VRTC
+ * mask + reload + unmask shrinks the ISR body from ~180 T to ~30 T
+ * (~46 us -> ~8 us @ 4 MHz) and -- more importantly -- lets a `DI`
+ * bracket around the planned INIR block-RX (~1.5 ms) survive without
+ * display garble: the autoinit-driven refresh keeps running while
+ * VRTC IRQs queue.  Pending IRQs fire at EI, no ticks lost.
  *
  * Registers used: A, F, HL.  Save set: AF + HL (4 bytes of PUSH/POP).
  *
@@ -363,39 +369,13 @@ void isr_crt(void) __naked {
         /* Ack CRT status register. */
         "in   a, (0x01)\n\t"        /* PORT_CRT_CMD */
 
-        /* Mask DMA channels 2 + 3. */
-        "ld   a, 0x06\n\t"
-        "out  (0xFA), a\n\t"
-        "ld   a, 0x07\n\t"
-        "out  (0xFA), a\n\t"
-
-        /* Clear DMA byte-pointer flip-flop, then write the display
-         * source addr's low byte (0x00) -- one `xor a` feeds both OUTs
-         * (saves 2 B over a separate `ld a, 0x00`). */
-        "xor  a\n\t"
-        "out  (0xFC), a\n\t"
-
-        /* Display source addr = 0xF800. */
-        "out  (0xF4), a\n\t"        /* low byte 0x00 (A still 0) */
-        "ld   a, 0xF8\n\t"
-        "out  (0xF4), a\n\t"
-
-        /* Display word count = DISPLAY_SIZE-1 = 0x07CF. */
-        "ld   a, 0xCF\n\t"
-        "out  (0xF5), a\n\t"
-        "ld   a, 0x07\n\t"
-        "out  (0xF5), a\n\t"
-
-        /* Attribute word count = 0. */
-        "xor  a\n\t"
-        "out  (0xF7), a\n\t"
-        "out  (0xF7), a\n\t"
-
-        /* Unmask channels 2 + 3. */
-        "ld   a, 0x02\n\t"
-        "out  (0xFA), a\n\t"
-        "ld   a, 0x03\n\t"
-        "out  (0xFA), a\n\t"
+        /* DMA ch2 + ch3 reload removed: init.c programs ch2 in
+         * autoinit mode (0x5A), so the 8237 reloads source addr
+         * 0xF800 and word count 0x07CF automatically on terminal
+         * count.  ch3 attribute count stays at 0 from init time
+         * (autoinit reloads it too).  Saves ~150 T-states per VRTC
+         * and lets a DI bracket around INIR block-RX survive
+         * without display garble. */
 
         /* Re-arm CTC ch2 for the next VRTC. */
         "ld   a, 0xD7\n\t"
