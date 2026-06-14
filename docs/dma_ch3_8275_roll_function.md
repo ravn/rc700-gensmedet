@@ -52,12 +52,12 @@ ch3's TC does *not* re-clock the FF, because by then ch3 is the active channel a
 
 | Firmware | ch2 config | ch3 config | Effective behavior |
 |---|---|---|---|
-| roa375 (RC700 autoload PROM) | base = `0x7800`, wc = `0x07CF` (2000 bytes), mode `0x5A` (autoinit, mem→IO) | **never programmed** (mask register leaves it disabled) | ch2 covers full screen, ch3 never fires; harmless |
-| autoload-in-c (clang autoload PROM, ROA375) | base = `0x7A00`, wc = `0x07CF`, mode `0x5A` | not programmed | same |
+| roa375 (RC700 autoload PROM) | per VRTC ISR (`roa375.asm:890-967` `DISINT`): base = `DSPSTR + SCROLLOFSET`, wc = `1999 - SCROLLOFSET`, mode `0x5A` (autoinit) | per VRTC ISR: base = `DSPSTR`, wc = `1999`, mode `0x5B` (autoinit); both unmasked | **Genuinely uses the roll function** for circular-buffer hardware scroll: ch2 serves `[S..1999]`, ch3 serves `[0..S-1]` after the FF flip on ch2 TC.  When `SCROLLOFSET = 0` (the common case during the brief PROM run — banner + maybe error message fit in <25 rows) ch2 covers the full screen, ch3 never sees a DRQ, and the rendered output is byte-identical to a single-channel setup.  Capability is *programmed*, just rarely *exercised* during PROM execution |
+| autoload-in-c (clang autoload PROM, ROA375) | base = `0x7A00`, wc = `0x07CF`, mode `0x5A` | not programmed | C reimplementation does NOT carry the circular-scroll ISR — single-channel only.  Behavioural change from original ROA375 if anything ever scrolls during PROM execution (today nothing does) |
 | rcbios | per `docs/RC702_BIOS_SPECIFICATION.md` §4.1: ISR re-masks both ch2+ch3, reloads ch2 base/wc, sets `ch3 wc = 0`, then unmasks both | armed but quiescent | ch2 covers full screen; ch3 enabled with wc=0 and base never written.  See "edge cases" below |
 | cpnos-in-c | init.c programs ch2 mode `0x5A`, ch3 mode `0x5B`, ch2 base=`0xF800`/wc=`0x07CF`, ch3 wc=`0`, both unmasked.  ISR does *not* touch DMA (commit `9592c2d`) — autoinit reloads ch2 base/wc each frame | armed but quiescent | ch3 base register **never written** since master clear; whatever the AM9517A holds for ch3 base on reset is what would be used if a DRQ ever reached ch3 |
 
-The current ch2 wc covers exactly the 2000-byte visible region.  The 8275 issues exactly 2000 DRQs per frame for an 80×25 display.  By the time `ch2 TC` fires (after byte 2000), the 8275 has no more DRQs to issue this frame.  The FF clocks to Q=1, ch3 is now selected, but **no DRQ ever reaches it before the next VRTC clears the FF**.  This is why none of the firmware produces visible garbage despite ch3 being in a half-defined state in cpnos.
+The current ch2 wc covers exactly the 2000-byte visible region in all firmware EXCEPT roa375's scroll path.  The 8275 issues exactly 2000 DRQs per frame for an 80×25 display.  By the time `ch2 TC` fires (after byte 2000), the 8275 has no more DRQs to issue this frame.  The FF clocks to Q=1, ch3 is now selected, but **no DRQ ever reaches it before the next VRTC clears the FF**.  This is why none of the firmware produces visible garbage despite ch3 being in a half-defined state in cpnos.
 
 ### Hypothesis (user, 2026-06-14) — "wc=0 = immediate finish, switches back"
 
@@ -96,7 +96,13 @@ Caveats:
 
 ## Where to use it (if ever)
 
-Likeliest payoff for rcbios console: line-scroll currently does an 1920-byte memcpy when the cursor advances past row 24.  At Z80 4 MHz with `LDIR` that's ~9 ms of CPU stall per scrolled row (24 t-states × 1920 bytes / 4 MHz).  Roll-mode replaces it with a few stores to DMA registers (sub-millisecond).  Worth ~200 lines of carefully-written code; not worth doing speculatively, but the option exists if BIOS scroll latency becomes a finishing-checklist item (cf. `tasks/memory/project_finishing_firmware_components.md`).
+**Two concrete plans already exist:**
+
+1. **rcbios CRT26 + separate status-line buffer** (the original assembly BIOS's 26-line mode): the planned port is written up in `rcbios-in-c/tasks/26-line-status.md` — reprograms 8275 PAR2 from `0x98` to `0x59` (subtract `0x3F`, simultaneous VRTC−1 + rows+1), routes ch2 to the 25-row main display (`0xF800`, 2000 B) and ch3 to a separate 80-byte status buffer in BSS, programmed in the CRT ISR.  Status callback driven by VRTC tick.  This is the most natural consumer of the roll-function hardware — it's *what the original assembly BIOS already did* and the C BIOS hasn't ported yet.
+
+2. **rcbios circular hardware scroll** (the roa375 pattern): line-scroll currently does an 1920-byte memcpy when the cursor advances past row 24.  At Z80 4 MHz with `LDIR` that's ~9 ms of CPU stall per scrolled row (24 t-states × 1920 bytes / 4 MHz).  Roll-mode replaces it with a few stores to DMA registers (sub-millisecond).  Working precedent in `roa375.asm:890-967`'s `DISINT` — same mechanism, different consumer.
+
+(1) and (2) can be combined into a "three-region" arrangement (ch2 covers the scrolling main area, ch3 covers wrap+status) but it's intricate; see option (a) in `26-line-status.md`.
 
 cpnos is parked behind hardware (Steps 2+4) and doesn't need the feature.
 
