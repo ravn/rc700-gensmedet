@@ -1,5 +1,9 @@
 # 26-Line Display with Status Line
 
+> **STATUS: PARKED 2026-06-14.**  Plan below is the recommended approach
+> when work resumes.  No specific unpark trigger — pick it up when the
+> rcbios finishing-checklist is the active workload.
+
 ## Recommended plan (decided 2026-06-14)
 
 **Approach: CRT26 + DMA-split, status line in BSS, "program once + autoinit".**
