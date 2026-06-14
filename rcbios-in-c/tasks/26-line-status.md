@@ -28,7 +28,21 @@ ifdef crt26
  sub  03fh           ; VerticalRetraceCount-1, LinesOnScreen+1
 endif
 OUT (CRTdata),A      ; PAR2 becomes 0x59 → 26 rows
+LD  A,(CRT2)         ; PAR3: 0x7A → underline on line 7, 11 lines/cell
+;ifdef crt26
+; add a, 030h        ; UnderLinePlacement=+3 (commented out)
+;endif
+OUT (CRTdata),A
 ```
+
+The commented-out `add a, 030h` would have shifted underline from
+line 7 (intrudes into the descender area of g/p/q/y glyphs) to
+line 10 (the bottom-most scan line of the cell, below all chargen
+pixels).  User confirms (2026-06-14): this was an aesthetic
+preference experiment — underline below glyphs vs. intruding on
+them.  The breadcrumb survives in the source but the experiment
+was reverted to the shipped configuration (line 7); both modes
+work, the choice is taste.
 
 The `SUB 0x3F` on the 8275 Parameter 2 byte achieves two effects
 in one instruction:
@@ -165,9 +179,17 @@ completely separate memory address.
    no gap, no 0xFF terminator, no risk of overwriting BSS variables
 2. **Status buffer location is flexible**: can be in BSS, in the gap
    between BSS end and 0xF600, or at any fixed address
-3. **No memory conflict**: the contiguous approach puts the status line
-   at 0xFFA0-0xFFEF, which is close to the fixed-address variables at
-   0xFFD0+ — tight and fragile
+3. **No memory conflict**: in the original assembly BIOS, the contiguous
+   approach is hard-constrained by `CLOCKADDR`/`CLOCKLOW`/`CLOCKHIGH` at
+   `0xFFFA..0xFFFF` (user, 2026-06-14).  A full 26 × 80 = 2080-byte
+   display from `0xF800` would land directly on top of the clock
+   variables.  The `0xFF` stop code at the buffer tail isn't a stylistic
+   choice — it's the *only* way to fit any 26th-row content without
+   overwriting the clock.  `screensize = 2043` gives 25 full rows + ~43
+   chars of partial 26th row + the stop code, which is what `CONOUT.MAC:10`
+   literally calls "25 1/2 line" — half a status row visible.  The DMA-split
+   design separates the status buffer entirely, freeing it from the
+   high-memory layout constraint.
 4. **Compatible with circular scroll**: if we later implement zero-copy
    scrolling, ch2 handles the circular split and ch3 still provides
    the status line (would need 3-way split — see below)
