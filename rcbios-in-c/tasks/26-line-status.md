@@ -79,6 +79,28 @@ clang and SDCC variants).
     with `CRT26`, captures a frame, checks row 25 contains the expected
     status text.
 
+### Historical reference
+
+An April-2026 WIP implementation of the same feature lives on
+`archive/status-line-26-apr2026` (in both `ravn/rc700-gensmedet` and the
+workspace), with commits:
+
+- `0be0fa4` rcbios: add 26th-row status line via DMA channel 3
+- `4a7726f` rcbios: pre-arm DMA ch.2 + ch.3 in bios_hw_init
+
+Superseded 2026-06-14 because (a) it predates substantial BIOS API
+refactoring on main (drno → max_drive_num, dpbase → dph_table, DPB
+naming, etc.) so 14+ conflict markers would need resolving, and (b)
+it uses the per-VRTC DMA reload pattern in the ISR, which is what
+today's "program once + autoinit" plan deliberately avoids.  The
+*ideas* (pre-arm DMA at init to kill cold-boot flicker; render a
+formatted status string into a BSS buffer) are picked up by the new
+plan; the *code* isn't reused.
+
+The archive branches are retained for the implementation rationale in
+the commit messages — particularly the cold-boot flicker analysis
+inside `4a7726f`'s commit body, which informs step 5 of the plan above.
+
 ### Cross-references
 
 - `docs/dma_ch3_8275_roll_function.md` — gate-level schematic trace of
