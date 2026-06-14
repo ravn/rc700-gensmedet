@@ -885,6 +885,16 @@ Cable: CBL919 (coax, 75Ω, BNC).
 | Active display area | 230 × 165 mm |
 | Power | 15 V DC, 15 W, supplied from RC702 monitor power jack |
 
+**Signal format (user, 2026-06-14).**  The RC752 accepts **NTSC-style
+composite video locked to a 50 Hz field rate** — it's a flexible-rate
+progressive (non-interlaced) data terminal monitor in the NTSC
+data-display tradition, *not* a strict PAL broadcast receiver.  The
+horizontal-oscillator PLL chases the source's sync; with the 8275
+producing 308 scan lines per field at 50 Hz, horizontal = 308 × 50 =
+15.4 kHz, matching the spec table.  This means the monitor is
+*designed* to track non-broadcast line counts, not just the original
+characterised timing.
+
 **Implication for 8275 timing.**  The RC702's 8275 reset parameters
 (`PAR1=0x4F`, `PAR2=0x98`, `PAR3=0x7A`, `PAR4=0x4D/0x6D`) produce
 exactly 33 vertical retrace scan lines at 64.9 µs each = **2.142 ms**,
@@ -892,12 +902,13 @@ matching the RC752's 2.1 ms active-blanking spec almost exactly with
 no margin.  The CRT26 mode (`PAR2=0x59` — see
 `rcbios-in-c/tasks/26-line-status.md`) reduces retrace to 22 lines
 = **1.428 ms**, ~0.7 ms below spec.  CRT26 still works on the actual
-RC752/JB-1201M(A) population because the published "Active Video
-Period" is a *characterization* of the original timing rather than a
-hard minimum on the deflection circuit, and the horizontal-oscillator
-PLL chases input sync within a wider physical range than the spec
-table implies (see RC752 manual sections 9952-10053 on the V/H sync
-oscillation and PLL behaviour).
+RC752/JB-1201M(A) population because (a) the published "Active Video
+Period" of 17.9 ms is a *characterization* of the original 25-row
+timing rather than a hard floor on the deflection circuit, and (b)
+the monitor is a flexible-rate progressive-scan design with a PLL that
+chases input sync (see RC752 manual sections 9952-10053 on the V/H
+sync oscillation and PLL behaviour) — exactly the kind of monitor that
+gracefully tracks non-standard line counts.
 
 ### Keyboard
 

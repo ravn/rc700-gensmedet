@@ -83,11 +83,15 @@ monitor's published vertical timing:
 The original 25-row config sits **exactly at the RC752's published
 blanking budget — no documented retrace margin**.  CRT26 runs the
 monitor below the published 2.1 ms blanking spec.  That CRT26 works in
-practice (the author shipped it) implies that the spec sheet's 17.9 ms
-active video is a *characterization* of the original 25-row timing
-rather than the deflection circuit's hard floor — the horizontal-
-oscillator PLL chases input sync within a wider physical range, and
-real CRT flyback completes in ~1.0-1.4 ms regardless of spec wording.
+practice (the author shipped it) is consistent with the RC752 being a
+**flexible-rate progressive video monitor in the NTSC data-terminal
+tradition, locked to a 50 Hz field rate** (user, 2026-06-14) — not a
+strict PAL broadcast receiver.  The spec sheet's 17.9 ms active video
+period characterises the original 25-row timing; the monitor's PLL
+tracks whatever the source produces, and real CRT flyback completes in
+~1.0-1.4 ms regardless of spec wording.  Flexible-rate progressive
+monitors of this era are *designed* to track non-broadcast line
+counts, which is exactly why CRT26 works.
 
 Hypothetical CRT27 has been considered (`SUB 0x3F` again would give
 `0x1A` — V=0, R=26 → 27 visible rows + 1 retrace row) but the 0.7 ms
