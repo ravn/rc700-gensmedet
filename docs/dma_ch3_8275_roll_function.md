@@ -100,10 +100,25 @@ Likeliest payoff for rcbios console: line-scroll currently does an 1920-byte mem
 
 cpnos is parked behind hardware (Steps 2+4) and doesn't need the feature.
 
+## MAME modeling
+
+The ravn/mame fork's `src/mame/regnecentralen/rc702.cpp` driver models the schematic wiring as of 2026-06-14:
+
+| Schematic component | MAME wiring |
+|---|---|
+| 74LS74 D-FF | `TTL7474` device named `m_7474` |
+| D input (LOGICAL ONE) | `m_7474->d_w(1)` in `machine_reset()` (defaults to 1 anyway) |
+| /PRE input | `m_7474->preset_w(1)` in `machine_reset()` (never preset) |
+| /CLR input (NOR(RESET, DISP INTR)) | `crtc.irq_wr_callback().set(m_7474, FUNC(ttl7474_device::clear_w)).invert()` — only DISP INTR wired; RESET is handled implicitly by MAME's device reset |
+| CLK input (OR(/DACK2, /TC)) | `eop_w()` and `dack2_w()` both call `m_7474->clock_w(m_dack2 \|\| m_eop)` — modeling the 74LS32 OR gate output as the disjunction of the two real-line voltages |
+| 74LS08 ch2 gate (`DRQ2 = DSP DRQ AND /Q`) | `qbar_w()` + `crtc_drq_w()`: `m_dma->dreq2_w(m_qbar_state && m_drq_state)` |
+| 74LS08 ch3 gate (`DRQ3 = DSP DRQ AND Q`) | `q_w()` + `crtc_drq_w()`: `m_dma->dreq3_w(m_q_state && m_drq_state)` |
+
+Before this change MAME had the 74LS74's structural wiring (gates, clear path) but the CLOCK input was unconnected, so Q stayed at 0 forever and ch3 was effectively dead in emulation.  After the change, firmware that sets `ch2 wc < 2000` triggers the schematic-accurate switch to ch3 at the right point in the frame.  Firmware that uses `ch2 wc = 0x07CF` (today's reality across all firmware) is byte-identical to the prior emulation, because the FF only clocks at frame-end and ch3 sees no DRQ.
+
 ## Open questions
 
-1. Does MAME's `rc702.cpp` model the dual-channel DMA gating?  If MAME treats DRQ3 as inert, a roll-mode firmware would render correctly on real hardware but garble in MAME.  Schematic-accurate gate logic would need to be added to the driver before MAME could verify a roll-using firmware.
-2. The schematic shows `DISP INTR` (8275 IRQ output, pin 31) as the `/CLR` source — but `DISP INTR` is the VRTC interrupt that the CPU is *also* meant to service.  Is the FF clear tied to the 8275's internal VRTC pulse, or to the latched interrupt that stays asserted until CPU acknowledges it?  If the latter, the FF stays cleared (Q=0, ch2 selected) until the CPU reads the 8275 status register to ack — which means the timing of the ISR's `IN A,(0x01)` ack matters.  This is worth scope-tracing on real hardware before committing to a roll-mode design.
+The schematic shows `DISP INTR` (8275 IRQ output, pin 31) as the `/CLR` source — but `DISP INTR` is the VRTC interrupt that the CPU is *also* meant to service.  Is the FF clear tied to the 8275's internal VRTC pulse, or to the latched interrupt that stays asserted until CPU acknowledges it?  If the latter, the FF stays cleared (Q=0, ch2 selected) until the CPU reads the 8275 status register to ack — which means the timing of the ISR's `IN A,(0x01)` ack matters.  This is worth scope-tracing on real hardware before committing to a roll-mode design.  MAME's i8275 IRQ semantics (clear-on-status-read) align with the second interpretation.
 
 ## Corrections to existing docs
 
