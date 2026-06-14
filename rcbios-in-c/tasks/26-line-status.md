@@ -1,5 +1,106 @@
 # 26-Line Display with Status Line
 
+## Recommended plan (decided 2026-06-14)
+
+**Approach: CRT26 + DMA-split, status line in BSS, "program once + autoinit".**
+
+The status line lives in a separate `statbuf[80]` BSS buffer.  ch2 is
+programmed *once at init* to serve `0xF800..0xFF9F` (2000 bytes for
+rows 0-24).  ch3 is programmed *once at init* to serve `&statbuf` (80
+bytes for row 25).  Both channels stay in autoinit mode (`0x5A` for
+ch2, `0x5B` for ch3).  **The CRT ISR does not touch DMA at all** — the
+8237's autoinit reloads each channel's base+wc on every TC, and the
+74LS74 on MIC 11 (see `docs/dma_ch3_8275_roll_function.md`) flips ch2
+to ch3 at the right point in the frame.
+
+Every VRTC:
+1. VRTC pulse clears the 74LS74 → Q=0 → ch2 selected
+2. 8275 issues first 2000 DRQs → routed to ch2 → bytes from `0xF800`
+3. ch2's TC fires → 74LS74 clocks → Q=1 → ch3 selected; autoinit reloads ch2 base/wc
+4. 8275 issues remaining 80 DRQs → routed to ch3 → bytes from `statbuf`
+5. ch3's TC fires; autoinit reloads ch3 base/wc
+6. Next VRTC clears FF, cycle repeats
+
+Net cost: zero CPU per frame for DMA.  Net code size: ~30 B of one-time
+init + the `statline_set()` helper.  Status writes from C code just
+update `statbuf` — the DMA picks it up on the next frame.
+
+**Why this approach over the alternatives:**
+
+| Aspect | DMA-split + autoinit (chosen) | Contiguous + 0xFF stop (alternative) |
+|---|---|---|
+| Status row width | Full 80 chars | 80 chars also achievable, but constrained by future high-memory layout changes |
+| Per-frame CPU | Zero — 8237 + 74LS74 do everything | Zero — but ch2 wc has to be exactly right |
+| Memory layout coupling | None; `statbuf` is anywhere in BSS | Display end must leave room for `0xFF` byte before CLOCK |
+| Compatibility with screen-dump tools | Rows 0-24 still at `0xF800`; row 25 elsewhere (document `statbuf` symbol) | Rows 0-24 + part of row 25 at `0xF800`; cleaner for dumb tools |
+| MAME emulation | Works (74LS74 CLK wired in `ravn/mame 7be8a02788a`) | Works on any 8275 emulation that honors `0xFFxx` end-of-screen code |
+| Code symmetry with old assembly BIOS | Different (assembly used contiguous) | Same |
+| Locks ch3 for other uses | Yes — but rcbios doesn't want circular scroll, so no conflict | No (ch3 stays idle) |
+
+The DMA-split approach loses code-shape symmetry with the old assembly
+BIOS in exchange for a cleaner memory layout and no per-frame CPU cost.
+For the C port, that's the right trade.
+
+### Implementation steps
+
+All gated behind a `CRT26` build flag in `rcbios-in-c/Makefile` (both
+clang and SDCC variants).
+
+1. **Add `CRT26` build flag** to `Makefile` (`-DCRT26`).
+2. **Modify CRT init** in `bios_hw_init.c`:
+   ```c
+   #ifdef CRT26
+       port_out(crt_param, CFG.par2 - 0x3F);  /* 26 rows: 0x98 -> 0x59 */
+   #else
+       port_out(crt_param, CFG.par2);         /* 25 rows */
+   #endif
+   ```
+3. **Add `statbuf[80]` in BSS** in `bios.c` (gated on `CRT26`).  Init
+   to spaces in `bios_hw_init.c` via `memset(statbuf, ' ', 80)`.
+4. **Add `hal_dma_atr_addr(a)` macro** in `hal.h` (writes the 16-bit
+   address through `dma_atr_addr` via CLBP + two port writes).
+5. **Extend DMA init** in `bios_hw_init.c` to program ch3 once:
+   - Mode: keep existing `DMA_MODE_MEM2IO_AUTOINIT(3)` = `0x5B`
+   - Base: `hal_dma_atr_addr((word)statbuf)`
+   - Word count: `hal_dma_atr_wc(79)`
+6. **Leave `isr_crt` alone for DMA** — the autoinit handles everything.
+   ch2 base/wc stays as programmed at init (`0xF800` / `1999`).
+7. **CONOUT semantics**: cursor/scroll/insert/delete all remain bounded
+   to rows 0-24.  The status row is ISR-managed only.
+8. **Add status-line API** in `bios.h`:
+   ```c
+   void rcbios_statline_set(const char *s);    /* set + pad to 80 chars */
+   void rcbios_statline_clear(void);           /* memset to spaces */
+   ```
+9. **Default status line**: from a 1 Hz tick (derived from the existing
+   50 Hz rtc0 counter), render `HH:MM` plus drive activity in
+   `statbuf`.  No BCD/DAA needed; integer division is cleaner in C.
+10. **MAME verification**: lit-equivalent test boots rcbios under MAME
+    with `CRT26`, captures a frame, checks row 25 contains the expected
+    status text.
+
+### Cross-references
+
+- `docs/dma_ch3_8275_roll_function.md` — gate-level schematic trace of
+  the ch2/ch3 routing (MIC 11), and the MAME wiring (commit
+  `ravn/mame 7be8a02788a`) that makes this rendering correctly in
+  emulation.
+- `RC702_HARDWARE_TECHNICAL_REFERENCE.md` § Video Monitor — RC752
+  retrace-margin sums explaining why CRT26 (V=1 → 1.428 ms retrace) is
+  under spec but still works on the RC752's flexible-rate PLL.
+- Original assembly BIOS at `~/git/rc702-bios` — `INIT.MAC`, `CONOUT.MAC`,
+  `C.MAC`, `STATL.MAC`, `CLOCK.MAC`, `KEYINT.MAC` for reference
+  behaviour (with the caveat that the assembly BIOS used the contiguous
+  approach, not the DMA-split, because it predated the C port's BSS
+  flexibility).
+
+The legacy contiguous + `0xFF`-stop alternative is described later in
+this document (sections "Findings from ravn/rc702-bios" and "DMA split
+for separate status line buffer") for historical reference; the
+recommended plan above supersedes the earlier "Phase 1" steps.
+
+---
+
 ## Background
 
 The ravn/rc702-bios assembly BIOS implements a 26th screen line by
