@@ -242,6 +242,50 @@ uint16_t transport_pio_recv_byte(uint16_t timeout_ticks) {
 uint16_t pio_rx_count;
 uint8_t  pio_test_done;
 
+/* ---- #115 Step 1 — INIR block-recv scaffold (no call site yet) ------
+ *
+ * Reads pio_block_count bytes from PIO_B_DATA into the buffer at
+ * pio_block_dst via a single Z80 INIR.  Calling convention via BSS
+ * globals (avoids sdcccall(1) / clang-sdcccall drift between the two
+ * compilers; clang's __naked + arg-in-DE handling is fragile).
+ *
+ * INIR semantics: each iter `IN (HL),(C); INC HL; DEC B; JR NZ`.  PIO
+ * Mode 1's /BRDY handshake serialises iters: chip drops /BRDY low on
+ * each IN A,(C), peer can't strobe the next byte until /BRDY rises
+ * again on the next iter's IN, so iter N sees the freshly-latched byte
+ * N (not the stale one from iter N-1).  21 T-states / iter @ 4 MHz =
+ * ~5 us/byte = ~190 kB/s ceiling (vs ~50 us/byte / ~20 kB/s for the
+ * current isr_pio_par + ring path).  See
+ * tasks/pio-input-busy-wait-and-inir-2026-06-12.md and
+ * tasks/session-2026-06-14-windowed-trace-analysis.md.
+ *
+ * Caller MUST bracket with DI/EI so isr_pio_par doesn't fire mid-INIR
+ * and race m_input via the ring buffer.  isr_crt is autoinit-DMA (see
+ * comment at isr_crt) so display stays clean during the ~1.5 ms DI
+ * window; PIO-A keyboard input pauses for the duration.
+ *
+ * Caller MUST prime the chain: a strobe must be pending (chip IP set,
+ * /BRDY low) when INIR starts, else iter 1 reads stale m_input.  In
+ * CP/NET RX the priming byte is STX -- after recv'ing STX via the
+ * ring path, the next byte is already in flight from the bridge.
+ *
+ * Step 1 is additive: no current call sites.  Linker --gc-sections
+ * will drop this; size delta = 0 B until Step 2 wires the call. */
+uint8_t *pio_block_dst;
+uint8_t  pio_block_count;
+
+RESIDENT
+void pio_b_recv_block_body(void) __naked {
+    ASM_VOLATILE(
+        "ld   hl, (_pio_block_dst)\n\t"
+        "ld   a, (_pio_block_count)\n\t"
+        "ld   b, a\n\t"
+        "ld   c, 0x11\n\t"          /* PORT_PIO_B_DATA */
+        "inir\n\t"
+        "ret\n\t"
+    );
+}
+
 
 /* =============================================================
  *  IM2 ISR layer  (formerly isr.c, merged Phase 60)
