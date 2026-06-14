@@ -96,15 +96,21 @@ Caveats:
 
 ## Where to use it (if ever)
 
-**Two concrete plans already exist:**
+**Two distinct designs, only one of which actually uses the roll function:**
 
-1. **rcbios CRT26 + separate status-line buffer** (the original assembly BIOS's 26-line mode): the planned port is written up in `rcbios-in-c/tasks/26-line-status.md` — reprograms 8275 PAR2 from `0x98` to `0x59` (subtract `0x3F`, simultaneous VRTC−1 + rows+1), routes ch2 to the 25-row main display (`0xF800`, 2000 B) and ch3 to a separate 80-byte status buffer in BSS, programmed in the CRT ISR.  Status callback driven by VRTC tick.  This is the most natural consumer of the roll-function hardware — it's *what the original assembly BIOS already did* and the C BIOS hasn't ported yet.
+1. **rcbios CRT26 (original assembly BIOS pattern — `~/git/rc702-bios`) — does NOT use the roll function.**  `INIT.MAC` reprograms 8275 PAR2 from `0x98` to `0x59` (`SUB 03Fh` → 25→26 rows, VRTC−1).  `CONOUT.MAC` defines `screensize defl 800h-5 = 0x7FB = 2043` (vs `0x7CF = 1999` for 25-row).  `C.MAC INTDISPLAY` (the 50 Hz CRT ISR) programs ch2 base=`SCREENBASE`/wc=`SCREENSIZE`, **explicitly sets ch3 wc=0 (line 497, "Inactive")**, and that's it.  The 26th line is fed by extending the contiguous ch2 transfer to 2043 bytes — the buffer ends at 0xFFF0 with an `0xFF` byte which the 8275 interprets as "End of Screen + Stop DMA" (special character code, bits 7:6 = `11`), terminating DMA cleanly before ch2 hits TC and before the FF ever flips.  The status line lives in the same screen-memory region at 0xFFA0..0xFFEF.  This is option (c) in `rcbios-in-c/tasks/26-line-status.md`.  **Why this works:** it's simpler — no ch3 reprogramming, no DMA channel switching — at the cost of putting the status line inside the same memory window as the visible 25-row area (close to fixed-address variables at 0xFFD0+).
 
-2. **rcbios circular hardware scroll** (the roa375 pattern): line-scroll currently does an 1920-byte memcpy when the cursor advances past row 24.  At Z80 4 MHz with `LDIR` that's ~9 ms of CPU stall per scrolled row (24 t-states × 1920 bytes / 4 MHz).  Roll-mode replaces it with a few stores to DMA registers (sub-millisecond).  Working precedent in `roa375.asm:890-967`'s `DISINT` — same mechanism, different consumer.
+2. **rcbios CRT26 + DMA-split status line (planned C port pattern) — would use the roll function.**  See option (c) in `rcbios-in-c/tasks/26-line-status.md`: same PAR2 reprogramming, but ch2 covers exactly rows 0-24 (`0xF800`, wc=1999) and ch3 covers row 25 from a separate 80-byte BSS buffer.  This is the cleaner design (status buffer is independent of display memory, no `0xFF` terminator gymnastics) but it's NOT what the original BIOS did — it's a *better* design that the C port can pick because the roll-function wiring is already there.
 
-(1) and (2) can be combined into a "three-region" arrangement (ch2 covers the scrolling main area, ch3 covers wrap+status) but it's intricate; see option (a) in `26-line-status.md`.
+3. **Circular hardware scroll (roa375.asm:890-967 `DISINT` pattern) — uses the roll function as designed.**  Working precedent in the autoload PROM: ch2 base = `DSPSTR + SCROLLOFSET`, wc = `1999 - SCROLLOFSET`; ch3 base = `DSPSTR`, wc = `1999`.  Replaces a 1920-byte `LDIR` per scrolled row (~9 ms CPU stall at 4 MHz) with a handful of DMA-register writes (sub-millisecond).  Worth porting to the C rcbios console if BIOS scroll latency becomes a finishing-checklist item.
+
+(2) and (3) can be combined into a three-region arrangement (ch2 covers the scrolling main area, ch3 covers wrap+status) but it's intricate; see option (a) in `26-line-status.md`.
 
 cpnos is parked behind hardware (Steps 2+4) and doesn't need the feature.
+
+### How the cpnos / C-rcbios "ch3 wc=0" idiom traces back
+
+Both inherit the **old assembly BIOS pattern** (1) above: program ch3 mode + wc=0, never set ch3 base, leave ch3 unmasked.  In the assembly BIOS that's defensive — the `0xFF` stop code in the buffer ensures the 8275 stops requesting before ch3 would matter, so wc=0 is a "this never fires anyway" idle marker.  In cpnos / C-rcbios with no `0xFF` terminator, the same idiom works only because ch2 wc = full screen and the 8275 issues exactly one frame's worth of DRQs.  Not actually a "safety net" — just an inherited shape.
 
 ## MAME modeling
 
