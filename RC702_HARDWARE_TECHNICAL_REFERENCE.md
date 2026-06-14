@@ -304,8 +304,8 @@ ignored.
 **DMA Channel Assignments:**
 - Channel 0: External debugger / J8 expansion (HD controller, MEM700)
 - Channel 1: NEC uPD765 floppy disk controller
-- Channel 2: Intel 8275 display controller
-- Channel 3: Intel 8275 display controller (second DMA channel)
+- Channel 2: Intel 8275 display controller (primary, services from base address until TC)
+- Channel 3: Intel 8275 display controller (second DMA channel — *roll function* for hardware-assisted vertical scroll; takes over from ch2 after ch2 hits TC.  Currently unused by all firmware: ch2 covers the full 2000 bytes/frame and ch3 never receives a DRQ.  See `docs/dma_ch3_8275_roll_function.md` for the MIC 11 schematic trace.)
 
 **DMA Programming Values:**
 - `0x20` - Command value (standard configuration)
@@ -696,8 +696,8 @@ The 8237 provides four independent DMA channels that can be programmed individua
 **RC702 Channel Assignment** (per technical manual section 2.3.9):
 - **Channel 0:** External / J8 expansion (DREQ0 via J8-R28, DACK0 back to J8). Used by WD1000 HD controller and MEM700 RAM disk.
 - **Channel 1:** NEC uPD765 floppy disk controller (on motherboard)
-- **Channel 2:** Intel 8275 CRT controller (display refresh, row buffer refill)
-- **Channel 3:** Intel 8275 CRT controller (second DMA channel for display)
+- **Channel 2:** Intel 8275 CRT controller (display refresh, row buffer refill — primary)
+- **Channel 3:** Intel 8275 CRT controller (*roll function* second DMA channel — takes over from ch2 after TC, enables hardware-assisted vertical scroll of a circular display buffer.  Currently unused by all firmware; see `docs/dma_ch3_8275_roll_function.md`.)
 
 #### Transfer Modes
 

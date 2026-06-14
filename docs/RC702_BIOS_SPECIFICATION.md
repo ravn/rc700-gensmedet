@@ -153,7 +153,7 @@ modem). This is the reverse of some documentation that labels Channel A as
 | 0xF0/0xF1 | Channel 0: Address / Word Count (hard disk) |
 | 0xF2/0xF3 | Channel 1: Address / Word Count (floppy disk) |
 | 0xF4/0xF5 | Channel 2: Address / Word Count (display data) |
-| 0xF6/0xF7 | Channel 3: Address / Word Count (display attributes) |
+| 0xF6/0xF7 | Channel 3: Address / Word Count (8275 second DMA channel — *roll function*, currently unused; see `docs/dma_ch3_8275_roll_function.md`) |
 | 0xF8 | Command/Status Register |
 | 0xF9 | Request Register |
 | 0xFA | Single Mask Register |
