@@ -862,6 +862,43 @@ of active attributes:
 Attributes combine additively: e.g., blinking inverse = 128 + 2 + 16 = 146.
 "Set attribute" sends 128 + value; "reset attribute" sends 128 (no attributes).
 
+### Video Monitor (RC752 / NEC JB-1201M(A))
+
+The RC700/RC702/RC703 systems ship with the **RC752** monochrome video
+display monitor.  Per the RC752 Technical Manual (RCSL 44-RT1981,
+included in `docs/RC702tech.pdf` pages ~9211-10250), the RC752 is a
+vendor-rebranded **NEC (Nippon Electric Co., Ltd.) Model JB-1201M(A)**
+with RC-specific corrections.  Internal RC technical name: **VDU752**.
+Cable: CBL919 (coax, 75Ω, BNC).
+
+**Scanning frequencies and active video periods:**
+
+| Parameter | Value |
+|---|---|
+| Horizontal scan | 15.4 kHz (64.9 µs/line) |
+| Vertical scan | 50 Hz (20 ms/field) |
+| Active horizontal | 48.1 µs (of 64.9 µs/line — 16.8 µs blanking) |
+| Active vertical | **17.9 ms** (of 20 ms/field — **2.1 ms vertical blanking**) |
+| Video input | Composite, 1.0 Vp-p, 75Ω, negative sync polarity |
+| Video bandwidth | 30 Hz – 20 MHz (±3 dB) |
+| Display characters | 80 × 25, 5×7 dot matrix in 7×11 dot/cell |
+| Active display area | 230 × 165 mm |
+| Power | 15 V DC, 15 W, supplied from RC702 monitor power jack |
+
+**Implication for 8275 timing.**  The RC702's 8275 reset parameters
+(`PAR1=0x4F`, `PAR2=0x98`, `PAR3=0x7A`, `PAR4=0x4D/0x6D`) produce
+exactly 33 vertical retrace scan lines at 64.9 µs each = **2.142 ms**,
+matching the RC752's 2.1 ms active-blanking spec almost exactly with
+no margin.  The CRT26 mode (`PAR2=0x59` — see
+`rcbios-in-c/tasks/26-line-status.md`) reduces retrace to 22 lines
+= **1.428 ms**, ~0.7 ms below spec.  CRT26 still works on the actual
+RC752/JB-1201M(A) population because the published "Active Video
+Period" is a *characterization* of the original timing rather than a
+hard minimum on the deflection circuit, and the horizontal-oscillator
+PLL chases input sync within a wider physical range than the spec
+table implies (see RC752 manual sections 9952-10053 on the V/H sync
+oscillation and PLL behaviour).
+
 ### Keyboard
 
 The RC702 keyboard is a smart peripheral that provides ready-to-use 8-bit

@@ -46,13 +46,53 @@ work, the choice is taste.
 
 The `SUB 0x3F` on the 8275 Parameter 2 byte achieves two effects
 in one instruction:
-- **High bits (7:6)**: VRTC retrace timing decremented by 1 scanline
-  (making room for the extra character row)
+- **High bits (7:6)**: VRTC count decremented by 1 retrace row
+  (freeing scan-line budget for the extra character row)
 - **Low bits (5:0)**: Row count incremented by 1 (25→26)
 
-The value 0x98 encodes: bits 7:6 = 0b10 (VRTC=2), bits 5:0 = 0x18
-(24 → 24+1=25 rows). After SUB 0x3F: bits 7:6 = 0b01 (VRTC=1),
-bits 5:0 = 0x19 (25 → 25+1=26 rows).
+The value 0x98 encodes: bits 7:6 = 0b10 (V=3 retrace rows), bits 5:0 = 0x18
+(24 → 24+1=25 visible rows). After SUB 0x3F: bits 7:6 = 0b01 (V=2 retrace
+rows), bits 5:0 = 0x19 (25 → 25+1=26 visible rows).
+
+The trick works because the +1 encoding of both fields aligns with the
+arithmetic: `−0x40` on the V field decrements its value by 1, `+0x01` on
+the R field increments it by 1, and `0x40 − 0x01 = 0x3F` is the net SUB.
+Frame total scan lines is preserved (28 rows × 11 = 308 scan lines),
+so vertical sync stays at 50 Hz.
+
+### Vertical retrace budget vs the RC752 monitor's spec
+
+The system ships with the **RC752** monochrome monitor, a vendor-
+rebranded **NEC JB-1201M(A)** (RC752 Technical Manual = RCSL 44-RT1981,
+included as part of `docs/RC702tech.pdf` pages ~9211-10250; also noted
+in `RC702_HARDWARE_TECHNICAL_REFERENCE.md` § Video Monitor).  The
+monitor's published vertical timing:
+
+- Vertical scan: 50 Hz (20 ms/field)
+- Active vertical: 17.9 ms
+- → **Active vertical blanking: 2.1 ms**
+
+8275 retrace time at 64.9 µs/line:
+
+| Mode | V retrace rows × 11 scan lines × 64.9 µs | Total | vs RC752's 2.1 ms |
+|---|---|---|---|
+| 25-row (PAR2=`0x98`) | 33 × 64.9 µs | **2.142 ms** | +0.04 ms — *essentially at spec* |
+| 26-row (PAR2=`0x59`) | 22 × 64.9 µs | **1.428 ms** | **−0.67 ms** — *under spec* |
+| 27-row (PAR2=`0x1A`, hypothetical) | 11 × 64.9 µs | 0.714 ms | −1.4 ms — far under spec |
+
+The original 25-row config sits **exactly at the RC752's published
+blanking budget — no documented retrace margin**.  CRT26 runs the
+monitor below the published 2.1 ms blanking spec.  That CRT26 works in
+practice (the author shipped it) implies that the spec sheet's 17.9 ms
+active video is a *characterization* of the original 25-row timing
+rather than the deflection circuit's hard floor — the horizontal-
+oscillator PLL chases input sync within a wider physical range, and
+real CRT flyback completes in ~1.0-1.4 ms regardless of spec wording.
+
+Hypothetical CRT27 has been considered (`SUB 0x3F` again would give
+`0x1A` — V=0, R=26 → 27 visible rows + 1 retrace row) but the 0.7 ms
+retrace budget is well below any realistic CRT flyback floor.  The
+author of the original BIOS didn't try it; no `crt27` flag exists.
 
 ### Screen memory layout with CRT26
 
