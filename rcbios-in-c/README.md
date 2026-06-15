@@ -1,9 +1,62 @@
 # RC702 CP/M BIOS in C (REL30)
 
-Rewrite of the REL30 BIOS in C using z88dk with sdcc backend, following the
-same approach as `autoload-in-c/` (ROA375 PROM rewrite).
+C reimplementation of the REL30 CP/M BIOS for the RC702.  **clang via
+`llvm-z80` is the production toolchain**; SDCC via z88dk is built and
+verified in parallel as a parity check.
 
-See `rcbios/BIOS_IN_C_PLAN.md` for the full implementation plan.
+## Production status (2026-06-15)
+
+| Toolchain | Size | State |
+|---|---|---|
+| **clang (production)** | **5462 B** | Boots `A>` on MAXI 8″ disk image; passes `mame-test`, `sio-echo-test`, `bgstar-test`, `conout-test`, `asm-test` |
+| SDCC (parity check) | 6091 B | Same source tree; SDCC backend; same test matrix |
+
+Both toolchains build the same `bios.cim`-shaped image targeting the
+same REL30 MAXI variant (8" floppy, 56 K CP/M).  Production deployment
+runs the clang build.
+
+## Quick start
+
+Build:
+
+```bash
+make bios      # clang BIOS -> clang/bios.clang.cim ; prints size
+make sdcc      # SDCC BIOS -> sdcc/bios.cim         ; parity build
+make clean
+```
+
+Verify (MAME end-to-end boot to `A>` + 77-track disk-checksum sweep):
+
+```bash
+make mame-test       # default MAXI; expects ERR=0 across all tracks
+make mame-mini       # MINI 5.25" variant
+make mame-maxi       # MAXI 8" variant (== mame-test)
+```
+
+Other named test targets:
+
+```bash
+make sio-echo-test   # 4 KB bidirectional echo on both SIOs
+make bgstar-test     # CONOUT + keyboard + foreground/background draw end-to-end
+make conout-test     # CONOUT primitives (15 of 18 RC700 text codes)
+make asm-test        # ASM FILEX integration test (write path)
+```
+
+Toolchain requirements: `llvm-z80` clang at `../../llvm-z80/build-macos/bin/`
+(via `make toolchain` at the workspace root) for the production build;
+z88dk Docker for the SDCC parity build.
+
+## Plan + history
+
+See `rcbios/BIOS_IN_C_PLAN.md` for the original implementation plan.
+The chronological development log starts at the next section
+("Development history") and continues to the bottom of this file;
+it's historical narrative, not current state.  For the current state
+of pending work, see [`tasks/README.md`](tasks/README.md).
+
+---
+
+## Development history
 
 There is a good explanation of the CP/M data structures and their naming at https://www.idealine.info/sharpmz/dpb.htm. 
 

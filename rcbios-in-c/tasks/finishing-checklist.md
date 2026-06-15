@@ -1,4 +1,11 @@
-# rcbios-in-c — finishing checklist (2026-06-03)
+# rcbios-in-c — finishing checklist (2026-06-03; closed-out 2026-06-15)
+
+> **STATUS 2026-06-15: all five close-out items addressed.**  rcbios is
+> "finished" by the four-component bar: no production bugs, sizes
+> refreshed and tracked, task tree triaged and indexed, README is a
+> landing doc, size-lever decision recorded.  Item #3 (CI gate)
+> deferred with rationale — not a finishing-bar blocker.  Detail per
+> item below.
 
 What's left to call rcbios "finished" per the four-component long-term goal
 (`tasks/memory/project_finishing_firmware_components.md`).  Round 1 audit;
@@ -132,19 +139,44 @@ every push.
    `SIZE_COMPARISON.md` itself is an ASM-vs-C historical comparison
    doc (SDCC scope) and stays as-is; CLAUDE.md + the TL;DR + the
    "size headroom" rows in this checklist all updated.
-3. **CI gate on `make mame-test` (or at minimum a size assertion).**
-   Confirm runtime-tests already covers rcbios mame-test; if not, add.
-   ~30 min – 1 h.
-4. **README.md as landing doc** — production build command + the canonical
-   verification path (`make mame-test` → `A>` → DISK=...  ERR=0).  Link
-   to a canonical screenshot.  ~30 min.
-5. **Pick one size-lever to land OR explicitly defer them all to the
-   compiler track.**  `bios-size-issues.md` is the source; #173 (cpnos
-   driver) likely also benefits rcbios.  Decision: "finished" rcbios may
-   simply accept current size (no cap to break) and offload further
-   shrink to llvm-z80.  ~30 min decision + record.
+3. **CI gate on `make mame-test`** — **DEFERRED 2026-06-15**.  The
+   `.github/workflows/makefile.yml` on rc700-gensmedet currently builds
+   the zmac toolchain + assembles roa375 + assembles sysgen on
+   ubuntu-latest.  Adding `mame-test` requires (a) the llvm-z80 toolchain
+   on the runner (Docker image or cached build), (b) MAME on the runner
+   (a non-trivial install), and (c) the IMD test disks available
+   (currently `~/Downloads/SW1711-I8.imd`).  Cost ≫ the checklist's
+   "30 min – 1 h" estimate; the user-local `make mame-test` before
+   commits remains the de-facto gate.  llvm-z80's own two-tier CI
+   (`build-and-lit` + `runtime-tests`) covers the compiler track;
+   bringing rcbios under CI proper is a separate-scope project, not a
+   finishing-bar item.  Revisit if a "rcbios broke and we didn't
+   notice for N days" incident ever happens.
+4. **README.md as landing doc** — **DONE 2026-06-15**.  Top of README
+   now carries a Production status table (clang 5462 B, SDCC 6091 B)
+   + a Quick start section listing the build + verify + named-test
+   commands, with toolchain requirements.  The chronological
+   development history (the original content) is preserved below the
+   landing block under a "Development history" header.  Cross-links
+   to `tasks/README.md` for the pending-work index.
+5. **Size lever decision** — **DECIDED 2026-06-15: accept current size,
+   offload further shrink to llvm-z80.**  Rationale: rcbios sits at
+   5462 B (10.3 % smaller than SDCC's 6091 B), with no PROM cap to
+   break — headroom is "fits the BIOS region above `BIOSAD=0xDA00`
+   without encroaching on TPA," and there's substantial cushion.
+   Recent drift (5905 → 5462 over ~6 weeks) is entirely from
+   accumulated llvm-z80 backend gains *with no rcbios source changes*
+   — i.e. the compiler track is delivering shrink for free.  The
+   levers in `bios-size-issues.md` (~30 B BSS static-stack reload
+   reduction etc.) are quality-not-budget items; landing them would
+   churn rcbios source for diminishing returns, while the compiler
+   track is a more leveraged investment (one fix benefits every
+   downstream).  Conclusion: rcbios is "finished" on the size axis.
+   `bios-size-issues.md` stays as a record of *known* clang-side
+   shapes the backend could improve; it's now a feature request for
+   llvm-z80, not a rcbios todo.
 
-Total ~3–4 h.
+Total ~3–4 h estimated; ~2 h actually spent (item #3 deferred saves the rest).
 
 ## Not in scope here
 

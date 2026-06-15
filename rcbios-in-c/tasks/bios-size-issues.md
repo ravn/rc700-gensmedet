@@ -1,6 +1,21 @@
 # BIOS Code Density Issues for ravn/llvm-z80
 
-Found during session 12 (2026-04-06) comparing clang 5952B vs SDCC 5797B (+155B, +2.7%).
+> **STATUS 2026-06-15.**  This file is a record of clang-side codegen
+> shapes the llvm-z80 backend could improve.  It is no longer a
+> rcbios todo — per the rcbios finishing-checklist's item #5 decision,
+> rcbios accepts its current size (5462 B clang, 10.3% smaller than
+> SDCC's 6091 B; no PROM cap to break).  Further shrink is offloaded
+> to the compiler track.  The issues catalogued below were originally
+> a list of "things to fix in rcbios via peephole work"; today they
+> read as a list of "things to fix in the backend that would
+> incidentally benefit rcbios."
+
+Found during session 12 (2026-04-06) comparing clang 5952 B vs SDCC
+5797 B (+155 B, +2.7%) — back then clang was *bigger* than SDCC.  Since
+then the backend has accumulated enough improvements that clang is now
+**629 B smaller** than SDCC (5462 vs 6091) on the same source tree,
+without any rcbios source changes.  The issues below remain valid
+shapes to target individually if/when the backend track picks them up.
 
 Each issue below is a standalone upstream report with a minimal C reproducer.
 No fix code is included — the goal is a fresh look at each problem.
