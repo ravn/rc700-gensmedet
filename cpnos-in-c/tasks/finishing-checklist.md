@@ -1,12 +1,13 @@
-# cpnos-in-c — finishing checklist (2026-06-03)
+# cpnos-in-c — finishing checklist (2026-06-03; refreshed 2026-06-15)
 
 > **STATUS 2026-06-04: PARKED — awaiting physical Z80-PIO parallel cable.**
-> All MAME oracles are green (cpnos-polypascal-test PASS 51.37 s clang ×
-> {PIO, SIO}; PROM1 2029 / 2048 B; PPAS confirms +256 B TPA via Data top
-> 0xDA86).  The remaining "finished" gate — real-hardware confirmation of
-> the PIO transport on the user's RC702 — needs a physical cable to a
-> CP/NET master.  Until the cable arrives, do NOT chase further cpnos
-> compiler/code shrink (19 B PROM headroom + 46 B payload-grow budget
+> All MAME oracles are green (cpnos-polypascal-test PASS clang ×
+> {PIO, SIO}; PROM1 **2015 / 2048 B = 33 B free (1.6 %)** as of
+> 2026-06-15; PPAS confirms +256 B TPA via Data top 0xDA86).  The
+> remaining "finished" gate — real-hardware confirmation of the PIO
+> transport on the user's RC702 — needs a physical cable to a CP/NET
+> master.  Until the cable arrives, do NOT chase further cpnos
+> compiler/code shrink (33 B PROM headroom + 46 B payload-grow budget
 > make blind churn risky, and MAME already says PASS).
 >
 > Out of scope for the park: cpnos dependencies (llvm-z80 backend, z88dk
@@ -17,19 +18,32 @@
 > Unpark trigger: user signals the cable arrived.  Memory rule:
 > `tasks/memory/project_cpnos_parked_awaiting_parallel_cable.md`.
 
+> **2026-06-15 polish pass:** task tree triaged (23 files moved to
+> `tasks/history/`, 13 active references kept) and indexed at
+> [`tasks/README.md`](README.md).  PROM1 size today is 2015 B —
+> 12 B better than the 2027 B recorded just below; headroom grew
+> from 21 B to 33 B from accumulated llvm-z80 backend gains since
+> 2026-06-04 with no cpnos source changes (same effect seen in
+> rcbios).  Items #1 (CI size-cap gate), #4 (CLAUDE refresh) and #6
+> (README polish) addressed in this pass.  Items #2 (headroom
+> recovery to ≥ 50 B), #3 (todo-* triage) and #5 (isr_pio_par speed)
+> remain behind the cable-park.
+
 What's left to call cpnos "finished" per the four-component long-term goal
 (`tasks/memory/project_finishing_firmware_components.md`).  Round 1 audit;
 pair with the other three component checklists.
 
 ## TL;DR
 
-**Works in production, but the size headroom is the single fragile thing
-about it.**  Current PROM1 = **2027 / 2048 B = 21 B free (1.0 %)**, down
-from 26 B in CLAUDE.md.  Any future compiler/code change can blow the cap
-silently and break shipping.  Closing this component means: (1) make the
-size cap a hard CI gate, (2) widen headroom to a sustainable margin (≥
-50 B), (3) triage the 17 open `tasks/todo-*-2026-05-17.md` files (most are
-parked / deferred / done — clean the inventory).  No active code bugs.
+**Works in production, but size headroom is the single fragile thing
+about it.**  Current PROM1 = **2015 / 2048 B = 33 B free (1.6 %)** as
+of 2026-06-15 (up from 2027 B / 21 B free on 2026-06-04 — backend
+gains).  Any future compiler/code change can still blow the cap
+silently and break shipping.  Closing this component means: (1) make
+the size cap a hard CI gate, (2) widen headroom to a sustainable
+margin (≥ 50 B), (3) triage `tasks/todo-*.md` — **DONE 2026-06-15**,
+see [`tasks/README.md`](README.md) for the current 13-active +
+23-archived index.  No active code bugs.
 
 ## Status: known bugs
 
