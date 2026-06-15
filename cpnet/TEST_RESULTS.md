@@ -1,10 +1,32 @@
 # CP/NET Test Results and Analysis
 
-**Test Date:** 2026-03-07 (DRI binary protocol), 2026-03-04 (original hex/CRC-16)
+> **Re-stamped 2026-06-15.**  The original March 2026 numbers (below)
+> documented the early bring-up against the Python test server.  Today
+> the production verification path is `cpnos-polypascal-test` against
+> z80pack `mpm-net2`, exercising both PIO and SIO transports from both
+> the `cpnos-in-c` slave and the `rcbios` slave (via SNIOS.SPR).
+> Current passing test matrix:
+>
+> | Test | Transport | Slave | Result |
+> |---|---|---|---|
+> | `cpnos-in-c make cpnos-polypascal-test TRANSPORT=pio-irq COMPILER=clang` | PIO-IRQ | cpnos-in-c | **PASS** ~51 s simulated |
+> | `cpnos-in-c make cpnos-polypascal-test TRANSPORT=sio COMPILER=clang` | SIO | cpnos-in-c | **PASS** |
+> | `cpnet/polypascal_pio_test.sh` | PIO-IRQ | rcbios + SNIOS.SPR | **PASS** ~10.50 s |
+> | `cpnet/polypascal_pio_test.sh COMPILER=sdcc` | PIO-IRQ | rcbios + SNIOS.SPR (SDCC) | **PASS** ~10.71 s |
+> | `cpnet/chksum_roundtrip_test.sh` | n/a | DRI checksum impl | **PASS** |
+>
+> The March 2026 environment notes below are kept for historical
+> reference but the test infrastructure has substantially evolved:
+> the production master is now `z80pack/cpmsim/mpm-net2` (MP/M II +
+> CP/NET 1.2), not the bespoke Python server; transports include
+> PIO-IRQ at 4 MHz with ring buffer, not just SIO at 38400 baud; and
+> both slave-side implementations (cpnos-in-c + rcbios) are exercised.
+
+**Test Date (original):** 2026-03-07 (DRI binary protocol), 2026-03-04 (original hex/CRC-16)
 **Test Duration:** Multiple runs over 150+ emulated seconds each
 **Status:** All Core Protocols Verified
 
-## Test Environment
+## Test Environment (2026-03 — historical)
 
 ### Hardware/Emulation
 - **Emulator:** MAME (rc702 subtarget)
@@ -20,12 +42,15 @@
 - **Serial Protocol:** DRI binary (ENQ/ACK framing, two's complement checksum)
 - **Serial Port:** SIO Channel A @ 38400 baud, 8N1, RTS/CTS
 
-### Server
+### Server (2026-03 — superseded)
 - **Language:** Python 3 (`cpnet/server.py`)
 - **Protocol:** DRI binary serial (matching SNIOS)
 - **Connection:** TCP socket via MAME null_modem
 - **Port:** 4321 (localhost)
 - **Base Directory:** /tmp/cpnet_files/
+
+*Production today uses `z80pack/cpmsim/mpm-net2` (MP/M II) on TCP 4002,
+not this Python test server.  See the box at the top.*
 
 ## Core Protocol Verification
 

@@ -1,10 +1,21 @@
-# CP/NET Wire Protocol — cpnos-rom slave ⇄ z80pack mpm-net2 master
+# CP/NET Wire Protocol — cpnos slave ⇄ z80pack mpm-net2 master
 
-This document specifies the byte-level protocol that the cpnos-rom CP/NOS slave
-speaks to the MP/M II + CP/NET master running under z80pack `cpmsim`.  It is
-the **authoritative reference for any rewrite of `cpnos-rom/snios_c.c`**:
-the slave-side implementation must produce these exact bytes in this exact
-order to interop with the master.
+> **Current production slave is `cpnos-in-c`** (`src/snios_c.c` +
+> `src/transport_{pio,sio}.c`).  The doc below was originally written
+> against the `cpnos-rom` predecessor (parked 2026-05-17; see
+> `rc700-gensmedet/cpnos-in-asm/PARKED.md`).  Where it says "cpnos-rom"
+> it means the current slave unless explicitly historical — the wire
+> protocol is identical because both implementations targeted the same
+> DRI CP/NET 1.2 spec.  File-path references in §"Slave-side
+> deviations", §"Source locations" etc. are now in `cpnos-in-c/src/`
+> rather than `cpnos-rom/`.
+
+This document specifies the byte-level protocol that the cpnos CP/NOS
+slave speaks to the MP/M II + CP/NET master running under z80pack
+`cpmsim`.  It is the **authoritative reference for any change to
+`cpnos-in-c/src/snios_c.c`** or its transport siblings: the slave-side
+implementation must produce these exact bytes in this exact order to
+interop with the master.
 
 The protocol is Digital Research's **CP/NET 1.2 binary serial framing**,
 unchanged since 1980 except for the layer it runs over.
@@ -15,16 +26,17 @@ unchanged since 1980 except for the layer it runs over.
 |---|---|---|
 | **Master** | `z80pack/cpmsim/srcmpm/netwrkif-0.asm` | DRI 1980, modified Sep 2014 by Udo Munk for Z80SIM |
 | **DRI reference slave** | `cpnet-z80/src/ser-dri/snios.asm` | DRI 1980-1982, "Revised October 5, 1982" |
-| **cpnos-rom slave (current)** | `cpnos-rom/snios.s` + `snios_c.c` | Hand port of `rc700-gensmedet/cpnet/snios.asm` |
+| **cpnos slave (current production)** | `cpnos-in-c/src/snios_c.c` + `transport_pio.c` + `transport_sio.c` | C port (was `cpnos-rom/snios.s` + `snios_c.c`, parked) — hand port of `rc700-gensmedet/cpnet/snios.asm` |
 
-The master + DRI reference agree byte-for-byte on the protocol described below.
-cpnos-rom's slave deviates in one place (mid-frame busy-wait vs.
+The master + DRI reference agree byte-for-byte on the protocol described
+below.  The slave deviates in one place (mid-frame busy-wait vs.
 timeout-bearing receive — see [§ Slave-side deviations](#slave-side-deviations)).
 
 ## Transport layer
 
 The wire is a raw byte stream (no framing/escaping at the transport level).
-Three transports are wired in cpnos-rom:
+Two transports are wired in `cpnos-in-c` (the `proxy` transport listed
+below as legacy was retired in Phase 51A and is no longer compiled):
 
 | TRANSPORT= | Slave-side I/O | Path to master |
 |---|---|---|
@@ -412,16 +424,23 @@ load-bearing and contradicts the actual-running code.
   delta) per Clapp's 1983 ACM SIGSMALL paper.  Complements this
   byte-level doc with the "why does the slave look like this" view.
 - `rc700-gensmedet/cpnet/snios.asm` — the original zmac-syntax port of DRI's
-  binary serial protocol (commit `fa028b6` "Add CP/NET test infrastructure").
-- `cpnos-rom/snios.s` — current clang GAS port (commit `15a3368`).
-- `cpnos-rom/sdcc/snios.asm` — current SDCC z88dk port.
-- `cpnos-rom/snios_c.c` — Phases 1-4 C ports of the SNIOS housekeeping
-  (#75); Phases 5-6 (SNDMSG/RCVMSG state machines) will be plain C
-  implementations of THIS spec, not byte-for-byte ports of the asm.
+  binary serial protocol (commit `fa028b6` "Add CP/NET test infrastructure"); now used to build `SNIOS.SPR` for the rcbios path.
+- `cpnos-in-c/src/snios_c.c` — current SNIOS housekeeping in C
+  (production, both clang and SDCC compile this same source; the
+  SNDMSG/RCVMSG state machines are plain-C implementations of this
+  spec, not byte-for-byte ports of the asm).
+- `cpnos-in-c/src/transport_pio.c` — PIO-IRQ transport (production
+  default; selected by SW1 S03 = On).
+- `cpnos-in-c/src/transport_sio.c` — SIO-A transport (production
+  alternative; SW1 S03 = Off).
 - `z80pack/cpmsim/srcmpm/netwrkif-0.asm` — master-side DRI reference,
   authoritative for what bytes the slave must produce.
 - `cpnet-z80/src/ser-dri/snios.asm` — DRI's reference slave, structurally
   parallel to the master.
 - `cpnet-z80/md/SER-DRI.md` — durgadas311's notes on running this
   protocol over the `CpnetSerialServer.jar` proxy (alternative master,
-  not used in cpnos-rom).
+  not used by the cpnos-in-c slave).
+- **Historical**: the parked `cpnos-rom` predecessor's slave lived at
+  `cpnos-rom/snios.s` (clang GAS port, commit `15a3368`) and
+  `cpnos-rom/sdcc/snios.asm` (SDCC z88dk port).  See
+  `cpnos-in-asm/PARKED.md`.

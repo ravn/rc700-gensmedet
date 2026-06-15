@@ -1,6 +1,6 @@
 # RC702 port-output value reference
 
-Every byte our `cpnos-rom` payload writes via Z80 `OUT` instruction,
+Every byte the cpnos payload (current production: `cpnos-in-c`; was `cpnos-rom`, parked) writes via Z80 `OUT` instruction,
 decoded bit-by-bit with cross-references to callsites.  Port addresses
 come from `hal.h`; this doc is about the **values** — what each byte
 means to the peripheral chip that latches it.
@@ -543,7 +543,7 @@ requirements.
 
 ## µPD765 FDC — 0x04 (STATUS) / 0x05 (DATA)
 
-**Not driven by cpnos-rom** — CP/NOS is a diskless slave by design:
+**Not driven by cpnos** — CP/NOS is a diskless slave by design:
 all storage goes over CP/NET to the host (see
 `tasks/cpnos-next-steps.md` Phase 20 / `project_cpnos_no_local_floppy`).
 cpbdos implements only BDOS fn 0..12, so the BIOS JT's disk slots are

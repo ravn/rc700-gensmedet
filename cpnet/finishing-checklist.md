@@ -1,4 +1,16 @@
-# CP/NET — finishing checklist (2026-06-03)
+# CP/NET — finishing checklist (2026-06-03; closed-out 2026-06-15)
+
+> **STATUS 2026-06-15: principal close-out items addressed.**  Items
+> #1 (cpnos-shared/docs cpnos-rom → cpnos-in-c refresh) and #2
+> (TEST_RESULTS re-stamp) done in this pass.  Item #3 (proxy sweep)
+> confirmed not needed — the only remaining "proxy" mentions in
+> `cpnet/*.md` refer to a packet-capture proxy (analysis tool) or to
+> `todo-ppas-sub-direct-vs-proxy-2026-05-19` (the open SUB todo,
+> intentional context), not to the retired proxy *transport*.  Items
+> #4 (PPAS-SUB todo resolve/park) and #5 (CI full-matrix gate) remain
+> open — both small but require direction from the user.  CP/NET is
+> "finished" on the no-bugs / production-ready bar; the residual
+> items are quality-of-life polish, not blockers.
 
 What's left to call CP/NET "finished" per the four-component long-term goal
 (`tasks/memory/project_finishing_firmware_components.md`).  Round 1 audit;
@@ -104,15 +116,26 @@ cap.  cpnos's transport_pio.c / transport_sio.c contribute to cpnos's
 
 ## Concrete close-out items (ordered)
 
-1. **Update cpnos-shared/docs/ to reference cpnos-in-c instead of cpnos-rom.**
-   Three files: `CPNET_WIRE_PROTOCOL.md`, `PORT_OUTPUTS.md`,
-   `MEMORY_MAP.md`.  The wire spec is the load-bearing one.  ~30 min.
-2. **Re-stamp `cpnet/TEST_RESULTS.md`** with current test pass-times (clang
-   polypascal-test 10.50 s rcbios / 50.65 s cpnos).  Drop or annotate
-   stale March 2026 numbers.  ~15 min.
-3. **Sweep `cpnet/*.md` for stale `proxy` transport references.** The proxy
-   was retired Phase 51A; should be marked retired everywhere it appears.
-   ~30 min.
+1. **Update cpnos-shared/docs/ to reference cpnos-in-c instead of
+   cpnos-rom** — **DONE 2026-06-15.**  `CPNET_WIRE_PROTOCOL.md` now
+   has a top banner noting the cpnos-in-c production slave; source-
+   location section updated to `cpnos-in-c/src/{snios_c.c,
+   transport_pio.c, transport_sio.c}` with the cpnos-rom predecessor
+   marked historical.  `PORT_OUTPUTS.md`'s two cpnos-rom mentions
+   refreshed.  `MEMORY_MAP.md` was already a pointer to
+   `cpnos-in-c/docs/memory_map.md` (resolved 2026-06-03).
+2. **Re-stamp `cpnet/TEST_RESULTS.md`** — **DONE 2026-06-15.**  Top
+   of doc now carries a current passing test matrix (4 cells) with
+   timings; March 2026 environment notes preserved as historical
+   context.
+3. **Sweep `cpnet/*.md` for stale `proxy` transport references** —
+   **VERIFIED NOT NEEDED 2026-06-15.**  Only "proxy" mentions remaining
+   in `cpnet/*.md` are: (a) a packet-capture TCP proxy used for analysis
+   in `MAME_MPM_WIRE_FORMAT.md` (different concept, correct usage); and
+   (b) the open SUB todo `todo-ppas-sub-direct-vs-proxy-2026-05-19.md`
+   (which is *about* the SUB-proxy direction, intentional naming).  The
+   retired proxy *transport* doesn't appear by stale reference anywhere
+   in the live docs.
 4. **Resolve or formally park** `cpnet/todo-ppas-sub-direct-vs-proxy-2026-05-19.md`.
    Either fix the direct-connect path or document as "use proxy for SUB
    workloads, by design."  ~30 min – several hours depending on which.
