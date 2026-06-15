@@ -48,7 +48,24 @@ run: avr_main.o aes256.o
 	   echo "--- simavr ---" && \
 	   timeout 30 simavr avr_aes.elf'
 
+avr_gflog_cycles.o: avr_gflog_cycles.c
+	$(CLANG) $(AVR_CFLAGS) -c $< -o $@
+
+# Bug 4 unpark Phase 1: cycle measurement.  Builds + runs the gf_log harness
+# through simavr in a single docker invocation.  Prints CYCLES=<8hexdigits>
+# on the last line (total cycles for 256 gf_log calls).  Total runtime
+# typically ~5-10 wall-clock seconds.
+gf_log-cycles: avr_gflog_cycles.o aes256.o
+	@echo "=== link + simavr (gf_log cycles, single docker run) ==="
+	@$(DOCKER_RUN) \
+	  'avr-gcc -mmcu=$(MCU) avr_gflog_cycles.o aes256.o -o avr_gflog.elf && \
+	   avr-size --format=berkeley avr_gflog.elf && \
+	   echo "--- gf_log function size ---" && \
+	   avr-objdump -d avr_gflog.elf | awk "/<gf_log>:/{flag=1} flag{print; if (/^[0-9a-f]+ <(?!gf_log).*>:/) exit}" | head -60 && \
+	   echo "--- simavr ---" && \
+	   timeout 30 simavr avr_gflog.elf'
+
 clean:
 	rm -f *.o *.elf
 
-.PHONY: all run clean
+.PHONY: all run clean gf_log-cycles
