@@ -12,3 +12,4 @@ set(Z88DK_INCLUDE ${CMAKE_SOURCE_DIR}/z88dk/include)
 
 add_subdirectory(autoload-in-c)
 add_subdirectory(rcbios-in-c)
+add_subdirectory(cpnos-in-c)
