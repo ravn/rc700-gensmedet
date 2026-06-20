@@ -2,6 +2,7 @@ CompileFlags:
   Add:
     - -xc
     - -std=c23
+    - -Iclang
     - -Isrc
     - -I../cpnos-shared/include
     - -DENABLE_FDC=0
