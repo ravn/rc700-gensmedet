@@ -7,10 +7,15 @@ project(cpnos-in-c C)
 
 # z88dk headers (stdint.h, etc.) — from parent or standalone open
 if(NOT DEFINED Z88DK_INCLUDE)
-    set(Z88DK_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/../../z88dk/include)
+    get_filename_component(Z88DK_INCLUDE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../z88dk/include" ABSOLUTE)
 endif()
 
-set(SHARED_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/../cpnos-shared/include)
+# Canonicalise the `..` so clangd/CLion see an absolute path with no
+# parent-dir traversal — some tooling caches paths verbatim and chokes
+# on the unresolved form.
+get_filename_component(SHARED_INCLUDE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../cpnos-shared/include" ABSOLUTE)
 
 add_library(cpnos_sources OBJECT EXCLUDE_FROM_ALL
     src/cpnos_main.c
@@ -28,6 +33,15 @@ target_include_directories(cpnos_sources PRIVATE
     ${SHARED_INCLUDE}
     ${Z88DK_INCLUDE}
 )
+
+# Belt-and-braces: also link the cpnos_shared_headers INTERFACE library
+# when it's available (i.e. when the parent CMakeLists.txt loaded
+# cpnos-shared's CMakeLists.txt before this one).  Propagates the
+# canonical INTERFACE include path via CMake's standard mechanism, so
+# CLion's clangd sees the same path the SHARED_INCLUDE -I gives.
+if(TARGET cpnos_shared_headers)
+    target_link_libraries(cpnos_sources PRIVATE cpnos_shared_headers)
+endif()
 
 # Defines mirror the Makefile's production clang build (lines 115-122 + 217-219).
 # Values match the default targets so the indexer sees the same #ifdef branches

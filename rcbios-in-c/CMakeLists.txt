@@ -5,9 +5,13 @@ project(rcbios-in-c C)
 # The actual build uses Makefiles with Docker (clang or z88dk/sdcc).
 # sdcc keywords are stubbed in hal.h (#ifdef HOST_TEST).
 
-# z88dk headers (stdint.h, etc.) — from parent or standalone open
+# z88dk headers (stdint.h, etc.) — z88dk lives at the workspace root
+# (/Users/ravn/z80/z88dk/), two levels above this CMakeLists.txt.  Only
+# falls back to this path when CLion opens this subdir standalone (the
+# parent CMakeLists already sets Z88DK_INCLUDE correctly).
 if(NOT DEFINED Z88DK_INCLUDE)
-    set(Z88DK_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/../z88dk/include)
+    get_filename_component(Z88DK_INCLUDE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../z88dk/include" ABSOLUTE)
 endif()
 
 # Generate builddate.h stub if it doesn't exist (fresh clone)
