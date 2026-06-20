@@ -1,0 +1,17 @@
+CompileFlags:
+  Add:
+    - -xc
+    - -std=c99
+    - -Iinclude
+    - -Wno-unknown-attributes
+    - -Wno-gcc-compat
+    - -Wno-unused-value
+    - -Wno-unused-function
+Diagnostics:
+  ClangTidy:
+    Remove:
+      - bugprone-infinite-loop
+      - misc-use-internal-linkage
+  Suppress:
+    - asm_invalid_input_constraint
+    - asm_invalid_output_constraint
