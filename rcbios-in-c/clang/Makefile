@@ -38,7 +38,6 @@ CFLAGS = --target=z80 -Oz -g -nostdlib -ffreestanding -std=c23 \
 	 -ffunction-sections -fdata-sections \
 	 -flto \
 	 -Xclang -target-feature -Xclang +static-stack \
-	 -mllvm -disable-lsr \
 	 -Iclang -I. -Wno-gcc-compat -Wno-return-type \
 	 -Wimplicit-int-conversion \
 	 -DMSIZE=$(MSIZE) \
