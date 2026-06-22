@@ -26,4 +26,5 @@ transport_pio.asm
 transport_sio.asm
 
 transport_stamp
+toolchain_stamp
 zcc_opt.def

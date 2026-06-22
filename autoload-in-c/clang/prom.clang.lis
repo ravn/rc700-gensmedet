@@ -11,7 +11,7 @@ Disassembly of section .boot:
 ;     reloc_zx0();
        4: cd 68 00     	call	$68
 ;         memset(BSS_DST, 0, BSS_SIZE);
-       7: 21 aa 67     	ld	hl,$67aa
+       7: 21 9c 67     	ld	hl,$679c
        a: 1e 00        	ld	e,$0
        c: 01 35 00     	ld	bc,$35
        f: 78           	ld	a,b
@@ -27,15 +27,15 @@ Disassembly of section .boot:
       1b: 13           	inc	de
       1c: ed b0        	ldir
 ;     main_relocated();
-      1e: c3 24 64     	jp	$6424
+      1e: c3 16 64     	jp	$6416
 
 00000021 <_banner_string>:
       21: 20 52 43 37 30 30 20 52          RC700 R
       29: 4f 41 33 37 35 20 43 4c         OA375 CL
       31: 20 32 30 32 36 2d 30 36          2026-06
-      39: 2d 30 38 20 32 33 2e 34         -08 23.4
-      41: 38 20 37 32 35 37 31 38         8 725718
-      49: 35 2f 72 61 76 6e 00            5/ravn.
+      39: 2d 32 33 20 30 30 2e 35         -23 00.5
+      41: 38 20 34 38 39 64 62 63         8 489dbc
+      49: 33 2f 72 61 76 6e 00            3/ravn.
 
 Disassembly of section .nmi:
 
@@ -112,36 +112,23 @@ Disassembly of section .zx0_decoder:
 Disassembly of section .text:
 
 00006000 <__code_start>:
-    6000: d9           	exx
-    6001: 63           	ld	h,e
-    6002: d9           	exx
-    6003: 63           	ld	h,e
-    6004: d9           	exx
-    6005: 63           	ld	h,e
-    6006: d9           	exx
-    6007: 63           	ld	h,e
-    6008: d9           	exx
-    6009: 63           	ld	h,e
-    600a: d9           	exx
-    600b: 63           	ld	h,e
-    600c: dc 63 06     	call	c,$663
-    600f: 64           	ld	h,h
-    6010: d9           	exx
-    6011: 63           	ld	h,e
-    6012: d9           	exx
-    6013: 63           	ld	h,e
-    6014: d9           	exx
-    6015: 63           	ld	h,e
-    6016: d9           	exx
-    6017: 63           	ld	h,e
-    6018: d9           	exx
-    6019: 63           	ld	h,e
-    601a: d9           	exx
-    601b: 63           	ld	h,e
-    601c: d9           	exx
-    601d: 63           	ld	h,e
-    601e: d9           	exx
-    601f: 63           	ld	h,e
+    6000: cb 63        	bit	4,e
+    6002: cb 63        	bit	4,e
+    6004: cb 63        	bit	4,e
+    6006: cb 63        	bit	4,e
+    6008: cb 63        	bit	4,e
+    600a: cb 63        	bit	4,e
+    600c: ce 63        	adc	a,$63
+    600e: f8           	ret	m
+    600f: 63           	ld	h,e
+    6010: cb 63        	bit	4,e
+    6012: cb 63        	bit	4,e
+    6014: cb 63        	bit	4,e
+    6016: cb 63        	bit	4,e
+    6018: cb 63        	bit	4,e
+    601a: cb 63        	bit	4,e
+    601c: cb 63        	bit	4,e
+    601e: cb 63        	bit	4,e
 
 00006020 <_fdc_write_when_ready>:
 ; void fdc_write_when_ready(byte val) {
@@ -204,1257 +191,1243 @@ Disassembly of section .text:
     605f: 65           	ld	h,l
     6060: 06 00        	ld	b,$0
 ;             } while (--k);
-    6062: 78           	ld	a,b
-    6063: 3d           	dec	a
-    6064: 47           	ld	b,a
-    6065: b7           	or	a
-    6066: 20 fa        	jr	nz,$6062
+    6062: 10 fe        	djnz	$6062
 ;         } while (--mid);
-    6068: 7c           	ld	a,h
-    6069: 3d           	dec	a
-    606a: 67           	ld	h,a
-    606b: b7           	or	a
-    606c: 20 f2        	jr	nz,$6060
+    6064: 25           	dec	h
+    6065: 20 f9        	jr	nz,$6060
 ;     } while (--outer);
-    606e: 79           	ld	a,c
-    606f: 3d           	dec	a
-    6070: 18 ea        	jr	$605c
+    6067: 3d           	dec	a
+    6068: 18 f2        	jr	$605c
 
-00006072 <_lookup_sectors_and_gap3_for_current_track>:
+0000606a <_lookup_sectors_and_gap3_for_current_track>:
 ;     const format_entry *fmt = &eot_gap3_table[is_mini][fdc_cmd.size_shift][is_mfm];
-    6072: 3a aa 67     	ld	a,($67aa)               ; 0x67aa <_is_mini>
-    6075: 6f           	ld	l,a
-    6076: 26 00        	ld	h,$0
-    6078: 29           	add	hl,hl
-    6079: 29           	add	hl,hl
-    607a: 29           	add	hl,hl
-    607b: 29           	add	hl,hl
-    607c: eb           	ex	de,hl
-    607d: 21 03 67     	ld	hl,$6703
-    6080: 19           	add	hl,de
-    6081: eb           	ex	de,hl
-    6082: 3a ae 67     	ld	a,($67ae)               ; 0x67ae <_fdc_cmd+0x3>
-    6085: 6f           	ld	l,a
-    6086: 26 00        	ld	h,$0
-    6088: 29           	add	hl,hl
-    6089: 29           	add	hl,hl
-    608a: 19           	add	hl,de
-    608b: eb           	ex	de,hl
-    608c: 3a b2 67     	ld	a,($67b2)               ; 0x67b2 <_is_mfm>
-    608f: 6f           	ld	l,a
-    6090: 26 00        	ld	h,$0
-    6092: 29           	add	hl,hl
-    6093: 19           	add	hl,de
+    606a: 3a 9c 67     	ld	a,($679c)               ; 0x679c <_is_mini>
+    606d: 6f           	ld	l,a
+    606e: 26 00        	ld	h,$0
+    6070: 29           	add	hl,hl
+    6071: 29           	add	hl,hl
+    6072: 29           	add	hl,hl
+    6073: 29           	add	hl,hl
+    6074: eb           	ex	de,hl
+    6075: 21 f5 66     	ld	hl,$66f5
+    6078: 19           	add	hl,de
+    6079: eb           	ex	de,hl
+    607a: 3a a0 67     	ld	a,($67a0)               ; 0x67a0 <_fdc_cmd+0x3>
+    607d: 6f           	ld	l,a
+    607e: 26 00        	ld	h,$0
+    6080: 29           	add	hl,hl
+    6081: 29           	add	hl,hl
+    6082: 19           	add	hl,de
+    6083: eb           	ex	de,hl
+    6084: 3a a4 67     	ld	a,($67a4)               ; 0x67a4 <_is_mfm>
+    6087: 6f           	ld	l,a
+    6088: 26 00        	ld	h,$0
+    608a: 29           	add	hl,hl
+    608b: 19           	add	hl,de
 ;     fdc_cmd.eot = fmt->eot;
-    6094: 7e           	ld	a,(hl)
-    6095: 32 af 67     	ld	($67af),a               ; 0x67af <_fdc_cmd+0x4>
+    608c: 7e           	ld	a,(hl)
+    608d: 32 a1 67     	ld	($67a1),a               ; 0x67a1 <_fdc_cmd+0x4>
 ;     fdc_cmd.gap3 = fmt->gap3;
-    6098: 23           	inc	hl
-    6099: 7e           	ld	a,(hl)
-    609a: 32 b0 67     	ld	($67b0),a               ; 0x67b0 <_fdc_cmd+0x5>
+    6090: 23           	inc	hl
+    6091: 7e           	ld	a,(hl)
+    6092: 32 a2 67     	ld	($67a2),a               ; 0x67a2 <_fdc_cmd+0x5>
 ;     fdc_cmd.dtl = 0x80;
-    609d: 3e 80        	ld	a,$80
-    609f: 32 b1 67     	ld	($67b1),a               ; 0x67b1 <_fdc_cmd+0x6>
+    6095: 3e 80        	ld	a,$80
+    6097: 32 a3 67     	ld	($67a3),a               ; 0x67a3 <_fdc_cmd+0x6>
 ; }
-    60a2: c9           	ret
+    609a: c9           	ret
 
-000060a3 <_calc_size_of_current_track>:
+0000609b <_calc_size_of_current_track>:
 ;     byte sectors = ((disk_type & 0b10000000) && fdc_cmd.head == 1)
-    60a3: 3a b3 67     	ld	a,($67b3)               ; 0x67b3 <_disk_type>
-    60a6: 07           	rlca
-    60a7: 30 09        	jr	nc,$60b2
-    60a9: 3a ac 67     	ld	a,($67ac)               ; 0x67ac <_fdc_cmd+0x1>
-    60ac: 21 0a 00     	ld	hl,$a
-    60af: 3d           	dec	a
-    60b0: 28 0b        	jr	z,$60bd
-    60b2: 21 ad 67     	ld	hl,$67ad
+    609b: 3a a5 67     	ld	a,($67a5)               ; 0x67a5 <_disk_type>
+    609e: 07           	rlca
+    609f: 30 09        	jr	nc,$60aa
+    60a1: 3a 9e 67     	ld	a,($679e)               ; 0x679e <_fdc_cmd+0x1>
+    60a4: 21 0a 00     	ld	hl,$a
+    60a7: 3d           	dec	a
+    60a8: 28 0b        	jr	z,$60b5
+    60aa: 21 9f 67     	ld	hl,$679f
 ;                        : fdc_cmd.eot - fdc_cmd.sector + 1;
-    60b5: 3a af 67     	ld	a,($67af)               ; 0x67af <_fdc_cmd+0x4>
-    60b8: 3c           	inc	a
-    60b9: 96           	sub	(hl)
+    60ad: 3a a1 67     	ld	a,($67a1)               ; 0x67a1 <_fdc_cmd+0x4>
+    60b0: 3c           	inc	a
+    60b1: 96           	sub	(hl)
 ;     word tb = (word) sectors;
-    60ba: 6f           	ld	l,a
-    60bb: 26 00        	ld	h,$0
+    60b2: 6f           	ld	l,a
+    60b3: 26 00        	ld	h,$0
 ;     for (byte i = 7 + fdc_cmd.size_shift; i != 0; i--) {
-    60bd: 3a ae 67     	ld	a,($67ae)               ; 0x67ae <_fdc_cmd+0x3>
-    60c0: c6 07        	add	a,$7
-    60c2: 4f           	ld	c,a
-    60c3: b7           	or	a
-    60c4: 28 04        	jr	z,$60ca
+    60b5: 3a a0 67     	ld	a,($67a0)               ; 0x67a0 <_fdc_cmd+0x3>
+    60b8: c6 07        	add	a,$7
+    60ba: 4f           	ld	c,a
+    60bb: b7           	or	a
+    60bc: 28 04        	jr	z,$60c2
 ;         tb <<= 1;
-    60c6: 29           	add	hl,hl
+    60be: 29           	add	hl,hl
 ;     for (byte i = 7 + fdc_cmd.size_shift; i != 0; i--) {
-    60c7: 3d           	dec	a
-    60c8: 18 f8        	jr	$60c2
+    60bf: 3d           	dec	a
+    60c0: 18 f8        	jr	$60ba
 ;     dma_transfer_size = tb;
-    60ca: 22 b4 67     	ld	($67b4),hl              ; 0x67b4 <_dma_transfer_size>
+    60c2: 22 a6 67     	ld	($67a6),hl              ; 0x67a6 <_dma_transfer_size>
 ; }
-    60cd: c9           	ret
+    60c5: c9           	ret
 
-000060ce <_fdc_sense_interrupt>:
+000060c6 <_fdc_sense_interrupt>:
 ;     fdc_write_when_ready(FDC_SENSE_INT);
-    60ce: 3e 08        	ld	a,$8
-    60d0: cd 20 60     	call	$6020
+    60c6: 3e 08        	ld	a,$8
+    60c8: cd 20 60     	call	$6020
 ;     fdc_result.st0 = fdc_read_when_ready();
-    60d3: cd 3f 60     	call	$603f
-    60d6: 32 b6 67     	ld	($67b6),a               ; 0x67b6 <_fdc_result>
+    60cb: cd 3f 60     	call	$603f
+    60ce: 32 a8 67     	ld	($67a8),a               ; 0x67a8 <_fdc_result>
 ;     if ((fdc_result.st0 & 0b11000000) != 0b10000000) {
-    60d9: ee 80        	xor	$80
-    60db: fe 40        	cp	$40
-    60dd: d8           	ret	c
+    60d1: ee 80        	xor	$80
+    60d3: fe 40        	cp	$40
+    60d5: d8           	ret	c
 ;         fdc_result.st1 = fdc_read_when_ready(); /* PCN (present cylinder) */
-    60de: cd 3f 60     	call	$603f
-    60e1: 32 b7 67     	ld	($67b7),a               ; 0x67b7 <_fdc_result+0x1>
+    60d6: cd 3f 60     	call	$603f
+    60d9: 32 a9 67     	ld	($67a9),a               ; 0x67a9 <_fdc_result+0x1>
 ; }
-    60e4: c9           	ret
+    60dc: c9           	ret
 
-000060e5 <_fdc_read_result>:
+000060dd <_fdc_read_result>:
 ; void fdc_read_result(void) {
-    60e5: 11 00 00     	ld	de,$0
+    60dd: 11 00 00     	ld	de,$0
 ;     for (i = 0; i < 7; i++) {
-    60e8: 7b           	ld	a,e
-    60e9: fe 07        	cp	$7
-    60eb: 28 17        	jr	z,$6104
-    60ed: d5           	push	de
+    60e0: 7b           	ld	a,e
+    60e1: fe 07        	cp	$7
+    60e3: 28 17        	jr	z,$60fc
+    60e5: d5           	push	de
 ;         p[i] = fdc_read_when_ready();
-    60ee: cd 3f 60     	call	$603f
-    60f1: d1           	pop	de
+    60e6: cd 3f 60     	call	$603f
+    60e9: d1           	pop	de
 ;         p[i] = fdc_read_when_ready();
-    60f2: 21 b6 67     	ld	hl,$67b6
-    60f5: 19           	add	hl,de
-    60f6: 77           	ld	(hl),a
+    60ea: 21 a8 67     	ld	hl,$67a8
+    60ed: 19           	add	hl,de
+    60ee: 77           	ld	(hl),a
 ; DEFPORT(fdc_status,   0x04)
-    60f7: db 04        	in	a,($4)
+    60ef: db 04        	in	a,($4)
 ;         if (!(fdc_status() & 0b00010000)) {
-    60f9: e6 10        	and	$10
+    60f1: e6 10        	and	$10
 ;     for (i = 0; i < 7; i++) {
-    60fb: 13           	inc	de
+    60f3: 13           	inc	de
 ;         if (!(fdc_status() & 0b00010000)) {
-    60fc: b7           	or	a
-    60fd: 20 e9        	jr	nz,$60e8
+    60f4: b7           	or	a
+    60f5: 20 e9        	jr	nz,$60e0
 ; DEFPORT(dma_cmd,      0xF8)
-    60ff: db f8        	in	a,($f8)
+    60f7: db f8        	in	a,($f8)
 ;             p[i + 1] = dma_status();
-    6101: 23           	inc	hl
-    6102: 77           	ld	(hl),a
+    60f9: 23           	inc	hl
+    60fa: 77           	ld	(hl),a
 ; }
-    6103: c9           	ret
+    60fb: c9           	ret
 ;     error_saved = 0xFE;
-    6104: 3e fe        	ld	a,$fe
-    6106: 32 be 67     	ld	($67be),a               ; 0x67be <_error_saved>
+    60fc: 3e fe        	ld	a,$fe
+    60fe: 32 b0 67     	ld	($67b0),a               ; 0x67b0 <_error_saved>
 ;     error_display_halt(0xFE);
-    6109: c3 0c 61     	jp	$610c
+    6101: c3 04 61     	jp	$6104
 
-0000610c <_error_display_halt>:
+00006104 <_error_display_halt>:
 ;     error_saved = code;
-    610c: 32 be 67     	ld	($67be),a               ; 0x67be <_error_saved>
+    6104: 32 b0 67     	ld	($67b0),a               ; 0x67b0 <_error_saved>
 ;     __asm__ volatile("ei");
-    610f: fb           	ei
+    6107: fb           	ei
 ;     if (disk_type & 0b00000001) {
-    6110: 3a b3 67     	ld	a,($67b3)               ; 0x67b3 <_disk_type>
-    6113: 0f           	rrca
-    6114: 30 01        	jr	nc,$6117
+    6108: 3a a5 67     	ld	a,($67a5)               ; 0x67a5 <_disk_type>
+    610b: 0f           	rrca
+    610c: 30 01        	jr	nc,$610f
 ; }
-    6116: c9           	ret
+    610e: c9           	ret
 ; DEFPORT(bib,          0x1C)
-    6117: af           	xor	a
-    6118: d3 1c        	out	($1c),a
+    610f: af           	xor	a
+    6110: d3 1c        	out	($1c),a
 ;     halt_msg("**DISKETTE ERROR** ", 19);
-    611a: 21 3e 67     	ld	hl,$673e
-    611d: 11 a0 7a     	ld	de,$7aa0
-    6120: 01 13 00     	ld	bc,$13
-    6123: ed b0        	ldir
-    6125: cd b6 62     	call	$62b6
+    6112: 21 30 67     	ld	hl,$6730
+    6115: 11 a0 7a     	ld	de,$7aa0
+    6118: 01 13 00     	ld	bc,$13
+    611b: ed b0        	ldir
+    611d: cd ae 62     	call	$62ae
 
-00006128 <_wait_fdc_ready>:
+00006120 <_wait_fdc_ready>:
 ; byte wait_fdc_ready(byte timeout) {
-    6128: 4f           	ld	c,a
+    6120: 4f           	ld	c,a
 ;     while (--timeout) {
-    6129: 79           	ld	a,c
-    612a: 3d           	dec	a
-    612b: 57           	ld	d,a
-    612c: b7           	or	a
-    612d: 28 21        	jr	z,$6150
+    6121: 79           	ld	a,c
+    6122: 3d           	dec	a
+    6123: 57           	ld	d,a
+    6124: b7           	or	a
+    6125: 28 21        	jr	z,$6148
 ;         delay_ms(WAITFL_POLL_MS);
-    612f: 3e 01        	ld	a,$1
-    6131: 2e 02        	ld	l,$2
-    6133: f5           	push	af
-    6134: 7a           	ld	a,d
-    6135: 32 cf 67     	ld	($67cf),a               ; 0x67cf <__sfrend_fdc_read_result>
-    6138: f1           	pop	af
-    6139: cd 5c 60     	call	$605c
-    613c: 3a cf 67     	ld	a,($67cf)               ; 0x67cf <__sfrend_fdc_read_result>
-    613f: 4f           	ld	c,a
+    6127: 3e 01        	ld	a,$1
+    6129: 2e 02        	ld	l,$2
+    612b: f5           	push	af
+    612c: 7a           	ld	a,d
+    612d: 32 c1 67     	ld	($67c1),a               ; 0x67c1 <__sfrend_fdc_read_result>
+    6130: f1           	pop	af
+    6131: cd 5c 60     	call	$605c
+    6134: 3a c1 67     	ld	a,($67c1)               ; 0x67c1 <__sfrend_fdc_read_result>
+    6137: 4f           	ld	c,a
 ;         if (floppy_operation_completed_flag) {
-    6140: 3a bf 67     	ld	a,($67bf)               ; 0x67bf <_floppy_operation_completed_flag>
-    6143: b7           	or	a
-    6144: 28 e3        	jr	z,$6129
+    6138: 3a b1 67     	ld	a,($67b1)               ; 0x67b1 <_floppy_operation_completed_flag>
+    613b: b7           	or	a
+    613c: 28 e3        	jr	z,$6121
 ;     __asm__ volatile("di");
-    6146: f3           	di
+    613e: f3           	di
 ;             floppy_operation_completed_flag = 0;
-    6147: 16 00        	ld	d,$0
-    6149: af           	xor	a
-    614a: 32 bf 67     	ld	($67bf),a               ; 0x67bf <_floppy_operation_completed_flag>
+    613f: 16 00        	ld	d,$0
+    6141: af           	xor	a
+    6142: 32 b1 67     	ld	($67b1),a               ; 0x67b1 <_floppy_operation_completed_flag>
 ;     __asm__ volatile("ei");
-    614d: fb           	ei
-    614e: 18 02        	jr	$6152
-    6150: 16 01        	ld	d,$1
+    6145: fb           	ei
+    6146: 18 02        	jr	$614a
+    6148: 16 01        	ld	d,$1
 ; }
-    6152: 7a           	ld	a,d
-    6153: c9           	ret
+    614a: 7a           	ld	a,d
+    614b: c9           	ret
 
-00006154 <_fdc_select_drive_cylinder_head>:
+0000614c <_fdc_select_drive_cylinder_head>:
 ;     fdc_seek((byte)((fdc_cmd.head << 2) | drive_select), fdc_cmd.cylinder);
-    6154: 3a ac 67     	ld	a,($67ac)               ; 0x67ac <_fdc_cmd+0x1>
-    6157: 87           	add	a,a
-    6158: 87           	add	a,a
-    6159: 21 c0 67     	ld	hl,$67c0
-    615c: b6           	or	(hl)
-    615d: f5           	push	af
-    615e: 3a ab 67     	ld	a,($67ab)               ; 0x67ab <_fdc_cmd>
-    6161: 32 d1 67     	ld	($67d1),a               ; 0x67d1 <__sfrend_wait_fdc_ready+0x1>
+    614c: 3a 9e 67     	ld	a,($679e)               ; 0x679e <_fdc_cmd+0x1>
+    614f: 87           	add	a,a
+    6150: 87           	add	a,a
+    6151: 21 b2 67     	ld	hl,$67b2
+    6154: b6           	or	(hl)
+    6155: f5           	push	af
+    6156: 3a 9d 67     	ld	a,($679d)               ; 0x679d <_fdc_cmd>
+    6159: 32 c3 67     	ld	($67c3),a               ; 0x67c3 <__sfrend_wait_fdc_ready+0x1>
 ;     fdc_write_when_ready(FDC_SEEK);
-    6164: 3e 0f        	ld	a,$f
-    6166: cd 20 60     	call	$6020
+    615c: 3e 0f        	ld	a,$f
+    615e: cd 20 60     	call	$6020
 ;     fdc_write_when_ready(head_and_drive & 0b00000111); /* HD + US (head + drive) */
-    6169: f1           	pop	af
-    616a: e6 07        	and	$7
-    616c: cd 20 60     	call	$6020
+    6161: f1           	pop	af
+    6162: e6 07        	and	$7
+    6164: cd 20 60     	call	$6020
 ;     fdc_write_when_ready(cylinder); /* NCN (new cylinder number) */
-    616f: 3a d1 67     	ld	a,($67d1)               ; 0x67d1 <__sfrend_wait_fdc_ready+0x1>
-    6172: cd 20 60     	call	$6020
+    6167: 3a c3 67     	ld	a,($67c3)               ; 0x67c3 <__sfrend_wait_fdc_ready+0x1>
+    616a: cd 20 60     	call	$6020
 ;     return verify_seek_result(fdc_cmd.cylinder);
-    6175: 3a ab 67     	ld	a,($67ab)               ; 0x67ab <_fdc_cmd>
-    6178: c3 7b 61     	jp	$617b
+    616d: 3a 9d 67     	ld	a,($679d)               ; 0x679d <_fdc_cmd>
+    6170: c3 73 61     	jp	$6173
 
-0000617b <_verify_seek_result>:
+00006173 <_verify_seek_result>:
 ; static byte verify_seek_result(byte expected_pcn) {
-    617b: 32 d2 67     	ld	($67d2),a               ; 0x67d2 <__sfrend_fdc_select_drive_cylinder_head>
+    6173: 32 c4 67     	ld	($67c4),a               ; 0x67c4 <__sfrend_fdc_select_drive_cylinder_head>
 ;     if (wait_fdc_ready(0xFF)) {
-    617e: 3e ff        	ld	a,$ff
-    6180: cd 28 61     	call	$6128
-    6183: 16 01        	ld	d,$1
+    6176: 3e ff        	ld	a,$ff
+    6178: cd 20 61     	call	$6120
+    617b: 16 01        	ld	d,$1
 ;     if (wait_fdc_ready(0xFF)) {
-    6185: b7           	or	a
-    6186: 20 1d        	jr	nz,$61a5
+    617d: b7           	or	a
+    617e: 20 1d        	jr	nz,$619d
 ;     if ((drive_select + 0b00100000) != fdc_result.st0 || /* SE+drive */ /* TODO:  Should this be an and? */
-    6188: 3a c0 67     	ld	a,($67c0)               ; 0x67c0 <_drive_select>
-    618b: 5f           	ld	e,a
-    618c: 3a b6 67     	ld	a,($67b6)               ; 0x67b6 <_fdc_result>
-    618f: 67           	ld	h,a
-    6190: 16 02        	ld	d,$2
-    6192: 7b           	ld	a,e
-    6193: c6 20        	add	a,$20
-    6195: 38 0e        	jr	c,$61a5
-    6197: bc           	cp	h
-    6198: 20 0b        	jr	nz,$61a5
-    619a: 21 b7 67     	ld	hl,$67b7
+    6180: 3a b2 67     	ld	a,($67b2)               ; 0x67b2 <_drive_select>
+    6183: 5f           	ld	e,a
+    6184: 3a a8 67     	ld	a,($67a8)               ; 0x67a8 <_fdc_result>
+    6187: 67           	ld	h,a
+    6188: 16 02        	ld	d,$2
+    618a: 7b           	ld	a,e
+    618b: c6 20        	add	a,$20
+    618d: 38 0e        	jr	c,$619d
+    618f: bc           	cp	h
+    6190: 20 0b        	jr	nz,$619d
+    6192: 21 a9 67     	ld	hl,$67a9
 ;     if ((drive_select + 0b00100000) != fdc_result.st0 || /* SE+drive */ /* TODO:  Should this be an and? */
-    619d: 3a d2 67     	ld	a,($67d2)               ; 0x67d2 <__sfrend_fdc_select_drive_cylinder_head>
-    61a0: be           	cp	(hl)
-    61a1: 20 02        	jr	nz,$61a5
-    61a3: 16 00        	ld	d,$0
+    6195: 3a c4 67     	ld	a,($67c4)               ; 0x67c4 <__sfrend_fdc_select_drive_cylinder_head>
+    6198: be           	cp	(hl)
+    6199: 20 02        	jr	nz,$619d
+    619b: 16 00        	ld	d,$0
 ; }
-    61a5: 7a           	ld	a,d
-    61a6: c9           	ret
+    619d: 7a           	ld	a,d
+    619e: c9           	ret
 
-000061a7 <_fdc_write_full_cmd>:
+0000619f <_fdc_write_full_cmd>:
 ; void fdc_write_full_cmd(byte cmd) {
-    61a7: 5f           	ld	e,a
+    619f: 5f           	ld	e,a
 ;     byte mfm_flag = is_mfm ? FDC_MFM : 0;
-    61a8: 3a b2 67     	ld	a,($67b2)               ; 0x67b2 <_is_mfm>
-    61ab: b7           	or	a
-    61ac: 28 04        	jr	z,$61b2
-    61ae: 16 40        	ld	d,$40
-    61b0: 18 02        	jr	$61b4
+    61a0: 3a a4 67     	ld	a,($67a4)               ; 0x67a4 <_is_mfm>
+    61a3: b7           	or	a
+    61a4: 28 04        	jr	z,$61aa
+    61a6: 16 40        	ld	d,$40
+    61a8: 18 02        	jr	$61ac
 ;     byte mfm_flag = is_mfm ? FDC_MFM : 0;
-    61b2: 16 00        	ld	d,$0
+    61aa: 16 00        	ld	d,$0
 ;     byte dh = (byte)((fdc_cmd.head << 2) | drive_select);
-    61b4: 3a ac 67     	ld	a,($67ac)               ; 0x67ac <_fdc_cmd+0x1>
-    61b7: 87           	add	a,a
-    61b8: 87           	add	a,a
-    61b9: 21 c0 67     	ld	hl,$67c0
-    61bc: b6           	or	(hl)
-    61bd: 32 d4 67     	ld	($67d4),a               ; 0x67d4 <__sfrend_verify_seek_result+0x1>
+    61ac: 3a 9e 67     	ld	a,($679e)               ; 0x679e <_fdc_cmd+0x1>
+    61af: 87           	add	a,a
+    61b0: 87           	add	a,a
+    61b1: 21 b2 67     	ld	hl,$67b2
+    61b4: b6           	or	(hl)
+    61b5: 32 c6 67     	ld	($67c6),a               ; 0x67c6 <__sfrend_verify_seek_result+0x1>
 ;     __asm__ volatile("di");
-    61c0: f3           	di
+    61b8: f3           	di
 ;     fdc_write_when_ready(cmd + mfm_flag); /* command (+MFM if double density) */
-    61c1: 7a           	ld	a,d
-    61c2: 83           	add	a,e
-    61c3: f5           	push	af
-    61c4: 7b           	ld	a,e
-    61c5: 32 d3 67     	ld	($67d3),a               ; 0x67d3 <__sfrend_verify_seek_result>
-    61c8: f1           	pop	af
-    61c9: cd 20 60     	call	$6020
+    61b9: 7a           	ld	a,d
+    61ba: 83           	add	a,e
+    61bb: f5           	push	af
+    61bc: 7b           	ld	a,e
+    61bd: 32 c5 67     	ld	($67c5),a               ; 0x67c5 <__sfrend_verify_seek_result>
+    61c0: f1           	pop	af
+    61c1: cd 20 60     	call	$6020
 ;     fdc_write_when_ready(dh); /* head/drive select */
-    61cc: 3a d4 67     	ld	a,($67d4)               ; 0x67d4 <__sfrend_verify_seek_result+0x1>
-    61cf: cd 20 60     	call	$6020
+    61c4: 3a c6 67     	ld	a,($67c6)               ; 0x67c6 <__sfrend_verify_seek_result+0x1>
+    61c7: cd 20 60     	call	$6020
 ;     if ((cmd & 0b00001111) == FDC_READ_DATA) {
-    61d2: 3a d3 67     	ld	a,($67d3)               ; 0x67d3 <__sfrend_verify_seek_result>
-    61d5: e6 0f        	and	$f
-    61d7: fe 06        	cp	$6
-    61d9: 20 1b        	jr	nz,$61f6
-    61db: 11 00 00     	ld	de,$0
+    61ca: 3a c5 67     	ld	a,($67c5)               ; 0x67c5 <__sfrend_verify_seek_result>
+    61cd: e6 0f        	and	$f
+    61cf: fe 06        	cp	$6
+    61d1: 20 1b        	jr	nz,$61ee
+    61d3: 11 00 00     	ld	de,$0
 ;         for (i = 0; i < sizeof(fdc_cmd); i++) {
-    61de: 7b           	ld	a,e
-    61df: fe 07        	cp	$7
-    61e1: 28 13        	jr	z,$61f6
+    61d6: 7b           	ld	a,e
+    61d7: fe 07        	cp	$7
+    61d9: 28 13        	jr	z,$61ee
 ;             fdc_write_when_ready(((byte *) &fdc_cmd)[i]);
-    61e3: 21 ab 67     	ld	hl,$67ab
-    61e6: 19           	add	hl,de
-    61e7: 7e           	ld	a,(hl)
-    61e8: ed 53 d4 67  	ld	($67d4),de              ; 0x67d4 <__sfrend_verify_seek_result+0x1>
-    61ec: cd 20 60     	call	$6020
-    61ef: ed 5b d4 67  	ld	de,($67d4)              ; 0x67d4 <__sfrend_verify_seek_result+0x1>
+    61db: 21 9d 67     	ld	hl,$679d
+    61de: 19           	add	hl,de
+    61df: 7e           	ld	a,(hl)
+    61e0: ed 53 c6 67  	ld	($67c6),de              ; 0x67c6 <__sfrend_verify_seek_result+0x1>
+    61e4: cd 20 60     	call	$6020
+    61e7: ed 5b c6 67  	ld	de,($67c6)              ; 0x67c6 <__sfrend_verify_seek_result+0x1>
 ;         for (i = 0; i < sizeof(fdc_cmd); i++) {
-    61f3: 13           	inc	de
-    61f4: 18 e8        	jr	$61de
+    61eb: 13           	inc	de
+    61ec: 18 e8        	jr	$61d6
 ;     __asm__ volatile("ei");
-    61f6: fb           	ei
+    61ee: fb           	ei
 ; }
-    61f7: c9           	ret
+    61ef: c9           	ret
 
-000061f8 <_check_fdc_result>:
+000061f0 <_check_fdc_result>:
 ;     if ((fdc_result.st0 & 0b11000011) == drive_select && /* ST0: IC=00 + drive */
-    61f8: 3a b6 67     	ld	a,($67b6)               ; 0x67b6 <_fdc_result>
-    61fb: e6 c3        	and	$c3
-    61fd: 21 c0 67     	ld	hl,$67c0
-    6200: be           	cp	(hl)
-    6201: 20 0d        	jr	nz,$6210
+    61f0: 3a a8 67     	ld	a,($67a8)               ; 0x67a8 <_fdc_result>
+    61f3: e6 c3        	and	$c3
+    61f5: 21 b2 67     	ld	hl,$67b2
+    61f8: be           	cp	(hl)
+    61f9: 20 0d        	jr	nz,$6208
 ;         fdc_result.st1 == 0 && /* ST1: no errors */
-    6203: 3a b7 67     	ld	a,($67b7)               ; 0x67b7 <_fdc_result+0x1>
-    6206: b7           	or	a
-    6207: 20 07        	jr	nz,$6210
+    61fb: 3a a9 67     	ld	a,($67a9)               ; 0x67a9 <_fdc_result+0x1>
+    61fe: b7           	or	a
+    61ff: 20 07        	jr	nz,$6208
 ;         (fdc_result.st2 & 0b10111111) == 0) {
-    6209: 3a b8 67     	ld	a,($67b8)               ; 0x67b8 <_fdc_result+0x2>
-    620c: e6 bf        	and	$bf
+    6201: 3a aa 67     	ld	a,($67aa)               ; 0x67aa <_fdc_result+0x2>
+    6204: e6 bf        	and	$bf
 ;         fdc_result.st1 == 0 && /* ST1: no errors */
-    620e: 28 0c        	jr	z,$621c
+    6206: 28 0c        	jr	z,$6214
 ;         retry_count--;
-    6210: 21 c1 67     	ld	hl,$67c1
-    6213: 35           	dec	(hl)
+    6208: 21 b3 67     	ld	hl,$67b3
+    620b: 35           	dec	(hl)
 ;         return (retry_count == 0) ? 2 : 1;
-    6214: 28 03        	jr	z,$6219
-    6216: 3e 01        	ld	a,$1
+    620c: 28 03        	jr	z,$6211
+    620e: 3e 01        	ld	a,$1
 ; }
-    6218: c9           	ret
-    6219: 3e 02        	ld	a,$2
+    6210: c9           	ret
+    6211: 3e 02        	ld	a,$2
 ; }
-    621b: c9           	ret
-    621c: af           	xor	a
+    6213: c9           	ret
+    6214: af           	xor	a
 ; }
-    621d: c9           	ret
+    6215: c9           	ret
 
-0000621e <_fdc_get_result_bytes>:
+00006216 <_fdc_get_result_bytes>:
 ;     saved_fdc_command = cmd;
-    621e: 32 c2 67     	ld	($67c2),a               ; 0x67c2 <_saved_fdc_command>
+    6216: 32 b4 67     	ld	($67b4),a               ; 0x67b4 <_saved_fdc_command>
 ;     retry_count = retries;
-    6221: 7d           	ld	a,l
-    6222: 32 c1 67     	ld	($67c1),a               ; 0x67c1 <_retry_count>
+    6219: 7d           	ld	a,l
+    621a: 32 b3 67     	ld	($67b3),a               ; 0x67b3 <_retry_count>
 ;     __asm__ volatile("di");
-    6225: f3           	di
+    621d: f3           	di
 ;         floppy_operation_completed_flag = 0;
-    6226: af           	xor	a
-    6227: 32 bf 67     	ld	($67bf),a               ; 0x67bf <_floppy_operation_completed_flag>
+    621e: af           	xor	a
+    621f: 32 b1 67     	ld	($67b1),a               ; 0x67b1 <_floppy_operation_completed_flag>
 ;     __asm__ volatile("ei");
-    622a: fb           	ei
+    6222: fb           	ei
 ;         if ((saved_fdc_command & 0b00001111) != FDC_READ_ID) {
-    622b: 3a c2 67     	ld	a,($67c2)               ; 0x67c2 <_saved_fdc_command>
-    622e: 57           	ld	d,a
-    622f: e6 0f        	and	$f
-    6231: fe 0a        	cp	$a
-    6233: 28 28        	jr	z,$625d
+    6223: 3a b4 67     	ld	a,($67b4)               ; 0x67b4 <_saved_fdc_command>
+    6226: 57           	ld	d,a
+    6227: e6 0f        	and	$f
+    6229: fe 0a        	cp	$a
+    622b: 28 28        	jr	z,$6255
 ;     __asm__ volatile("di");
-    6235: f3           	di
+    622d: f3           	di
 ; DEFPORT(dma_smsk,     0xFA)
-    6236: 3e 05        	ld	a,$5
-    6238: d3 fa        	out	($fa),a
+    622e: 3e 05        	ld	a,$5
+    6230: d3 fa        	out	($fa),a
 ; DEFPORT(dma_mode,     0xFB)
-    623a: 3e 45        	ld	a,$45
-    623c: d3 fb        	out	($fb),a
+    6232: 3e 45        	ld	a,$45
+    6234: d3 fb        	out	($fb),a
 ; DEFPORT(dma_clbp,     0xFC)
-    623e: af           	xor	a
-    623f: d3 fc        	out	($fc),a
+    6236: af           	xor	a
+    6237: d3 fc        	out	($fc),a
 ;             dma_ch1_addr(dma_transfer_address); /* transfer destination address */
-    6241: 2a c3 67     	ld	hl,($67c3)              ; 0x67c3 <_dma_transfer_address>
-    6244: 7d           	ld	a,l
+    6239: 2a b5 67     	ld	hl,($67b5)              ; 0x67b5 <_dma_transfer_address>
+    623c: 7d           	ld	a,l
 ; DEFPORT(dma_ch1_addr, 0xF2)
-    6245: d3 f2        	out	($f2),a
-    6247: 7c           	ld	a,h
-    6248: d3 f2        	out	($f2),a
+    623d: d3 f2        	out	($f2),a
+    623f: 7c           	ld	a,h
+    6240: d3 f2        	out	($f2),a
 ;             dma_ch1_wc(dma_transfer_size - 1); /* word count (N-1) */
-    624a: 2a b4 67     	ld	hl,($67b4)              ; 0x67b4 <_dma_transfer_size>
-    624d: 2b           	dec	hl
-    624e: 7d           	ld	a,l
+    6242: 2a a6 67     	ld	hl,($67a6)              ; 0x67a6 <_dma_transfer_size>
+    6245: 2b           	dec	hl
+    6246: 7d           	ld	a,l
 ; DEFPORT(dma_ch1_wc,   0xF3)
-    624f: d3 f3        	out	($f3),a
-    6251: 7c           	ld	a,h
-    6252: d3 f3        	out	($f3),a
+    6247: d3 f3        	out	($f3),a
+    6249: 7c           	ld	a,h
+    624a: d3 f3        	out	($f3),a
 ; DEFPORT(dma_smsk,     0xFA)
-    6254: 3e 01        	ld	a,$1
-    6256: d3 fa        	out	($fa),a
+    624c: 3e 01        	ld	a,$1
+    624e: d3 fa        	out	($fa),a
 ;     __asm__ volatile("ei");
-    6258: fb           	ei
+    6250: fb           	ei
 ;         fdc_write_full_cmd(saved_fdc_command);
-    6259: 3a c2 67     	ld	a,($67c2)               ; 0x67c2 <_saved_fdc_command>
-    625c: 57           	ld	d,a
-    625d: 7a           	ld	a,d
-    625e: cd a7 61     	call	$61a7
+    6251: 3a b4 67     	ld	a,($67b4)               ; 0x67b4 <_saved_fdc_command>
+    6254: 57           	ld	d,a
+    6255: 7a           	ld	a,d
+    6256: cd 9f 61     	call	$619f
 ;         if (wait_fdc_ready(0xFF)) {
-    6261: 3e ff        	ld	a,$ff
-    6263: cd 28 61     	call	$6128
-    6266: b7           	or	a
-    6267: 20 0d        	jr	nz,$6276
+    6259: 3e ff        	ld	a,$ff
+    625b: cd 20 61     	call	$6120
+    625e: b7           	or	a
+    625f: 20 0d        	jr	nz,$626e
 ;         r = check_fdc_result();
-    6269: cd f8 61     	call	$61f8
+    6261: cd f0 61     	call	$61f0
 ;         if (r == 0) {
-    626c: fe 02        	cp	$2
-    626e: 28 06        	jr	z,$6276
-    6270: 57           	ld	d,a
+    6264: fe 02        	cp	$2
+    6266: 28 06        	jr	z,$626e
+    6268: 57           	ld	d,a
 ;         if (r == 0) {
-    6271: b7           	or	a
-    6272: 20 b1        	jr	nz,$6225
-    6274: 18 02        	jr	$6278
-    6276: 16 01        	ld	d,$1
+    6269: b7           	or	a
+    626a: 20 b1        	jr	nz,$621d
+    626c: 18 02        	jr	$6270
+    626e: 16 01        	ld	d,$1
 ; }
-    6278: 7a           	ld	a,d
-    6279: c9           	ret
+    6270: 7a           	ld	a,d
+    6271: c9           	ret
 
-0000627a <_fdc_detect_sector_size_and_density>:
+00006272 <_fdc_detect_sector_size_and_density>:
 ; byte fdc_detect_sector_size_and_density(void) {
-    627a: 16 00        	ld	d,$0
-    627c: 7a           	ld	a,d
-    627d: 32 b2 67     	ld	($67b2),a               ; 0x67b2 <_is_mfm>
+    6272: 16 00        	ld	d,$0
+    6274: 7a           	ld	a,d
+    6275: 32 a4 67     	ld	($67a4),a               ; 0x67a4 <_is_mfm>
 ;         if (fdc_select_drive_cylinder_head() != 0) {
-    6280: cd 54 61     	call	$6154
-    6283: b7           	or	a
-    6284: 20 1a        	jr	nz,$62a0
+    6278: cd 4c 61     	call	$614c
+    627b: b7           	or	a
+    627c: 20 1a        	jr	nz,$6298
 ;         dma_transfer_size = 4;
-    6286: 21 04 00     	ld	hl,$4
-    6289: 22 b4 67     	ld	($67b4),hl              ; 0x67b4 <_dma_transfer_size>
+    627e: 21 04 00     	ld	hl,$4
+    6281: 22 a6 67     	ld	($67a6),hl              ; 0x67a6 <_dma_transfer_size>
 ;         if (fdc_get_result_bytes(FDC_READ_ID, 1) == 0) {
-    628c: 3e 0a        	ld	a,$a
-    628e: 2e 01        	ld	l,$1
-    6290: cd 1e 62     	call	$621e
-    6293: b7           	or	a
-    6294: 28 0e        	jr	z,$62a4
+    6284: 3e 0a        	ld	a,$a
+    6286: 2e 01        	ld	l,$1
+    6288: cd 16 62     	call	$6216
+    628b: b7           	or	a
+    628c: 28 0e        	jr	z,$629c
 ;         if (is_mfm) {
-    6296: 3a b2 67     	ld	a,($67b2)               ; 0x67b2 <_is_mfm>
-    6299: 16 01        	ld	d,$1
-    629b: b7           	or	a
-    629c: 28 de        	jr	z,$627c
-    629e: 18 14        	jr	$62b4
-    62a0: 16 01        	ld	d,$1
+    628e: 3a a4 67     	ld	a,($67a4)               ; 0x67a4 <_is_mfm>
+    6291: 16 01        	ld	d,$1
+    6293: b7           	or	a
+    6294: 28 de        	jr	z,$6274
+    6296: 18 14        	jr	$62ac
+    6298: 16 01        	ld	d,$1
 ;         if (fdc_select_drive_cylinder_head() != 0) {
-    62a2: 18 10        	jr	$62b4
+    629a: 18 10        	jr	$62ac
 ;     fdc_cmd.size_shift = fdc_result.size_code & 0b00000111;
-    62a4: 3a bc 67     	ld	a,($67bc)               ; 0x67bc <_fdc_result+0x6>
-    62a7: e6 07        	and	$7
-    62a9: 32 ae 67     	ld	($67ae),a               ; 0x67ae <_fdc_cmd+0x3>
+    629c: 3a ae 67     	ld	a,($67ae)               ; 0x67ae <_fdc_result+0x6>
+    629f: e6 07        	and	$7
+    62a1: 32 a0 67     	ld	($67a0),a               ; 0x67a0 <_fdc_cmd+0x3>
 ;     lookup_sectors_and_gap3_for_current_track();
-    62ac: cd 72 60     	call	$6072
+    62a4: cd 6a 60     	call	$606a
 ;     calc_size_of_current_track();
-    62af: cd a3 60     	call	$60a3
-    62b2: 16 00        	ld	d,$0
+    62a7: cd 9b 60     	call	$609b
+    62aa: 16 00        	ld	d,$0
 ; }
-    62b4: 7a           	ld	a,d
-    62b5: c9           	ret
+    62ac: 7a           	ld	a,d
+    62ad: c9           	ret
 
-000062b6 <_halt_forever>:
+000062ae <_halt_forever>:
 ; DEFPORT(ctc3,         0x0F)
-    62b6: 3e 03        	ld	a,$3
-    62b8: d3 0f        	out	($f),a
+    62ae: 3e 03        	ld	a,$3
+    62b0: d3 0f        	out	($f),a
 ; DEFPORT(dma_smsk,     0xFA)
-    62ba: 3e 05        	ld	a,$5
-    62bc: d3 fa        	out	($fa),a
+    62b2: 3e 05        	ld	a,$5
+    62b4: d3 fa        	out	($fa),a
 ;     __asm__ volatile("ei");
-    62be: fb           	ei
+    62b6: fb           	ei
 ;     for (;;);
-    62bf: 18 fe        	jr	$62bf
+    62b7: 18 fe        	jr	$62b7
 
-000062c1 <_compare_6bytes>:
+000062b9 <_compare_6bytes>:
 ; byte compare_6bytes(const byte *a, const byte *b) {
-    62c1: 4d           	ld	c,l
-    62c2: 44           	ld	b,h
-    62c3: 6b           	ld	l,e
-    62c4: 62           	ld	h,d
-    62c5: 1e 06        	ld	e,$6
+    62b9: 4d           	ld	c,l
+    62ba: 44           	ld	b,h
+    62bb: 6b           	ld	l,e
+    62bc: 62           	ld	h,d
+    62bd: 1e 06        	ld	e,$6
 ;         if (*a++ != *b++) {
-    62c7: 0a           	ld	a,(bc)
-    62c8: be           	cp	(hl)
-    62c9: 20 0a        	jr	nz,$62d5
-    62cb: 23           	inc	hl
-    62cc: 03           	inc	bc
+    62bf: 0a           	ld	a,(bc)
+    62c0: be           	cp	(hl)
+    62c1: 20 07        	jr	nz,$62ca
+    62c3: 23           	inc	hl
+    62c4: 03           	inc	bc
 ;     } while (--i);
-    62cd: 7b           	ld	a,e
-    62ce: 3d           	dec	a
-    62cf: 5f           	ld	e,a
-    62d0: b7           	or	a
-    62d1: 20 f4        	jr	nz,$62c7
-    62d3: af           	xor	a
+    62c5: 1d           	dec	e
+    62c6: 20 f7        	jr	nz,$62bf
+    62c8: af           	xor	a
 ; }
-    62d4: c9           	ret
-    62d5: 3e 01        	ld	a,$1
+    62c9: c9           	ret
+    62ca: 3e 01        	ld	a,$1
 ; }
-    62d7: c9           	ret
+    62cc: c9           	ret
 
-000062d8 <_check_sysfile>:
+000062cd <_check_sysfile>:
 ; byte check_sysfile(const byte *dir, const char *pattern) {
-    62d8: e5           	push	hl
-    62d9: fd e1        	pop	iy
-    62db: 6b           	ld	l,e
-    62dc: 62           	ld	h,d
-    62dd: 1e 04        	ld	e,$4
-    62df: fd e5        	push	iy
-    62e1: c1           	pop	bc
-    62e2: 03           	inc	bc
+    62cd: e5           	push	hl
+    62ce: fd e1        	pop	iy
+    62d0: 6b           	ld	l,e
+    62d1: 62           	ld	h,d
+    62d2: 1e 04        	ld	e,$4
+    62d4: fd e5        	push	iy
+    62d6: c1           	pop	bc
+    62d7: 03           	inc	bc
 ;         if (*dir++ != *pattern++) {
-    62e3: 0a           	ld	a,(bc)
-    62e4: be           	cp	(hl)
-    62e5: 20 19        	jr	nz,$6300
-    62e7: 23           	inc	hl
+    62d8: 0a           	ld	a,(bc)
+    62d9: be           	cp	(hl)
+    62da: 20 16        	jr	nz,$62f2
+    62dc: 23           	inc	hl
 ;     } while (--i);
-    62e8: 7b           	ld	a,e
-    62e9: 3d           	dec	a
-    62ea: 5f           	ld	e,a
-    62eb: b7           	or	a
-    62ec: 20 f4        	jr	nz,$62e2
-    62ee: 11 08 00     	ld	de,$8
+    62dd: 1d           	dec	e
+    62de: 20 f7        	jr	nz,$62d7
+    62e0: 11 08 00     	ld	de,$8
 ;     if ((dir[3] & 0b00111111) != 0x13) {
-    62f1: fd e5        	push	iy
-    62f3: e1           	pop	hl
-    62f4: 19           	add	hl,de
-    62f5: 7e           	ld	a,(hl)
-    62f6: e6 3f        	and	$3f
-    62f8: d6 13        	sub	$13
-    62fa: c6 ff        	add	a,$ff
-    62fc: 9f           	sbc	a,a
-    62fd: e6 01        	and	$1
+    62e3: fd e5        	push	iy
+    62e5: e1           	pop	hl
+    62e6: 19           	add	hl,de
+    62e7: 7e           	ld	a,(hl)
+    62e8: e6 3f        	and	$3f
+    62ea: d6 13        	sub	$13
+    62ec: c6 ff        	add	a,$ff
+    62ee: 9f           	sbc	a,a
+    62ef: e6 01        	and	$1
 ; }
-    62ff: c9           	ret
-    6300: 3e 01        	ld	a,$1
+    62f1: c9           	ret
+    62f2: 3e 01        	ld	a,$1
 ; }
-    6302: c9           	ret
+    62f4: c9           	ret
 
-00006303 <_prom1_if_present>:
+000062f5 <_prom1_if_present>:
 ; DEFPORT(sw1,          0x14)
-    6303: db 14        	in	a,($14)
+    62f5: db 14        	in	a,($14)
 ;     if ((read_sw1() & 0x02) == 0 &&
-    6305: e6 02        	and	$2
-    6307: 20 15        	jr	nz,$631e
+    62f7: e6 02        	and	$2
+    62f9: 20 15        	jr	nz,$6310
 ;         compare_6bytes((const byte *) 0x2002, (const byte *) msg_rc702) == 0) {
-    6309: 21 02 20     	ld	hl,$2002
-    630c: 11 9d 67     	ld	de,$679d
-    630f: cd c1 62     	call	$62c1
+    62fb: 21 02 20     	ld	hl,$2002
+    62fe: 11 8f 67     	ld	de,$678f
+    6301: cd b9 62     	call	$62b9
 ;     if ((read_sw1() & 0x02) == 0 &&
-    6312: b7           	or	a
-    6313: 20 09        	jr	nz,$631e
+    6304: b7           	or	a
+    6305: 20 09        	jr	nz,$6310
 ;         jump_to(*(word *)0x2000);
-    6315: 2a 00 20     	ld	hl,($2000)              ; 0x2000 <__text_zx0_end+0x1977>
-    6318: e5           	push	hl
-    6319: fd e1        	pop	iy
-    631b: c3 a8 67     	jp	$67a8
+    6307: 2a 00 20     	ld	hl,($2000)              ; 0x2000 <__text_zx0_end+0x1984>
+    630a: e5           	push	hl
+    630b: fd e1        	pop	iy
+    630d: c3 9a 67     	jp	$679a
 ;     halt_msg(" **NO DISKETTE NOR LINEPROG** ", 30);
-    631e: 21 7e 67     	ld	hl,$677e
-    6321: 11 a0 7a     	ld	de,$7aa0
-    6324: 01 1e 00     	ld	bc,$1e
-    6327: ed b0        	ldir
-    6329: cd b6 62     	call	$62b6
+    6310: 21 70 67     	ld	hl,$6770
+    6313: 11 a0 7a     	ld	de,$7aa0
+    6316: 01 1e 00     	ld	bc,$1e
+    6319: ed b0        	ldir
+    631b: cd ae 62     	call	$62ae
 
-0000632c <_floppy_legacy_boot>:
+0000631e <_floppy_legacy_boot>:
 ;     disk_type = (byte)((is_mini << 7) | disk_type);
-    632c: 3a aa 67     	ld	a,($67aa)               ; 0x67aa <_is_mini>
-    632f: 0f           	rrca
-    6330: e6 80        	and	$80
-    6332: 21 b3 67     	ld	hl,$67b3
-    6335: b6           	or	(hl)
+    631e: 3a 9c 67     	ld	a,($679c)               ; 0x679c <_is_mini>
+    6321: 0f           	rrca
+    6322: e6 80        	and	$80
+    6324: 21 a5 67     	ld	hl,$67a5
+    6327: b6           	or	(hl)
 ;     disk_type--;
-    6336: 3d           	dec	a
-    6337: 32 b3 67     	ld	($67b3),a               ; 0x67b3 <_disk_type>
+    6328: 3d           	dec	a
+    6329: 32 a5 67     	ld	($67a5),a               ; 0x67a5 <_disk_type>
 ;     fdc_detect_sector_size_and_density();
-    633a: cd 7a 62     	call	$627a
+    632c: cd 72 62     	call	$6272
 ;     dma_transfer_address = FLOPPYDATA;
-    633d: 21 00 00     	ld	hl,$0
-    6340: 22 c3 67     	ld	($67c3),hl              ; 0x67c3 <_dma_transfer_address>
+    632f: 21 00 00     	ld	hl,$0
+    6332: 22 b5 67     	ld	($67b5),hl              ; 0x67b5 <_dma_transfer_address>
 ;     fdc_read_data_from_current_location(INTVEC_ADDR);
-    6343: 21 00 60     	ld	hl,$6000
-    6346: cd 55 63     	call	$6355
+    6335: 21 00 60     	ld	hl,$6000
+    6338: cd 47 63     	call	$6347
 ;     disk_type = 1;
-    6349: 3e 01        	ld	a,$1
-    634b: 32 b3 67     	ld	($67b3),a               ; 0x67b3 <_disk_type>
+    633b: 3e 01        	ld	a,$1
+    633d: 32 a5 67     	ld	($67a5),a               ; 0x67a5 <_disk_type>
 ;     jump_to(LEGACYBOOT);
-    634e: fd 21 00 10  	ld	iy,$1000
-    6352: c3 a8 67     	jp	$67a8
+    6340: fd 21 00 10  	ld	iy,$1000
+    6344: c3 9a 67     	jp	$679a
 
-00006355 <_fdc_read_data_from_current_location>:
+00006347 <_fdc_read_data_from_current_location>:
 ;     bytes_left_to_read = total_bytes_to_read;
-    6355: 22 c8 67     	ld	($67c8),hl              ; 0x67c8 <_bytes_left_to_read>
+    6347: 22 ba 67     	ld	($67ba),hl              ; 0x67ba <_bytes_left_to_read>
 ;         byte r = fdc_select_drive_cylinder_head();
-    6358: cd 54 61     	call	$6154
-    635b: 57           	ld	d,a
+    634a: cd 4c 61     	call	$614c
+    634d: 57           	ld	d,a
 ;         if (r == 1) {
-    635c: b7           	or	a
-    635d: 20 69        	jr	nz,$63c8
+    634e: b7           	or	a
+    634f: 20 69        	jr	nz,$63ba
 ;             calc_size_of_current_track();
-    635f: cd a3 60     	call	$60a3
+    6351: cd 9b 60     	call	$609b
 ;             remaining = (int16_t) bytes_left_to_read - (int16_t) dma_transfer_size;
-    6362: 2a c8 67     	ld	hl,($67c8)              ; 0x67c8 <_bytes_left_to_read>
-    6365: eb           	ex	de,hl
-    6366: 2a b4 67     	ld	hl,($67b4)              ; 0x67b4 <_dma_transfer_size>
-    6369: 4d           	ld	c,l
-    636a: 44           	ld	b,h
-    636b: 6b           	ld	l,e
-    636c: 62           	ld	h,d
-    636d: a7           	and	a
-    636e: ed 42        	sbc	hl,bc
-    6370: 0e 01        	ld	c,$1
+    6354: 2a ba 67     	ld	hl,($67ba)              ; 0x67ba <_bytes_left_to_read>
+    6357: eb           	ex	de,hl
+    6358: 2a a6 67     	ld	hl,($67a6)              ; 0x67a6 <_dma_transfer_size>
+    635b: 4d           	ld	c,l
+    635c: 44           	ld	b,h
+    635d: 6b           	ld	l,e
+    635e: 62           	ld	h,d
+    635f: a7           	and	a
+    6360: ed 42        	sbc	hl,bc
+    6362: 0e 01        	ld	c,$1
 ;             if (remaining > 0) {
-    6372: 7c           	ld	a,h
-    6373: 07           	rlca
-    6374: 9f           	sbc	a,a
-    6375: 2f           	cpl
-    6376: 47           	ld	b,a
-    6377: 7c           	ld	a,h
-    6378: b5           	or	l
-    6379: a0           	and	b
-    637a: 20 09        	jr	nz,$6385
+    6364: 7c           	ld	a,h
+    6365: 07           	rlca
+    6366: 9f           	sbc	a,a
+    6367: 2f           	cpl
+    6368: 47           	ld	b,a
+    6369: 7c           	ld	a,h
+    636a: b5           	or	l
+    636b: a0           	and	b
+    636c: 20 09        	jr	nz,$6377
 ;                 dma_transfer_size = bytes_left_to_read;
-    637c: eb           	ex	de,hl
-    637d: 22 b4 67     	ld	($67b4),hl              ; 0x67b4 <_dma_transfer_size>
-    6380: 21 00 00     	ld	hl,$0
-    6383: 0e 00        	ld	c,$0
-    6385: 79           	ld	a,c
-    6386: 32 c7 67     	ld	($67c7),a               ; 0x67c7 <_more_tracks_to_read>
-    6389: 22 c8 67     	ld	($67c8),hl              ; 0x67c8 <_bytes_left_to_read>
+    636e: eb           	ex	de,hl
+    636f: 22 a6 67     	ld	($67a6),hl              ; 0x67a6 <_dma_transfer_size>
+    6372: 21 00 00     	ld	hl,$0
+    6375: 0e 00        	ld	c,$0
+    6377: 79           	ld	a,c
+    6378: 32 b9 67     	ld	($67b9),a               ; 0x67b9 <_more_tracks_to_read>
+    637b: 22 ba 67     	ld	($67ba),hl              ; 0x67ba <_bytes_left_to_read>
 ;         if (fdc_get_result_bytes(FDC_READ_DATA, 5) != 0) {
-    638c: 3e 06        	ld	a,$6
-    638e: 2e 05        	ld	l,$5
-    6390: cd 1e 62     	call	$621e
-    6393: b7           	or	a
-    6394: 20 3e        	jr	nz,$63d4
+    637e: 3e 06        	ld	a,$6
+    6380: 2e 05        	ld	l,$5
+    6382: cd 16 62     	call	$6216
+    6385: b7           	or	a
+    6386: 20 3e        	jr	nz,$63c6
 ;         dma_transfer_address += dma_transfer_size;
-    6396: 2a b4 67     	ld	hl,($67b4)              ; 0x67b4 <_dma_transfer_size>
-    6399: eb           	ex	de,hl
-    639a: 2a c3 67     	ld	hl,($67c3)              ; 0x67c3 <_dma_transfer_address>
-    639d: 19           	add	hl,de
-    639e: 22 c3 67     	ld	($67c3),hl              ; 0x67c3 <_dma_transfer_address>
+    6388: 2a a6 67     	ld	hl,($67a6)              ; 0x67a6 <_dma_transfer_size>
+    638b: eb           	ex	de,hl
+    638c: 2a b5 67     	ld	hl,($67b5)              ; 0x67b5 <_dma_transfer_address>
+    638f: 19           	add	hl,de
+    6390: 22 b5 67     	ld	($67b5),hl              ; 0x67b5 <_dma_transfer_address>
 ;         dma_transfer_size = 0;
-    63a1: 21 00 00     	ld	hl,$0
-    63a4: 22 b4 67     	ld	($67b4),hl              ; 0x67b4 <_dma_transfer_size>
+    6393: 21 00 00     	ld	hl,$0
+    6396: 22 a6 67     	ld	($67a6),hl              ; 0x67a6 <_dma_transfer_size>
 ;             fdc_cmd.sector = 1;
-    63a7: 3e 01        	ld	a,$1
-    63a9: 32 ad 67     	ld	($67ad),a               ; 0x67ad <_fdc_cmd+0x2>
+    6399: 3e 01        	ld	a,$1
+    639b: 32 9f 67     	ld	($679f),a               ; 0x679f <_fdc_cmd+0x2>
 ;             max_head = is_double_sided;
-    63ac: 3a ca 67     	ld	a,($67ca)               ; 0x67ca <_is_double_sided>
-    63af: 57           	ld	d,a
+    639e: 3a bc 67     	ld	a,($67bc)               ; 0x67bc <_is_double_sided>
+    63a1: 57           	ld	d,a
 ;             if (max_head == fdc_cmd.head) {
-    63b0: 3a ac 67     	ld	a,($67ac)               ; 0x67ac <_fdc_cmd+0x1>
-    63b3: ba           	cp	d
-    63b4: 20 07        	jr	nz,$63bd
+    63a2: 3a 9e 67     	ld	a,($679e)               ; 0x679e <_fdc_cmd+0x1>
+    63a5: ba           	cp	d
+    63a6: 20 07        	jr	nz,$63af
 ;                 fdc_cmd.cylinder++;
-    63b6: 21 ab 67     	ld	hl,$67ab
-    63b9: 34           	inc	(hl)
-    63ba: af           	xor	a
+    63a8: 21 9d 67     	ld	hl,$679d
+    63ab: 34           	inc	(hl)
+    63ac: af           	xor	a
 ;             } else {
-    63bb: 18 01        	jr	$63be
+    63ad: 18 01        	jr	$63b0
 ;                 fdc_cmd.head++;
-    63bd: 3c           	inc	a
-    63be: 32 ac 67     	ld	($67ac),a               ; 0x67ac <_fdc_cmd+0x1>
+    63af: 3c           	inc	a
+    63b0: 32 9e 67     	ld	($679e),a               ; 0x679e <_fdc_cmd+0x1>
 ;         if (!more_tracks_to_read) {
-    63c1: 3a c7 67     	ld	a,($67c7)               ; 0x67c7 <_more_tracks_to_read>
-    63c4: b7           	or	a
-    63c5: 20 91        	jr	nz,$6358
+    63b3: 3a b9 67     	ld	a,($67b9)               ; 0x67b9 <_more_tracks_to_read>
+    63b6: b7           	or	a
+    63b7: 20 91        	jr	nz,$634a
 ; }
-    63c7: c9           	ret
+    63b9: c9           	ret
 ;         if (r == 1) {
-    63c8: fe 01        	cp	$1
-    63ca: 20 03        	jr	nz,$63cf
+    63ba: fe 01        	cp	$1
+    63bc: 20 03        	jr	nz,$63c1
 ;             prom1_if_present();
-    63cc: c3 03 63     	jp	$6303
+    63be: c3 f5 62     	jp	$62f5
 ;             error_display_halt(0x06);
-    63cf: 3e 06        	ld	a,$6
-    63d1: c3 0c 61     	jp	$610c
+    63c1: 3e 06        	ld	a,$6
+    63c3: c3 04 61     	jp	$6104
 ;             error_display_halt(0x28);
-    63d4: 3e 28        	ld	a,$28
-    63d6: c3 0c 61     	jp	$610c
+    63c6: 3e 28        	ld	a,$28
+    63c8: c3 04 61     	jp	$6104
 
-000063d9 <_nothing_int>:
+000063cb <_nothing_int>:
 ; }
-    63d9: fb           	ei
-    63da: ed 4d        	reti
+    63cb: fb           	ei
+    63cc: ed 4d        	reti
 
-000063dc <_refresh_crt_dma_50hz_interrupt>:
+000063ce <_refresh_crt_dma_50hz_interrupt>:
 ; void refresh_crt_dma_50hz_interrupt(void) __critical __interrupt(1) {
-    63dc: d9           	exx
-    63dd: 08           	ex	af,af'
+    63ce: d9           	exx
+    63cf: 08           	ex	af,af'
 ; DEFPORT(crt_cmd,      0x01)
-    63de: db 01        	in	a,($1)
+    63d0: db 01        	in	a,($1)
 ; DEFPORT(dma_smsk,     0xFA)
-    63e0: 3e 06        	ld	a,$6
-    63e2: d3 fa        	out	($fa),a
+    63d2: 3e 06        	ld	a,$6
+    63d4: d3 fa        	out	($fa),a
 ; DEFPORT(dma_clbp,     0xFC)
-    63e4: af           	xor	a
-    63e5: d3 fc        	out	($fc),a
+    63d6: af           	xor	a
+    63d7: d3 fc        	out	($fc),a
 ; DEFPORT(dma_ch2_addr, 0xF4)
-    63e7: d3 f4        	out	($f4),a
-    63e9: 3e 7a        	ld	a,$7a
-    63eb: d3 f4        	out	($f4),a
+    63d9: d3 f4        	out	($f4),a
+    63db: 3e 7a        	ld	a,$7a
+    63dd: d3 f4        	out	($f4),a
 ; DEFPORT(dma_ch2_wc,   0xF5)
-    63ed: 3e cf        	ld	a,$cf
-    63ef: d3 f5        	out	($f5),a
-    63f1: 3e 07        	ld	a,$7
-    63f3: d3 f5        	out	($f5),a
+    63df: 3e cf        	ld	a,$cf
+    63e1: d3 f5        	out	($f5),a
+    63e3: 3e 07        	ld	a,$7
+    63e5: d3 f5        	out	($f5),a
 ; DEFPORT(dma_smsk,     0xFA)
-    63f5: 3e 02        	ld	a,$2
-    63f7: d3 fa        	out	($fa),a
+    63e7: 3e 02        	ld	a,$2
+    63e9: d3 fa        	out	($fa),a
 ; DEFPORT(ctc2,         0x0E)
-    63f9: 3e d7        	ld	a,$d7
-    63fb: d3 0e        	out	($e),a
-    63fd: 3e 01        	ld	a,$1
-    63ff: d3 0e        	out	($e),a
+    63eb: 3e d7        	ld	a,$d7
+    63ed: d3 0e        	out	($e),a
+    63ef: 3e 01        	ld	a,$1
+    63f1: d3 0e        	out	($e),a
 ; }
-    6401: 08           	ex	af,af'
-    6402: d9           	exx
-    6403: fb           	ei
-    6404: ed 4d        	reti
+    63f3: 08           	ex	af,af'
+    63f4: d9           	exx
+    63f5: fb           	ei
+    63f6: ed 4d        	reti
 
-00006406 <_floppy_completed_operation_interrupt>:
+000063f8 <_floppy_completed_operation_interrupt>:
 ; void floppy_completed_operation_interrupt(void) __critical __interrupt(2) {
-    6406: d9           	exx
-    6407: 08           	ex	af,af'
-    6408: fd e5        	push	iy
+    63f8: d9           	exx
+    63f9: 08           	ex	af,af'
+    63fa: fd e5        	push	iy
 ;     floppy_operation_completed_flag = 2; /* Only non-zero value */
-    640a: 3e 02        	ld	a,$2
-    640c: 32 bf 67     	ld	($67bf),a               ; 0x67bf <_floppy_operation_completed_flag>
+    63fc: 3e 02        	ld	a,$2
+    63fe: 32 b1 67     	ld	($67b1),a               ; 0x67b1 <_floppy_operation_completed_flag>
 ; DEFPORT(fdc_status,   0x04)
-    640f: db 04        	in	a,($4)
+    6401: db 04        	in	a,($4)
 ;     if (fdc_status() & 0b00010000) {    /* CB=1: result phase ready */
-    6411: e6 10        	and	$10
-    6413: 20 05        	jr	nz,$641a
+    6403: e6 10        	and	$10
+    6405: 20 05        	jr	nz,$640c
 ;         fdc_sense_interrupt();
-    6415: cd ce 60     	call	$60ce
-    6418: 18 03        	jr	$641d
+    6407: cd c6 60     	call	$60c6
+    640a: 18 03        	jr	$640f
 ;         fdc_read_result();
-    641a: cd e5 60     	call	$60e5
+    640c: cd dd 60     	call	$60dd
 ; }
-    641d: fd e1        	pop	iy
-    641f: 08           	ex	af,af'
-    6420: d9           	exx
-    6421: fb           	ei
-    6422: ed 4d        	reti
+    640f: fd e1        	pop	iy
+    6411: 08           	ex	af,af'
+    6412: d9           	exx
+    6413: fb           	ei
+    6414: ed 4d        	reti
 
-00006424 <_main_relocated>:
+00006416 <_main_relocated>:
 ;     SET_SP(ROM_STACK);
-    6424: 31 ff bf     	ld	sp,$bfff
+    6416: 31 ff bf     	ld	sp,$bfff
 ;     __asm__ volatile("ld i, a" : : "a"(page));
-    6427: 3e 60        	ld	a,$60
-    6429: ed 47        	ld	i,a
+    6419: 3e 60        	ld	a,$60
+    641b: ed 47        	ld	i,a
 ; static inline void intrinsic_im_2(void) { __asm__ volatile("im 2"); }
-    642b: ed 5e        	im	2
+    641d: ed 5e        	im	2
 ; DEFPORT(pio_a_ctrl,   0x12)
-    642d: 3e 02        	ld	a,$2
-    642f: d3 12        	out	($12),a
+    641f: 3e 02        	ld	a,$2
+    6421: d3 12        	out	($12),a
 ; DEFPORT(pio_b_ctrl,   0x13)
-    6431: 3e 04        	ld	a,$4
+    6423: 3e 04        	ld	a,$4
+    6425: d3 13        	out	($13),a
+; DEFPORT(pio_a_ctrl,   0x12)
+    6427: 3e 4f        	ld	a,$4f
+    6429: d3 12        	out	($12),a
+; DEFPORT(pio_b_ctrl,   0x13)
+    642b: 3e 0f        	ld	a,$f
+    642d: d3 13        	out	($13),a
+; DEFPORT(pio_a_ctrl,   0x12)
+    642f: 3e 83        	ld	a,$83
+    6431: d3 12        	out	($12),a
+; DEFPORT(pio_b_ctrl,   0x13)
     6433: d3 13        	out	($13),a
-; DEFPORT(pio_a_ctrl,   0x12)
-    6435: 3e 4f        	ld	a,$4f
-    6437: d3 12        	out	($12),a
-; DEFPORT(pio_b_ctrl,   0x13)
-    6439: 3e 0f        	ld	a,$f
-    643b: d3 13        	out	($13),a
-; DEFPORT(pio_a_ctrl,   0x12)
-    643d: 3e 83        	ld	a,$83
-    643f: d3 12        	out	($12),a
-; DEFPORT(pio_b_ctrl,   0x13)
-    6441: d3 13        	out	($13),a
 ; DEFPORT(ctc0,         0x0C)
-    6443: 3e 08        	ld	a,$8
-    6445: d3 0c        	out	($c),a
-    6447: 3e 47        	ld	a,$47
-    6449: d3 0c        	out	($c),a
-    644b: 3e 20        	ld	a,$20
-    644d: d3 0c        	out	($c),a
+    6435: 3e 08        	ld	a,$8
+    6437: d3 0c        	out	($c),a
+    6439: 3e 47        	ld	a,$47
+    643b: d3 0c        	out	($c),a
+    643d: 3e 20        	ld	a,$20
+    643f: d3 0c        	out	($c),a
 ; DEFPORT(ctc1,         0x0D)
-    644f: 3e 47        	ld	a,$47
-    6451: d3 0d        	out	($d),a
-    6453: 3e 20        	ld	a,$20
-    6455: d3 0d        	out	($d),a
+    6441: 3e 47        	ld	a,$47
+    6443: d3 0d        	out	($d),a
+    6445: 3e 20        	ld	a,$20
+    6447: d3 0d        	out	($d),a
 ; DEFPORT(ctc2,         0x0E)
-    6457: 3e d7        	ld	a,$d7
-    6459: d3 0e        	out	($e),a
-    645b: 3e 01        	ld	a,$1
-    645d: d3 0e        	out	($e),a
+    6449: 3e d7        	ld	a,$d7
+    644b: d3 0e        	out	($e),a
+    644d: 3e 01        	ld	a,$1
+    644f: d3 0e        	out	($e),a
 ; DEFPORT(ctc3,         0x0F)
-    645f: 3e d7        	ld	a,$d7
-    6461: d3 0f        	out	($f),a
-    6463: 3e 01        	ld	a,$1
-    6465: d3 0f        	out	($f),a
+    6451: 3e d7        	ld	a,$d7
+    6453: d3 0f        	out	($f),a
+    6455: 3e 01        	ld	a,$1
+    6457: d3 0f        	out	($f),a
 ; DEFPORT(dma_cmd,      0xF8)
-    6467: 3e 20        	ld	a,$20
-    6469: d3 f8        	out	($f8),a
+    6459: 3e 20        	ld	a,$20
+    645b: d3 f8        	out	($f8),a
 ; DEFPORT(dma_mode,     0xFB)
-    646b: 3e c0        	ld	a,$c0
-    646d: d3 fb        	out	($fb),a
-    646f: 16 00        	ld	d,$0
+    645d: 3e c0        	ld	a,$c0
+    645f: d3 fb        	out	($fb),a
+    6461: 16 00        	ld	d,$0
 ; DEFPORT(dma_smsk,     0xFA)
-    6471: 7a           	ld	a,d
-    6472: d3 fa        	out	($fa),a
+    6463: 7a           	ld	a,d
+    6464: d3 fa        	out	($fa),a
 ; DEFPORT(dma_mode,     0xFB)
-    6474: 3e 4a        	ld	a,$4a
-    6476: d3 fb        	out	($fb),a
+    6466: 3e 4a        	ld	a,$4a
+    6468: d3 fb        	out	($fb),a
 ; DEFPORT(crt_cmd,      0x01)
-    6478: 7a           	ld	a,d
-    6479: d3 01        	out	($1),a
+    646a: 7a           	ld	a,d
+    646b: d3 01        	out	($1),a
 ; DEFPORT(crt_param,    0x00)
-    647b: 3e 4f        	ld	a,$4f
-    647d: d3 00        	out	($0),a
-    647f: 3e 98        	ld	a,$98
-    6481: d3 00        	out	($0),a
-    6483: 3e 9a        	ld	a,$9a
-    6485: d3 00        	out	($0),a
-    6487: 3e 5d        	ld	a,$5d
-    6489: d3 00        	out	($0),a
+    646d: 3e 4f        	ld	a,$4f
+    646f: d3 00        	out	($0),a
+    6471: 3e 98        	ld	a,$98
+    6473: d3 00        	out	($0),a
+    6475: 3e 9a        	ld	a,$9a
+    6477: d3 00        	out	($0),a
+    6479: 3e 5d        	ld	a,$5d
+    647b: d3 00        	out	($0),a
 ; DEFPORT(crt_cmd,      0x01)
-    648b: 3e 80        	ld	a,$80
-    648d: d3 01        	out	($1),a
+    647d: 3e 80        	ld	a,$80
+    647f: d3 01        	out	($1),a
 ; DEFPORT(crt_param,    0x00)
-    648f: 7a           	ld	a,d
-    6490: d3 00        	out	($0),a
-    6492: 06 00        	ld	b,$0
-    6494: ed 43 d8 67  	ld	($67d8),bc              ; 0x67d8 <__sfrend_syscall>
-    6498: d3 00        	out	($0),a
+    6481: 7a           	ld	a,d
+    6482: d3 00        	out	($0),a
+    6484: 06 00        	ld	b,$0
+    6486: ed 43 ca 67  	ld	($67ca),bc              ; 0x67ca <__sfrend_syscall>
+    648a: d3 00        	out	($0),a
 ; DEFPORT(crt_cmd,      0x01)
-    649a: 3e e0        	ld	a,$e0
-    649c: d3 01        	out	($1),a
-    649e: 7a           	ld	a,d
-    649f: 32 dc 67     	ld	($67dc),a               ; 0x67dc <__sfrend_syscall+0x4>
+    648c: 3e e0        	ld	a,$e0
+    648e: d3 01        	out	($1),a
+    6490: 7a           	ld	a,d
+    6491: 32 ce 67     	ld	($67ce),a               ; 0x67ce <__sfrend_syscall+0x4>
 ;     for (ch = 0; ch < 128; ch++) {
-    64a2: fe 80        	cp	$80
-    64a4: ca 5e 65     	jp	z,$655e
-    64a7: 1e 00        	ld	e,$0
+    6494: fe 80        	cp	$80
+    6496: ca 50 65     	jp	z,$6550
+    6499: 1e 00        	ld	e,$0
 ;         if (ch >= 0x20 && ch <= 0x3F)
-    64a9: 3e 1f        	ld	a,$1f
-    64ab: f5           	push	af
-    64ac: 3a dc 67     	ld	a,($67dc)               ; 0x67dc <__sfrend_syscall+0x4>
-    64af: 57           	ld	d,a
-    64b0: f1           	pop	af
-    64b1: ba           	cp	d
-    64b2: 16 00        	ld	d,$0
-    64b4: 26 00        	ld	h,$0
-    64b6: 30 76        	jr	nc,$652e
-    64b8: 2e e0        	ld	l,$e0
+    649b: 3e 1f        	ld	a,$1f
+    649d: f5           	push	af
+    649e: 3a ce 67     	ld	a,($67ce)               ; 0x67ce <__sfrend_syscall+0x4>
+    64a1: 57           	ld	d,a
+    64a2: f1           	pop	af
+    64a3: ba           	cp	d
+    64a4: 16 00        	ld	d,$0
+    64a6: 26 00        	ld	h,$0
+    64a8: 30 76        	jr	nc,$6520
+    64aa: 2e e0        	ld	l,$e0
 ;         if (ch >= 0x20 && ch <= 0x3F)
-    64ba: 3a dc 67     	ld	a,($67dc)               ; 0x67dc <__sfrend_syscall+0x4>
-    64bd: fe 40        	cp	$40
-    64bf: 38 0f        	jr	c,$64d0
-    64c1: 2e c0        	ld	l,$c0
+    64ac: 3a ce 67     	ld	a,($67ce)               ; 0x67ce <__sfrend_syscall+0x4>
+    64af: fe 40        	cp	$40
+    64b1: 38 0f        	jr	c,$64c2
+    64b3: 2e c0        	ld	l,$c0
 ;         else if (ch >= 0x60 && ch <= 0x7F)
-    64c3: 3e 5f        	ld	a,$5f
-    64c5: f5           	push	af
-    64c6: 3a dc 67     	ld	a,($67dc)               ; 0x67dc <__sfrend_syscall+0x4>
-    64c9: 57           	ld	d,a
-    64ca: f1           	pop	af
-    64cb: ba           	cp	d
-    64cc: 16 00        	ld	d,$0
-    64ce: 30 5e        	jr	nc,$652e
-    64d0: 7d           	ld	a,l
-    64d1: f5           	push	af
-    64d2: 3a dc 67     	ld	a,($67dc)               ; 0x67dc <__sfrend_syscall+0x4>
-    64d5: 57           	ld	d,a
-    64d6: f1           	pop	af
-    64d7: f5           	push	af
-    64d8: 7a           	ld	a,d
-    64d9: 32 dc 67     	ld	($67dc),a               ; 0x67dc <__sfrend_syscall+0x4>
-    64dc: f1           	pop	af
-    64dd: 82           	add	a,d
+    64b5: 3e 5f        	ld	a,$5f
+    64b7: f5           	push	af
+    64b8: 3a ce 67     	ld	a,($67ce)               ; 0x67ce <__sfrend_syscall+0x4>
+    64bb: 57           	ld	d,a
+    64bc: f1           	pop	af
+    64bd: ba           	cp	d
+    64be: 16 00        	ld	d,$0
+    64c0: 30 5e        	jr	nc,$6520
+    64c2: 7d           	ld	a,l
+    64c3: f5           	push	af
+    64c4: 3a ce 67     	ld	a,($67ce)               ; 0x67ce <__sfrend_syscall+0x4>
+    64c7: 57           	ld	d,a
+    64c8: f1           	pop	af
+    64c9: f5           	push	af
+    64ca: 7a           	ld	a,d
+    64cb: 32 ce 67     	ld	($67ce),a               ; 0x67ce <__sfrend_syscall+0x4>
+    64ce: f1           	pop	af
+    64cf: 82           	add	a,d
 ;         if (pattern != 0xFF) {
-    64de: 5f           	ld	e,a
-    64df: 16 00        	ld	d,$0
+    64d0: 5f           	ld	e,a
+    64d1: 16 00        	ld	d,$0
 ;             top = half[pattern & 0x03];
-    64e1: ed 53 da 67  	ld	($67da),de              ; 0x67da <__sfrend_syscall+0x2>
-    64e5: e6 03        	and	$3
-    64e7: ed 5b d8 67  	ld	de,($67d8)              ; 0x67d8 <__sfrend_syscall>
+    64d3: ed 53 cc 67  	ld	($67cc),de              ; 0x67cc <__sfrend_syscall+0x2>
+    64d7: e6 03        	and	$3
+    64d9: ed 5b ca 67  	ld	de,($67ca)              ; 0x67ca <__sfrend_syscall>
 ;             top = half[pattern & 0x03];
-    64eb: 5f           	ld	e,a
-    64ec: 21 a4 67     	ld	hl,$67a4
-    64ef: 42           	ld	b,d
-    64f0: ed 43 d8 67  	ld	($67d8),bc              ; 0x67d8 <__sfrend_syscall>
-    64f4: 19           	add	hl,de
-    64f5: 5e           	ld	e,(hl)
-    64f6: ed 4b da 67  	ld	bc,($67da)              ; 0x67da <__sfrend_syscall+0x2>
+    64dd: 5f           	ld	e,a
+    64de: 21 96 67     	ld	hl,$6796
+    64e1: 42           	ld	b,d
+    64e2: ed 43 ca 67  	ld	($67ca),bc              ; 0x67ca <__sfrend_syscall>
+    64e6: 19           	add	hl,de
+    64e7: 5e           	ld	e,(hl)
+    64e8: ed 4b cc 67  	ld	bc,($67cc)              ; 0x67cc <__sfrend_syscall+0x2>
 ;             mid = half[(pattern >> 2) & 0x03];
-    64fa: cb 38        	srl	b
-    64fc: cb 19        	rr	c
-    64fe: cb 38        	srl	b
-    6500: cb 19        	rr	c
-    6502: ed 43 da 67  	ld	($67da),bc              ; 0x67da <__sfrend_syscall+0x2>
-    6506: 79           	ld	a,c
-    6507: e6 03        	and	$3
-    6509: 4f           	ld	c,a
-    650a: 06 00        	ld	b,$0
-    650c: 21 a4 67     	ld	hl,$67a4
-    650f: 09           	add	hl,bc
-    6510: 56           	ld	d,(hl)
+    64ec: cb 38        	srl	b
+    64ee: cb 19        	rr	c
+    64f0: cb 38        	srl	b
+    64f2: cb 19        	rr	c
+    64f4: ed 43 cc 67  	ld	($67cc),bc              ; 0x67cc <__sfrend_syscall+0x2>
+    64f8: 79           	ld	a,c
+    64f9: e6 03        	and	$3
+    64fb: 4f           	ld	c,a
+    64fc: 06 00        	ld	b,$0
+    64fe: 21 96 67     	ld	hl,$6796
+    6501: 09           	add	hl,bc
+    6502: 56           	ld	d,(hl)
 ;             bot = half[(pattern >> 4) & 0x03];
-    6511: ed 4b da 67  	ld	bc,($67da)              ; 0x67da <__sfrend_syscall+0x2>
-    6515: cb 38        	srl	b
-    6517: cb 19        	rr	c
-    6519: ed 43 da 67  	ld	($67da),bc              ; 0x67da <__sfrend_syscall+0x2>
-    651d: cb 38        	srl	b
-    651f: cb 19        	rr	c
-    6521: ed 43 da 67  	ld	($67da),bc              ; 0x67da <__sfrend_syscall+0x2>
-    6525: 21 a4 67     	ld	hl,$67a4
-    6528: ed 4b da 67  	ld	bc,($67da)              ; 0x67da <__sfrend_syscall+0x2>
-    652c: 09           	add	hl,bc
-    652d: 66           	ld	h,(hl)
+    6503: ed 4b cc 67  	ld	bc,($67cc)              ; 0x67cc <__sfrend_syscall+0x2>
+    6507: cb 38        	srl	b
+    6509: cb 19        	rr	c
+    650b: ed 43 cc 67  	ld	($67cc),bc              ; 0x67cc <__sfrend_syscall+0x2>
+    650f: cb 38        	srl	b
+    6511: cb 19        	rr	c
+    6513: ed 43 cc 67  	ld	($67cc),bc              ; 0x67cc <__sfrend_syscall+0x2>
+    6517: 21 96 67     	ld	hl,$6796
+    651a: ed 4b cc 67  	ld	bc,($67cc)              ; 0x67cc <__sfrend_syscall+0x2>
+    651e: 09           	add	hl,bc
+    651f: 66           	ld	h,(hl)
 ; DEFPORT(chargen_char, 0xD1)    /* SEM 702 character generator: character number */
-    652e: 3a dc 67     	ld	a,($67dc)               ; 0x67dc <__sfrend_syscall+0x4>
-    6531: d3 d1        	out	($d1),a
-    6533: af           	xor	a
-    6534: 6f           	ld	l,a
+    6520: 3a ce 67     	ld	a,($67ce)               ; 0x67ce <__sfrend_syscall+0x4>
+    6523: d3 d1        	out	($d1),a
+    6525: af           	xor	a
+    6526: 6f           	ld	l,a
 ; DEFPORT(chargen_dot,  0xD2)    /* SEM 702 character generator: dot line number */
-    6535: d3 d2        	out	($d2),a
+    6527: d3 d2        	out	($d2),a
 ;         for (line = 0; line < 16; line++) {
-    6537: 7d           	ld	a,l
-    6538: fe 10        	cp	$10
-    653a: 28 1b        	jr	z,$6557
+    6529: 7d           	ld	a,l
+    652a: fe 10        	cp	$10
+    652c: 28 1b        	jr	z,$6549
 ;                      line < 3 ? top
-    653c: fe 03        	cp	$3
-    653e: 43           	ld	b,e
-    653f: 38 0c        	jr	c,$654d
+    652e: fe 03        	cp	$3
+    6530: 43           	ld	b,e
+    6531: 38 0c        	jr	c,$653f
 ;                    : line < 7 ? mid
-    6541: fe 07        	cp	$7
-    6543: 42           	ld	b,d
-    6544: 38 07        	jr	c,$654d
-    6546: 06 00        	ld	b,$0
+    6533: fe 07        	cp	$7
+    6535: 42           	ld	b,d
+    6536: 38 07        	jr	c,$653f
+    6538: 06 00        	ld	b,$0
 ;                    : line < 11 ? bot
-    6548: fe 0b        	cp	$b
-    654a: 30 01        	jr	nc,$654d
-    654c: 44           	ld	b,h
+    653a: fe 0b        	cp	$b
+    653c: 30 01        	jr	nc,$653f
+    653e: 44           	ld	b,h
 ; DEFPORT(chargen_data, 0xD3)    /* SEM 702 character generator: pixel data byte */
-    654d: 78           	ld	a,b
-    654e: d3 d3        	out	($d3),a
+    653f: 78           	ld	a,b
+    6540: d3 d3        	out	($d3),a
 ;             port_out(chargen_dot, (byte)((line + 1) & 0x0F));
-    6550: 7d           	ld	a,l
-    6551: 3c           	inc	a
-    6552: 6f           	ld	l,a
-    6553: e6 0f        	and	$f
+    6542: 7d           	ld	a,l
+    6543: 3c           	inc	a
+    6544: 6f           	ld	l,a
+    6545: e6 0f        	and	$f
 ;         for (line = 0; line < 16; line++) {
-    6555: 18 de        	jr	$6535
+    6547: 18 de        	jr	$6527
 ;     for (ch = 0; ch < 128; ch++) {
-    6557: 3a dc 67     	ld	a,($67dc)               ; 0x67dc <__sfrend_syscall+0x4>
-    655a: 3c           	inc	a
-    655b: c3 9f 64     	jp	$649f
+    6549: 3a ce 67     	ld	a,($67ce)               ; 0x67ce <__sfrend_syscall+0x4>
+    654c: 3c           	inc	a
+    654d: c3 91 64     	jp	$6491
 ;     delay_ms(391);  /* FDC power-on delay: original ROM uses B=1,C=0xFF ≈ 391ms */
-    655e: 3e 02        	ld	a,$2
-    6560: 2e be        	ld	l,$be
-    6562: cd 5c 60     	call	$605c
+    6550: 3e 02        	ld	a,$2
+    6552: 2e be        	ld	l,$be
+    6554: cd 5c 60     	call	$605c
 ; DEFPORT(fdc_status,   0x04)
-    6565: db 04        	in	a,($4)
+    6557: db 04        	in	a,($4)
 ;     while (port_in(fdc_status) & 0x1F)
-    6567: e6 1f        	and	$1f
-    6569: 20 fa        	jr	nz,$6565
+    6559: e6 1f        	and	$1f
+    655b: 20 fa        	jr	nz,$6557
 ;     fdc_write_when_ready(0x03);  /* Specify command */
-    656b: 3e 03        	ld	a,$3
-    656d: cd 20 60     	call	$6020
+    655d: 3e 03        	ld	a,$3
+    655f: cd 20 60     	call	$6020
 ;     fdc_write_when_ready(0x4F);  /* step rate 3ms, head unload 240ms */
-    6570: 3e 4f        	ld	a,$4f
-    6572: cd 20 60     	call	$6020
+    6562: 3e 4f        	ld	a,$4f
+    6564: cd 20 60     	call	$6020
 ;     fdc_write_when_ready(0x20);  /* DMA mode */
-    6575: 3e 20        	ld	a,$20
-    6577: cd 20 60     	call	$6020
+    6567: 3e 20        	ld	a,$20
+    6569: cd 20 60     	call	$6020
 ;     memset(dspstr, ' ', 80 * 25);   /* clear screen */
-    657a: 21 00 7a     	ld	hl,$7a00
-    657d: 3e 20        	ld	a,$20
-    657f: 77           	ld	(hl),a
-    6580: 11 01 7a     	ld	de,$7a01
-    6583: 01 cf 07     	ld	bc,$7cf
-    6586: ed b0        	ldir
+    656c: 21 00 7a     	ld	hl,$7a00
+    656f: 3e 20        	ld	a,$20
+    6571: 77           	ld	(hl),a
+    6572: 11 01 7a     	ld	de,$7a01
+    6575: 01 cf 07     	ld	bc,$7cf
+    6578: ed b0        	ldir
 ;     memset(dspstr, 0x20, 80 * 25);
-    6588: 21 2e 7a     	ld	hl,$7a2e
-    658b: 77           	ld	(hl),a
-    658c: 11 2f 7a     	ld	de,$7a2f
-    658f: 01 a1 07     	ld	bc,$7a1
-    6592: ed b0        	ldir
+    657a: 21 2e 7a     	ld	hl,$7a2e
+    657d: 77           	ld	(hl),a
+    657e: 11 2f 7a     	ld	de,$7a2f
+    6581: 01 a1 07     	ld	bc,$7a1
+    6584: ed b0        	ldir
 ;     memcpy(dspstr, BANNER_PTR, BANNER_LENGTH);
-    6594: 21 21 00     	ld	hl,$21
-    6597: 11 00 7a     	ld	de,$7a00
-    659a: 01 2e 00     	ld	bc,$2e
-    659d: ed b0        	ldir
+    6586: 21 21 00     	ld	hl,$21
+    6589: 11 00 7a     	ld	de,$7a00
+    658c: 01 2e 00     	ld	bc,$2e
+    658f: ed b0        	ldir
 ; DEFPORT(sw1,          0x14)
-    659f: db 14        	in	a,($14)
+    6591: db 14        	in	a,($14)
 ;     memcpy(p, prefix, sizeof prefix - 1);
-    65a1: 21 57 67     	ld	hl,$6757
-    65a4: 11 3a 7a     	ld	de,$7a3a
-    65a7: 01 0e 00     	ld	bc,$e
-    65aa: ed b0        	ldir
-    65ac: 5f           	ld	e,a
-    65ad: 21 48 7a     	ld	hl,$7a48
-    65b0: 16 00        	ld	d,$0
+    6593: 21 49 67     	ld	hl,$6749
+    6596: 11 3a 7a     	ld	de,$7a3a
+    6599: 01 0e 00     	ld	bc,$e
+    659c: ed b0        	ldir
+    659e: 5f           	ld	e,a
+    659f: 21 48 7a     	ld	hl,$7a48
+    65a2: 16 00        	ld	d,$0
 ;     for (i = 0; i < 8; i++) {
-    65b2: 7a           	ld	a,d
-    65b3: fe 08        	cp	$8
-    65b5: 28 15        	jr	z,$65cc
+    65a4: 7a           	ld	a,d
+    65a5: fe 08        	cp	$8
+    65a7: 28 15        	jr	z,$65be
 ;         *p++ = (char)('0' + ((sw >> i) & 1));
-    65b7: 7b           	ld	a,e
-    65b8: 42           	ld	b,d
-    65b9: 04           	inc	b
-    65ba: 05           	dec	b
-    65bb: 28 04        	jr	z,$65c1
-    65bd: cb 3f        	srl	a
-    65bf: 10 fc        	djnz	$65bd
-    65c1: e6 01        	and	$1
-    65c3: f6 30        	or	$30
-    65c5: 77           	ld	(hl),a
-    65c6: 23           	inc	hl
+    65a9: 7b           	ld	a,e
+    65aa: 42           	ld	b,d
+    65ab: 04           	inc	b
+    65ac: 05           	dec	b
+    65ad: 28 04        	jr	z,$65b3
+    65af: cb 3f        	srl	a
+    65b1: 10 fc        	djnz	$65af
+    65b3: e6 01        	and	$1
+    65b5: f6 30        	or	$30
+    65b7: 77           	ld	(hl),a
+    65b8: 23           	inc	hl
 ;     for (i = 0; i < 8; i++) {
-    65c7: 7a           	ld	a,d
-    65c8: 3c           	inc	a
-    65c9: 57           	ld	d,a
-    65ca: 18 e6        	jr	$65b2
+    65b9: 7a           	ld	a,d
+    65ba: 3c           	inc	a
+    65bb: 57           	ld	d,a
+    65bc: 18 e6        	jr	$65a4
 ; DEFPORT(dma_smsk,     0xFA)
-    65cc: 3e 06        	ld	a,$6
-    65ce: d3 fa        	out	($fa),a
+    65be: 3e 06        	ld	a,$6
+    65c0: d3 fa        	out	($fa),a
 ; DEFPORT(dma_clbp,     0xFC)
-    65d0: af           	xor	a
-    65d1: d3 fc        	out	($fc),a
+    65c2: af           	xor	a
+    65c3: d3 fc        	out	($fc),a
 ; DEFPORT(dma_ch2_addr, 0xF4)
-    65d3: d3 f4        	out	($f4),a
-    65d5: 3e 7a        	ld	a,$7a
-    65d7: d3 f4        	out	($f4),a
+    65c5: d3 f4        	out	($f4),a
+    65c7: 3e 7a        	ld	a,$7a
+    65c9: d3 f4        	out	($f4),a
 ; DEFPORT(dma_ch2_wc,   0xF5)
-    65d9: 3e cf        	ld	a,$cf
-    65db: d3 f5        	out	($f5),a
-    65dd: 3e 07        	ld	a,$7
-    65df: d3 f5        	out	($f5),a
+    65cb: 3e cf        	ld	a,$cf
+    65cd: d3 f5        	out	($f5),a
+    65cf: 3e 07        	ld	a,$7
+    65d1: d3 f5        	out	($f5),a
 ; DEFPORT(dma_smsk,     0xFA)
-    65e1: 3e 02        	ld	a,$2
-    65e3: d3 fa        	out	($fa),a
+    65d3: 3e 02        	ld	a,$2
+    65d5: d3 fa        	out	($fa),a
 ; DEFPORT(crt_cmd,      0x01)
-    65e5: 3e 23        	ld	a,$23
-    65e7: d3 01        	out	($1),a
+    65d7: 3e 23        	ld	a,$23
+    65d9: d3 01        	out	($1),a
 ;     fdc_isr_delay = 3;
-    65e9: 3e 03        	ld	a,$3
-    65eb: 32 c5 67     	ld	($67c5),a               ; 0x67c5 <_fdc_isr_delay>
+    65db: 3e 03        	ld	a,$3
+    65dd: 32 b7 67     	ld	($67b7),a               ; 0x67b7 <_fdc_isr_delay>
 ;     fdc_result_delay = 4;
-    65ee: 3e 04        	ld	a,$4
-    65f0: 32 c6 67     	ld	($67c6),a               ; 0x67c6 <_fdc_result_delay>
+    65e0: 3e 04        	ld	a,$4
+    65e2: 32 b8 67     	ld	($67b8),a               ; 0x67b8 <_fdc_result_delay>
 ; DEFPORT(sw1,          0x14)
-    65f3: db 14        	in	a,($14)
+    65e5: db 14        	in	a,($14)
 ;     is_mini = (read_sw1() >> 7) & 1; /* SW1 bit 7: 0=maxi, 1=mini */
-    65f5: 07           	rlca
-    65f6: e6 01        	and	$1
-    65f8: 32 aa 67     	ld	($67aa),a               ; 0x67aa <_is_mini>
+    65e7: 07           	rlca
+    65e8: e6 01        	and	$1
+    65ea: 32 9c 67     	ld	($679c),a               ; 0x679c <_is_mini>
 ;     __asm__ volatile("ei");
-    65fb: fb           	ei
+    65ed: fb           	ei
 ; DEFPORT(sw1,          0x14)
-    65fc: 3e 01        	ld	a,$1
-    65fe: d3 14        	out	($14),a
+    65ee: 3e 01        	ld	a,$1
+    65f0: d3 14        	out	($14),a
 ;     retry_count = 5;
-    6600: 3e 05        	ld	a,$5
-    6602: 32 c1 67     	ld	($67c1),a               ; 0x67c1 <_retry_count>
+    65f2: 3e 05        	ld	a,$5
+    65f4: 32 b3 67     	ld	($67b3),a               ; 0x67b3 <_retry_count>
 ;     delay_ms(391);  /* motor spin-up: original ROM uses B=1,C=0xFF ≈ 391ms */
-    6605: 3e 02        	ld	a,$2
-    6607: 2e be        	ld	l,$be
-    6609: cd 5c 60     	call	$605c
+    65f7: 3e 02        	ld	a,$2
+    65f9: 2e be        	ld	l,$be
+    65fb: cd 5c 60     	call	$605c
 ;     fdc_write_when_ready(FDC_SENSE_DRIVE);
-    660c: 3e 04        	ld	a,$4
-    660e: cd 20 60     	call	$6020
+    65fe: 3e 04        	ld	a,$4
+    6600: cd 20 60     	call	$6020
 ;     fdc_write_when_ready(drive_select);
-    6611: 3a c0 67     	ld	a,($67c0)               ; 0x67c0 <_drive_select>
-    6614: cd 20 60     	call	$6020
+    6603: 3a b2 67     	ld	a,($67b2)               ; 0x67b2 <_drive_select>
+    6606: cd 20 60     	call	$6020
 ;     fdc_result.st0 = fdc_read_when_ready(); /* ST3 (in st0 position) */
-    6617: cd 3f 60     	call	$603f
-    661a: 32 b6 67     	ld	($67b6),a               ; 0x67b6 <_fdc_result>
+    6609: cd 3f 60     	call	$603f
+    660c: 32 a8 67     	ld	($67a8),a               ; 0x67a8 <_fdc_result>
 ;     status = fdc_result.st0 & 0b00100011; /* RDY + HD + US */
-    661d: e6 23        	and	$23
-    661f: 32 dc 67     	ld	($67dc),a               ; 0x67dc <__sfrend_syscall+0x4>
+    660f: e6 23        	and	$23
+    6611: 32 ce 67     	ld	($67ce),a               ; 0x67ce <__sfrend_syscall+0x4>
 ;     fdc_write_when_ready(FDC_RECALIBRATE);
-    6622: 3e 07        	ld	a,$7
-    6624: cd 20 60     	call	$6020
+    6614: 3e 07        	ld	a,$7
+    6616: cd 20 60     	call	$6020
 ;     fdc_write_when_ready(drive_select);
-    6627: 3a c0 67     	ld	a,($67c0)               ; 0x67c0 <_drive_select>
-    662a: cd 20 60     	call	$6020
+    6619: 3a b2 67     	ld	a,($67b2)               ; 0x67b2 <_drive_select>
+    661c: cd 20 60     	call	$6020
 ;     if (status != (drive_select + 0b00100000) || /* expect RDY + matching drive */
-    662d: 3a c0 67     	ld	a,($67c0)               ; 0x67c0 <_drive_select>
-    6630: c6 20        	add	a,$20
-    6632: 38 31        	jr	c,$6665
-    6634: f5           	push	af
-    6635: 3a dc 67     	ld	a,($67dc)               ; 0x67dc <__sfrend_syscall+0x4>
-    6638: 57           	ld	d,a
-    6639: f1           	pop	af
-    663a: ba           	cp	d
-    663b: 20 28        	jr	nz,$6665
+    661f: 3a b2 67     	ld	a,($67b2)               ; 0x67b2 <_drive_select>
+    6622: c6 20        	add	a,$20
+    6624: 38 31        	jr	c,$6657
+    6626: f5           	push	af
+    6627: 3a ce 67     	ld	a,($67ce)               ; 0x67ce <__sfrend_syscall+0x4>
+    662a: 57           	ld	d,a
+    662b: f1           	pop	af
+    662c: ba           	cp	d
+    662d: 20 28        	jr	nz,$6657
 ;         verify_seek_result(0) != 0) {
-    663d: af           	xor	a
-    663e: cd 7b 61     	call	$617b
+    662f: af           	xor	a
+    6630: cd 73 61     	call	$6173
 ;     if (status != (drive_select + 0b00100000) || /* expect RDY + matching drive */
-    6641: b7           	or	a
-    6642: 20 21        	jr	nz,$6665
+    6633: b7           	or	a
+    6634: 20 21        	jr	nz,$6657
 ;     fdc_cmd.cylinder = 0;
-    6644: af           	xor	a
-    6645: 32 ab 67     	ld	($67ab),a               ; 0x67ab <_fdc_cmd>
+    6636: af           	xor	a
+    6637: 32 9d 67     	ld	($679d),a               ; 0x679d <_fdc_cmd>
 ;     fdc_cmd.head = 1;
-    6648: 3e 01        	ld	a,$1
-    664a: 32 ac 67     	ld	($67ac),a               ; 0x67ac <_fdc_cmd+0x1>
+    663a: 3e 01        	ld	a,$1
+    663c: 32 9e 67     	ld	($679e),a               ; 0x679e <_fdc_cmd+0x1>
 ;     fdc_cmd.sector = 1;
-    664d: 32 ad 67     	ld	($67ad),a               ; 0x67ad <_fdc_cmd+0x2>
+    663f: 32 9f 67     	ld	($679f),a               ; 0x679f <_fdc_cmd+0x2>
 ;     if (fdc_detect_sector_size_and_density() == 0) {
-    6650: cd 7a 62     	call	$627a
-    6653: b7           	or	a
-    6654: 20 05        	jr	nz,$665b
+    6642: cd 72 62     	call	$6272
+    6645: b7           	or	a
+    6646: 20 05        	jr	nz,$664d
 ;         is_double_sided = 1; /* side 1 present */
-    6656: 3e 01        	ld	a,$1
-    6658: 32 ca 67     	ld	($67ca),a               ; 0x67ca <_is_double_sided>
+    6648: 3e 01        	ld	a,$1
+    664a: 32 bc 67     	ld	($67bc),a               ; 0x67bc <_is_double_sided>
 ;     fdc_cmd.head = 0;
-    665b: af           	xor	a
-    665c: 32 ac 67     	ld	($67ac),a               ; 0x67ac <_fdc_cmd+0x1>
+    664d: af           	xor	a
+    664e: 32 9e 67     	ld	($679e),a               ; 0x679e <_fdc_cmd+0x1>
 ;     if (fdc_detect_sector_size_and_density() != 0) {
-    665f: cd 7a 62     	call	$627a
-    6662: b7           	or	a
-    6663: 28 05        	jr	z,$666a
-    6665: cd 03 63     	call	$6303
+    6651: cd 72 62     	call	$6272
+    6654: b7           	or	a
+    6655: 28 05        	jr	z,$665c
+    6657: cd f5 62     	call	$62f5
 ;     for (;;);  // halt if ever getting back here.
-    6668: 18 fe        	jr	$6668
+    665a: 18 fe        	jr	$665a
 ; DEFPORT(ramen,        0x18)
-    666a: 3e 01        	ld	a,$1
-    666c: d3 18        	out	($18),a
+    665c: 3e 01        	ld	a,$1
+    665e: d3 18        	out	($18),a
 ;         fdc_read_data_from_current_location(dma_transfer_size);
-    666e: 2a b4 67     	ld	hl,($67b4)              ; 0x67b4 <_dma_transfer_size>
-    6671: cd 55 63     	call	$6355
+    6660: 2a a6 67     	ld	hl,($67a6)              ; 0x67a6 <_dma_transfer_size>
+    6663: cd 47 63     	call	$6347
 ;         if (fdc_cmd.cylinder != 0) {
-    6674: 3a ab 67     	ld	a,($67ab)               ; 0x67ab <_fdc_cmd>
-    6677: b7           	or	a
-    6678: 20 05        	jr	nz,$667f
+    6666: 3a 9d 67     	ld	a,($679d)               ; 0x679d <_fdc_cmd>
+    6669: b7           	or	a
+    666a: 20 05        	jr	nz,$6671
 ;         fdc_detect_sector_size_and_density();
-    667a: cd 7a 62     	call	$627a
+    666c: cd 72 62     	call	$6272
 ;     while (1) {
-    667d: 18 ef        	jr	$666e
+    666f: 18 ef        	jr	$6660
 ;     disk_type = 1;
-    667f: 3e 01        	ld	a,$1
-    6681: 32 b3 67     	ld	($67b3),a               ; 0x67b3 <_disk_type>
+    6671: 3e 01        	ld	a,$1
+    6673: 32 a5 67     	ld	($67a5),a               ; 0x67a5 <_disk_type>
 ;     boot_floppy_or_prom();
-    6684: cd 87 66     	call	$6687
+    6676: cd 79 66     	call	$6679
 
-00006687 <_boot_floppy_or_prom>:
+00006679 <_boot_floppy_or_prom>:
 ;     if (compare_6bytes((const byte *) RC700_SIG_OFF, (const byte *) " RC700") == 0) {
-    6687: 21 02 00     	ld	hl,$2
-    668a: 11 77 67     	ld	de,$6777
-    668d: cd c1 62     	call	$62c1
-    6690: b7           	or	a
-    6691: 20 1c        	jr	nz,$66af
-    6693: 21 80 0b     	ld	hl,$b80
-    6696: 11 00 0d     	ld	de,$d00
-    6699: 01 20 00     	ld	bc,$20
-    669c: 22 dd 67     	ld	($67dd),hl              ; 0x67dd <__sfrend_main_relocated>
-    669f: 22 cb 67     	ld	($67cb),hl              ; 0x67cb <_boot_dir>
+    6679: 21 02 00     	ld	hl,$2
+    667c: 11 69 67     	ld	de,$6769
+    667f: cd b9 62     	call	$62b9
+    6682: b7           	or	a
+    6683: 20 1c        	jr	nz,$66a1
+    6685: 21 80 0b     	ld	hl,$b80
+    6688: 11 00 0d     	ld	de,$d00
+    668b: 01 20 00     	ld	bc,$20
+    668e: 22 cf 67     	ld	($67cf),hl              ; 0x67cf <__sfrend_main_relocated>
+    6691: 22 bd 67     	ld	($67bd),hl              ; 0x67bd <_boot_dir>
 ;         while ((word) boot_dir < 0x0D00) {
-    66a2: 7d           	ld	a,l
-    66a3: 93           	sub	e
-    66a4: 7c           	ld	a,h
-    66a5: 9a           	sbc	a,d
-    66a6: 30 4d        	jr	nc,$66f5
+    6694: 7d           	ld	a,l
+    6695: 93           	sub	e
+    6696: 7c           	ld	a,h
+    6697: 9a           	sbc	a,d
+    6698: 30 4d        	jr	nc,$66e7
 ;             if (*boot_dir == 0) {
-    66a8: 7e           	ld	a,(hl)
-    66a9: b7           	or	a
-    66aa: 20 23        	jr	nz,$66cf
+    669a: 7e           	ld	a,(hl)
+    669b: b7           	or	a
+    669c: 20 23        	jr	nz,$66c1
 ;                 boot_dir += 0x20;
-    66ac: 09           	add	hl,bc
+    669e: 09           	add	hl,bc
 ;                 continue;
-    66ad: 18 ed        	jr	$669c
+    669f: 18 ed        	jr	$668e
 ;     if (compare_6bytes((const byte *) RC702_SIG_OFF, (const byte *) msg_rc702) == 0) {
-    66af: 21 08 00     	ld	hl,$8
-    66b2: 11 9d 67     	ld	de,$679d
-    66b5: cd c1 62     	call	$62c1
-    66b8: b7           	or	a
-    66b9: 20 09        	jr	nz,$66c4
+    66a1: 21 08 00     	ld	hl,$8
+    66a4: 11 8f 67     	ld	de,$678f
+    66a7: cd b9 62     	call	$62b9
+    66aa: b7           	or	a
+    66ab: 20 09        	jr	nz,$66b6
 ;         jump_to(*(volatile word *) 0x0000);
-    66bb: 2a 00 00     	ld	hl,($0)                 ; 0x0 <_start>
-    66be: e5           	push	hl
-    66bf: fd e1        	pop	iy
-    66c1: cd a8 67     	call	$67a8
+    66ad: 2a 00 00     	ld	hl,($0)                 ; 0x0 <_start>
+    66b0: e5           	push	hl
+    66b1: fd e1        	pop	iy
+    66b3: cd 9a 67     	call	$679a
 ;     halt_msg(" **NO KATALOG** ", 16);
-    66c4: 21 66 67     	ld	hl,$6766
-    66c7: 11 a0 7a     	ld	de,$7aa0
-    66ca: 01 10 00     	ld	bc,$10
-    66cd: 18 2f        	jr	$66fe
+    66b6: 21 58 67     	ld	hl,$6758
+    66b9: 11 a0 7a     	ld	de,$7aa0
+    66bc: 01 10 00     	ld	bc,$10
+    66bf: 18 2f        	jr	$66f0
 ;             if (check_sysfile(boot_dir, "SYSM") == 0) {
-    66cf: 2a dd 67     	ld	hl,($67dd)              ; 0x67dd <__sfrend_main_relocated>
-    66d2: 11 39 67     	ld	de,$6739
-    66d5: cd d8 62     	call	$62d8
-    66d8: 2a dd 67     	ld	hl,($67dd)              ; 0x67dd <__sfrend_main_relocated>
+    66c1: 2a cf 67     	ld	hl,($67cf)              ; 0x67cf <__sfrend_main_relocated>
+    66c4: 11 2b 67     	ld	de,$672b
+    66c7: cd cd 62     	call	$62cd
+    66ca: 2a cf 67     	ld	hl,($67cf)              ; 0x67cf <__sfrend_main_relocated>
 ;             if (check_sysfile(boot_dir, "SYSM") == 0) {
-    66db: b7           	or	a
-    66dc: 20 17        	jr	nz,$66f5
-    66de: 11 20 00     	ld	de,$20
+    66cd: b7           	or	a
+    66ce: 20 17        	jr	nz,$66e7
+    66d0: 11 20 00     	ld	de,$20
 ;                 boot_dir += 0x20;
-    66e1: 19           	add	hl,de
-    66e2: 22 cb 67     	ld	($67cb),hl              ; 0x67cb <_boot_dir>
+    66d3: 19           	add	hl,de
+    66d4: 22 bd 67     	ld	($67bd),hl              ; 0x67bd <_boot_dir>
 ;                 if (*boot_dir != 0 &&
-    66e5: 7e           	ld	a,(hl)
-    66e6: b7           	or	a
-    66e7: 28 0c        	jr	z,$66f5
+    66d7: 7e           	ld	a,(hl)
+    66d8: b7           	or	a
+    66d9: 28 0c        	jr	z,$66e7
 ;                     check_sysfile(boot_dir, "SYSC") == 0) {
-    66e9: 11 52 67     	ld	de,$6752
-    66ec: cd d8 62     	call	$62d8
+    66db: 11 44 67     	ld	de,$6744
+    66de: cd cd 62     	call	$62cd
 ;                 if (*boot_dir != 0 &&
-    66ef: b7           	or	a
-    66f0: 20 03        	jr	nz,$66f5
+    66e1: b7           	or	a
+    66e2: 20 03        	jr	nz,$66e7
 ;                     floppy_legacy_boot();
-    66f2: cd 2c 63     	call	$632c
+    66e4: cd 1e 63     	call	$631e
 ;         halt_msg(" **NO SYSTEM FILES** ", 21);
-    66f5: 21 23 67     	ld	hl,$6723
-    66f8: 11 a0 7a     	ld	de,$7aa0
-    66fb: 01 15 00     	ld	bc,$15
-    66fe: ed b0        	ldir
-    6700: cd b6 62     	call	$62b6
+    66e7: 21 15 67     	ld	hl,$6715
+    66ea: 11 a0 7a     	ld	de,$7aa0
+    66ed: 01 15 00     	ld	bc,$15
+    66f0: ed b0        	ldir
+    66f2: cd ae 62     	call	$62ae
 
-00006703 <_eot_gap3_table>:
-    6703: 1a 07 34 07 0f 0e 1a 0e         ..4.....
-    670b: 08 1b 0f 1b 00 00 08 35         .......5
-    6713: 10 07 20 07 09 0e 10 0e         .. .....
-    671b: 05 1b 09 1b 00 00 05 35         .......5
+000066f5 <_eot_gap3_table>:
+    66f5: 1a 07 34 07 0f 0e 1a 0e         ..4.....
+    66fd: 08 1b 0f 1b 00 00 08 35         .......5
+    6705: 10 07 20 07 09 0e 10 0e         .. .....
+    670d: 05 1b 09 1b 00 00 05 35         .......5
 
-00006723 <L_.str.5>:
-    6723: 20 2a 2a 4e 4f 20 53 59          **NO SY
-    672b: 53 54 45 4d 20 46 49 4c         STEM FIL
-    6733: 45 53 2a 2a 20 00               ES** .
+00006715 <L_.str.5>:
+    6715: 20 2a 2a 4e 4f 20 53 59          **NO SY
+    671d: 53 54 45 4d 20 46 49 4c         STEM FIL
+    6725: 45 53 2a 2a 20 00               ES** .
 
-00006739 <L_.str.3>:
-    6739: 53 59 53 4d 00                  SYSM.
+0000672b <L_.str.3>:
+    672b: 53 59 53 4d 00                  SYSM.
 
-0000673e <L_.str>:
-    673e: 2a 2a 44 49 53 4b 45 54         **DISKET
-    6746: 54 45 20 45 52 52 4f 52         TE ERROR
-    674e: 2a 2a 20 00                     ** .
+00006730 <L_.str>:
+    6730: 2a 2a 44 49 53 4b 45 54         **DISKET
+    6738: 54 45 20 45 52 52 4f 52         TE ERROR
+    6740: 2a 2a 20 00                     ** .
 
-00006752 <L_.str.4>:
-    6752: 53 59 53 43 00                  SYSC.
+00006744 <L_.str.4>:
+    6744: 53 59 53 43 00                  SYSC.
 
-00006757 <_display_sw1_status.prefix>:
-    6757: 53 57 31 20 31 32 33 34         SW1 1234
-    675f: 35 36 37 38 3a 20 00            5678: .
+00006749 <_display_sw1_status.prefix>:
+    6749: 53 57 31 20 31 32 33 34         SW1 1234
+    6751: 35 36 37 38 3a 20 00            5678: .
 
-00006766 <L_.str.6>:
-    6766: 20 2a 2a 4e 4f 20 4b 41          **NO KA
-    676e: 54 41 4c 4f 47 2a 2a 20         TALOG** 
-    6776: 00                              .
+00006758 <L_.str.6>:
+    6758: 20 2a 2a 4e 4f 20 4b 41          **NO KA
+    6760: 54 41 4c 4f 47 2a 2a 20         TALOG** 
+    6768: 00                              .
 
-00006777 <L_.str.2>:
-    6777: 20 52 43 37 30 30 00             RC700.
+00006769 <L_.str.2>:
+    6769: 20 52 43 37 30 30 00             RC700.
 
-0000677e <L_.str.1>:
-    677e: 20 2a 2a 4e 4f 20 44 49          **NO DI
-    6786: 53 4b 45 54 54 45 20 4e         SKETTE N
-    678e: 4f 52 20 4c 49 4e 45 50         OR LINEP
-    6796: 52 4f 47 2a 2a 20 00            ROG** .
+00006770 <L_.str.1>:
+    6770: 20 2a 2a 4e 4f 20 44 49          **NO DI
+    6778: 53 4b 45 54 54 45 20 4e         SKETTE N
+    6780: 4f 52 20 4c 49 4e 45 50         OR LINEP
+    6788: 52 4f 47 2a 2a 20 00            ROG** .
 
-0000679d <_msg_rc702>:
-    679d: 20 52 43 37 30 32 00             RC702.
+0000678f <_msg_rc702>:
+    678f: 20 52 43 37 30 32 00             RC702.
 
-000067a4 <_define_sextants.half>:
-    67a4: 00 0f 70 7f                     ..p.
+00006796 <_define_sextants.half>:
+    6796: 00 0f 70 7f                     ..p.
 
-000067a8 <__call_iy>:
-    67a8: fd e9        	jp	(iy)
+0000679a <__call_iy>:
+    679a: fd e9        	jp	(iy)
