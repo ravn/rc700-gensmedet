@@ -8235,3 +8235,33 @@ Not run yet:
   first-run verification (clang + sdcc BIOS) deferred to next session,
   needs `rebuild-mpm-sys.sh --install` to have been run first so the
   master-side FN-105 handler is baked into the launcher disk.
+
+---
+## 2026-06-23 Session (post-crash restart) — #146 / #117 / #206 / #221
+
+Three llvm-z80 backend improvements shipped; 167 PASS + 6 XFAIL.
+
+**#146**: `RET_CLEANUP` expansion now uses `EX (SP),HL` trick for void/i8
+returns (HLDead=true, Amount≥2): `POP HL; INC SP×(N-2); EX (SP),HL; RET`
+saves 2 B vs old `POP BC; INC SP×N; PUSH BC; RET`.  Two correctness
+guards: Amount≥2 (underflow guard) and `isPointerTy()→16-bit` (pointer
+returns are in HL like i16).  Test: `issue-146-callee-pop-ex-trick.ll`.
+
+**#117 extension**: `AND A; SBC HL,rr` i16 EQ/NE peephole extended to the
+neither-in-HL case (QPair=BC vs PPair=DE).  Inserts `PUSH QPair; POP HL`
+before SBC (5 B vs 6 B XOR sequence = −1 B/fire).  HL dead at I1 verified
+via `computeRegisterLiveness` on H and L separately.  Test:
+`issue-117-i16-eq-ne-neither-hl.mir`.
+
+**#206**: Peephole #18 (`LD r,n → LD r,A` for constant reuse) extended to
+track all 7 GR8 registers; any tracker register can now seed a `LD r,r'`
+copy (1 B vs 2 B).  A preferred as source, then B..L.  Test:
+`issue-206-const-reuse-non-a.mir`.
+
+**#221 (boy-scout)**: Fixed 8 raw `std::next` adjacency calls in the
+byte-XOR i16 EQ/NE peephole (I1..I6, I7, AfterBr) → `SkipPHIsLabelsAndDebug`.
+Filed #241 for 3 remaining peepholes still using raw `std::next`.
+
+**Production impact (all forced-fresh -B rebuilds)**:
+- autoload: raw payload 1948→1945 B (−3 B); ZX0 1481 B unchanged; PROM 1660 B / 388 B free
+- cpnos PROM1: 2017→2013 B (−4 B); payload 1988→1986 B; ZX0 1387→1384 B; 35 B free
