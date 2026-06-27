@@ -21,6 +21,9 @@ clang
 zsdcc_ansi
 clang_ansi
 
+# dcc build artifact (build_dcc_aes.sh regenerates it).
+dcc.com
+
 # Sweep scratch directories.
 sweep/
 sweep_*/
