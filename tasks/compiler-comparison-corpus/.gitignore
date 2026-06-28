@@ -7,3 +7,5 @@ sweep/llvm_z80_*
 sweep/zsdcc_*
 sweep/*.map
 sweep/results.tsv
+sweep/dcc_*
+sweep.sonnyboy.sh

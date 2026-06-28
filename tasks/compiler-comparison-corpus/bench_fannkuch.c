@@ -29,6 +29,14 @@
  * `(p%2==0) ? f : -f` pattern.  Investigation deferred -- see
  * tasks/zsdcc-bench-divergence-2026-06-08.md for the full writeup,
  * hypotheses, and reduction strategy.
+ *
+ *   FAIL under clang -O1/-O2 (sweep.sh SPEED cell, 2026-06-28): a VERIFIED
+ *   Z80-backend CFG-layout miscompile makes fannkuchredux(7) return 0x0000.
+ *   -Oz/-O0 (incl. the production SIZE cell) are correct, so the SPEED-cell
+ *   FAIL is an llvm-z80 backend bug, NOT a bench/harness defect.  Middle-end
+ *   exonerated (the -O1 IR passes llc -O0); branch-folder is the manifesting
+ *   machine pass.  Full investigation + minimal reproducer:
+ *   tasks/clang-fannkuch-O1-backend-miscompile-2026-06-28.md.
  */
 
 #define N      7
