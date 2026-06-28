@@ -25,12 +25,48 @@ local done = false
 local prog
 local installed = false
 
+-- Optional: force SW1 S01 (port 0x14 bit 0 — shared SW1_CONSOLE_BIT) to a known
+-- position so the cross-version boot matrix can test both switch states.  Set
+-- env SW1_S01=0 (On / clear = SIO-B console+debug) or =1 (Off / set = local
+-- console only).  Done via the :DSW ioport field (NOT an I/O read tap — see
+-- tasks/memory/feedback_lua_no_port_reads.md).  Unset => leave MAME default.
+local SW1_S01 = os.getenv("SW1_S01")
+local dsw_done = false
+local function set_dsw_s01()
+    if dsw_done or SW1_S01 == nil then return end
+    local port = manager.machine.ioport.ports[":DSW"]
+    if not port then return end
+    for _, field in pairs(port.fields) do
+        if field.mask == 0x01 then
+            field.user_value = (SW1_S01 == "1") and 0x01 or 0x00
+            print(string.format("[boot-test] DSW S01 = 0x%02X (%s)",
+                field.user_value, (SW1_S01 == "1") and "Off/local" or "On/siob"))
+            dsw_done = true
+            return
+        end
+    end
+end
+
 -- Live display base, derived from the DMA ch2 address register.
 local dma = { base = nil, msb = false, lo = 0 }
 
+-- GC-RETENTION GUARD (do not remove): install_write_tap / install_read_tap
+-- return a memory_passthrough_handler userdata.  If that return value is NOT
+-- kept alive by a Lua reference, the Lua GC frees it while MAME still holds the
+-- tap registered on the address space.  The NEXT bus write to the tapped port
+-- then invokes a dangling callback -> native EXC_BAD_ACCESS (code=1) crash deep
+-- in lua_topointer, NOT a catchable Lua error.  Symptom seen here: the original
+-- roa375 PROM writes ports 0xFC/0xF4 a few frames after the taps install, after
+-- a GC cycle, and MAME segfaults; the clang PROM happened to write before the
+-- first GC so it masked the bug.  Fix: stash every tap handle in this
+-- module-scope table so it lives as long as the script.  See
+-- tasks/memory/feedback_lua_retain_tap_handles.md.
+local taps = {}
+
 local function install_taps(io)
-    io:install_write_tap(0xFC, 0xFC, "dma_clbp", function() dma.msb = false end)
-    io:install_write_tap(0xF4, 0xF4, "dma_ch2_addr", function(_, d)
+    taps[#taps + 1] = io:install_write_tap(0xFC, 0xFC, "dma_clbp",
+        function() dma.msb = false end)
+    taps[#taps + 1] = io:install_write_tap(0xF4, 0xF4, "dma_ch2_addr", function(_, d)
         if not dma.msb then dma.lo = d; dma.msb = true
         else dma.base = ((d << 8) | dma.lo) & 0xFFFF; dma.msb = false end
     end)
@@ -111,6 +147,7 @@ end
 
 emu.register_frame_done(function()
     if done then return end
+    set_dsw_s01()
     if not installed then
         local cpu = manager.machine.devices[":maincpu"]
         if cpu == nil then return end

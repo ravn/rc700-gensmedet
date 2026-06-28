@@ -20,6 +20,13 @@
 
 COMPILER ?= clang
 
+# SW1 console / SIO-B-debug switch bit -- default here, authoritatively
+# overridden by the shared top-level config (see ../sw1_config.mk and
+# docs/SW1_BIT_MAP.md).  Passed to the C build as -DSW1_CONSOLE_BIT so the
+# autoload SIO-B debug gate and the rcbios console gate use one constant.
+SW1_CONSOLE_BIT ?= 0x01
+-include $(CURDIR)/../sw1_config.mk
+
 # Compiler-distinct artifact names.
 ifeq ($(COMPILER),clang)
   PROM_BIN     = clang/prom.clang.bin
@@ -236,6 +243,7 @@ CLANG_CFLAGS = --target=z80 -Oz -g -nostdlib \
 # Investigation hook (ravn/llvm-z80#23): inject extra clang flags via
 # `make CLANG_EXTRA="-mllvm -z80-enable-licm -mllvm -z80-enable-cse"`.
 CLANG_CFLAGS += $(CLANG_EXTRA)
+CLANG_CFLAGS += -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT)
 # -g enables DWARF debug info; binary unchanged because objcopy -O binary
 # only emits ALLOC sections and .debug_* are non-ALLOC.  The DWARF info
 # is what makes the source-annotated listing (clang/prom.clang.lis)
@@ -357,7 +365,8 @@ ZFLAGS = +z80 -clib=sdcc_iy --no-crt --opt-code-size -SO3 \
          -custom-copt-rules=/src/sdcc/peephole.def \
          -pragma-define:CRT_ORG_CODE=0x0000 \
          -pragma-define:CRT_ORG_BSS=0x8200 \
-         -pragma-define:CRT_CPU_CLOCK_HZ=4000000
+         -pragma-define:CRT_CPU_CLOCK_HZ=4000000 \
+         -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT)
 # /src is the Docker mount point for $(CURDIR) -- absolute container
 # path so the copt-rules lookup works in all three zcc invocations
 # below (the third one runs from /src/sdcc after `cd sdcc`, where the

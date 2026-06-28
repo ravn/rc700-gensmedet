@@ -11,6 +11,7 @@ MSIZE  ?= 56
 BIOSAD ?= $(shell printf '0x%04X' $$(( 0x3400 + ($(MSIZE) - 20) * 1024 + 0x1600 )))
 KBLANG ?= DANISH
 KBDPORT ?= A
+SW1_CONSOLE_BIT ?= 0x01
 
 # z88dk: use native install if available, otherwise Docker
 Z88DK_HOME ?= $(firstword $(wildcard $(CURDIR)/../../../z88dk))
@@ -39,6 +40,7 @@ ZFLAGS = +z80 -clib=sdcc_iy --no-crt --opt-code-size -SO3 \
          -custom-copt-rules=peephole.def \
          -pragma-define:CRT_ORG_CODE=0x0000 \
          -Cs"-DMSIZE=$(MSIZE)" \
+         -Cs"-DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT)" \
          -Ca-DBIOSAD=$(BIOSAD) \
          $(if $(filter-out DANISH,$(KBLANG)),-Ca-D$(KBLANG)) \
          $(if $(filter B,$(KBDPORT)),-Cs"-DKBD_PIO_B")

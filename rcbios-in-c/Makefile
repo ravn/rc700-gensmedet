@@ -22,6 +22,14 @@
 
 COMPILER ?= clang
 
+# SW1 console / SIO-B-debug switch bit -- default here, authoritatively
+# overridden by the shared top-level config (see ../sw1_config.mk and
+# docs/SW1_BIT_MAP.md).  Forwarded to the clang/sdcc sub-makes and on to the
+# C build as -DSW1_CONSOLE_BIT so the rcbios console gate and the autoload
+# SIO-B debug gate use one constant.
+SW1_CONSOLE_BIT ?= 0x01
+-include $(CURDIR)/../sw1_config.mk
+
 # Compiler-distinct artifact names (avoids clang/sdcc parallel-build
 # collisions, makes it obvious from the filename which toolchain produced
 # a given .cim).
@@ -77,9 +85,12 @@ FLOPTOOL = $(MAME)/floptool
 # machines with `make mame-debug MAME_BUILD_JOBS=10`.
 MAME_BUILD_JOBS ?= $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2); echo $$(( n > 1 ? n / 2 : 1 )))
 
-# Disk images for testing
+# Disk images for testing.
+# IMG_MAXI uses the in-workspace pristine stock image (git-tracked, clean
+# track 1 CCP+BDOS) so patched test disks never inherit a stale track-1
+# overwrite, and so builds never read outside the workspace.
 IMG_MINI = $(HOME)/Downloads/CPM_med_COMAL80.imd
-IMG_MAXI = $(HOME)/Downloads/SW1711-I8.imd
+IMG_MAXI = $(CURDIR)/../autoload-in-c/test-disks/SW1711-I8.imd
 IMG_DATA = $(HOME)/Downloads/PolyPascal_3.10.imd
 
 # Size limits (bytes)
@@ -119,7 +130,7 @@ FORCE:
 # ================================================================
 
 bios: builddate.h verify-skew
-	$(MAKE) -C $(COMPILER) $(BIOS_TARGET) MSIZE=$(MSIZE) KBLANG=$(KBLANG) KBDPORT=$(KBDPORT)
+	$(MAKE) -C $(COMPILER) $(BIOS_TARGET) MSIZE=$(MSIZE) KBLANG=$(KBLANG) KBDPORT=$(KBDPORT) SW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT)
 
 # Verify the hand-written sector skew tables in bios.c match the CP/M
 # skew algorithm (analog of the original DRI assembler XLT macro).

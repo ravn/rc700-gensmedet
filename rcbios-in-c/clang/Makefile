@@ -13,6 +13,7 @@ MSIZE  ?= 56
 BIOSAD ?= $(shell printf '0x%04X' $$(( 0x3400 + ($(MSIZE) - 20) * 1024 + 0x1600 )))
 KBLANG ?= DANISH
 KBDPORT ?= A
+SW1_CONSOLE_BIT ?= 0x01
 
 # LLVM-Z80 toolchain — probe for native build, fall back to Docker
 LLVM_Z80 = $(CURDIR)/../../../llvm-z80
@@ -36,7 +37,7 @@ endif
 
 CFLAGS = --target=z80 -Oz -g -nostdlib -ffreestanding -std=c23 \
 	 -ffunction-sections -fdata-sections \
-	 -flto \
+	 -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT) \
 	 -Xclang -target-feature -Xclang +static-stack \
 	 -Iclang -I. -Wno-gcc-compat -Wno-return-type \
 	 -Wimplicit-int-conversion \

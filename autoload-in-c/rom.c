@@ -148,6 +148,78 @@ static void init_ctc(void) {
     ctc3_write(0x01); /* Ch3: time constant = 1 (every interrupt) */
 }
 
+/* ================================================================
+ * SIO-B polled debug output (output-only, no interrupts)
+ *
+ * Autoload normally never touches the SIO — rcbios still owns the real
+ * SIO initialization.  This is a minimal skeleton so we can print debug
+ * text very early in autoload.  CTC channel 1 clocks SIO-B; the CONFI
+ * block (rcbios boot_confi.c) uses CTC mode 0x47 / count 1 with the SIO
+ * in x16 mode for a solid 38400 baud, 8-N-1 — we replicate exactly that.
+ *
+ * The control-register setup is a fixed byte sequence to one port, so it
+ * goes out as a simple block loop (the OTIR idiom).  Character output must
+ * still poll RR0 bit 2 (Tx buffer empty) because the Tx buffer is 1 byte
+ * deep and the shifter runs at the emulated 38400 baud.
+ * ================================================================ */
+static const byte sio_b_init_seq[] = {
+    0x18,         /* WR0: channel reset */
+    0x04, 0x44,   /* WR4: x16 clock, 1 stop bit, no parity */
+    0x05, 0xEA,   /* WR5: DTR=1, Tx enable, 8 bits/char, RTS=1 */
+    0x01, 0x00,   /* WR1: no interrupts (polled output only) */
+};
+
+/* SIO-B debug output is gated by SW1 bit 0 (S01, port 0x14) -- the SAME
+ * switch rcbios uses to enable its SIO-B console (see bios.c bios_boot_c).
+ * Bit clear (On, default) = debug enabled; bit set (Off) = leave SIO-B
+ * untouched so production hardware sees no autoload debug traffic. */
+#define siob_debug_on()  ((read_sw1() & SW1_CONSOLE_BIT) == 0)
+
+static void sio_b_debug_init(void) {
+    if (!siob_debug_on())
+        return;
+    ctc1_write(0x47);   /* CTC ch1: counter mode, TC follows, reset */
+    ctc1_write(0x01);   /* time constant = 1 -> 38400 baud (x16) */
+
+    /* OTIR: output B control-register bytes from (HL++) to port C.
+     * The setup is a fixed byte sequence to one port, so OTIR is the
+     * natural idiom (matches rcbios bios_hw_init.c). */
+#if defined(__SDCC) || defined(__SCCZ80) || !defined(__z80__)
+    for (byte i = 0; i < sizeof sio_b_init_seq; i++)
+        sio_b_ctrl_write(sio_b_init_seq[i]);
+#else
+    const byte *p = sio_b_init_seq;
+    word bc = ((word) sizeof sio_b_init_seq << 8) | 0x0B;  /* B=count, C=port */
+    __asm__ volatile("otir"
+        : "+{hl}" (p), "+{bc}" (bc) :: "memory");
+#endif
+}
+
+static void sio_b_putc(char c) {
+    while ((sio_b_ctrl_read() & 0x04) == 0)   /* RR0 bit2: Tx buffer empty */
+        ;
+    sio_b_data_write((byte) c);
+}
+
+static void sio_b_puts(const char *s) {
+    while (*s) {
+        if (*s == '\n')
+            sio_b_putc('\r');
+        sio_b_putc(*s++);
+    }
+}
+
+static void sio_b_hex8(byte v) {
+    static const char hexd[] = "0123456789ABCDEF";
+    sio_b_putc(hexd[(v >> 4) & 0x0F]);
+    sio_b_putc(hexd[v & 0x0F]);
+}
+
+static void sio_b_hex16(word v) {
+    sio_b_hex8((byte) (v >> 8));
+    sio_b_hex8((byte) v);
+}
+
 static void init_dma(void) {
     /* AMD Am9517A / Intel 8237 DMA controller */
     dma_command(0x20); /* master clear + standard configuration */
@@ -690,6 +762,41 @@ void error_display_halt(byte code) {
  * File-scope global (boot_dir) avoids IX frame pointer. */
 static byte *boot_dir;
 
+/* DEBUG BREAKPOINT HOOK.
+ *
+ * Deliberately non-inlined, externally visible symbol so the MAME Lua
+ * debugger can `bpset` on its address (read from the autoload .map) and stop
+ * right after the BIOS image has been loaded from disk to 0x0000, just before
+ * the jump into the BIOS cold-boot vector — the point at which we want to
+ * inspect memory placement.  It also dumps a placement summary over SIO-B so
+ * the same information is visible without attaching the debugger. */
+__attribute__((noinline, used))
+void autoload_bios_loaded_bp(void);
+__attribute__((noinline, used))
+void autoload_bios_loaded_bp(void) {
+    /* SIO-B debug dump is gated by the same SW1 console switch as the rest
+     * of the autoload SIO-B output (and rcbios' console).  When the switch
+     * is off SIO-B was never initialized (sio_b_debug_init returned early),
+     * so emitting here would block forever polling Tx-ready -- skip it.
+     * The empty-asm bpset target below stays UNconditional so the MAME
+     * debugger can still break right after the BIOS load regardless. */
+    if (siob_debug_on()) {
+        sio_b_puts("\nautoload: BIOS loaded from disk.\n");
+        sio_b_puts("boot_ptr @0000 = ");
+        sio_b_hex16(*(volatile word *) 0x0000);
+        sio_b_puts("\nsig @0008      = ");
+        for (byte i = 0; i < 6; i++)
+            sio_b_putc(((const char *) 0x0008)[i]);
+        sio_b_puts("\nfirst16 @0000  =");
+        for (byte i = 0; i < 16; i++) {
+            sio_b_putc(' ');
+            sio_b_hex8(((const byte *) 0x0000)[i]);
+        }
+        sio_b_putc('\n');
+    }
+    __asm__ volatile("");   /* stable bpset target — do not fold away */
+}
+
 static NORETURN void boot_floppy_or_prom(void) {
     if (compare_6bytes((const byte *) RC700_SIG_OFF, (const byte *) " RC700") == 0) {
         boot_dir = (byte *) BOOT_DIR_OFF;
@@ -711,6 +818,7 @@ static NORETURN void boot_floppy_or_prom(void) {
     }
 
     if (compare_6bytes((const byte *) RC702_SIG_OFF, (const byte *) msg_rc702) == 0) {
+        autoload_bios_loaded_bp();
         jump_to(*(volatile word *) 0x0000);
     }
 
@@ -989,6 +1097,7 @@ void main_relocated(void) __naked
     intrinsic_im_2();
     init_pio();
     init_ctc();
+    sio_b_debug_init();   /* DEBUG: bring up SIO-B polled output very early */
     init_dma();
     init_crt();
     /* Always program the SEM702 sextant subset.  Real ROA327 ROM

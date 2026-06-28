@@ -779,7 +779,11 @@ void bios_boot_c(void)
     /* Conversion tables (outcon/inconv at 0xF680) are initialized by
      * coldboot from _conv_tables (boot_confi.c) before we get here. */
 
-    /* DIP switch 0 (S01, port 0x14 bit 0) selects the SIO-B console mode.
+    /* DIP switch 0 (S01, port 0x14, SW1_CONSOLE_BIT) selects the SIO-B
+     * console mode.  Same switch and same SW1_CONSOLE_BIT constant the
+     * autoload PROM uses to gate its early SIO-B debug output (rom.c
+     * siob_debug_on); both come from the shared build define (sw1_config.mk,
+     * docs/SW1_BIT_MAP.md).
      * Mapping (MAME "On" = bit clear by convention; user spec 2026-05-17):
      *   On  (bit=0, default) -> UC1 joined console: SIO-B + keyboard
      *                            both provide input; SIO-B + CRT both
@@ -789,7 +793,7 @@ void bios_boot_c(void)
      *                            SIO-B stays as LST: printer destination.
      * Was inverted before 2026-05-17 -- the previous mapping treated
      * bit-set as JOINED (debug) and bit-clear as LOCAL (default). */
-    if ((port_in(sw1) & 0x01) == 0)
+    if ((port_in(sw1) & SW1_CONSOLE_BIT) == 0)
         iobyte = IOBYTE_CON_JOINED;
     else
         iobyte = IOBYTE_CON_LOCAL;

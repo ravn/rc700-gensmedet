@@ -11,7 +11,7 @@ behavior wherever a switch hasn't been wired up.
 
 | Bit  | Switch | Purpose                                       | 0 (On, default)                       | 1 (Off)                              | Consumer            |
 |------|--------|-----------------------------------------------|---------------------------------------|--------------------------------------|---------------------|
-| 0    | S01    | Console mode                                  | joined (SIO-B+kbd in, SIO-B+CRT out)  | local (CRT+kbd only)                 | rcbios-in-c, cpnos-in-c |
+| 0    | S01    | Console mode                                  | joined (SIO-B+kbd in, SIO-B+CRT out)  | local (CRT+kbd only)                 | rcbios-in-c, cpnos-in-c, autoload-in-c |
 | 1    | S02    | PROM1 lineprog enable                         | check PROM1 sig; jump if present      | skip check; halt NO DISKETTE-NOR-LINEPROG | autoload-in-c       |
 | 2    | S03    | CP/NET transport (CP/NOS lineprog + rcbios SNIOS) | PIO (Z80-PIO Mode 1, IRQ + 256 B ring) | SIO (SIO-A async 38400 polled)        | cpnos-in-c, cpnet/snios.asm |
 | 3    | S04    | unused                                        | -                                     | -                                    | -                   |
@@ -35,9 +35,18 @@ Spec finalised 2026-05-17:
 
 Implementations:
 
+- The bit mask is a single shared build constant `SW1_CONSOLE_BIT`
+  (canonical value in `sw1_config.mk`, injected as `-DSW1_CONSOLE_BIT`;
+  each component Makefile keeps a `?= 0x01` default that the shared config
+  overrides).  rcbios (`bios.c`) and autoload (`rom.c`) both test this same
+  constant, so the console gate and the SIO-B debug gate are provably the
+  same switch.
 - rcbios-in-c: `bios.c` cold-boot picks `IOBYTE_CON_JOINED` (UC1) or
   `IOBYTE_CON_LOCAL` based on the bit at boot.  IOBYTE can still be
   changed later with `STAT CON:=...`.
+- autoload-in-c: `rom.c` `siob_debug_on()` gates the early polled SIO-B
+  debug init + output (sign-on / placement dump) on the same bit, so the
+  PROM stays silent on SIO-B when the console switch is Off.
 - cpnos-in-c: `cpnos_cold_entry()` (init.c) samples the bit and stores
   it in `console_joined` (resident.c BSS); `impl_conin` skips the
   SIO-B poll when 0, `impl_conout` skips the SIO-B mirror when 0.

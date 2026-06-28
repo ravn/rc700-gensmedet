@@ -160,7 +160,18 @@ DEFPORT(pio_a_data,   0x10)
 DEFPORT(pio_b_data,   0x11)
 DEFPORT(pio_a_ctrl,   0x12)
 DEFPORT(pio_b_ctrl,   0x13)
+DEFPORT(sio_b_data,   0x09)    /* Z80 SIO channel B data (console/debug) */
+DEFPORT(sio_b_ctrl,   0x0B)    /* Z80 SIO channel B control/status */
 DEFPORT(sw1,          0x14)
+
+/* SW1 bit mask for the joined SIO-B console / debug switch (S01).
+ * Canonical value is the shared build define -DSW1_CONSOLE_BIT (see
+ * ../sw1_config.mk and docs/SW1_BIT_MAP.md); this fallback keeps direct
+ * compiles working.  autoload and rcbios use the SAME constant so the
+ * SIO-B debug gate and the console gate are provably identical. */
+#ifndef SW1_CONSOLE_BIT
+#define SW1_CONSOLE_BIT   0x01
+#endif
 DEFPORT(ramen,        0x18)
 DEFPORT(bib,          0x1C)
 DEFPORT(chargen_char, 0xD1)    /* SEM 702 character generator: character number */
@@ -200,6 +211,10 @@ DEFPORT(dma_clbp,     0xFC)
 #define pio_write_a_ctrl(d)     port_out(pio_a_ctrl, (d))
 #define pio_write_b_data(d)     port_out(pio_b_data, (d))
 #define pio_write_b_ctrl(d)     port_out(pio_b_ctrl, (d))
+
+#define sio_b_ctrl_write(d)     port_out(sio_b_ctrl, (d))
+#define sio_b_ctrl_read()       port_in(sio_b_ctrl)
+#define sio_b_data_write(d)     port_out(sio_b_data, (d))
 
 #define crt_param(d)            port_out(crt_param, (d))
 #define crt_command(d)          port_out(crt_cmd, (d))

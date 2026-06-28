@@ -34,6 +34,15 @@
 #define PORT_PIO_A_CTRL   0x12
 #define PORT_PIO_B_CTRL   0x13
 #define PORT_SW1          0x14
+
+/* SW1 bit mask for the joined SIO-B console / debug switch (S01).
+ * Canonical value is the shared build define -DSW1_CONSOLE_BIT (see
+ * ../sw1_config.mk and docs/SW1_BIT_MAP.md); this fallback keeps direct
+ * compiles working.  rcbios and autoload use the SAME constant so the
+ * console gate and the SIO-B debug gate are provably identical. */
+#ifndef SW1_CONSOLE_BIT
+#define SW1_CONSOLE_BIT   0x01
+#endif
 #define PORT_BELL         0x1C
 #define PORT_CTC2_CH0     0x44
 #define PORT_CTC2_CH1     0x45
