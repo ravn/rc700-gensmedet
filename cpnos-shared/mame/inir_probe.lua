@@ -4,6 +4,7 @@ local inir_addrs = dofile(compiler .. "/cpnos_inir_addrs.lua")
 
 local TRACE_LOG = "/tmp/cpnos_inir_trace.log"
 local RESULT_F  = "/tmp/cpnos_polypascal_result.txt"
+local _ktaps = {}  -- retain tap handles; see feedback_lua_retain_tap_handles.md
 local MAX_EVENTS = 30000
 
 do local f = io.open(TRACE_LOG, "w") if f then f:close() end end
@@ -32,17 +33,17 @@ emu.register_periodic(function()
         state = cpu.state
         if prog == nil or io_space == nil then return end
 
-        io_space:install_read_tap(0x11, 0x11, "piob_data_r",
+        _ktaps[#_ktaps+1] = io_space:install_read_tap(0x11, 0x11, "piob_data_r",
             function(off, data, mask)
                 evt(string.format("[%9.4fs] IN  0x11 -> %02x",
                     emu.time(), data))
             end)
-        io_space:install_write_tap(0x11, 0x11, "piob_data_w",
+        _ktaps[#_ktaps+1] = io_space:install_write_tap(0x11, 0x11, "piob_data_w",
             function(off, data, mask)
                 evt(string.format("[%9.4fs] OUT 0x11 <- %02x",
                     emu.time(), data))
             end)
-        io_space:install_write_tap(0x13, 0x13, "piob_ctrl_w",
+        _ktaps[#_ktaps+1] = io_space:install_write_tap(0x13, 0x13, "piob_ctrl_w",
             function(off, data, mask)
                 evt(string.format("[%9.4fs] OUT 0x13 <- %02x",
                     emu.time(), data))

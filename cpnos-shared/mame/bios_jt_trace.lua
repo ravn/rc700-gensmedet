@@ -44,6 +44,7 @@ local cpu, prog, state
 local out_f = io.open(OUT, "w")
 local line_count = 0
 local pending_exits = {}  -- retaddr -> tap object
+local _ktaps = {}  -- retain resident-JT tap handles; see feedback_lua_retain_tap_handles.md
 
 local function regs_str()
     return string.format(
@@ -156,13 +157,13 @@ emu.register_periodic(function()
         if prog == nil then return end
 
         -- Resident BIOS JT 0xED00..0xED32
-        prog:install_read_tap(0xED00, 0xED32, "biosjt_resident_bios",
+        _ktaps[#_ktaps+1] = prog:install_read_tap(0xED00, 0xED32, "biosjt_resident_bios",
             on_jt_read("ED-BIOS", bios_names, 0xED00))
         -- Resident SNIOS JT 0xED33..0xED4A
-        prog:install_read_tap(0xED33, 0xED4A, "biosjt_resident_snios",
+        _ktaps[#_ktaps+1] = prog:install_read_tap(0xED33, 0xED4A, "biosjt_resident_snios",
             on_jt_read("ED-SNIO", snios_names, 0xED33))
         -- NDOS-patched JT copy 0xCF00..0xCF32 (BIOS only)
-        prog:install_read_tap(0xCF00, 0xCF32, "biosjt_ndos_copy",
+        _ktaps[#_ktaps+1] = prog:install_read_tap(0xCF00, 0xCF32, "biosjt_ndos_copy",
             on_jt_read("CF-BIOS", bios_names, 0xCF00))
 
         -- JP 0 trap: opcode-fetch at PC=0 indicates a JP/CALL through
@@ -171,7 +172,7 @@ emu.register_periodic(function()
         -- error by JPing 0; ALSO surfaces stack underflow (return to
         -- pushed 0).  Filter PC==0 to distinguish opcode fetch from
         -- relocator's read of the reset vector.
-        prog:install_read_tap(0x0000, 0x0001, "jp_zero_trap",
+        _ktaps[#_ktaps+1] = prog:install_read_tap(0x0000, 0x0001, "jp_zero_trap",
             function(offset, data, mask)
                 if pc_seen_zero then return end          -- one-shot
                 if state["PC"].value ~= 0 then return end -- not a fetch

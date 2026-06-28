@@ -4,6 +4,7 @@
 -- so we exclude netboot's heavy calls and see only NDOS-side activity.
 -- No exit taps -- they pile up and perturb timing.
 local out_path = "/tmp/cpnos_minimal_trace.log"
+local _ktaps = {}  -- retain tap handles; see feedback_lua_retain_tap_handles.md
 local out_f = io.open(out_path, "w")
 local TIMEOUT_S = 8.0
 local cpu, prog, state
@@ -57,7 +58,7 @@ emu.register_periodic(function()
         if prog == nil then return end
         for _, t in ipairs(taps) do
             local addr, name = t[1], t[2]
-            prog:install_read_tap(addr, addr, "min_"..name, on_entry(name, addr))
+            _ktaps[#_ktaps+1] = prog:install_read_tap(addr, addr, "min_"..name, on_entry(name, addr))
         end
         log_line(string.format("[%9.4fs] === minimal trace start (timeout=%.1fs) ===",
             emu.time(), TIMEOUT_S))

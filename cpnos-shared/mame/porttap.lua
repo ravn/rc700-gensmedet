@@ -12,6 +12,7 @@
 local marks_path  = "/tmp/cpnos_boot_marks.txt"
 local result_path = "/tmp/cpnos_boot_result.txt"
 local wboot_path  = "/tmp/cpnos_wboot.txt"
+local _ktaps = {}  -- retain tap handles; see feedback_lua_retain_tap_handles.md
 do for _, p in ipairs({result_path, wboot_path}) do
     local f = io.open(p, "w") if f then f:close() end
 end end
@@ -34,7 +35,7 @@ emu.register_periodic(function ()
         local diag = io.open("/tmp/cpnos_porttap_diag.txt", "w")
         if diag then diag:write("[install] starting\n") diag:close() end
         local ok1, err1 = pcall(function()
-            io_space:install_write_tap(0x80, 0x80, "sumtest_done",
+            _ktaps[#_ktaps+1] = io_space:install_write_tap(0x80, 0x80, "sumtest_done",
                 function(offset, data, mask)
                     local t = emu.time()
                     local f = io.open(result_path, "w")
@@ -46,7 +47,7 @@ emu.register_periodic(function ()
                 end)
         end)
         local ok2, err2 = pcall(function()
-            io_space:install_write_tap(0x81, 0x81, "wboot",
+            _ktaps[#_ktaps+1] = io_space:install_write_tap(0x81, 0x81, "wboot",
                 function(offset, data, mask)
                     wboot_count = wboot_count + 1
                     local t = emu.time()

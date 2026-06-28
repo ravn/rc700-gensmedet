@@ -74,6 +74,39 @@ display formatting / port-read regressions in `display_sw1_status()`.
 Build-time size check.  Fails if the post-ZX0 binary exceeds 2 KB
 (clang) — the hardware-fixed PROM cap on the user's RC702.
 
+## Cross-version boot interop (pre-merge gate)
+
+The autoload PROM and the rcbios C BIOS ship as independent artifacts
+that meet only at runtime, so a change to either must not break boot
+against the OTHER side's *unmodified* counterpart, in BOTH SW1-S01
+switch positions.
+
+```bash
+bash ../tasks/scripts/cross-version-boot-test.sh
+```
+
+What it does — a 4-way matrix (each PROM paired with its cross-version
+counterpart BIOS, in both switch positions):
+
+| # | PROM | BIOS / disk | SW1-S01 |
+|---|------|-------------|---------|
+| A | original `roa375/roa375.rom` (genuine 2 KB dump) | clang rcbios patched disk | On + Off |
+| B | clang autoload `prom0.ic66` | stock unpatched `SW1711-I8.imd` | On + Off |
+
+PASS iff all 4 boots reach the CP/M `A>` prompt (scanned by
+`mame_boot_test.lua`) AND the autoload PROM fits its 2 KB cap.  Switch
+position is forced via the `:DSW` S01 ioport field (`SW1_S01` env into
+`mame_boot_test.lua`), never an I/O read tap.
+
+This encodes three standing acceptance facts:
+1. rcbios + the original `roa375.rom` must boot in BOTH switch positions.
+2. The clang autoload PROM must boot the stock unmodified BIOS in BOTH positions.
+3. The autoload PROM must fit in 2 KB.
+
+NOTE: the matrix asserts `A>` (boots), not banner identity — a
+swapped-but-bootable disk would still pass; it is an interop gate, not
+an identity oracle (see `make mame` for banner identity).
+
 ## Logging / diagnostic
 
 ### `make fdc-log` — µPD765 transaction trace

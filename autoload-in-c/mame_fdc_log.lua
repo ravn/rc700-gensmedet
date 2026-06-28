@@ -27,6 +27,9 @@ local RAW_PATH     = os.getenv("FDC_RAW_LOG")     or "/tmp/autoload_fdc_raw.txt"
 local DEC_PATH     = os.getenv("FDC_DECODED_LOG") or "/tmp/autoload_fdc_decoded.txt"
 local DEADLINE_S   = tonumber(os.getenv("FDC_LOG_SECONDS") or "20")
 local LABEL        = os.getenv("FDC_LOG_LABEL")   or "(unlabelled run)"
+-- Retain tap handles or Lua GC frees them -> segfault in lua_topointer.
+-- See tasks/memory/feedback_lua_retain_tap_handles.md.
+local _ktaps = {}
 
 -- µPD765 command table, keyed by opcode & 0x1F.
 -- nparam = parameter bytes after the opcode; nresult = result-phase bytes.
@@ -177,9 +180,9 @@ emu.register_periodic(function()
         local io = cpu.spaces["io"]
         prog = cpu.spaces["program"]
         if io == nil then return end
-        io:install_read_tap (0x04, 0x04, "fdc_msr",   function(o, d) last_msr = d end)
-        io:install_write_tap(0x05, 0x05, "fdc_cmd",   function(o, d) on_write05(o, d) end)
-        io:install_read_tap (0x05, 0x05, "fdc_result",function(o, d) on_read05(o, d) end)
+        _ktaps[#_ktaps+1] = io:install_read_tap (0x04, 0x04, "fdc_msr",   function(o, d) last_msr = d end)
+        _ktaps[#_ktaps+1] = io:install_write_tap(0x05, 0x05, "fdc_cmd",   function(o, d) on_write05(o, d) end)
+        _ktaps[#_ktaps+1] = io:install_read_tap (0x05, 0x05, "fdc_result",function(o, d) on_read05(o, d) end)
         installed = true
     end
 

@@ -10,6 +10,7 @@
 -- standalone for boot-only traces.
 
 local OUT = "/tmp/cpnos_dsp_watch.log"
+local _ktaps = {}  -- retain tap handles; see feedback_lua_retain_tap_handles.md
 local LO  = 0xF800
 local HI  = 0xF8FF      -- rows 0..3 inclusive (80 cols x 4 rows = 320 B)
 local LIMIT = 5000      -- stop logging after this many writes (avoid runaway)
@@ -27,7 +28,7 @@ emu.register_periodic(function()
     state = cpu.state
     if prog == nil or state == nil then return end
 
-    prog:install_write_tap(LO, HI, "dsp_watch", function(offs, data, mask)
+    _ktaps[#_ktaps+1] = prog:install_write_tap(LO, HI, "dsp_watch", function(offs, data, mask)
         count = count + 1
         if count > LIMIT then return end
         local pc = state["PC"].value

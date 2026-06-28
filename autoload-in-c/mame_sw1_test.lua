@@ -18,6 +18,10 @@ local ROW_BYTES   = 80
 local DEADLINE_S  = 4.0
 
 local installed = false
+-- Retain tap handles: install_*_tap returns a memory_passthrough_handler that
+-- must stay referenced, or Lua GC frees it and the next tapped access segfaults
+-- in lua_topointer.  See tasks/memory/feedback_lua_retain_tap_handles.md.
+local _ktaps = {}
 local fired = false
 local prog
 
@@ -31,8 +35,8 @@ emu.register_periodic(function()
         prog = cpu.spaces["program"]
         local io = cpu.spaces["io"]
         if prog == nil or io == nil then return end
-        io:install_write_tap(0xFC, 0xFC, "dma_clbp", function() dma.msb = false end)
-        io:install_write_tap(0xF4, 0xF4, "dma_ch2_addr", function(_, d)
+        _ktaps[#_ktaps+1] = io:install_write_tap(0xFC, 0xFC, "dma_clbp", function() dma.msb = false end)
+        _ktaps[#_ktaps+1] = io:install_write_tap(0xF4, 0xF4, "dma_ch2_addr", function(_, d)
             if not dma.msb then dma.lo = d; dma.msb = true
             else dma.base = ((d << 8) | dma.lo) & 0xFFFF; dma.msb = false end
         end)

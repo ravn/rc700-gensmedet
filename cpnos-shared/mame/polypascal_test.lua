@@ -27,6 +27,9 @@ local compiler = os.getenv("COMPILER") or "clang"
 local addrs = dofile(compiler .. "/cpnos_polypascal_addrs.lua")
 local KBD_HEAD = addrs.kbd_head
 local KBD_RING = addrs.kbd_ring
+-- Retain tap handles or Lua GC frees them -> segfault in lua_topointer.
+-- See tasks/memory/feedback_lua_retain_tap_handles.md.
+local _ktaps = {}
 
 -- ravn/llvm-z80#150 follow-up: the cpnos prom1-lineprog is a single dual build;
 -- the runtime transport is chosen by SW1 bit 2 (S03), NOT by the TRANSPORT make
@@ -93,7 +96,7 @@ local function maybe_install_dot_watch()
     if prog == nil or cpu_state == nil then return end
     -- Wider tap covering DOT_CURSOR + DOT_COL + DOT_ROW (0x4000..0x4003).
     -- Stays installed for whole boot; arm/disarm via DOT_WATCH_ENABLED.
-    prog:install_write_tap(0x4000, 0x4003, "dot_watch", function(offs, data)
+    _ktaps[#_ktaps+1] = prog:install_write_tap(0x4000, 0x4003, "dot_watch", function(offs, data)
         if not DOT_WATCH_ENABLED then return end
         if #dot_watch_buf > 5000 then return end
         local pc = cpu_state["PC"].value
