@@ -96,3 +96,15 @@ Diff `f_o1.s` vs `f_ok.s` for `bench_run` to see the divergent control flow.
    runtime fixture to test-runner. (CLAUDE.md: every backend fix ships a lit
    test.)
 4. File at llvm-z80/llvm-z80 after explain + go-ahead.
+
+## Update 2026-06-28b — CFG ruled out, dataflow suspected
+Compared bench_run terminators + successor lists BEFORE vs AFTER branch-folder
+(`llc -O1 -print-{before,after}=branch-folder`). After the fold EVERY block's
+terminator matches its successor list (NZ/Z targets + fall-through all
+consistent; only bb.34 RET has a stale succ, harmless). So analyzeBranch /
+successor bookkeeping is NOT corrupt — the dangling-branch hypothesis is
+refuted. The miscompile returns 0x0000 (uninitialised `de`), meaning a needed
+store/def is dropped or relocated by branch-folder's BLOCK REORDERING, not a
+broken branch. Asm-level slot diffing is useless: -O0 and -O1 allocate the BSS
+frame differently. Pinpointing needs llvm-reduce with a RUNTIME oracle (emit
+sentinel != 0x10E4), not a structural fingerprint.
