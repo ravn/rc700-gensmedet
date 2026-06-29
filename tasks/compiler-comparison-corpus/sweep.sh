@@ -142,15 +142,23 @@ want() {
 #     dropped store means dcc's licm cycle count is NOT a like-for-like
 #     pessimization measurement (it elides the optimizer-defeat write the
 #     bench relies on).  Read dcc's licm timing with that caveat.
-EXPECTED_FAIL=" fannkuch:zsdcc pi:zsdcc "
+# Cells keyed bench:compiler fail in BOTH modes; bench:compiler:mode fails
+# only in that mode.  fannkuch:llvm-z80:speed = clang -O2 branch-folder
+# miscompile (ravn/llvm-z80#247); SIZE cell (-Oz) is correct so stays a hard
+# PASS gate.  See tasks/clang-fannkuch-O1-backend-miscompile-2026-06-28.md.
+EXPECTED_FAIL=" fannkuch:zsdcc pi:zsdcc fannkuch:llvm-z80:speed "
 is_expected_fail() {
-  # $1=bench $2=compiler
-  case "$EXPECTED_FAIL" in *" $1:$2 "*) return 0 ;; *) return 1 ;; esac
+  # $1=bench $2=compiler $3=mode(size|speed)
+  case "$EXPECTED_FAIL" in
+    *" $1:$2:$3 "*) return 0 ;;
+    *" $1:$2 "*)    return 0 ;;
+    *) return 1 ;;
+  esac
 }
 classify_verify() {
-  # $1=bench $2=compiler $3=rc (ticks exit code)
-  local b=$1 c=$2 rc=$3
-  if is_expected_fail "$b" "$c"; then
+  # $1=bench $2=compiler $3=rc (ticks exit code) $4=mode(size|speed)
+  local b=$1 c=$2 rc=$3 mode=${4:-}
+  if is_expected_fail "$b" "$c" "$mode"; then
     case "$rc" in
       0) printf 'XPASS(unexpected_pass)' ;;
       *) printf 'XFAIL(exit=%s)' "$rc" ;;
@@ -204,7 +212,7 @@ measure_llvm_z80() {
   out=$(perl -e 'alarm 90; exec @ARGV' \
     $TICKS -mz80 -counter 200000000 ${prefix}.bin 2>&1) || rc=$?
   tstates=$(printf '%s\n' "$out" | awk '/^Ticks:/{ts=$2} END{print ts}')
-  verify=$(classify_verify "$bench" llvm-z80 "$rc")
+  verify=$(classify_verify "$bench" llvm-z80 "$rc" "$opt")
   : "${tstates:=?}"
   printf '%s\t%s\t%s\t%s' "$bin" "$text" "$tstates" "$verify"
 }
@@ -248,7 +256,7 @@ measure_zsdcc() {
   out=$(perl -e 'alarm 90; exec @ARGV' \
     $TICKS -mz80 -counter 200000000 ${prefix}.bin 2>&1) || rc=$?
   tstates=$(printf '%s\n' "$out" | awk '/^Ticks:/{ts=$2} END{print ts}')
-  verify=$(classify_verify "$bench" zsdcc "$rc")
+  verify=$(classify_verify "$bench" zsdcc "$rc" "$opt")
   : "${tstates:=?}"
   printf '%s\tn/a\t%s\t%s' "$bin" "$tstates" "$verify"
 }
@@ -285,7 +293,7 @@ measure_dcc() {
     COMPILE_ERROR) rc=2 ;;
     *)             rc=1 ;;   # FAIL, crash, or empty output
   esac
-  verify=$(classify_verify "$bench" dcc "$rc")
+  verify=$(classify_verify "$bench" dcc "$rc" "$opt")
   : "${bin:=FAIL}"; : "${text:=n/a}"; : "${ts:=-}"
   printf '%s\t%s\t%s\t%s' "$bin" "$text" "$ts" "$verify"
 }

@@ -108,3 +108,10 @@ store/def is dropped or relocated by branch-folder's BLOCK REORDERING, not a
 broken branch. Asm-level slot diffing is useless: -O0 and -O1 allocate the BSS
 frame differently. Pinpointing needs llvm-reduce with a RUNTIME oracle (emit
 sentinel != 0x10E4), not a structural fingerprint.
+
+## PARKED 2026-06-29 — filed ravn/llvm-z80#247, XFAILed in sweep
+Filed as ravn/llvm-z80#247 (full details + self-contained f.ll test case
+attached). Parked: sweep.sh marks `fannkuch:llvm-z80:speed` (clang -O2) as
+XFAIL; the SIZE cell (-Oz) stays a hard PASS gate, matching production. Unpark
+when root-cause work resumes: llvm-reduce with a runtime sentinel oracle, then
+fix + lit test + test-runner fixture, then close #247.
