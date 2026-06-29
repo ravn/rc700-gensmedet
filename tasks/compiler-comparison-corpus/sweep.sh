@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Compiler-comparison corpus sweep: each benchmark × (llvm-z80, zsdcc)
-# at -Oz prod-like flags.  Writes machine-readable TSV + markdown
+# Compiler-comparison corpus sweep: each benchmark × (llvm-z80, zsdcc, dcc)
+# at production-like flags.  Writes machine-readable TSV + markdown
 # summary.  Mirrors aes256-corpus/flag_sweep.sh's harness style.
 #
 # Per-benchmark each compiler writes a 7-byte sentinel at 0xC000:
@@ -8,9 +8,26 @@
 #
 # Verifier requires v[4]==1 (computation correct) AND v[6]==0xA5 (clean halt).
 #
-# Usage: ./sweep.sh                   # all benchmarks, both compilers
+# Usage: ./sweep.sh                   # all benchmarks, all compilers
 #        BENCH=sieve ./sweep.sh       # filter
-#        ONLY=llvm-z80 ./sweep.sh     # one compiler
+#        ONLY=llvm-z80 ./sweep.sh     # one compiler (llvm-z80|zsdcc|dcc)
+#        ONLY=both ./sweep.sh         # the original pair (llvm-z80+zsdcc)
+#
+# Each (bench, compiler) is measured at TWO optimization modes and the
+# results.tsv / printed table show them side by side:
+#   SIZE  = clang -Oz  / zsdcc --opt-code-size  / dcc dccpeep OFF
+#   SPEED = clang -O2  / zsdcc --opt-code-speed / dcc dccpeep ON
+# The only variable between the two cells is the opt level (clang also
+# leaves LSR enabled in the SPEED cell); the production memory model
+# (+static-stack), section-gc, and --sdcccall 1 are held constant.
+# dcc has no -Oz/-O2 axis -- its only knob is the dccpeep peephole pass
+# (improves BOTH size and speed), so size=peep-off, speed=peep-on.
+#
+# dcc caveats (noted because its cells aren't apples-to-apples with the
+# freestanding clang/zsdcc binaries): dcc emits a CP/M .COM that BUNDLES
+# the CP/M C runtime, so its `bin` bytes include RTL the others link out;
+# and its `ts` includes a small fixed CRT-startup cost.  Use dcc numbers
+# for trend, not byte-exact parity.
 
 set -euo pipefail
 
@@ -29,6 +46,17 @@ TICKS=$Z88DK/bin/z88dk-ticks
 ZCC_ENV="ZCCCFG=$Z88DK/lib/config PATH=$Z88DK/bin:$PATH"
 ZCC="$Z88DK/bin/zcc"
 
+# dcc (David Lee's CP/M C89 compiler) -- the third "friend".  Built in-tree
+# (dcc/m.sh).  The compile step is native; the M80/L80 assemble+link step
+# runs inside VirtualCpm.jar (a CP/M emulator) which needs Java 21.  These
+# paths are committed macbook-style and sed-rewritten by the sonnyboy runner;
+# DCC_JAVA is overridden via env there (system java is too old).  The actual
+# build recipe lives in build_dcc_corpus.sh (kept separate because it is a
+# multi-stage CP/M toolchain dance).
+DCC_DIR=/Users/ravn/z80/dcc
+VCPM_JAR=/Users/ravn/z80/cpnet-z80/tools/VirtualCpm.jar
+DCC_JAVA="${DCC_JAVA:-java}"   # must be Java 21+ (VirtualCpm.jar is class-file v65)
+
 # llvm-z80 production flags (matches aes256-corpus 09_Oz_prod_like).
 # NOTE the in-tree disablePass(LICM/CSE) is already in effect via the
 # Z80 backend — passing `-mllvm -disable-machine-licm/cse` here is
@@ -39,6 +67,13 @@ ZCC="$Z88DK/bin/zcc"
 LLVM_FLAGS=(-Oz -Xclang -target-feature -Xclang +static-stack
             -mllvm -disable-lsr
             -ffunction-sections -fdata-sections)
+# Speed-optimized counterpart of LLVM_FLAGS: -O2 instead of -Oz, and LSR
+# is left ENABLED (the size cell passes -disable-lsr).  Session #75's
+# isLegalAddImmediate TTI made LSR a net win, so the speed cell wants it.
+# +static-stack and section-gc are the production memory model and are
+# orthogonal to size/speed, so they stay identical in both cells.
+LLVM_FLAGS_SPEED=(-O2 -Xclang -target-feature -Xclang +static-stack
+            -ffunction-sections -fdata-sections)
 # Historical belt-and-suspenders flag `-mllvm -disable-machine-licm/cse`
 # was here; removed 2026-06-08 because the Z80 backend's in-tree
 # disablePass(LICM/CSE) already covers it (Z80PassConfig), and the
@@ -48,6 +83,7 @@ if [ -n "${CLANG_EXTRA:-}" ]; then
   # split on whitespace into array elements
   read -r -a CLANG_EXTRA_ARR <<< "$CLANG_EXTRA"
   LLVM_FLAGS+=("${CLANG_EXTRA_ARR[@]}")
+  LLVM_FLAGS_SPEED+=("${CLANG_EXTRA_ARR[@]}")
 fi
 # Optional cell-label suffix so cells with different flag sets don't
 # clash on prefix names in sweep/.  Default empty.
@@ -60,26 +96,69 @@ ZSDCC_FLAGS=(+z80 -compiler=sdcc -clib=sdcc_iy
              '-Cs--max-allocs-per-node 25000'
              '-Cs--fomit-frame-pointer'
              -create-app)
+# Speed-optimized counterpart of ZSDCC_FLAGS: --opt-code-speed instead of
+# --opt-code-size; everything else (sdcccall 1, -SO3, alloc budget) held
+# constant so the opt objective is the only variable.
+ZSDCC_FLAGS_SPEED=(+z80 -compiler=sdcc -clib=sdcc_iy
+             --opt-code-speed -SO3
+             '-Cs--sdcccall 1' '-Cs--disable-warning 296'
+             '-Cs--max-allocs-per-node 25000'
+             '-Cs--fomit-frame-pointer'
+             -create-app)
 
 BENCHES=(sieve fannkuch pi word_fill licm_pessimize)
 # Filtered by env-var BENCH if set
 if [ -n "${BENCH:-}" ]; then BENCHES=("$BENCH"); fi
-ONLY="${ONLY:-both}"
+ONLY="${ONLY:-all}"
+
+# want <compiler> -> succeed if this compiler should run under $ONLY.
+#   all  = llvm-z80 + zsdcc + dcc (default)
+#   both = the original pair (llvm-z80 + zsdcc), kept for back-compat
+#   <name> = just that one
+want() {
+  case "$ONLY" in
+    all)  return 0 ;;
+    both) case "$1" in llvm-z80|zsdcc) return 0 ;; *) return 1 ;; esac ;;
+    "$1") return 0 ;;
+    *)    return 1 ;;
+  esac
+}
 
 # Known-failing (bench, compiler) cells -- pre-existing, documented, deferred
 # upstream investigation.  See tasks/zsdcc-bench-divergence-2026-06-08.md for
 # the per-bench writeup (clang return vs zsdcc return, hypothesis, repro
 # strategy, upstream filing prep).  Convention: FAIL -> XFAIL (silent), PASS
 # on a known-failing cell -> XPASS (loud -- upstream may have landed a fix).
-EXPECTED_FAIL=" fannkuch:zsdcc pi:zsdcc "
+#
+# dcc note (NOT XFAILs): dcc *exits 1* on two benches while still emitting
+# CORRECT code -- its parser hits a recoverable diagnostic but recovers and
+# compiles the rest.  build_dcc_corpus.sh therefore ignores dcc's exit code
+# and gates purely on the 0xC000 sentinel oracle (result == reference):
+#   - pi: empty object-like macro (NOINLINE -> nothing) trips dcc's pp, but
+#     the computed pi value matches the llvm-z80 reference exactly -> PASS.
+#   - licm_pessimize: dcc can't parse the cast-expression lvalue
+#     `*(volatile T*)0xC100 = x`; it drops that volatile store (misparses it
+#     as a read).  The 0xC000 RESULT is still correct -> PASS, BUT the
+#     dropped store means dcc's licm cycle count is NOT a like-for-like
+#     pessimization measurement (it elides the optimizer-defeat write the
+#     bench relies on).  Read dcc's licm timing with that caveat.
+# Cells keyed bench:compiler fail in BOTH modes; bench:compiler:mode fails
+# only in that mode.  fannkuch:llvm-z80:speed = clang -O2 branch-folder
+# miscompile (ravn/llvm-z80#247); SIZE cell (-Oz) is correct so stays a hard
+# PASS gate.  See tasks/clang-fannkuch-O1-backend-miscompile-2026-06-28.md.
+EXPECTED_FAIL=" fannkuch:zsdcc pi:zsdcc fannkuch:llvm-z80:speed "
 is_expected_fail() {
-  # $1=bench $2=compiler
-  case "$EXPECTED_FAIL" in *" $1:$2 "*) return 0 ;; *) return 1 ;; esac
+  # $1=bench $2=compiler $3=mode(size|speed)
+  case "$EXPECTED_FAIL" in
+    *" $1:$2:$3 "*) return 0 ;;
+    *" $1:$2 "*)    return 0 ;;
+    *) return 1 ;;
+  esac
 }
 classify_verify() {
-  # $1=bench $2=compiler $3=rc (ticks exit code)
-  local b=$1 c=$2 rc=$3
-  if is_expected_fail "$b" "$c"; then
+  # $1=bench $2=compiler $3=rc (ticks exit code) $4=mode(size|speed)
+  local b=$1 c=$2 rc=$3 mode=${4:-}
+  if is_expected_fail "$b" "$c" "$mode"; then
     case "$rc" in
       0) printf 'XPASS(unexpected_pass)' ;;
       *) printf 'XFAIL(exit=%s)' "$rc" ;;
@@ -93,24 +172,30 @@ classify_verify() {
 }
 
 TSV="results.tsv"
-printf 'bench\tcompiler\tbin\ttext\ttstates\tverify\n' > "$TSV"
+printf 'bench\tcompiler\tsize_bin\tsize_text\tsize_ts\tsize_verify\tspeed_bin\tspeed_text\tspeed_ts\tspeed_verify\n' > "$TSV"
 
 [ -f reset_clang.s ] || ln -sf ../sweep/reset_clang.s reset_clang.s 2>/dev/null || true
 [ -f clang.ld ] || ln -sf ../sweep/clang.ld clang.ld 2>/dev/null || true
 
-run_llvm_z80() {
-  local bench=$1
+# Compile + link + measure ONE llvm-z80 cell at a given opt mode.
+# $1=bench  $2=opt(size|speed).  Echoes "bin<TAB>text<TAB>tstates<TAB>verify"
+# (no trailing newline).  Aborts under set -e on a clang/link failure, the
+# same as the original single-mode path did.
+measure_llvm_z80() {
+  local bench=$1 opt=$2
   local src=../bench_${bench}.c
-  local prefix=llvm_z80_${bench}
   local main=../test_main.c
+  local prefix=llvm_z80_${opt}_${bench}
+  local -a flags
+  if [ "$opt" = speed ]; then flags=("${LLVM_FLAGS_SPEED[@]}"); else flags=("${LLVM_FLAGS[@]}"); fi
   rm -f ${prefix}_*.o ${prefix}.elf ${prefix}.bin ${prefix}.filled.bin ${prefix}.ram 2>/dev/null || true
 
   $CLANG --target=z80 -nostdlib -ffreestanding -std=c89 -Wno-deprecated-non-prototype \
-    "${LLVM_FLAGS[@]}" -c ../sweep/reset_clang.s -o ${prefix}_reset.o
+    "${flags[@]}" -c ../sweep/reset_clang.s -o ${prefix}_reset.o
   $CLANG --target=z80 -nostdlib -ffreestanding -std=c89 -Wno-deprecated-non-prototype \
-    "${LLVM_FLAGS[@]}" -c "$src" -o ${prefix}_bench.o
+    "${flags[@]}" -c "$src" -o ${prefix}_bench.o
   $CLANG --target=z80 -nostdlib -ffreestanding -std=c89 -Wno-deprecated-non-prototype \
-    "${LLVM_FLAGS[@]}" -c "$main" -o ${prefix}_main.o
+    "${flags[@]}" -c "$main" -o ${prefix}_main.o
   $LLDLD -T ../sweep/clang.ld --gc-sections -o ${prefix}.elf \
     ${prefix}_reset.o ${prefix}_bench.o ${prefix}_main.o \
     $LLVM_Z80/lib/z80/z80_rt.a
@@ -122,58 +207,121 @@ run_llvm_z80() {
     python3 -c "import sys; t=sum(int(p[1],16) for p in (l.split() for l in sys.stdin) if len(p)>=4 and p[2] in 'tT'); print(t)")
   # test_main.c traps to ticks via ED FE after writing the sentinel; ticks
   # prints "Ticks: <N>" to stdout and exits with L (Unix: 0=PASS, 1=FAIL).
-  # No -end / -output needed.  -counter is a safety net.
   # `|| rc=$?` shields set -e from non-zero (FAIL) exits.
   rc=0
   out=$(perl -e 'alarm 90; exec @ARGV' \
     $TICKS -mz80 -counter 200000000 ${prefix}.bin 2>&1) || rc=$?
-  # awk without exit (don't SIGPIPE the upstream printf under pipefail).
   tstates=$(printf '%s\n' "$out" | awk '/^Ticks:/{ts=$2} END{print ts}')
-  verify=$(classify_verify "$bench" llvm-z80 "$rc")
+  verify=$(classify_verify "$bench" llvm-z80 "$rc" "$opt")
   : "${tstates:=?}"
-  printf '%s\tllvm-z80\t%s\t%s\t%s\t%s\n' "$bench" "$bin" "$text" "$tstates" "$verify" >> "$TSV"
-  printf '%-20s llvm-z80    bin=%5s text=%5s ts=%10s %s\n' "$bench" "$bin" "$text" "$tstates" "$verify"
+  printf '%s\t%s\t%s\t%s' "$bin" "$text" "$tstates" "$verify"
 }
 
-run_zsdcc() {
+run_llvm_z80() {
   local bench=$1
+  local sres pres sbin stext sts sver pbin ptext pts pver
+  sres=$(measure_llvm_z80 "$bench" size)
+  pres=$(measure_llvm_z80 "$bench" speed)
+  IFS=$'\t' read -r sbin stext sts sver <<< "$sres"
+  IFS=$'\t' read -r pbin ptext pts pver <<< "$pres"
+  printf '%s\tllvm-z80\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$bench" "$sbin" "$stext" "$sts" "$sver" "$pbin" "$ptext" "$pts" "$pver" >> "$TSV"
+  printf '%-15s llvm-z80  size[bin=%5s ts=%10s %s]  speed[bin=%5s ts=%10s %s]\n' \
+    "$bench" "$sbin" "$sts" "$sver" "$pbin" "$pts" "$pver"
+}
+
+# Compile + measure ONE zsdcc cell at a given opt mode.  Compile failures are
+# non-fatal (guarded with `|| true`): a missing .bin yields a COMPILE_ERROR
+# tuple so the other mode / compiler still runs.
+measure_zsdcc() {
+  local bench=$1 opt=$2
   local src=../bench_${bench}.c
-  local prefix=zsdcc_${bench}
   local main=../test_main.c
+  local prefix=zsdcc_${opt}_${bench}
+  local -a flags
+  if [ "$opt" = speed ]; then flags=("${ZSDCC_FLAGS_SPEED[@]}"); else flags=("${ZSDCC_FLAGS[@]}"); fi
   rm -f ${prefix}* 2>/dev/null || true
 
-  env $ZCC_ENV $ZCC "${ZSDCC_FLAGS[@]}" -o $prefix "$src" "$main" >/dev/null 2>&1 || true
+  env $ZCC_ENV $ZCC "${flags[@]}" -o $prefix "$src" "$main" >/dev/null 2>&1 || true
   if [ ! -f ${prefix}.bin ]; then
-    printf '%s\tzsdcc\tFAIL\t-\t-\tCOMPILE_ERROR\n' "$bench" >> "$TSV"
-    printf '%-20s zsdcc       COMPILE_ERROR\n' "$bench"
+    printf 'FAIL\tn/a\t-\tCOMPILE_ERROR'
     return
   fi
 
-  local bin text tstates verify rc out
+  local bin tstates verify rc out
   bin=$(wc -c < ${prefix}.bin | tr -d ' ')
   # text size not extracted for SDCC (different map format); see word_fill
   # baseline doc for the manual counting approach when needed.
-  text="n/a"
-  # test_main.c traps to ticks via ED FE; same protocol as clang path.
   rc=0
   out=$(perl -e 'alarm 90; exec @ARGV' \
     $TICKS -mz80 -counter 200000000 ${prefix}.bin 2>&1) || rc=$?
   tstates=$(printf '%s\n' "$out" | awk '/^Ticks:/{ts=$2} END{print ts}')
-  verify=$(classify_verify "$bench" zsdcc "$rc")
+  verify=$(classify_verify "$bench" zsdcc "$rc" "$opt")
   : "${tstates:=?}"
-  printf '%s\tzsdcc\t%s\t%s\t%s\t%s\n' "$bench" "$bin" "$text" "$tstates" "$verify" >> "$TSV"
-  printf '%-20s zsdcc       bin=%5s ts=%10s %s\n' "$bench" "$bin" "$tstates" "$verify"
+  printf '%s\tn/a\t%s\t%s' "$bin" "$tstates" "$verify"
 }
 
-echo "Bench                  Compiler    bin     text       ts        verify"
-echo "---------------------- --------- ------- -------- ---------- ----------"
+run_zsdcc() {
+  local bench=$1
+  local sres pres sbin stext sts sver pbin ptext pts pver
+  sres=$(measure_zsdcc "$bench" size)
+  pres=$(measure_zsdcc "$bench" speed)
+  IFS=$'\t' read -r sbin stext sts sver <<< "$sres"
+  IFS=$'\t' read -r pbin ptext pts pver <<< "$pres"
+  printf '%s\tzsdcc\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$bench" "$sbin" "$stext" "$sts" "$sver" "$pbin" "$ptext" "$pts" "$pver" >> "$TSV"
+  printf '%-15s zsdcc     size[bin=%5s ts=%10s %s]  speed[bin=%5s ts=%10s %s]\n' \
+    "$bench" "$sbin" "$sts" "$sver" "$pbin" "$pts" "$pver"
+}
+
+# Compile + measure ONE dcc cell at a given opt mode by delegating to
+# build_dcc_corpus.sh (which drives dcc -> M80/L80 under VirtualCpm.jar and
+# then z88dk-ticks).  size=dccpeep OFF, speed=dccpeep ON.  build_dcc_corpus.sh
+# emits a `bin<TAB>text<TAB>ts<TAB>{PASS|FAIL|COMPILE_ERROR}` tuple; we map
+# that verdict to an rc (PASS=0, COMPILE_ERROR=2, else 1) and re-run it
+# through classify_verify so the XFAIL bookkeeping matches the other two
+# compilers.  The DCC_*/JAVA env are exported so the sed-rewritten sweep.sh
+# paths (and the sonnyboy Java-21 override) propagate into the child script.
+measure_dcc() {
+  local bench=$1 opt=$2
+  local raw bin text ts verify rc
+  raw=$(DCC_DIR="$DCC_DIR" VCPM_JAR="$VCPM_JAR" Z88DK="$Z88DK" TICKS="$TICKS" \
+        JAVA="$DCC_JAVA" "$HERE/build_dcc_corpus.sh" "$bench" "$opt" 2>/dev/null) || true
+  IFS=$'\t' read -r bin text ts verify <<< "$raw"
+  case "$verify" in
+    PASS)          rc=0 ;;
+    COMPILE_ERROR) rc=2 ;;
+    *)             rc=1 ;;   # FAIL, crash, or empty output
+  esac
+  verify=$(classify_verify "$bench" dcc "$rc" "$opt")
+  : "${bin:=FAIL}"; : "${text:=n/a}"; : "${ts:=-}"
+  printf '%s\t%s\t%s\t%s' "$bin" "$text" "$ts" "$verify"
+}
+
+run_dcc() {
+  local bench=$1
+  local sres pres sbin stext sts sver pbin ptext pts pver
+  sres=$(measure_dcc "$bench" size)
+  pres=$(measure_dcc "$bench" speed)
+  IFS=$'\t' read -r sbin stext sts sver <<< "$sres"
+  IFS=$'\t' read -r pbin ptext pts pver <<< "$pres"
+  printf '%s\tdcc\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$bench" "$sbin" "$stext" "$sts" "$sver" "$pbin" "$ptext" "$pts" "$pver" >> "$TSV"
+  printf '%-15s dcc       size[bin=%5s ts=%10s %s]  speed[bin=%5s ts=%10s %s]\n' \
+    "$bench" "$sbin" "$sts" "$sver" "$pbin" "$pts" "$pver"
+}
+
+echo "Each (bench, compiler) is measured twice: SIZE (clang -Oz / zsdcc"
+echo "--opt-code-size / dcc dccpeep-off) and SPEED (clang -O2 / zsdcc"
+echo "--opt-code-speed / dcc dccpeep-on)."
+echo "bin = binary bytes, ts = z80 t-states (lower is faster)."
+echo "Note: dcc .COM bundles the CP/M RTL (bin not byte-comparable) and its"
+echo "ts includes a small fixed CRT-startup cost; read dcc as trend, not parity."
+echo
 for b in "${BENCHES[@]}"; do
-  if [ "$ONLY" = "both" ] || [ "$ONLY" = "llvm-z80" ]; then
-    run_llvm_z80 "$b"
-  fi
-  if [ "$ONLY" = "both" ] || [ "$ONLY" = "zsdcc" ]; then
-    run_zsdcc "$b"
-  fi
+  want llvm-z80 && run_llvm_z80 "$b"
+  want zsdcc    && run_zsdcc "$b"
+  want dcc      && run_dcc "$b"
 done
 
 echo
