@@ -8265,3 +8265,51 @@ Filed #241 for 3 remaining peepholes still using raw `std::next`.
 **Production impact (all forced-fresh -B rebuilds)**:
 - autoload: raw payload 1948→1945 B (−3 B); ZX0 1481 B unchanged; PROM 1660 B / 388 B free
 - cpnos PROM1: 2017→2013 B (−4 B); payload 1988→1986 B; ZX0 1387→1384 B; 35 B free
+
+---
+
+**2026-06-25 — dcc-corpus three-compiler investigation (llvm-z80)**
+
+Root-caused the dcc vs clang T-state gaps from the 2026-06-24 baseline.
+No compiler changes; two new `known-suboptimal-codegen.md` entries filed.
+
+**M5 (scale-1 GEP strength reduction):** sieve/e/nqueens/ttt inner loops reload
+`ld hl, _flags` (10 T) every iteration.  DCC avoids this by keeping HL=ptr,
+DE=prime, BC=bound (pointer-based loop, ~39 T vs ~90 T per iteration).  LSR won't
+fix it: `isLSRCostLess` penalises NumRegs 2→3 more than the per-iteration base
+reload.  AVR has the same gap → middle-end issue.  Fix requires Z80GEPStrengthReduce
+pass or LSR cost model change.
+
+**M6 (Z80LowerSelect IY in pointer-scan loops):** `strrchr` allocates IY for `last`
+because Z80LowerSelect pre-computes `DE=s` (true-value) before branching, forcing
+old_last into IY as a save register (push/pop pairs waste ~76 T per iteration).
+Physical registers confirmed from `-print-after=virtregrewriter`.  Hand-crafted
+"conditional update" IR compiles to BC=s / L=c / DE=last with NO IY (37 T vs ~80 T
+per iteration, 2.2× strrchr speedup).  Fix: Z80LowerSelect should detect
+`select cond, new_val, phi_self` and emit branch-to-update instead of pre-compute.
+
+**tstring "hang" resolved:** PC at 2B-T-state counter = 0x0dd8 (inside `_strstr`
+outer scan loop, checking `*hay == 0`).  Program was mid-scan; finishes at 3.34B
+T-states.  Three contributing factors: strrchr IY overhead (M6), strstr BSS-global
+temp reloads, rand() 32-bit multiply cost.
+
+**dcc `%lu`/`%ld` non-issue confirmed:** `fact`/`triangle` T-state "wins" for dcc
+are bogus — dcc prints "lu"/"ld" literally instead of formatting the value.
+
+## Session 2026-06-28 — AES gf_log speed-gap refinement (close-out)
+
+Revalidated the "zsdcc faster than clang" AES K&R gap on current HEAD: `09_Oz_prod_like`
+clang 18.21 M vs zsdcc 12.08 M tstates (+50.8 %), byte-for-byte unchanged from 2026-06-08.
+Corrected a config-mismatch overclaim (plain `-Oz` is 17.02 M / +41 %; the ~7 % delta is the
+production size knobs `-disable-lsr/-machine-licm/-machine-cse`, NOT a narrowing change).
+
+Drilled the gap into `gf_log` and decomposed its inner loop into two waste sources, both
+traced to the single i16 `atb` phi kept wide by the `icmp eq i16 atb, x` loop-top test:
+(1) 20 T/iter — greedy spills the loop-invariant `x` (a `uint8_t` held as a gr16noir pair)
+and places the RELOAD inside the loop; (2) 8 T/iter — redundant bit-7 carry recompute
+(`ld a,l; rlca`) because the shift result must be shuttled out of HL. Control: `gf_alog`
+has the identical GF step but keeps `atb` in a single 8-bit reg (D, separate `while (x--)`
+counter) and is already optimal. Neither instcombine nor aggressive-instcombine narrows the
+phi (needs research-grade cyclic-phi width analysis, option 5). Stays ACCEPTED / off-critical-path.
+
+Documented in `llvm-z80/tasks/known-suboptimal-codegen.md` M1. No code change.

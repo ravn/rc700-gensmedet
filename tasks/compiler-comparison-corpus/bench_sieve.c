@@ -29,9 +29,14 @@ unsigned int bench_run(void)
 {
    uint16_t i, i_sq, k, count;
 
-   /* BSS is zeroed by the reset stub (workaround for
-    * ravn/llvm-z80#182 -- explicit zero-init loops crash at -O1+).
-    * No explicit init needed here. */
+   /* The freestanding clang/zsdcc cells arrive here with zeroed BSS from
+    * their startup path.  dcc's CP/M runtime does not, so the dcc cell must
+    * clear the sieve bitmap explicitly to preserve the same source-level
+    * semantics without perturbing the other compilers' setup. */
+#ifdef _DCC_
+   for (i = 0; i < SIZE; ++i)
+      flags[i] = 0;
+#endif
 
    count = SIZE - 2;
 

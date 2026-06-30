@@ -18,6 +18,17 @@
 > Unpark trigger: user signals the cable arrived.  Memory rule:
 > `tasks/memory/project_cpnos_parked_awaiting_parallel_cable.md`.
 
+> **2026-06-28 housekeeping pass:** PROM1 size re-measured **2014 B /
+> 34 B free**; CLAUDE.md + this checklist synced to it (the old 2027/2022
+> figures corrected).  Item #3 (todo-* triage) DONE — 9 active files
+> classified (1 shipped, 2 in-play, 6 deferred, 1 blocked); see item #3
+> below.  Item #2 (headroom recovery) narrowed: #173 and #172 both
+> verified ~0 cpnos yield today, so `BOOT_MARK_ENABLED=0` (~67 B) is the
+> only measured lever left and needs a user go-ahead.  Items #1 (CI
+> size-cap gate, now also needs a Docker compiler-baseline image first —
+> user 2026-06-28) and #5 (isr_pio_par speed) remain behind the
+> cable-park / infra-prereq.
+
 > **2026-06-15 polish pass:** task tree triaged (23 files moved to
 > `tasks/history/`, 13 active references kept) and indexed at
 > [`tasks/README.md`](README.md).  PROM1 size today is 2015 B —
@@ -36,10 +47,11 @@ pair with the other three component checklists.
 ## TL;DR
 
 **Works in production, but size headroom is the single fragile thing
-about it.**  Current PROM1 = **2015 / 2048 B = 33 B free (1.6 %)** as
-of 2026-06-15 (up from 2027 B / 21 B free on 2026-06-04 — backend
-gains).  Any future compiler/code change can still blow the cap
-silently and break shipping.  Closing this component means: (1) make
+about it.**  Current PROM1 = **2014 / 2048 B = 34 B free (1.7 %)** as
+of 2026-06-28 (drifted within ±1 B over the past month from llvm-z80
+backend gains, no cpnos source change).  Any future compiler/code change
+can still blow the cap silently and break shipping.  Closing this
+component means: (1) make
 the size cap a hard CI gate, (2) widen headroom to a sustainable
 margin (≥ 50 B), (3) triage `tasks/todo-*.md` — **DONE 2026-06-15**,
 see [`tasks/README.md`](README.md) for the current 13-active +
@@ -62,8 +74,10 @@ Net: zero open code bugs.  The fragility is structural (size), not bug.
 
 ## Status: doc gaps
 
-- **CLAUDE.md size numbers are stale.**  Records 2022 B (26 B free); actual
-  today is 2027 B (21 B free).  Drifted +5 B since last update.
+- **CLAUDE.md size numbers** — REFRESHED 2026-06-28 to the current
+  measured **2014 B / 34 B free** (was 2013 B / 35 B on 2026-06-23; the
+  older "2022 B / 26 B" record this note used to flag is long superseded).
+  CLAUDE.md and this checklist are now in sync at 2014 B.
 - ~~**Default `make` target** runs the parked two-PROM build~~ —
   RESOLVED 2026-06-03 by the two-PROM removal; `make` now builds
   `prom1-lineprog` cleanly.
@@ -81,7 +95,7 @@ Net: zero open code bugs.  The fragility is structural (size), not bug.
 
 | Target | What it asserts | State |
 |---|---|---|
-| `make prom1-lineprog` | builds + size ≤ 2048 B hard cap (`CPNOS_PROM1_CAP`) | **PASS** (2027 B, 21 B free) |
+| `make prom1-lineprog` | builds + size ≤ 2048 B hard cap (`CPNOS_PROM1_CAP`) | **PASS** (2014 B, 34 B free, 2026-06-28) |
 | `make cpnos-polypascal-test` | end-to-end CP/NET via MP/M, PolyPascal compiles + runs, prints primes | **PASS ~50.65 s clang** |
 | `make sio-smoke` | SIO transport smoke test | per session 73s-cont2 PASS |
 | `make pio-irq-netboot` / `pio-irq-smoke` | PIO-IRQ transport | per session 73s PASS |
@@ -94,24 +108,32 @@ boot.
 
 ## Status: size headroom — the central issue
 
-- **2027 / 2048 B = 21 B free (1.0 %).**  Smallest margin of the four
-  components.  Up +9 B vs the 2018 B post-73s-cont2 baseline; up +5 B vs
-  the 2022 B last recorded in CLAUDE.md.
+- **2014 / 2048 B = 34 B free (1.7 %)** (re-measured 2026-06-28).
+  Smallest margin of the four components.  Drifted within ±1 B over the
+  last month from accumulated llvm-z80 backend gains with no cpnos source
+  change (2018 B post-73s-cont2 → 2015 B 2026-06-15 → 2013 B 2026-06-23 →
+  2014 B 2026-06-28).  Compiler density levers for further shrink are
+  TAPPED OUT (verified 2026-06-28): #173 cross-MBB spill peephole and #172
+  A-pin both yield ~0 cpnos bytes; gf_log/M1 is off cpnos's path.
 - The cap is hardware-set (`feedback_no_undocumented_default` /
   `project_rc702_2kb_prom_hard_limit`): user's RC702 has no A11 bridge,
   PROM is physically 2 KB.  Cannot widen the cap.
 - **Available shrink levers** (cost / yield):
-  - **ravn/llvm-z80#173** — 8-bit BSS spill via A push/pop peephole;
-    queued; estimated 5–10 B cpnos shrink; 3–4 h compiler work.
+  - ~~**ravn/llvm-z80#173** — 8-bit BSS spill via A push/pop peephole~~ —
+    **CLOSED 2026-06-28, ~0 cpnos yield.**  Same-MBB part already shipped
+    (cpnos −1 B); cross-MBB remainder re-catalogued on current binaries =
+    0 cpnos bytes.  Not a shrink lever.
+  - ~~**#172 A-pin**~~ — re-validated 2026-06-28: AES +1 B, cpnos
+    byte-identical.  Not a shrink lever.
   - **`BOOT_MARK_ENABLED=0`** — disable cold-init visual diagnostic
     markers; recovers ~67 B per the 73j shrink-investigation; default
-    OFF currently, ON would lose dev visibility.  Default-OFF would let
-    headroom jump to ~88 B free.
+    OFF currently, ON would lose dev visibility.  **This is now the ONLY
+    measured headroom lever left**; needs a user go-ahead.
   - **ZX0 reclaim follow-up** — per session 76, seed-order reordering
     saved 1 B; similar peephole sweeps may yield single-digit B each.
-  - **`tasks/zx0-prom1-only-plan-2026-05-17.md`** — "planned, not
-    started."  Was the path that already DID land (got us to 2018 B).
-    Likely STALE.
+  - ~~**`tasks/zx0-prom1-only-plan-2026-05-17.md`**~~ — SHIPPED; that plan
+    IS the current production PROM1-only-ZX0 topology.  STALE as a lever
+    (banner added to the file 2026-06-28).
 - **No CI gate on the cap.**  Makefile errors at build if exceeded, but
   only when `make prom1-lineprog` is run.  CI (test-runner job) doesn't
   currently build this target afaict — verify and wire it.
@@ -136,17 +158,56 @@ boot.
    target so it doesn't hit the parked two-PROM error.  ~30 min.
    *(Default-target fix DONE 2026-06-03 as part of the two-PROM removal;
    CI-gate part is still open.)*
+   **PREREQUISITE (user 2026-06-28):** building `prom1-lineprog` in CI
+   needs the llvm-z80 clang, and CI must NOT rebuild the whole compiler
+   each run.  Before wiring this gate, stand up a **Docker baseline image**
+   that ships a warm compiler build (object tree / sccache cache) so each
+   CI run only recompiles the few changed Z80-backend TUs.  Today's CI
+   (`.github/workflows/z80-ci.yml`) relies on `hendrikmuhs/ccache-action`
+   (2 G GHA cache) which still does a full configure + cold-miss rebuilds
+   on eviction.  The Docker-baseline approach (periodically-refreshed
+   prebuilt image, delta-only ninja) is the intended fix.  Deferred — do
+   the compiler-baseline-image work first, then add the size-cap gate.
 2. **Headroom recovery to ≥ 50 B (~2.4 %).**  Choose ONE:
-   (a) Implement ravn/llvm-z80#173 (estimated 5–10 B; 3–4 h);
+   (a) ~~Implement ravn/llvm-z80#173 (estimated 5–10 B; 3–4 h)~~ —
+   **STALE/CLOSED 2026-06-28.**  #173's cheap same-MBB peephole already
+   shipped (session 73p, since unified under #203), worth only cpnos
+   −1 B; the remaining cross-MBB extension was re-catalogued on current
+   binaries (2026-06-28) and still yields **0 cpnos bytes** (the one
+   residual 8-bit spill bracket is the bare-store/cross-MBB shape the
+   peephole deliberately skips).  Path C (#172 A-pin) also re-validated
+   the same day: AES +1 B, cpnos byte-identical.  **Neither lever can
+   recover cpnos headroom** — both verified, both parked.  Do NOT budget
+   #173 as a shrink lever.
    (b) Flip `BOOT_MARK_ENABLED=0` for production (~67 B; user
-   directive needed — costs dev diagnostic).  Recommend (a) for
-   correctness/sustainability; (b) if (a) yields too little.
-3. **Triage `tasks/todo-*-2026-05-17.md`.**  17 files.  Close DONE
-   ones; mark DEFERRED with explicit owners or kill; keep only items
-   actually in play.  ~1 h.
-4. **CLAUDE.md size refresh.**  Update "PROM budget watch" line + the
-   cpnos-in-c row in the per-component summary to today's 2027 B.
-   ~10 min.
+   directive needed — costs dev diagnostic).  This is now the ONLY
+   measured headroom lever left for cpnos; needs a user go-ahead.
+3. **Triage `tasks/todo-*-2026-05-17.md`** — **DONE 2026-06-28.**  9 active
+   todo/plan files classified (the "17" was pre-2026-06-15; 23 already
+   moved to `tasks/history/` in the 06-15 pass).  Verified each against
+   current reality — note `cpnos.img` is STILL live (CP/NET-served slave
+   image, 21 Makefile refs), so the img-related todos are genuine deferred
+   enhancements, NOT superseded by the two-PROM removal:
+
+   | File | Class | Note |
+   |---|---|---|
+   | `zx0-prom1-only-plan` | **SHIPPED** | IS the current production topology; banner added |
+   | `todo-56k-tpa` | **DEFERRED-blocked** | needs CODE_BASE ≥ 0xE080; further TPA grow eats the scarce 34 B payload headroom — blocked by the 2 KB cap |
+   | `todo-prom1-compression-to-restore-bootmark` | **IN-PLAY** | directly tied to the BOOT_MARK_ENABLED=0 headroom decision (item #2) |
+   | `todo-cpnos-img-zx0-compression` | **DEFERRED** | cpnos.img live; CP/NET-transfer speed enhancement |
+   | `todo-cpnos-relocatable` | **DEFERRED** | cpnos.img live; not blocking |
+   | `todo-load-from-cpnos-img` | **DEFERRED** | cpnos.img live; tables+font-at-boot enhancement |
+   | `todo-translation-tables` | **DEFERRED** | not blocking anything live (per its own file) |
+   | `todo-dma-dual-buffer` | **DEFERRED-experiment** | user-flagged risky ("will ruin 0xF800 layout") |
+   | `todo-polypascal-no-mirror-stage4` | **DEFERRED-experiment** | primary polypascal-test (MIRROR_SIOB=1) is fine; only the no-mirror stage-4 ">>" detection is incomplete |
+   | `todo-mame-build-binary-name` | **IN-PLAY (low-pri)** | `mame` vs `regnecentralend` binary-name drift; Makefile/doc cleanup |
+
+   Net: 1 shipped, 2 in-play (1 low-pri), 6 deferred, 1 deferred-blocked.
+   No DONE-but-open or kill candidates remain — all are either shipped or
+   legitimately deferred with a reason.
+4. **CLAUDE.md size refresh** — **DONE 2026-06-28.**  CLAUDE.md cpnos line
+   and this checklist refreshed to the current measured **2014 B / 34 B
+   free**; the stale 2027 B / 2022 B figures corrected throughout.
 5. **Optimize isr_pio_par for speed** (throughput-critical; user-flagged
    2026-06-04).  Currently 184 T-states / ~46 µs body, capping CP/NET RX
    at ~19.6 kbyte/s; cpnos-polypascal-test (~51 s end-to-end) is

@@ -1,5 +1,13 @@
 # cpnos-in-c -> PROM1-only line program with ZX0
 
+> **SHIPPED — superseded 2026-06-28.**  This plan IS the current
+> production topology: cpnos-in-c builds as a PROM1-only line program
+> with ZX0-compressed init + payload blobs (`make prom1-lineprog`, the
+> only supported slave topology per `tasks/TWO_PROM_PARKED.md`).  The
+> build emits `clang-prom1lineprog/{init,payload}.zx0`; current size is
+> 2014 B / 2048 (34 B free).  Kept for the original measurements/rationale
+> only — it is no longer a pending task.
+
 Status: planned, not started. Measurements verified 2026-05-17.
 
 ## Goal
