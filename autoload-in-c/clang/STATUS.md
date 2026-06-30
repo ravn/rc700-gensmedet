@@ -1,17 +1,16 @@
 # Clang Z80 PROM Build Status
 
-## Current: CP/M boots, 1909 / 2048 B (139 B free) — re-baselined 2026-07-01
+## Current: CP/M boots, 1660 / 2048 B (388 B free) — 2026-07-01
 
-PROM0: **1909 / 2048 B (hard 2 KB cap, 139 B free)**, ZX0-compressed payload
-(raw 2282 B → ZX0 1730 B).  CP/M boots in MAME (`make floppy-boot-test` PASS,
-reaches `A>` on the unpatched `SW1711-I8.imd`).  clang is the production
-compiler; SDCC is parity-only / 4 KB MAME-only.
+PROM0: **1660 / 2048 B (hard 2 KB cap, 388 B free)**, ZX0-compressed payload.
+CP/M boots in MAME (`make floppy-boot-test` PASS, reaches `A>` on the unpatched
+`SW1711-I8.imd`).  clang is the production compiler; SDCC is parity-only / 4 KB
+MAME-only.
 
-Headroom dropped 388 → 139 B free since 2026-06-23 — root-caused to the SIO-B
-debug facility (ravn/rc700-gensmedet#118); see
-[`../tasks/finishing-checklist.md`](../tasks/finishing-checklist.md) for the
-finishing state and [`../tasks/todo-later.md`](../tasks/todo-later.md) for the
-headroom-recovery task.
+The temporary SIO-B polled-debug facility (added 2026-06-28 while debugging a
+no-start, dropped headroom to 139 B) was **removed 2026-07-01** — headroom back
+to the 388 B baseline (ravn/rc700-gensmedet#118 closed).  A better debug path
+will be built later; see [`../tasks/finishing-checklist.md`](../tasks/finishing-checklist.md).
 
 > The byte/gap figures below predate ZX0 compression (2026-05-17) and the
 > 2 KB-cap migration — kept only as historical context.

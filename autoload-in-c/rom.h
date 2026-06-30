@@ -160,8 +160,6 @@ DEFPORT(pio_a_data,   0x10)
 DEFPORT(pio_b_data,   0x11)
 DEFPORT(pio_a_ctrl,   0x12)
 DEFPORT(pio_b_ctrl,   0x13)
-DEFPORT(sio_b_data,   0x09)    /* Z80 SIO channel B data (console/debug) */
-DEFPORT(sio_b_ctrl,   0x0B)    /* Z80 SIO channel B control/status */
 DEFPORT(sw1,          0x14)
 
 /* SW1 bit mask for the joined SIO-B console / debug switch (S01).
@@ -211,10 +209,6 @@ DEFPORT(dma_clbp,     0xFC)
 #define pio_write_a_ctrl(d)     port_out(pio_a_ctrl, (d))
 #define pio_write_b_data(d)     port_out(pio_b_data, (d))
 #define pio_write_b_ctrl(d)     port_out(pio_b_ctrl, (d))
-
-#define sio_b_ctrl_write(d)     port_out(sio_b_ctrl, (d))
-#define sio_b_ctrl_read()       port_in(sio_b_ctrl)
-#define sio_b_data_write(d)     port_out(sio_b_data, (d))
 
 #define crt_param(d)            port_out(crt_param, (d))
 #define crt_command(d)          port_out(crt_cmd, (d))

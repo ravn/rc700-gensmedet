@@ -228,9 +228,17 @@ in the Makefile catches any decoder bug at build time.
 **Status:** not started.
 
 
-## Gate SIO-B debug facility out of production (headroom recovery ~200 B)
+## ~~Gate SIO-B debug facility out of production~~ — DONE 2026-07-01 (REMOVED, #118 CLOSED)
 
-**Tracked: ravn/rc700-gensmedet#118.**
+Resolved by **removing** the SIO-B debug facility outright (not gating it): the
+user confirmed it was temporary no-start-debugging scaffolding, no longer needed,
+and a better debug path (the gdb-z80 stub in `tasks/gdb-z80/`, or a cleaner
+serial facility) will be built later.  Removed the `sio_b_*` block +
+`autoload_bios_loaded_bp` MAME-bpset hook (`rom.c`) and the SIO-B port
+defs/macros (`rom.h`); recovered 249 B (1909 → 1660 B, **388 B free**), boot
+PASS.  Original task notes kept below for context.
+
+**Tracked: ravn/rc700-gensmedet#118 (CLOSED).**
 
 **Problem:** the SIO-B polled debug-output facility (`sio_b_*` in `rom.c`,
 added 2026-06-28 in `a7a7293`, plus the `rom.c:779-793` boot-pointer/signature/

@@ -4,29 +4,32 @@ What's left to call this component "finished" per the four-component
 long-term goal (`tasks/memory/project_finishing_firmware_components.md`).
 Round 1 audit; pair with the other three component checklists.
 
-## STATUS 2026-07-01 — size re-baselined; growth root-caused; one headroom decision open
+## STATUS 2026-07-01 — SIO-B debug removed; headroom restored to 388 B
 
-Re-measured on a clean `make prom` with current clang (build-macos):
-**1909 / 2048 B = 139 B free** (raw payload 2282 B, ZX0 1730 B).  Boot gate
-**PASS** — `make floppy-boot-test` reaches `A>` on the unpatched
-`SW1711-I8.imd` (frame 175 / 3.5 s), banner `RC700 56k CP/M vers.2.2 rel. 2.3`.
+**1660 / 2048 B = 388 B free** (clean `make prom`, current clang).  Boot gate
+**PASS** — `make floppy-boot-test` reaches `A>` on the unpatched `SW1711-I8.imd`
+(frame 175 / 3.5 s), banner `RC700 56k CP/M vers.2.2 rel. 2.3`.
 
-**Headroom regressed 388 → 139 B free since 2026-06-23.**  Root-caused (not a
-compiler regression): commit `a7a7293` (2026-06-28, "unify SW1 switch; cross-
-version boot-matrix gate") added a **SIO-B polled debug-output facility**
-(`sio_b_*` in `rom.c` + the `rom.c:779-793` boot dump), ~200 B raw, gated only
-at runtime by SW1 bit 0 — never compiled out.  Filed **ravn/rc700-gensmedet#118**
-(add a `-DAUTOLOAD_SIO_DEBUG` build-time gate to recover ~200 B for production).
-The remaining ~50 B is the SW1-unification overhead.
+**Headroom-regression resolved by removal.**  A temporary SIO-B polled-debug
+facility was added 2026-06-28 (`a7a7293`) while debugging a no-start; it shipped
+in production gated only at runtime (SW1 bit 0) and dropped headroom 388 → 139 B.
+The user confirmed it is no longer needed (a better debug path will be built
+later), so it was **removed 2026-07-01** — the `sio_b_*` block + the
+`autoload_bios_loaded_bp` MAME-bpset hook in `rom.c`, the SIO-B port defs/macros
+in `rom.h`, and the two call sites.  Removing it recovered exactly 249 B
+(1909 → **1660 B**, back to the 388 B baseline).  **ravn/rc700-gensmedet#118
+closed** (removed rather than gated).  Production unaffected otherwise (boot
+byte-flow identical; only the removed debug code differs).
 
-**All size docs were stale and are being refreshed this pass:** `clang/STATUS.md`
-(said 2453 B, pre-ZX0!), `README.md`, this checklist, and the workspace CLAUDE.md
-(said 1660 B / 388 free).
+**Size docs refreshed this pass:** `clang/STATUS.md` (was grossly stale at
+2453 B, pre-ZX0), this checklist, workspace CLAUDE.md.
 
-**Open finishing items now:** (a) #118 headroom decision (gate SIO-B debug or
-accept 139 B); (b) SDCC parity probe — was Docker-blocked, now runnable (Docker
-up + native SDCC at `z88dk/src/sdcc-build/bin`).  (c) DONE this pass — banner
-confirmed auto-generated (known-bug #2 RESOLVED, was stale-marked OPEN).
+**Open finishing items now:** (a) SDCC parity probe — was Docker-blocked, now
+runnable (Docker up + native SDCC at `z88dk/src/sdcc-build/bin`).  (b) the
+"better debug path" the user wants to build later (the gdb-z80 stub in
+`tasks/gdb-z80/`, or a cleaner serial facility) — parked feature, not a blocker.
+Banner cosmetic bug (#2) RESOLVED this pass — auto-generated from build date +
+git hash.
 
 ---
 
