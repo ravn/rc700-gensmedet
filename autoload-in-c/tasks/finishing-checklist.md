@@ -4,6 +4,32 @@ What's left to call this component "finished" per the four-component
 long-term goal (`tasks/memory/project_finishing_firmware_components.md`).
 Round 1 audit; pair with the other three component checklists.
 
+## STATUS 2026-07-01 — size re-baselined; growth root-caused; one headroom decision open
+
+Re-measured on a clean `make prom` with current clang (build-macos):
+**1909 / 2048 B = 139 B free** (raw payload 2282 B, ZX0 1730 B).  Boot gate
+**PASS** — `make floppy-boot-test` reaches `A>` on the unpatched
+`SW1711-I8.imd` (frame 175 / 3.5 s), banner `RC700 56k CP/M vers.2.2 rel. 2.3`.
+
+**Headroom regressed 388 → 139 B free since 2026-06-23.**  Root-caused (not a
+compiler regression): commit `a7a7293` (2026-06-28, "unify SW1 switch; cross-
+version boot-matrix gate") added a **SIO-B polled debug-output facility**
+(`sio_b_*` in `rom.c` + the `rom.c:779-793` boot dump), ~200 B raw, gated only
+at runtime by SW1 bit 0 — never compiled out.  Filed **ravn/rc700-gensmedet#118**
+(add a `-DAUTOLOAD_SIO_DEBUG` build-time gate to recover ~200 B for production).
+The remaining ~50 B is the SW1-unification overhead.
+
+**All size docs were stale and are being refreshed this pass:** `clang/STATUS.md`
+(said 2453 B, pre-ZX0!), `README.md`, this checklist, and the workspace CLAUDE.md
+(said 1660 B / 388 free).
+
+**Open finishing items now:** (a) #118 headroom decision (gate SIO-B debug or
+accept 139 B); (b) SDCC parity probe — was Docker-blocked, now runnable (Docker
+up + native SDCC at `z88dk/src/sdcc-build/bin`).  (c) DONE this pass — banner
+confirmed auto-generated (known-bug #2 RESOLVED, was stale-marked OPEN).
+
+---
+
 ## STATUS 2026-06-04 — close-out items 1-3 + 5 LANDED
 
 All five originally-identified close-out items are addressed.  Three are
@@ -33,7 +59,7 @@ polish items remain; none are blockers.
 | # | Title | State |
 |---|---|---|
 | 1 | C autoload hangs in FDC detect, never hands off to BIOS | **RESOLVED 2026-06-03** (was a harness limit; not codegen) |
-| 2 | Banner string hardcoded + stale (`"RC700 CL 2026-04-15 12.15/ravn"`) | **OPEN — cosmetic.** Either regen from `builddate.h` per rcbios-in-c pattern, or drop the date. |
+| 2 | Banner string hardcoded + stale (`"RC700 CL 2026-04-15 12.15/ravn"`) | **RESOLVED 2026-06-04** (verified 2026-07-01): banner auto-generated from build date + git hash; fresh build stamps `RC700 ROA375 CL <date> <hash>/ravn`. |
 | 3 | MAME path was wrong (workspace restructure) | **FIXED 2026-05-04** |
 
 ## Status: doc gaps

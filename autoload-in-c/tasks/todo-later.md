@@ -227,3 +227,28 @@ in the Makefile catches any decoder bug at build time.
 
 **Status:** not started.
 
+
+## Gate SIO-B debug facility out of production (headroom recovery ~200 B)
+
+**Tracked: ravn/rc700-gensmedet#118.**
+
+**Problem:** the SIO-B polled debug-output facility (`sio_b_*` in `rom.c`,
+added 2026-06-28 in `a7a7293`, plus the `rom.c:779-793` boot-pointer/signature/
+first16 hex dump) ships in every production PROM, gated only at RUNTIME by
+SW1 bit 0 — the ~200 B of code + strings occupy the hard 2 KB budget regardless.
+This is what dropped headroom from 388 B → **139 B free** (PROM now 1909 B).
+
+**Measured footprint (raw, pre-ZX0):** `sio_b_hex8` 42 B, `sio_b_puts` 35 B,
+`sio_b_hex8.hexd` 17 B, `sio_b_putc` 11 B, `sio_b_init_seq` 7 B, ~90 B debug
+strings = ~202 B + inlined `sio_b_debug_init`/`sio_b_hex16` + port helpers.
+
+**Fix:** add a build-time gate (`-DAUTOLOAD_SIO_DEBUG`, default OFF for
+production) that `#ifdef`s out the `sio_b_*` definitions AND the boot-path
+calls (`sio_b_debug_init()` at rom.c:1100, the dump block at rom.c:779-793).
+Keep the runtime SW1 gate inside the debug build.  Production recovers ~200 B
+(headroom back toward ~340 B); developers opt in for early serial tracing.
+
+**Decision needed first (user):** gate out for production (recommended), or keep
+as a permanent field-diagnostic and accept 139 B free as the baseline.
+
+**Status:** not started; awaiting the keep-vs-gate decision (#118).

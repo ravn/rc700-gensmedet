@@ -180,18 +180,14 @@ cd rc700-gensmedet/rcbios-in-c && make mame-roms-rcbios
 This is the working PROM.  Continue using autoload-in-c only for
 its own development work (and for now, expect it to hang).
 
-## 2. Banner string is hard-coded and stale
+## 2. Banner string is hard-coded and stale — RESOLVED 2026-06-04 (verified 2026-07-01)
 
-`boot_rom.c` defines:
-
-```c
-const char banner_string[] = "RC700 CL 2026-04-15 12.15/ravn";
-```
-
-The build date is not auto-generated.  Should be regenerated from
-`builddate.h` (parallel to rcbios-in-c's pattern) or removed if
-the autoload PROM doesn't need a build date stamp.  Cosmetic, not
-a blocker.
+The banner is now **auto-generated** from the build date + git hash
+(rcbios `builddate.h` pattern, `clang/banner.h` with a `FORCE` dep).
+Verified 2026-07-01: a fresh `make prom` stamps
+`RC700 ROA375 CL 2026-07-01 01.23 61c5d78/ravn` (date + short hash + user),
+and the only byte-delta between two builds is that timestamp.  The old
+hard-coded `"RC700 CL 2026-04-15 12.15/ravn"` is gone.  Closed.
 
 ## 3. MAME path was wrong (FIXED 2026-05-04)
 
