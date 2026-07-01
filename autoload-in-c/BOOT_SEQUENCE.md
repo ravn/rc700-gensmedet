@@ -34,16 +34,19 @@ from the current clang build (`llvm-nm clang/prom.clang.elf`).
 
 ### ROM — before ZX0 decompression (physical PROM0, 0x0000–0x07FF)
 
+The ZX0 decoder is **split around the NMI vector** to fill the otherwise-wasted
+pre-NMI ROM, and the banner lives in the compressed payload (not raw in ROM):
+
 | Address | Size | Contents |
 |---|---|---|
-| `0x0000` | | `.boot` — `start()` (DI, set SP, `reloc_zx0()`, jump) + init helpers |
-| `0x0021` | 40 B | `banner_string` — `RC700 ROA375 CL <date> <hash>/<user>` |
+| `0x0000` | 33 B | `.boot` — `start()` (DI, set SP, `reloc_zx0()`, jump) |
+| `0x0021` | ~57 B | `.zx0_decoder` — ZX0 decoder **main loop** (`_reloc_zx0` + `dzx0_standard` … `dzx0s_new_offset`) |
+| `~0x005C`–`0x0066` | ~10 B | padding (`0xFF`) |
 | `0x0066` | 2 B | `.nmi` — NMI handler (`RETN`) at the Z80 hardwired vector |
-| `0x0068` | 6 B | `_reloc_zx0` — decoder wrapper (HL = compressed src, DE = 0x6000) |
-| `0x006E` | ~69 B | `dzx0_standard` — ZX0 decoder (Einar Saukas) |
-| `0x00B3` | **1484 B** | `.text_compressed` — ZX0-compressed payload |
-| `0x067F` | | `__prom_end` — **PROM used = 1663 B** |
-| `0x067F`–`0x07FF` | 385 B | free (`0xFF`) |
+| `0x0068` | ~15 B | `.zx0_decoder_hi` — decoder **tail** (`dzx0s_elias` subroutine), reached only by `CALL` |
+| `0x0077` | **1524 B** | `.text_compressed` — ZX0-compressed payload (now includes the banner) |
+| `0x066B` | | `__prom_end` — **PROM used = 1643 B** |
+| `0x066B`–`0x07FF` | 405 B | free (`0xFF`) |
 | `0x0800` | | **2 KB hard cap** (A11 not bridged) |
 
 ### RAM — after ZX0 decompression (0x6000–0xBFFF)
@@ -53,13 +56,25 @@ from the current clang build (`llvm-nm clang/prom.clang.elf`).
 
 | Address | Size | Contents |
 |---|---|---|
-| `0x6000` | 1949 B | `_intvec` (IM2 vector table) + `.text` code + rodata (`__code_start`; I-reg = 0x60) |
-| `0x679D` | 53 B | `.bss` (`__bss_start`) |
-| `0x67D2` | | `__bss_end` — end of the decompressed image |
-| `0x67D2`–`0x782F` | ~4.6 KB | free RAM |
+| `0x6000` | 1996 B | `_intvec` (IM2 vector table) + `.text` code + rodata + `banner_string` (`__code_start`; I-reg = 0x60) |
+| `0x679D` | 47 B | `banner_string` (decompressed here; `BANNER_PTR = &banner_string`) |
+| `0x67CC` | 53 B | `.bss` (`__bss_start`) |
+| `0x6801` | | `__bss_end` — end of the decompressed image |
+| `0x6801`–`0x782F` | ~4 KB | free RAM |
 | **`0x7830`** | 2000 B | **display framebuffer** (80×25, `DSPSTR_ADDR`, via DMA ch2) — ends at 0x8000 |
 | `0x8000`–`0xBFFE` | 16 KB | free RAM (upper half) |
 | `0xBFFF` | | stack top (`ROM_STACK`, grows down) |
+
+**Pre-NMI packing (2026-07-01).**  The 74 B ZX0 decoder used to sit entirely
+after the NMI vector (payload started at 0x00B3), and the banner was 47 raw
+bytes at 0x0021.  Now the decoder's main loop fills the pre-NMI region (0x0021)
+and its elias tail goes after the NMI at 0x0068 — a clean split because
+`dzx0s_new_offset` ends in an unconditional `jr`, so the tail is only reached by
+`CALL` (no branch crosses the gap, no bridge instruction).  The banner moved
+into the compressed payload.  Net PROM: 1663 → 1643 B (payload start 0x00B3 →
+0x0077 = −60 B, minus ~40 B the banner adds compressed — its date+hash don't
+compress well).  A linker `ASSERT(. <= 0x0066)` fails the build if the pre-NMI
+decoder part ever overruns the NMI vector.
 
 **32 KB → 64 KB history.**  The original roa375 ROM placed its display at 0x7800
 — the top of a 32 KB machine's RAM (0x0000–0x7FFF).  The C rewrite targets 64 KB

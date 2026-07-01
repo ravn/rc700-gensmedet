@@ -283,7 +283,8 @@ clang/prom.clang.bin: $(CLANG_OBJS) $(CLANG_ZX0_OBJS) clang/rc700_prom.ld
 	$(RUN) $(CLANG_LD) --gc-sections -T clang/rc700_prom.ld $(CLANG_OBJS) $(CLANG_ZX0_OBJS) -o clang/prom.clang.elf
 	$(RUN) $(CLANG_OBJCOPY) -O binary \
 	    --only-section=.boot --only-section=.nmi \
-	    --only-section=.zx0_decoder --only-section=.text_compressed \
+	    --only-section=.zx0_decoder --only-section=.zx0_decoder_hi \
+	    --only-section=.text_compressed \
 	    clang/prom.clang.elf clang/prom.clang.bin
 	# Source-annotated listing (committed to git for historical diffs
 	# without needing to rebuild clang).

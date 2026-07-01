@@ -32,10 +32,16 @@ extern char _bss_start[], _bss_size[];
 extern void reloc_zx0(void);
 
 /* Banner string — NUL-terminated, referenced by display_banner in CODE.
- * memcpy copies exactly BUILD_BANNER_LENGTH bytes; the NUL is not transferred. */
+ * memcpy copies exactly BUILD_BANNER_LENGTH bytes; the NUL is not transferred.
+ *
+ * Section .textbanner (not .pagezero.data): the linker routes it into the
+ * ZX0-compressed .text payload (VMA in RAM), so the banner costs compressed
+ * bytes instead of a full uncompressed copy in the scarce pre-NMI ROM.  It is
+ * read after decompression via BANNER_PTR = &banner_string, which resolves to
+ * the RAM address automatically. */
 #include "clang/banner.h"
 #ifdef __ELF__
-__attribute__((section(".pagezero.data"), used))
+__attribute__((section(".textbanner"), used))
 #endif
 const char banner_string[] = BUILD_BANNER;
 _Static_assert(sizeof(banner_string) - 1 == BUILD_BANNER_LENGTH, "banner length mismatch");
