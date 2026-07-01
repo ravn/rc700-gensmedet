@@ -128,9 +128,35 @@ roundtrip-verify.  MAME CP/M boot PASS.  SDCC variant NOT ported
 QR-at-boot work now fits inside a ~539 B headroom budget instead
 of the tight ~42 B pre-ZX0.
 
-## ID Comal compatibility
+## ID Comal compatibility — BOOT WORKS (verified 2026-07-01); relocation NOT needed
 
-**Idea:** make autoload-in-c boot an ID Comal system, not just CP/M
+**Status update 2026-07-01:** autoload **already boots ID-COMAL correctly** — the
+concern below (relocated code clobbered by the sector read) is unfounded for the
+real image.  Verified with the `RC700 comal rev. 01.11` disk (datamuseum.dk
+Bits:30005726, committed at `test-disks/RC700_Comal.imd`):
+
+- autoload detects ` RC700` at 0x0002, `floppy_legacy_boot()` reads `INTVEC_ADDR`
+  (0x6000) bytes to 0x0000 and jumps to 0x1000; **COMAL boots to its
+  `RC700 comal rev. 01.11` banner + `*` prompt and is interactive** (banner,
+  editor, keyboard all work).
+- The load into 0x0000-0x6000 was checked byte-for-byte against the disk tracks:
+  **98.6% match** (the differences are COMAL's own zero-page/workspace scribbles
+  after it starts; upper half 0x2500-0x6000 is 100%).  The contiguous COMAL boot
+  system is ~9 KB (0x0000-0x2300) and fits well within the 0x6000 read — **not
+  truncated, not overwritten**.
+
+**Remaining barrier is NOT autoload:** COMAL programs can't `RUN` under emulation
+because of a **MAME rc702 driver bug** — `port14_w` applies floppy `mon_w` to the
+always-spinning 8" maxi drive, so COMAL's `0x14 <- 0x00` stops the emulated motor
+and every command hits `DISKETTE FEJL`.  Filed **ravn/mame#12**.  The autoload
+COMAL-boot path is proven correct; full program execution waits on that MAME fix.
+
+**Code relocation (below) is therefore DROPPED as unnecessary.**  Original notes
+kept for history.
+
+---
+
+**Idea (superseded):** make autoload-in-c boot an ID Comal system, not just CP/M
 on RC702.  Two constraints distinguish ID Comal from the current
 RC702 CP/M target:
 
