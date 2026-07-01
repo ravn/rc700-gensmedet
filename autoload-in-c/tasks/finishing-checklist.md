@@ -4,6 +4,37 @@ What's left to call this component "finished" per the four-component
 long-term goal (`tasks/memory/project_finishing_firmware_components.md`).
 Round 1 audit; pair with the other three component checklists.
 
+## STATUS 2026-07-01 (later) — SEM702 sextant font moved into ZX0 payload; headroom 405 → 463 B
+
+**1585 / 2048 B = 463 B free** (clean `make prom`, current clang).  Boot gate
+**PASS** (`make floppy-boot-test` reaches `A>`).
+
+`define_sextants()` was rewritten from an on-the-fly computed routine (~192 B
+code + a `half[]` LUT) into a **transpose-copy** from a **line-major** font
+table (`clang/sem702_font.h`, `sem702_font[2048]`).  The line-major layout was
+chosen because it **ZX0-compresses to ~44 B** inside the `.text` payload (vs
+~207 B char-major) — so the 2 KB uncompressed table costs almost nothing in
+PROM, and the copy loop is smaller than the old arithmetic.  Net **−58 B PROM**
+(1643 → 1585).  OUT sequence to SEM702 (0xD1/0xD2/0xD3) is **byte-identical** to
+the old verified routine (same `expand()` logic, index `(line<<7)|ch` =
+line-major lookup).
+
+**RAM barrier checked:** decompressed image ends at **0x6F75** (font at 0x6712),
+framebuffer at **0x7830** → **~2.2 KB clearance**.  Both the 2 KB PROM cap and
+the RAM/framebuffer barrier are clear with margin.
+
+The freed headroom (463 B) now covers the **QR-code-at-boot** feature (est.
+~160 B) that the sextant glyphs exist to serve — see `todo-later.md`.
+
+**Codegen note (llvm-z80):** the inner transpose loop is *correct but not
+optimal* — a missed stride-N induction-variable strength reduction makes clang
+recompute `line<<7` each iteration, cascading to an IY invariant-shuttle
+(`push iy/pop hl`) + a counter spill.  Registered as **B21** in
+`llvm-z80/tasks/known-suboptimal-codegen.md` (ZeroYield: boot-only one-shot
+code).  Includes the user's SP-is-inviolable follow-up.  Not a blocker here.
+
+---
+
 ## STATUS 2026-07-01 — SIO-B debug removed; headroom restored to 388 B
 
 **1660 / 2048 B = 388 B free** (clean `make prom`, current clang).  Boot gate

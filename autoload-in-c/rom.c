@@ -169,76 +169,37 @@ static void init_crt(void) {
     crt_command(0xE0); /* preset counters */
 }
 
-/* SEM702 character generator: define a 64-glyph 2x3-block subset.
+/* SEM702 character generator: load the 64-glyph 2x3-block (sextant) subset.
  *
- * The SEM702 ("Semigrafik Memory") is a RAM-based character generator
- * board that replaces the standard ROA327 ROM character generator in
- * socket IC82 -- see docs/RC702tech.pdf and the Comal80 example at
- * approx. line 17191 of docs/RC702tech.txt.  Ports:
- *   0xD1 (chargen_char) -- character number 0..127
- *   0xD2 (chargen_dot)  -- dot line 0..15
- *   0xD3 (chargen_data) -- pixel byte (LSB-first; dot 0 on the left)
+ * The SEM702 ("Semigrafik Memory") is a RAM-based character generator board
+ * that replaces the standard ROA327 ROM char-gen in socket IC82 (the user's
+ * RC702 HAS a SEM702 -- see the tasks/memory note).  Purpose: provide the 2x3
+ * semigraphics blocks used to draw a QR code at boot (autoload / rcbios).
+ * Ports: 0xD1 = char number 0..127, 0xD2 = dot line (ALINE) 0..15,
+ * 0xD3 = pixel byte (LSB-first, dot 0 on the left).
  *
- * This function defines 64 sextant (2x3) block glyphs at the same
- * codepoints they occupy in ROA327, so a SEM702-equipped machine
- * renders identically to a ROA327 machine in that range:
+ * The glyph bytes are stored **line-major** in sem702_font[] (16 dot-lines x
+ * 128 chars).  That layout was chosen because it ZX0-compresses to ~44 B inside
+ * the .text payload (vs ~207 B char-major, and ~192 B for the old on-the-fly
+ * computation) -- the sextant subset is at codepoints 0x20..0x3F and 0x60..0x7F,
+ * blank elsewhere.  This routine is then a plain **transpose-copy** from the
+ * RAM-resident table to the SEM702 RAM; no arithmetic, so the code is smaller
+ * too.  On a ROA327-ROM machine the OUT writes go nowhere (safe no-op), so it
+ * runs unconditionally -- SEM702 presence cannot be detected in software.
  *
- *   0x20..0x3F -- patterns  0..31
- *   0x60..0x7F -- patterns 32..63
- *
- * All other codepoints are blanked.  A machine with the original ROA327
- * ROM still installed in IC82 silently ignores the OUT writes (the
- * ports go nowhere on that variant), so this is safe to run always --
- * no SW1 gating needed.
- *
- * Encoding (verified by xxd against ROA327 bytes at offsets 0x200..,
- * and against MAME's display_pixels which treats bit 0 of a chargen
- * byte as the LEFTMOST pixel):
- *   - 7-dot-wide cell.  Left half = 4 dots (byte mask 0x0F, bits 0..3);
- *     right half = 3 dots (mask 0x70, bits 4..6).  Both = 0x7F.
- *   - 16 line slots per char; active zones top=0..2, mid=3..6, bot=7..10.
- *   - Pattern N bit layout (matches ROA327; bit 0 = top-LEFT, the cell
- *     filled by ROA327 char 0x21 = pattern 1 = bytes 0x0F on lines 0..2):
- *       bit 0 top-left    bit 1 top-right
- *       bit 2 mid-left    bit 3 mid-right
- *       bit 4 bot-left    bit 5 bot-right
+ * ALINE is set explicitly before each AWR write (no evidence the chip
+ * auto-increments; TODO(physical-machine) to confirm on real SEM702 -- MAME's
+ * strict-latch model can't distinguish).
  */
+#include "clang/sem702_font.h"
 static void define_sextants(void)
 {
-    /* half[(R<<1)|L] where L = pattern bit covering left half (bit 0/2/4),
-     * R = bit covering right half (bit 1/3/5). */
-    static const byte half[4] = { 0x00, 0x0F, 0x70, 0x7F };
-    byte ch;
+    byte ch, line;
     for (ch = 0; ch < 128; ch++) {
-        byte pattern, top = 0, mid = 0, bot = 0;
-        byte line;
-        if (ch >= 0x20 && ch <= 0x3F)
-            pattern = ch - 0x20;
-        else if (ch >= 0x60 && ch <= 0x7F)
-            pattern = (byte)(ch - 0x60 + 32);
-        else
-            pattern = 0xFF;  /* blank: leave top/mid/bot = 0 */
-        if (pattern != 0xFF) {
-            top = half[pattern & 0x03];
-            mid = half[(pattern >> 2) & 0x03];
-            bot = half[(pattern >> 4) & 0x03];
-        }
         port_out(chargen_char, ch);
         port_out(chargen_dot, 0);
         for (line = 0; line < 16; line++) {
-            port_out(chargen_data,
-                     line < 3 ? top
-                   : line < 7 ? mid
-                   : line < 11 ? bot
-                   : (byte)0);
-            /* ALINE must be set explicitly before each AWR write -- both
-             * software sources we have (this routine, ultimately from
-             * PHE358A.MAC's LDGEN, and the Comal80 example in
-             * docs/RC702tech.txt) do so; no evidence the chip
-             * auto-increments.
-             * TODO(physical-machine): verify on real SEM702 hardware
-             * whether ALINE auto-increments after AWR; MAME's strict-latch
-             * model can't distinguish the two behaviours. */
+            port_out(chargen_data, sem702_font[((word) line << 7) | ch]);
             port_out(chargen_dot, (byte)((line + 1) & 0x0F));
         }
     }

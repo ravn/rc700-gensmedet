@@ -25,26 +25,24 @@ work required, just choosing the right character per cell.
 
 **Open questions to resolve before implementing:**
 
-1. **PROM0 budget:** autoload PROM is currently 1846 / 2048 B (202 B
-   free).  A version-2 QR code is 25x25 modules; rendered with
-   2x3-module character cells that's 13x9 = 117 cells, each
-   stored as one byte.  So ~120 B of QR data plus the draw routine
-   (~40 B) plus a position lookup.  Within budget if we keep the
-   compressed-font approach in PROM1 separate (or skip it).
+1. **PROM0 budget:** autoload PROM is currently **1585 / 2048 B (463 B
+   free)** (2026-07-01, after SEM702 font moved into the payload).  A
+   version-2 QR code is 25x25 modules; rendered with 2x3-module
+   character cells that's 13x9 = 117 cells, each stored as one byte.
+   So ~120 B of QR data plus the draw routine (~40 B) plus a position
+   lookup.  **Comfortably within budget now.**
 
-2. **PROM1 is irrelevant for the font (current baseline):** the
-   RC702 we target has NO SEM702 RAM-based character generator
-   board installed.  The font is in IC82 (the character-generator
-   chip socket), which on a stock RC702 holds a ROA327 ROM.  The
-   CRT reads characters from IC82 directly -- nothing in PROM1 is
-   consulted to render text.  So we can keep cpnos-in-asm in
-   PROM1 AND still get semigraphics characters on screen from
-   IC82, without any font-load step.
-
-   `load_chargen()` (gated on SW1 bit 1, currently commented out)
-   only matters if a SEM702 ever appears in IC82 -- then PROM1
-   would need to hold the font backup the SEM702 RAM is loaded
-   from.  Until then it's a parked option, not a constraint.
+2. **Sextant glyphs are ALREADY loaded (SEM702):** the user's physical
+   RC702 HAS a SEM702 RAM-based character generator (NOT ROA327 — see
+   `tasks/memory/project_user_rc702_has_sem702.md`).  `define_sextants()`
+   runs unconditionally at boot and programs the 64 sextant (2x3-block)
+   glyphs into the SEM702 RAM from the line-major `sem702_font[]` table
+   in the payload (2026-07-01).  On a ROA327-ROM machine those OUT writes
+   are a safe no-op and the ROM already holds the same glyphs.  So on
+   BOTH hardware variants the semigraphics blocks the QR code needs are
+   present at codepoints 0x20..0x3F / 0x60..0x7F — the QR draw routine
+   can assume them.  No separate font-load step or PROM1 font backup is
+   required.
 
 3. **Display placement:** QR is 13x9 cells.  Row 0 has banner +
    SW1 status; row 1 blank; row 2 halt messages.  Natural QR
