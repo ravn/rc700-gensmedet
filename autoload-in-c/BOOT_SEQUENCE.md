@@ -85,6 +85,61 @@ crossed 0x8000 into RAM that only exists on 64 KB machines.  (The SDCC parity
 build keeps the display at 0x7A00 — its code at 0x7200 would overlap 0x7830 — and
 is MAME-only / 64 KB-emulated.)
 
+## Disk boot variants — signature dispatch and what each loads
+
+Before dispatching, `boot_from_floppy_or_jump_prom1()` reads **Track 0** (both
+sides if the disk is double-sided) into RAM at **0x0000**.  `boot_floppy_or_prom()`
+then dispatches on the signature bytes now present in low RAM.  Each recognised
+system loads a different amount from the disk and enters at a different address:
+
+| Signature (in Track 0) | System | Loaded from disk | Entry |
+|---|---|---|---|
+| `" RC702"` at **0x0008** | **CP/M** | Track 0 only (already at 0x0000); its cold-boot loader pulls in the BIOS | `JP (0x0000)` — 16-bit boot vector stored at 0x0000 |
+| `" RC700"` at **0x0002** | **ID-COMAL** | after a directory check, `INTVEC_ADDR` = **0x6000 (24 KB)** read from **cylinder 1 onward** into 0x0000 (overwriting Track 0) | `JP 0x1000` (`LEGACYBOOT`, COMAL-80 entry) |
+| — (no bootable/ready disk) | **PROM1 line program** | nothing from floppy; secondary PROM at 0x2000 runs in place | `JP (0x2000)` if `" RC702"` at 0x2002 and SW1 S02 on |
+| neither signature | *(halt)* | — | `** NO KATALOG **` |
+
+### CP/M — `" RC702"` at offset 0x0008
+Track 0 (both sides) is read to 0x0000, then `jump_to(*(word *)0x0000)` reads the
+16-bit boot vector at 0x0000 and jumps to it.  The DRI CP/M cold-boot code lives
+in Track 0 and loads the rest of the system itself (sign-on
+`RC700 56k CP/M vers.2.2 rel. 2.3`, BIOS display at 0xF800).  **autoload loads
+only Track 0**; CP/M takes over from there.
+
+### ID-COMAL — `" RC700"` at offset 0x0002
+Track 0 is used only for the signature and the **directory** (`BOOT_DIR_OFF`
+0x0B80 .. 0x0D00, 0x20-byte entries).  autoload scans it for a `SYSM` entry
+immediately followed by a `SYSC` entry (the COMAL system-file marker).  On a
+match it calls `floppy_legacy_boot()`, which:
+1. resets the DMA destination to `FLOPPYDATA` (0x0000);
+2. reads **`INTVEC_ADDR` = 0x6000 (24 KB)** bytes from the **current disk
+   position (cylinder 1, head 0) onward**, one whole track at a time, into
+   0x0000 — overwriting the Track-0 signature with the COMAL system;
+3. `jump_to(LEGACYBOOT)` = `JP 0x1000`.
+
+The read count is bounded by `INTVEC_ADDR` (autoload's own RAM code base at
+0x6000), **not** by COMAL's actual size — the contiguous COMAL boot system is
+~9 KB (0x0000..0x2300), well within the window.  For the single-sided
+`RC700 comal rev. 01.11` disk (3328 B/track, FM 26×128 B) this works out to
+**tracks 1-7 whole + the first 1280 B of track 8**.  If `SYSM`/`SYSC` are missing
+→ halt `** NO SYSTEM FILES **`.
+
+> Verified 2026-07-01 with `test-disks/RC700_Comal.imd`: the load matches the
+> disk tracks (98.6 %; the rest is COMAL's own workspace after entry) and COMAL
+> reaches its interactive `*` prompt.  Running a program is currently blocked by
+> a MAME rc702 motor-model bug (`ravn/mame#12`), not by autoload.
+
+### PROM1 line program (fallback)
+When no bootable/ready floppy is present (drive not ready, format undetectable,
+or the floppy path bails out), `prom1_if_present()` checks the secondary PROM at
+0x2000: if SW1 bit 1 (S02) is on and `" RC702"` is at 0x2002, it does
+`JP (0x2000)` into the cpnos-in-asm / CP/NET line program.  **Nothing is read
+from the floppy.**  Otherwise → halt `** NO DISKETTE NOR LINEPROG **`.
+
+(The exact gate order — bootable CP/M, ID-COMAL, PROM1 fallback, and the
+readable-but-unrecognised halt — is in the *Boot priority* table above and
+Phases 5-6 below.)
+
 ## Phase 1: ROM self-relocation (BOOT section, 0x0000)
 
 ```
