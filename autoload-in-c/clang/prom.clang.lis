@@ -724,7 +724,7 @@ Disassembly of section .text:
     6304: b7           	or	a
     6305: 20 09        	jr	nz,$6310
 ;         jump_to(*(word *)0x2000);
-    6307: 2a 00 20     	ld	hl,($2000)              ; 0x2000 <__text_zx0_end+0x180e>
+    6307: 2a 00 20     	ld	hl,($2000)              ; 0x2000 <__text_zx0_end+0x180f>
     630a: e5           	push	hl
     630b: fd e1        	pop	iy
     630d: c3 10 6d     	jp	$6d10
@@ -986,7 +986,7 @@ Disassembly of section .text:
     6471: d3 00        	out	($0),a
     6473: 3e 98        	ld	a,$98
     6475: d3 00        	out	($0),a
-    6477: 3e 9a        	ld	a,$9a
+    6477: 3e 7a        	ld	a,$7a
     6479: d3 00        	out	($0),a
     647b: 3e 5d        	ld	a,$5d
     647d: d3 00        	out	($0),a
@@ -1096,8 +1096,8 @@ Disassembly of section .text:
     6514: 18 eb        	jr	$6501
 ;     d[-1] = 0x84;
     6516: 3e 84        	ld	a,$84
-    6518: 32 e1 7c     	ld	($7ce1),a               ; 0x7ce1 <__sfrend_boot_floppy_or_prom+0xf6f>
-    651b: 21 e2 7c     	ld	hl,$7ce2
+    6518: 32 20 7d     	ld	($7d20),a               ; 0x7d20 <__sfrend_boot_floppy_or_prom+0xfae>
+    651b: 21 21 7d     	ld	hl,$7d21
     651e: 01 9b 6c     	ld	bc,$6c9b
     6521: 16 00        	ld	d,$0
     6523: 1e 00        	ld	e,$0
@@ -1569,6 +1569,6 @@ Disassembly of section .text:
     6d12: 20 52 43 37 30 30 20 52          RC700 R
     6d1a: 4f 41 33 37 35 20 43 4c         OA375 CL
     6d22: 20 32 30 32 36 2d 30 37          2026-07
-    6d2a: 2d 30 31 20 31 38 2e 32         -01 18.2
-    6d32: 31 20 62 61 37 36 36 37         1 ba7667
-    6d3a: 62 2f 72 61 76 6e 00            b/ravn.
+    6d2a: 2d 30 31 20 32 33 2e 32         -01 23.2
+    6d32: 35 20 63 38 36 33 63 35         5 c863c5
+    6d3a: 35 2f 72 61 76 6e 00            5/ravn.

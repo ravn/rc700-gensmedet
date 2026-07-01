@@ -161,7 +161,14 @@ static void init_crt(void) {
     crt_command(0x00); /* reset (expect 4 param bytes) */
     crt_param(0x4F); /*   S=0, H=79: 80 chars/row */
     crt_param(0x98); /*   V=2 vretrace, R=24: 25 rows */
-    crt_param(0x9A); /*   L=9 underline, U=10 lines/char */
+    crt_param(0x7A); /*   underline=7, 11 lines/char.  Underline is kept < 8 (was
+                      *   9 in ROA375) SO THE 8275 DOES NOT blank scanline 0 and
+                      *   the last scanline of every row: with underline >= 8 the
+                      *   8275 blanks the first/last line to space text rows, which
+                      *   leaves 2 blank lines between semigraphics cells and stripes
+                      *   the boot QR code (the sextant blocks fill all 11 lines).
+                      *   ROA296 text is unaffected (its glyphs are already blank on
+                      *   lines 0/10). */
     crt_param(0x5D); /*   F=0, M=1 transparent, C=01 blink, Z=28 */
     crt_command(0x80); /* load cursor (expect 2 param bytes) */
     crt_param(0x00); /*   column = 0 */
@@ -283,7 +290,7 @@ static void display_sw1_status(void) {
  * supplies the quiet zone scanners need. */
 #include "clang/qr_data.h"
 #define QR_TOP 15
-#define QR_LEFT 2
+#define QR_LEFT 65 /* bottom-right: cols 65..77 (13 wide), rows 15..23; 0x84 at col 64 */
 static void draw_qr(void) {
     const byte *s = qr_screen;                  /* sequential over all 117 cells */
     byte *d = dspstr + QR_TOP * 80 + QR_LEFT;   /* screen dest, +80 per row */

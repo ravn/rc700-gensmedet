@@ -21,7 +21,7 @@
 local RESULT_PATH = "/tmp/autoload_qr_dump.txt"
 local ROW_BYTES   = 80
 local DEADLINE_S  = 4.0
-local QR_TOP, QR_LEFT, QR_COLS, QR_ROWS = 15, 2, 13, 9
+local QR_TOP, QR_LEFT, QR_COLS, QR_ROWS = 15, 65, 13, 9
 
 local installed = false
 -- Retain tap handles or Lua GC frees them and the next tapped access segfaults.
