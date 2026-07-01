@@ -4,6 +4,31 @@ What's left to call this component "finished" per the four-component
 long-term goal (`tasks/memory/project_finishing_firmware_components.md`).
 Round 1 audit; pair with the other three component checklists.
 
+## STATUS 2026-07-01 (later still) — SEM702 font upgraded sextant-subset → FULL ROA327; headroom 463 → 115 B
+
+**1933 / 2048 B = 115 B free**.  Boot gate **PASS**.
+
+`sem702_font[]` now holds a **full ROA327 replica** (all 128 glyphs: line-drawing
+0x00..0x1F, sextants, shared uppercase), not just the sextant subset.  Sourced by
+transposing `mame/roms/rc702/roa327.rom` into **line-major, 11 defined dot-lines**
+(lines 11..15 are blank on every glyph → dropped; `load_chargen_font()` writes 0
+for them).  ZX0 measurement that drove the layout: char-major/16-line 534 B →
+line-major/16-line 382 B → **line-major/11-line 377 B** (delta transforms tested,
+all worse).  Dropping the 5 blank lines saved only 5 B PROM (ZX0 already crushed
+the zero-run) but shrank the decompressed RAM table 2048 → 1408 B, so the RAM
+image is actually *smaller* than the sextant version (ends 0x6D03, ~2.8 KB below
+the 0x7830 framebuffer).  Function renamed `define_sextants` → `load_chargen_font`.
+
+**Net cost +348 B PROM** (1585 → 1933).  This is the deliberate "full font"
+choice (user 2026-07-01): all ROA327 glyphs available on the SEM702 machine, at
+the price of headroom.  **Remaining 115 B is the budget for the "slank QR" goal**
+— a version-1 (21×21) QR renders to 11×7 = 77 pre-computed cell bytes + a small
+positioned-copy routine (~fits); a version-2 (25×25 = 13×9 = 117 cells) does NOT
+fit.  QR content therefore constrained to short data (build date+hash or a short
+URL), not the full project URL.  See `todo-later.md` QR section.
+
+---
+
 ## STATUS 2026-07-01 (later) — SEM702 sextant font moved into ZX0 payload; headroom 405 → 463 B
 
 **1585 / 2048 B = 463 B free** (clean `make prom`, current clang).  Boot gate

@@ -169,37 +169,42 @@ static void init_crt(void) {
     crt_command(0xE0); /* preset counters */
 }
 
-/* SEM702 character generator: load the 64-glyph 2x3-block (sextant) subset.
+/* SEM702 character generator: load the FULL ROA327 semigraphics font.
  *
  * The SEM702 ("Semigrafik Memory") is a RAM-based character generator board
  * that replaces the standard ROA327 ROM char-gen in socket IC82 (the user's
- * RC702 HAS a SEM702 -- see the tasks/memory note).  Purpose: provide the 2x3
- * semigraphics blocks used to draw a QR code at boot (autoload / rcbios).
- * Ports: 0xD1 = char number 0..127, 0xD2 = dot line (ALINE) 0..15,
- * 0xD3 = pixel byte (LSB-first, dot 0 on the left).
+ * RC702 HAS a SEM702 -- see the tasks/memory note).  This programs a complete
+ * replica of the ROA327 ROM into the SEM702 RAM, so a SEM702 machine renders
+ * every ROA327 glyph (line-drawing 0x00..0x1F, the 2x3-block sextants
+ * 0x21..0x3F / 0x60..0x7F used for the QR code, and the shared uppercase set)
+ * identically to a ROA327-ROM machine.  Ports: 0xD1 = char 0..127,
+ * 0xD2 = dot line (ALINE) 0..15, 0xD3 = pixel byte (LSB-first, dot 0 left).
  *
- * The glyph bytes are stored **line-major** in sem702_font[] (16 dot-lines x
- * 128 chars).  That layout was chosen because it ZX0-compresses to ~44 B inside
- * the .text payload (vs ~207 B char-major, and ~192 B for the old on-the-fly
- * computation) -- the sextant subset is at codepoints 0x20..0x3F and 0x60..0x7F,
- * blank elsewhere.  This routine is then a plain **transpose-copy** from the
- * RAM-resident table to the SEM702 RAM; no arithmetic, so the code is smaller
- * too.  On a ROA327-ROM machine the OUT writes go nowhere (safe no-op), so it
- * runs unconditionally -- SEM702 presence cannot be detected in software.
+ * The glyph bytes live LINE-MAJOR in sem702_font[] (sem702_font.h): only the
+ * 11 defined dot-lines (0..10) are stored -- lines 11..15 are blank on every
+ * ROA327 glyph, so this routine writes 0 for them.  Line-major + 11-line was
+ * chosen because it ZX0-compresses to ~377 B in the .text payload (vs 534 B
+ * char-major/16-line) and shrinks the decompressed RAM table to 1408 B.  The
+ * routine is a plain transpose-copy; no arithmetic.  On a ROA327-ROM machine
+ * the OUT writes go nowhere (safe no-op), so it runs unconditionally -- SEM702
+ * presence cannot be detected in software.
  *
  * ALINE is set explicitly before each AWR write (no evidence the chip
  * auto-increments; TODO(physical-machine) to confirm on real SEM702 -- MAME's
  * strict-latch model can't distinguish).
  */
 #include "clang/sem702_font.h"
-static void define_sextants(void)
+static void load_chargen_font(void)
 {
     byte ch, line;
     for (ch = 0; ch < 128; ch++) {
         port_out(chargen_char, ch);
         port_out(chargen_dot, 0);
         for (line = 0; line < 16; line++) {
-            port_out(chargen_data, sem702_font[((word) line << 7) | ch]);
+            port_out(chargen_data,
+                     line < SEM702_FONT_LINES
+                         ? sem702_font[((word) line << 7) | ch]
+                         : (byte) 0);
             port_out(chargen_dot, (byte)((line + 1) & 0x0F));
         }
     }
@@ -952,10 +957,10 @@ void main_relocated(void) __naked
     init_ctc();
     init_dma();
     init_crt();
-    /* Always program the SEM702 sextant subset.  Real ROA327 ROM
-     * silently ignores writes to ports 0xD1/0xD2/0xD3, so the call is
-     * a safe no-op on baseline hardware. */
-    define_sextants();
+    /* Always program the full ROA327 font into the SEM702 RAM.  Real
+     * ROA327 ROM silently ignores writes to ports 0xD1/0xD2/0xD3, so the
+     * call is a safe no-op on baseline hardware. */
+    load_chargen_font();
     init_fdc();
     memset(dspstr, ' ', 80 * 25);   /* clear screen */
     display_banner_and_start_crt();
