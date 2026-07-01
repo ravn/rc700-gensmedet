@@ -81,8 +81,20 @@ typedef uint16_t word;
 #define PROM1_ADDR  0x2000      /* Secondary PROM (network boot) */
 #define DIROFF      0x0B60      /* Directory start in Track 0 */
 #define DIREND_HI   0x0D        /* Directory end high byte */
-#define DSPSTR_ADDR 0x7A00      /* Display refresh memory (80x25) */
-#define DSP_CHARS   0x0780      /* Display buffer size (1920 bytes) */
+/* Display refresh memory (80x25 = 2000 bytes).
+ * clang: code relocates to 0x6000 (INTVEC_ADDR), so the framebuffer sits just
+ * below 0x8000 — 0x7830..0x8000 — keeping it entirely in the original 32 KB
+ * RAM (the roa375-era top-of-RAM placement; roa375 itself used 0x7800).  The
+ * old 0x7A00 crossed 0x8000 into the upper RAM that only exists on 64 KB
+ * machines.
+ * SDCC: code relocates to 0x7200, which would overlap 0x7830, so its (MAME-only,
+ * 64 KB-emulated) build keeps the display at 0x7A00. */
+#if defined(__z80__)
+#define DSPSTR_ADDR 0x7830
+#else
+#define DSPSTR_ADDR 0x7A00
+#endif
+#define DSP_CHARS   0x07D0      /* Display buffer size (2000 bytes = 80x25) */
 #define ATTOFF      7           /* Attribute byte offset in dir entry */
 #define SECSZ0      0x80        /* Sector size for Track 0 Side 0 (128B) */
 

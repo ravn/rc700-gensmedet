@@ -1,14 +1,20 @@
 /* RC700 autoload PROM linker script for LLVM-Z80 (ld.lld)
  *
- * ROM layout (2 KB PROM0, padded to 4 KB file format):
- *   0x0000  BOOT section (entry, init_fdc, banner, NMI handler)
+ * ROM layout (physical PROM0 is 2 KB / 0x0000..0x07FF; no A11 bridge on the
+ * hardware, so the 4 KB .ic66 file is a MAME-only padding artifact):
+ *   0x0000  BOOT section (start(), init_fdc, banner, NMI handler)
  *   0x0066  NMI handler (RETN)
- *   0x0068  ZX0 decoder + _reloc_zx0 wrapper (~74 B)
- *   0x00B2  ZX0-compressed .text payload (~1331 B)
+ *   0x0068  _reloc_zx0 wrapper + dzx0_standard ZX0 decoder (~75 B)
+ *   0x00B3  ZX0-compressed .text payload (~1484 B)
+ *   0x067F  end of PROM image (~1663 B used, ~385 B free to the 2 KB cap)
  *
- * RAM layout (after self-decompression by _start):
- *   0x6000  .text (IVT + C code + rodata) decompressed by dzx0_standard
+ * RAM layout (after ZX0 self-decompression by start()):
+ *   0x6000  .text (IVT + C code + rodata) decompressed by dzx0_standard (~1949 B)
+ *   0x679D  .bss (~53 B)
+ *   0x7830  display framebuffer 80x25 = 2000 B (ends at 0x8000; DSPSTR_ADDR)
  *   0xBFFF  Stack (grows downward)
+ *
+ * See ../BOOT_SEQUENCE.md "Memory map" for the full annotated table.
  *
  * Two-pass build: pass 1 produces raw .text bytes; the Makefile
  * compresses them with z88dk-zx0 into clang/text_compressed.zx0; pass 2

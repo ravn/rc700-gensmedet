@@ -24,21 +24,67 @@ PROM1 path to run -- eject the disk instead.
 
 Detail of each gate is in Phases 5 and 6 below.
 
+## Memory map
+
+The autoload PROM is **2 KB** — the physical RC702 PROM socket has no A11
+bridge, so addresses ≥ 0x0800 do not exist on the hardware (the `.ic66` file is
+padded to 4 KB for the MAME socket only).  At power-on the ROM decompresses its
+payload with a ZX0 decoder into RAM, then runs from RAM.  All sizes below are
+from the current clang build (`llvm-nm clang/prom.clang.elf`).
+
+### ROM — before ZX0 decompression (physical PROM0, 0x0000–0x07FF)
+
+| Address | Size | Contents |
+|---|---|---|
+| `0x0000` | | `.boot` — `start()` (DI, set SP, `reloc_zx0()`, jump) + init helpers |
+| `0x0021` | 40 B | `banner_string` — `RC700 ROA375 CL <date> <hash>/<user>` |
+| `0x0066` | 2 B | `.nmi` — NMI handler (`RETN`) at the Z80 hardwired vector |
+| `0x0068` | 6 B | `_reloc_zx0` — decoder wrapper (HL = compressed src, DE = 0x6000) |
+| `0x006E` | ~69 B | `dzx0_standard` — ZX0 decoder (Einar Saukas) |
+| `0x00B3` | **1484 B** | `.text_compressed` — ZX0-compressed payload |
+| `0x067F` | | `__prom_end` — **PROM used = 1663 B** |
+| `0x067F`–`0x07FF` | 385 B | free (`0xFF`) |
+| `0x0800` | | **2 KB hard cap** (A11 not bridged) |
+
+### RAM — after ZX0 decompression (0x6000–0xBFFF)
+
+`start()` → `reloc_zx0()` → `dzx0_standard` decompresses `.text_compressed` to
+0x6000, then jumps there.
+
+| Address | Size | Contents |
+|---|---|---|
+| `0x6000` | 1949 B | `_intvec` (IM2 vector table) + `.text` code + rodata (`__code_start`; I-reg = 0x60) |
+| `0x679D` | 53 B | `.bss` (`__bss_start`) |
+| `0x67D2` | | `__bss_end` — end of the decompressed image |
+| `0x67D2`–`0x782F` | ~4.6 KB | free RAM |
+| **`0x7830`** | 2000 B | **display framebuffer** (80×25, `DSPSTR_ADDR`, via DMA ch2) — ends at 0x8000 |
+| `0x8000`–`0xBFFE` | 16 KB | free RAM (upper half) |
+| `0xBFFF` | | stack top (`ROM_STACK`, grows down) |
+
+**32 KB → 64 KB history.**  The original roa375 ROM placed its display at 0x7800
+— the top of a 32 KB machine's RAM (0x0000–0x7FFF).  The C rewrite targets 64 KB
+machines: the stack moved up to 0xBFFF (upper RAM), and clang's larger code
+relocates to 0x6000 (SDCC uses 0x7200).  The clang display sits just below 0x8000
+(0x7830) so it stays entirely inside the original lower 32 KB; the old 0x7A00
+crossed 0x8000 into RAM that only exists on 64 KB machines.  (The SDCC parity
+build keeps the display at 0x7A00 — its code at 0x7200 would overlap 0x7830 — and
+is MAME-only / 64 KB-emulated.)
+
 ## Phase 1: ROM self-relocation (BOOT section, 0x0000)
 
 ```
-begin()                              boot_rom.c — ROM entry at 0x0000
+start()                              boot_rom.c — ROM entry at 0x0000
   intrinsic_di()                       disable interrupts
   set SP = 0xBFFF                      initialize stack
-  memcpy(0x7000, BOOT_tail, size)      copy CODE payload from ROM to RAM
-  init_relocated()                     jump to RAM at 0x7000
+  reloc_zx0()                          ZX0-decompress .text_compressed → RAM 0x6000
+  <tail JP>                            jump into the relocated code at 0x6000
 ```
 
-## Phase 2: Hardware initialization (CODE section, 0x7000+)
+## Phase 2: Hardware initialization (CODE section, 0x6000+)
 
 ```
-init_relocated()                     rom.c — runs from RAM
-  set_i_reg(0x70)                      I register = IVT page
+main_relocated()                     rom.c — runs from RAM at 0x6000
+  set_i_reg(INTVEC_PAGE)               I register = IVT page (0x60 clang / 0x72 SDCC)
   intrinsic_im_2()                     Z80 interrupt mode 2
   init_peripherals()                   PIO, CTC, DMA, CRT port setup
   main()                               fall-through (tail call)
