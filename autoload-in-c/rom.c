@@ -198,14 +198,19 @@ static void load_chargen_font(void)
 {
     byte ch, line;
     for (ch = 0; ch < 128; ch++) {
+        /* line-major table: stride 128 per dot-line.  Walk a running index
+         * (idx += 128) instead of recomputing line<<7 each pass, so the inner
+         * loop is a cheap ADD HL,DE rather than a shift chain + IY shuttle
+         * (llvm-z80 B21).  Only lines 0..10 are written: the 8275 is programmed
+         * for 11 lines/char (init_crt: crt_param(0x9A), L field = 10 -> 11
+         * lines), so ALINE 11..15 are never fetched -- no need to blank them. */
+        word idx = ch;
         port_out(chargen_char, ch);
         port_out(chargen_dot, 0);
-        for (line = 0; line < 16; line++) {
-            port_out(chargen_data,
-                     line < SEM702_FONT_LINES
-                         ? sem702_font[((word) line << 7) | ch]
-                         : (byte) 0);
-            port_out(chargen_dot, (byte)((line + 1) & 0x0F));
+        for (line = 0; line < SEM702_FONT_LINES; line++) {
+            port_out(chargen_data, sem702_font[idx]);
+            idx += 128;
+            port_out(chargen_dot, (byte)(line + 1)); /* 1..11, < 16, no mask */
         }
     }
 }
