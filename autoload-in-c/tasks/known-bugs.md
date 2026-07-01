@@ -194,3 +194,52 @@ hard-coded `"RC700 CL 2026-04-15 12.15/ravn"` is gone.  Closed.
 `MAME = /Users/ravn/git/mame` — pre-workspace-restructuring
 location, no longer exists.  Fixed to
 `MAME ?= $(CURDIR)/../../mame` in commit `b6c797d` 2026-05-04.
+
+## 4. PROM1 presence check reads RAM (not the PROM) in the mid-read drive-select failure path — OPEN (possibly inherited from the original ROA375 ROM)
+
+**Status:** OPEN, latent edge case.  Filed 2026-07-01 during the ID-COMAL boot
+investigation.
+
+`prom1_if_present()` (`rom.c`) decides whether to run the PROM1 line program by
+checking the `" RC702"` signature at **0x2002** (plus the SW1 S02 enable gate):
+
+```c
+if ((read_sw1() & 0x02) == 0 &&
+    compare_6bytes((const byte *) 0x2002, msg_rc702) == 0)
+    jump_to(*(word *)0x2000);
+```
+
+This is correct in the two common failure paths that call it (`rom.c:856`
+drive-not-ready, `rom.c:869` format-undetectable) — both run **before**
+`prom_disable()` (`rom.c:873`), so the PROM1 ROM overlay at 0x2000 is still
+mapped and `compare_6bytes(0x2002, ...)` reads the real PROM.
+
+**The bug:** the third call site, `rom.c:760` inside
+`fdc_read_data_from_current_location()`, fires on a drive-select failure
+(`fdc_select_drive_cylinder_head() == 1`) that happens **during** the data read
+— i.e. from the read loop at `rom.c:875-881`, which runs **after**
+`prom_disable()`.  `prom_disable()` turns off *both* ROM overlays (PROM0 @ 0x0000
+and PROM1 @ 0x2000, via port 0x18 RAMEN), so by then 0x2000-0x2007 is **RAM**,
+not the PROM1 ROM.  The presence check therefore reads whatever the partial
+floppy read (or power-on state) left in RAM at 0x2002, not the actual PROM1
+contents.
+
+**Impact:** low-probability latent defect, only in the mid-read drive-select
+failure path and only when SW1 S02 is enabled:
+- false positive — `JP (0x2000)` into RAM if it coincidentally holds `" RC702"`
+  at 0x2002 (unlikely to match exactly);
+- false negative — a genuinely socketed PROM1 is missed because its ROM is no
+  longer mapped.
+
+**Possibly inherited:** the C autoload is a reconstruction of the original ROA375
+ROM; this ordering (prom-disable before the main read, prom1 fallback reachable
+from inside the read) may reflect the original ROM's structure rather than a
+rewrite regression — worth checking the roa375 disassembly before "fixing".
+
+**Fix options (deferred):** re-enable the PROM1 overlay around the 0x2002 check
+in the 760 path, or cache the PROM1-present result from before `prom_disable()`
+and reuse it in all three paths.
+
+**Pointers:** `rom.c` `prom1_if_present` (~740), call sites 760 / 856 / 869,
+`prom_disable()` at 873; overlay semantics in `rc700-gensmedet/CLAUDE.md`
+(port 0x18 RAMEN disables both PROM0 and PROM1).
