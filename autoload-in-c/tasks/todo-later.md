@@ -164,7 +164,16 @@ RC702 CP/M target:
 
 **Status:** not started.  Low priority.
 
-## Split ZX0 decoder around NMI vector to reclaim pre-NMI padding
+## ~~Split ZX0 decoder around NMI vector to reclaim pre-NMI padding~~ — DONE 2026-07-01
+
+Implemented (commit `d532baa`): decoder split at the `dzx0s_new_offset`/`dzx0s_elias`
+boundary (clean — new_offset ends in an unconditional `jr`, so the elias tail is
+CALL-only; no bridge, no jr-range issues).  Main loop → `.zx0_decoder` (pre-NMI,
+0x0021); elias tail → `.zx0_decoder_hi` (post-NMI, 0x0068).  Banner also moved
+into the compressed payload.  Payload start 0x00B3 → 0x0077 (−60 B); banner adds
+~40 B compressed (date+hash compress poorly), so **net PROM 1663 → 1643 B (405 B
+free)**.  A linker `ASSERT(. <= 0x0066)` guards the pre-NMI overrun.  Boot +
+sw1-test PASS.  Original notes below.
 
 **Idea:** the autoload PROM has a 38 B unavoidable 0xFF padding hole
 between the end of `_start` + `banner_string` (~0x0040) and the
