@@ -4,6 +4,40 @@ What's left to call this component "finished" per the four-component
 long-term goal (`tasks/memory/project_finishing_firmware_components.md`).
 Round 1 audit; pair with the other three component checklists.
 
+## STATUS 2026-07-01 (QR-at-boot SHIPPED) — v2 QR + full ROA327 font both fit; 14 B free
+
+**2034 / 2048 B = 14 B free.**  Boot gate PASS; new **`make qr-test` PASS**.
+
+A version-2 (25x25) QR of `github.com/ravn/rc700-gensmedet` now renders on the
+no-diskette error screen (rows 15..23), alongside the full ROA327 SEM702 font.
+Getting BOTH into 2 KB took a chain of measured, non-glyph savings (the full font
+is mandatory — SEM702 is a direct 1:1 ROA327 chip replacement, so no glyph may be
+dropped, and it must be self-contained: we cannot rely on reading the char PROM on
+the real machine):
+
+- **QR renderer** rewritten to a flat byte-copy (s in BC, d in HL, no memcpy/IY
+  shuttle); **0x80 reset dropped** (everything after the QR is blank, renders
+  identically in both fonts).
+- **QR mask forced to pattern 3** (gen_qr.py) — of the 8 valid masks it
+  ZX0-compresses smallest (108 vs 110 B).
+- **display_sw1_status**: `(sw>>i)&1` (variable-shift-by-IV -> O(n^2) `srl;djnz`
+  loop) rewritten to `(sw&1); sw>>=1` -> −5 B.  A real Z80 codegen gap — recorded
+  as **B22** in llvm-z80 known-suboptimal + the CLAUDE.md "LSR is Harmful" note.
+- **load_chargen_font line-outer** (the decisive −17 B): iterate line-outer /
+  char-inner so the line-major table is a pure `*p++` sequential walk, ALINE set
+  once per line.  Safe: SEM702 forms its RAM address from independent char/dot
+  latches at the data write (verified in MAME rc702.cpp `sem702_data_w`), so the
+  reordered OUT sequence yields byte-identical RAM.  Eliminates the B21 waste.
+
+**Build-process fix:** the size ASSERT is now gated on `--defsym FINAL_LINK=1`
+(pass 2 only).  Previously an over-budget compressed blob failed *pass 1* too,
+wedging the build (pass1.elf never regenerated, no fix measurable).  QR content is
+constrained to v2 (117 cells); the URL is byte-mode lowercase (fits v2's 32-byte
+cap).  QR verified by `make qr-test` (no-disk boot; asserts field attr 0x84 +
+byte-exact match of the 13x9 region against qr_data.h + the error message).
+
+---
+
 ## STATUS 2026-07-01 (later still) — SEM702 font upgraded sextant-subset → FULL ROA327; headroom 463 → 115 B
 
 **1933 / 2048 B = 115 B free**.  Boot gate **PASS**.

@@ -99,9 +99,15 @@ SECTIONS {
   __code_size = __code_end - __code_start;
   __text_zx0_size = __text_zx0_end - __text_zx0_start;
 
-  /* Verify ROM payload (decoder + compressed blob) fits in 2 KB. */
+  /* Verify ROM payload (decoder + compressed blob) fits in 2 KB.
+   * Only enforced on the FINAL link (pass 2, --defsym FINAL_LINK=1): pass 1
+   * links with the PREVIOUS build's compressed blob purely to extract the
+   * uncompressed .text for re-compression, so an over-budget stale blob must
+   * not fail pass 1 -- otherwise the build wedges (pass1.elf never regenerates
+   * and no fix can be measured). */
   __prom_end = __text_zx0_end;
-  ASSERT(__prom_end <= 2048, "PROM0 socket exceeds 2048 bytes after ZX0!")
+  ASSERT(!DEFINED(FINAL_LINK) || __prom_end <= 2048,
+         "PROM0 socket exceeds 2048 bytes after ZX0!")
 
   /DISCARD/ : {
     *(.comment)

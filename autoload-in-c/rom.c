@@ -196,21 +196,21 @@ static void init_crt(void) {
 #include "clang/sem702_font.h"
 static void load_chargen_font(void)
 {
-    byte ch, line;
-    for (ch = 0; ch < 128; ch++) {
-        /* line-major table: stride 128 per dot-line.  Walk a running index
-         * (idx += 128) instead of recomputing line<<7 each pass, so the inner
-         * loop is a cheap ADD HL,DE rather than a shift chain + IY shuttle
-         * (llvm-z80 B21).  Only lines 0..10 are written: the 8275 is programmed
-         * for 11 lines/char (init_crt: crt_param(0x9A), L field = 10 -> 11
-         * lines), so ALINE 11..15 are never fetched -- no need to blank them. */
-        word idx = ch;
-        port_out(chargen_char, ch);
-        port_out(chargen_dot, 0);
-        for (line = 0; line < SEM702_FONT_LINES; line++) {
-            port_out(chargen_data, sem702_font[idx]);
-            idx += 128;
-            port_out(chargen_dot, (byte)(line + 1)); /* 1..11, < 16, no mask */
+    byte line, ch;
+    const byte *p = sem702_font; /* line-major: each dot-line is 128 sequential bytes */
+    /* Iterate LINE-OUTER, CHAR-INNER so the table read is a pure sequential walk
+     * (*p++) -- no per-cell index multiply / IY shuttle (llvm-z80 B21).  The
+     * SEM702 forms its RAM address (char_latch<<4)|dot_latch from two independent
+     * latches AT the data write (verified in MAME rc702.cpp sem702_data_w), so
+     * setting ALINE once per line and the char per glyph is equivalent to the old
+     * per-cell order and yields byte-identical RAM.  Only lines 0..10 are written:
+     * the 8275 is programmed for 11 lines/char (init_crt crt_param(0x9A), L field
+     * = 10 -> 11 lines), so ALINE 11..15 are never fetched. */
+    for (line = 0; line < SEM702_FONT_LINES; line++) {
+        port_out(chargen_dot, line); /* ALINE = line, set once per dot-line */
+        for (ch = 0; ch < 128; ch++) {
+            port_out(chargen_char, ch);
+            port_out(chargen_data, *p++);
         }
     }
 }
@@ -252,7 +252,8 @@ static void display_sw1_status(void) {
     p += sizeof prefix - 1;
 
     for (i = 0; i < 8; i++) {
-        *p++ = (char)('0' + ((sw >> i) & 1));
+        *p++ = (char)('0' + (sw & 1)); /* bit i -> col i (LSB first) */
+        sw >>= 1;                      /* shift by const 1: no variable-shift loop */
     }
 }
 
@@ -269,10 +270,41 @@ static void display_sw1_status(void) {
  * cpnos handoff window (~250 ms emulated; visible frame-by-frame in
  * MAME captures).  memset is 80 * 25 = 2000 bytes; LDIR-lowered by
  * clang so the cost is trivial. */
+/* Draw the QR code into the lower-left of the display as ROA327 sextants.
+ *
+ * The QR (github.com/ravn/rc700-gensmedet, qr_data.h) is a tight 13x9 block of
+ * sextant character codes.  It is bracketed by 8275 field attributes: 0x84
+ * (GPA0=1 -> select ROA327/SEM702 semigraphics) one cell BEFORE the block, and
+ * 0x80 (GPA0=0 -> back to ROA296) one cell AFTER, so the sextant codes are
+ * looked up in the semigraphics font instead of the main font.  Field
+ * attributes blank their own cell and persist FORWARD across rows -- placing
+ * the block at row QR_TOP (well below the row-0 banner / row-2 halt text) means
+ * GPA0=1 never reaches the banner.  The QR sits in a field of spaces, which
+ * supplies the quiet zone scanners need. */
+#include "clang/qr_data.h"
+#define QR_TOP 15
+#define QR_LEFT 2
+static void draw_qr(void) {
+    const byte *s = qr_screen;                  /* sequential over all 117 cells */
+    byte *d = dspstr + QR_TOP * 80 + QR_LEFT;   /* screen dest, +80 per row */
+    byte r, c;
+    /* One field attribute (0x84 = GPA0=1) selects ROA327/SEM702 from here to the
+     * end of screen -- no 0x80 reset is needed because everything after the QR
+     * is blank spaces, which render identically in both fonts (and the banner /
+     * halt text are on earlier rows, before this attribute). */
+    d[-1] = 0x84;
+    for (r = 0; r < QR_ROWS; r++) {
+        for (c = 0; c < QR_COLS; c++)
+            *d++ = *s++;                        /* both pointers advance (HL/BC) */
+        d += 80 - QR_COLS;                      /* skip to next row */
+    }
+}
+
 static void display_banner_and_start_crt(void) {
     memset(dspstr, 0x20, 80 * 25);
     memcpy(dspstr, BANNER_PTR, BANNER_LENGTH);
     display_sw1_status();
+    draw_qr();
     /* Pre-program DMA ch2 for first frame (ISR takes over for subsequent frames) */
     dma_mask(2);                     /* disable ch2 during programming */
     dma_clear_bp();                  /* reset byte pointer flip-flop */

@@ -102,6 +102,7 @@ prom:
 # 0x7A00 and greps for "SW1: " on row 1.  Use to verify the
 # display_sw1_status() output after editing the formatting.
 SW1_DUMP    = /tmp/autoload_sw1_dump.txt
+QR_DUMP     = /tmp/autoload_qr_dump.txt
 SW1_PROM1   = $(MAME)/roms/rc702/prom1.ic65
 SW1_PROM1_BACKUP = /tmp/autoload_prom1_backup.bin
 
@@ -125,6 +126,41 @@ sw1-test: prom
 	@grep -qE "^row00: .*SW1 12345678: [01]{8}" $(SW1_DUMP) \
 	    && echo "PASS: SW1 status present on row 0 (right side)" \
 	    || { echo "FAIL: SW1 status not found on row 0"; exit 1; }
+
+# QR-at-boot oracle: boot with NO diskette + NO PROM1 signature (the
+# "**NO DISKETTE NOR LINEPROG**" halt) and assert the QR code is on the
+# CRT next to the error message.  Verifies THREE things:
+#   1. the 8275 field attribute 0x84 (GPA0=1) precedes the block,
+#   2. the 13x9 sextant region byte-matches clang/qr_data.h, and
+#   3. the no-diskette error message is on screen.
+.PHONY: qr-test
+qr-test: prom
+	@echo "=== preparing empty PROM1 (no signature) ==="
+	@if [ -f "$(SW1_PROM1)" ]; then cp "$(SW1_PROM1)" "$(SW1_PROM1_BACKUP)"; fi
+	@perl -e 'print "\xFF" x 2048' > "$(SW1_PROM1)"
+	@rm -f $(QR_DUMP)
+	@echo "=== launching MAME for QR check (~4 s) ==="
+	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run 6 \
+	    -autoboot_script mame_qr_test.lua \
+	    -snapname autoload_qr \
+	    >/tmp/autoload_qr_mame.log 2>&1
+	@echo "=== restoring PROM1 ==="
+	@if [ -f "$(SW1_PROM1_BACKUP)" ]; then cp "$(SW1_PROM1_BACKUP)" "$(SW1_PROM1)"; rm -f "$(SW1_PROM1_BACKUP)"; fi
+	@cat $(QR_DUMP) 2>/dev/null || { echo "FAIL: no dump produced"; exit 1; }
+	@grep -q "^attr: 84" $(QR_DUMP) \
+	    || { echo "FAIL: field attribute 0x84 (GPA0=1) not present before QR"; exit 1; }
+	@grep -q "NO DISKETTE NOR LINEPROG" $(QR_DUMP) \
+	    || { echo "FAIL: no-diskette error message not on screen"; exit 1; }
+	@python3 -c 'import re,sys; \
+h=open("clang/qr_data.h").read(); \
+exp=[int(x,16) for x in re.findall(r"0x([0-9a-fA-F]{2})", h.split("qr_screen",1)[1])]; \
+d=open("$(QR_DUMP)").read().splitlines(); \
+got=[int(b,16) for l in d if l.startswith("qr") and l[2:4].isdigit() for b in l.split(":",1)[1].split()]; \
+sys.exit(0 if got==exp and len(exp)==117 else (print("FAIL: QR region mismatch (got %d bytes, expected %d)"%(len(got),len(exp))) or 1))' \
+	    && echo "PASS: QR rendered correctly (attr 0x84 + 117 sextant cells match qr_data.h + error message present)" \
+	    || { echo "FAIL: QR region does not match qr_data.h"; exit 1; }
 
 mame: prom mamesym
 	@awk '{printf "comadd %s,%s\n", $$1, $$2}' $(COMPILER)/prom0_mame.sym > $(COMPILER)/prom0_debug.cmd
@@ -280,7 +316,7 @@ clang/prom.clang.bin: $(CLANG_OBJS) $(CLANG_ZX0_OBJS) clang/rc700_prom.ld
 	@echo "    OK: $$(wc -c < clang/text_raw.bin | tr -d ' ') bytes raw -> $$(wc -c < clang/text_compressed.zx0 | tr -d ' ') bytes compressed; roundtrip exact"
 	@echo "=== pass 2: re-assemble text_compressed.o + link ==="
 	$(RUN) $(CLANG_CC) --target=z80 -c clang/text_compressed.s -o clang/text_compressed.o
-	$(RUN) $(CLANG_LD) --gc-sections -T clang/rc700_prom.ld $(CLANG_OBJS) $(CLANG_ZX0_OBJS) -o clang/prom.clang.elf
+	$(RUN) $(CLANG_LD) --gc-sections --defsym FINAL_LINK=1 -T clang/rc700_prom.ld $(CLANG_OBJS) $(CLANG_ZX0_OBJS) -o clang/prom.clang.elf
 	$(RUN) $(CLANG_OBJCOPY) -O binary \
 	    --only-section=.boot --only-section=.nmi \
 	    --only-section=.zx0_decoder --only-section=.zx0_decoder_hi \
