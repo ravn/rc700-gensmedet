@@ -89,7 +89,7 @@ polish items remain; none are blockers.
 | SW1 status line | `make sw1-test` | SW1 status on row 0 of autoload framebuffer | PASS this session |
 | FDC trace | `make fdc-log` | record + decode µPD765 transactions during boot; flag bugs A/B | tooling only (new) |
 | **Floppy boot via DRI BIOS** | — (manual) | autoload + UNPATCHED SW1711-I8.imd reaches `A>` | **VERIFIED 2026-06-03 by screenshot; not yet a `make` target** |
-| **ID-COMAL boot** | — (manual) | autoload + `test-disks/RC700_Comal.imd` reaches COMAL `*` prompt (interactive) | **VERIFIED 2026-07-01 by screenshot + byte-compare (load 98.6% match, boots interactive).  Program RUN blocked by MAME rc702 port-0x14 motor bug (ravn/mame#12), not autoload.** |
+| **ID-COMAL boot** | — (manual) | autoload + `test-disks/RC700_Comal.imd` reaches COMAL `*` prompt (interactive) | **✅ USER-APPROVED 2026-07-01.**  VERIFIED by screenshot + byte-compare (load 98.6% match, boots interactive).  Program RUN blocked by MAME rc702 port-0x14 motor bug (ravn/mame#12), not autoload — out of autoload scope. |
 
 **Gap:** no committed `make` target asserts the floppy-boot end-to-end on
 the unpatched `SW1711-I8.imd`.  `make mame` uses an out-of-tree default
