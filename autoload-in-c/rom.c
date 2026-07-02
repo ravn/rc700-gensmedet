@@ -484,9 +484,12 @@ static byte verify_seek_result(byte expected_pcn) {
     if (wait_fdc_ready(0xFF)) {
         return 1;
     }
-    if ((drive_select + 0b00100000) != fdc_result.st0 || /* SE+drive */ /* TODO:  Should this be an and? */
-        expected_pcn != fdc_result.st1) {
-        /* verify PCN */
+    /* Seek verifies only if BOTH ST0 == SE+drive AND PCN == expected cylinder.
+     * So fail (return 2) if EITHER differs -- `||` is correct (De Morgan of the
+     * "both must match" success condition); `&&` would wrongly accept a seek
+     * where just one of the two matched. */
+    if ((drive_select + 0b00100000) != fdc_result.st0 || /* SE+drive */
+        expected_pcn != fdc_result.st1) {                /* PCN */
         return 2;
     }
     return 0;
