@@ -61,9 +61,37 @@ file names as strings in the tokenised code) pins the consumers:
   `RACE.PRG` (plus a few other files' blocks).
 
 Caveat: `RACE.PRG`/`FUTTOG.PRG` are `.PRG` files, so they hit the `error 0214`
-(invalid CHAIN) wall above and can't be launched from the `logon` menu on this
+wall (see next section) and can't be launched from the `logon` menu on this
 rev-1.07 system — the char-set/consumer pairing is established from the binaries,
 not from a live run.
+
+## Why the `.PRG` apps fail: COMAL80 version / external procedures
+
+The `.PRG` files (`RACE`, `FUTTOG`, `TEGNGEN`, `VEJLED`, `PRINTER`) are **tokenised
+COMAL programs**, byte-structurally identical to the programs that *do* run
+(`turtle.eks`, `opgaveNN`, `logon` all share the `09 81 … 31 2F "1/"<name>` header
+and the same token stream) — the `.PRG` extension is **not** a different binary
+kind, and they are not machine code (0 × `CALL`/`RET`/`JP`).
+
+They fail because this **COMAL80 rev 1.07 cannot load them**: `LOAD "race.prg"`
+returns `error 0214` just like `CHAIN` does, whereas `LOAD "turtle.eks"` loads and
+`LIST` detokenises it cleanly (proven live in MAME).  Detokenising `logon` shows
+the `AT 0110 error 0214` is its own line `0110 CHAIN program$` failing on the
+typed name.
+
+The reason is a **language-version gap**.  The COMAL80 reference manual
+(*Comal80 Programmerings vejledning*, RCSL 42-I-1758, Jørgen Hansen, Dec 1981,
+[Bits:30000018](https://datamuseum.dk/bits/30000018)) documents the base language
+keyword-by-keyword and has **no `CHAIN` and no `EXTERNAL`/`.EXT`** entry.  So:
+
+- Base COMAL80 (1981): no CHAIN, no external procedures.
+- rev 1.07 (this 1983 disk): added `CHAIN` (logon uses it); runs plain programs.
+- `RACE.PRG`/`FUTTOG.PRG`: use **external procedures** — they reference
+  **`CHRHENT.EXT`** (the char-set loader external, block 82).  External-procedure
+  support is absent from base COMAL80 and un-loadable by rev 1.07, so these apps
+  need a **newer COMAL80 that supports `.EXT` externals**.  (A cross-version test —
+  booting a later COMAL80 and `LOAD "2:race.prg"` from a second drive — would
+  confirm it definitively.)
 
 The tiles are building blocks; the finished picture is laid out by the program
 placing tiles in a screen grid, not stored assembled in the `.CHR` file.  To
