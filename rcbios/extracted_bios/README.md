@@ -17,6 +17,7 @@ a 16-bit word at offset 0x0000 (0x0280 for 56K, 0x0380 for 58K).
 | `cpm22_56k_rel2.2_mini.bin` | 5504 | 0x0280 | `RC700   56k CP/M vers.2.2   rel. 2.2` | CPM_v.2.2_rel.2.2.imd, SW1711-I5_r2.2.imd |
 | `cpm22_56k_rel2.3_mini.bin` | 5504 | 0x0280 | `RC700   56k CP/M vers.2.2   rel. 2.3` | SW1711-I5_RC702_CPM_v2.3.imd |
 | `cpm22_56k_rel2.3_maxi.bin` | 9344 | 0x0280 | `RC700   56k CP/M vers.2.2   rel. 2.3` | SW1711-I8.imd, PolyPascal_3.10.imd |
+| `cpm22_56k_rc702e_rel1.7_mini.bin` | 5514 | 0x0280 | `RC702E 56k CP/M Ver 2.2 Rel 1.7` | Bits:30003291 (MT Pascal+ loader, 0x280 after CONFI.COM area) |
 | `cpm22_56k_rc702e_rel2.01_mini.bin` | 5504 | 0x0280 | `RC702E 56k CP/M Ver 2.2 Rel 2.01` | PolyPascal_v3.10.imd |
 | `cpm22_56k_rc702e_rel2.20_rc703.bin` | 9600 | 0x0280 | `RC702E 56k CP/M Ver 2.2 Rel 2.20` | RC703_BDS_C_v1.50_workdisk.imd |
 | `cpm22_56k_rel1.0_rc703_maxi.bin` | 9344 | 0x0280 | `RC703   56k CP/M vers.2.2   rel. 1.0` | SW1311-I8.imd |
@@ -69,12 +70,8 @@ call addresses documented in the CP/M User's Guide.
 |--------|----------|-----------|-----|---------|------------|
 | 58K | rel.1.3, rel.1.4 | 4864B | 58K | 0xE200 | 0xDD00 |
 | 56K RC700 | rel.2.0, 2.1, 2.2, 2.3 | 4736B mini / 8576B maxi | 56K | 0xDA00 | 0xD480 |
-| RC702E | rel.2.01, rel.2.20 (+ **rel.1.7** seen, not yet extracted) | 4736B / 8832B | 56K | 0xDA00 | 0xD480 |
+| RC702E | rel.1.7, rel.2.01, rel.2.20 | 4736B / 8832B | 56K | 0xDA00 | 0xD480 |
 
-> **Lead:** an *earlier* **RC702E rel.1.7** exists — the disk Bits:30003291
-> (MT Pascal+ loader, mini format) boots `RC702E 56k CP/M Ver 2.2 Rel 1.7`, and
-> its BIOS is byte-distinct from our rel.2.01 and rel.2.20 references.  Not yet
-> extracted/reconstructed.  See `docs/DATAMUSEUM_RC700_ARTIFACTS.md`.
 | RC703 | rel.1.0, 1.1, 1.2, TFj | 8576-8832B | 56K | 0xDA00 | 0xD480 |
 
 ### 58K BIOS (oldest)
@@ -112,6 +109,14 @@ BIOS source at jbox.dk (BIOS.MAC) corresponds to rel.2.1.
 Fork of the 56K RC700 BIOS for RC702E hardware with RAM disk and clock
 support. PROM source: PHE358A.MAC (proven original).
 
+- **rel.1.7** (mini, 5514 B) — the *earliest* RC702E we hold, from Bits:30003291
+  (MT Pascal+ loader; the BIOS sits at disk 0x280, just after the disk's
+  CONFI.COM/font area).  Only ~59 % byte-match to rel.2.01 (mostly relocated
+  address operands; ~97 % of the image is code).  **Reconstructed byte-identical
+  (2026-07-02):** `make rc702e-rel17` builds `src-rc702e/BIOS_E17.MAC` (generated
+  by `mkbios_e17.py` — locates rel.2.01's strings by content, shifts its table
+  regions via the difflib map, and lets z80dasm reproduce the relocated code);
+  `make verify-rc702e-rel17` confirms 5514/5514.
 - **rel.2.01** (mini format): 44% match vs 56K RC700 rel.2.2. The INIT
   area (before JT) contains unique boot strings: `USE RAM-DISK`,
   `NOT INSTALLED.`, `RC702E Waiting.`, `AS BOOTDISK?(Y/N)`,

@@ -125,6 +125,9 @@ rc702e-rel220: src-rc702e/BIOS.MAC
 	$(ZMAC) $(ZMFLAGS) -DREL220 src-rc702e/BIOS.MAC
 	cp zout/BIOS.hex zout/BIOS_E220.hex
 
+rc702e-rel17: src-rc702e/BIOS_E17.MAC
+	$(ZMAC) $(ZMFLAGS) -DREL17 src-rc702e/BIOS_E17.MAC
+
 # Verify all variants against reference binaries
 verify: verify-rel20-mini verify-rel21-mini verify-rel22-mini verify-rel23-mini verify-rel23-maxi verify-rel13-mini verify-rel14-mini verify-rel14-maxi verify-rc703-rel10 verify-rc703-rel11 verify-rc703-rel12 verify-rc703-reltfj verify-rc702e-rel201 verify-rc702e-rel220 verify-summary
 
@@ -175,14 +178,17 @@ verify-rc702e-rel201: rc702e-rel201
 verify-rc702e-rel220: rc702e-rel220
 	python3 verify_rc702e.py zout/BIOS_E220.hex extracted_bios/cpm22_56k_rc702e_rel2.20_rc703.bin --qd
 
-verify-rc702e: verify-rc702e-rel201 verify-rc702e-rel220
+verify-rc702e-rel17: rc702e-rel17
+	python3 verify_rc702e.py zout/BIOS_E17.hex extracted_bios/cpm22_56k_rc702e_rel1.7_mini.bin --mini
+
+verify-rc702e: verify-rc702e-rel17 verify-rc702e-rel201 verify-rc702e-rel220
 
 verify-summary:
 	@echo "=== BIOS build summary ==="
 	@echo "  RC700 56K: 5 byte-verified (rel.2.0-2.3 mini, rel.2.3 maxi)"
 	@echo "  RC700 58K: 3 byte-verified (rel.1.3 mini, rel.1.4 mini/maxi)"
 	@echo "  RC703:     4 byte-verified (rel.1.0, rel.1.1, rel.1.2 full, rel.TFj code)"
-	@echo "  RC702E:    2 byte-verified (rel.2.01 mini, rel.2.20 qd)"
+	@echo "  RC702E:    3 byte-verified (rel.1.7, rel.2.01 mini, rel.2.20 qd)"
 
 # ============================================================
 # Extraction and disassembly targets

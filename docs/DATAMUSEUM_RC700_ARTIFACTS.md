@@ -30,7 +30,9 @@ Status legend: **✓analysed** · **✓ref** (byte-verified BIOS reference held)
 1. **NEW BIOS variant: RC702E rel 1.7** — Bits:30003291 (MT Pascal+ loader disk)
    boots `RC702E 56k CP/M Ver 2.2 Rel 1.7`.  Verified **distinct** from our
    RC702E rel 2.01 and 2.20 references (neither's code appears in it).  An
-   *earlier* RC702E than we had. → **TODO: extract + reconstruct rc702e-rel17.**
+   *earlier* RC702E than we had.  **DONE:** extracted + reconstructed byte-identical
+   (`make rc702e-rel17` / `verify-rc702e-rel17`, 5514/5514); reference
+   `rcbios/extracted_bios/cpm22_56k_rc702e_rel1.7_mini.bin`.
 2. **RC703 rel 1.1 corroborated on three disks** — Bits:30003294 (source of our
    reference), 30003305 (COMPAS/RcTekst suite), 30003306 (PROMbrænder RC703).
 3. **BIOS runtime census** (which system each software disk boots): most RC700
@@ -58,7 +60,7 @@ Status legend: **✓analysed** · **✓ref** (byte-verified BIOS reference held)
 | 30003294 | ASM assembler+editor RC700 | boots **RC702E 2.20**; carries **RC703 rel.1.1** BIOS (T0.703) | ✓ref (rel.1.1) |
 | 30005324 | BDS C 1.50 RC703 | boots **RC702E 2.20** (= our rel2.20 ref source) | ✓ref (RC702E 2.20) |
 | 30003295 | BDS C 1.50 RC703 | boots **RC702E 2.20** (raw copy of 30005324's disk) | ✓ (dup content) |
-| 30003291 | MT Pascal+ 5.5 loader | **RC702E rel 1.7 ★NEW distinct BIOS** | ★lead (extract/reconstruct) |
+| 30003291 | MT Pascal+ 5.5 loader | **RC702E rel 1.7** BIOS (0x280, after CONFI.COM) | ✓ref + **reconstructed** (rc702e-rel17) |
 | 30003293 | RC702 hardware test program | boots RC702; diagnostic disk (≠ testprog PDF) | ★lead (not fully analysed) |
 | 30003292 | PROMbrænder software RC700 | boots RC702E 2.20; RC PROM-burner | ★lead |
 | 30003306 | PROMbrænder software RC703 | boots **RC703 rel.1.1**; PROM burner | ★lead |
@@ -136,8 +138,7 @@ Misc: 30006263 (Måle&Tælle interface).
 
 1. **RC701 ports** — open Bits:30002918 + 30005728 for the RC701 I/O map (unblocks
    any RC701 MAME emulation; ref [8] gap in `reference_rc700_family_proms`).
-2. **RC702E rel 1.7** — extract from Bits:30003291 and reconstruct `rc702e-rel17`
-   (mirrors rc702e-rel201/220; distinct BIOS confirmed).
+2. ~~RC702E rel 1.7 — reconstruct~~ **DONE** (byte-identical, `make rc702e-rel17`; ref extracted from Bits:30003291).
 3. **RC702 hardware test disk** (Bits:30003293) — analyse (test-PROM code / ports).
 4. **Keyboard/peripheral MCU** — Bits:30008786 keyboard description could identify
    the non-Z80 ROE114/115 chip family.
