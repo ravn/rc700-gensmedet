@@ -8346,3 +8346,31 @@ mis-computed 4:3 = 608×550=1.105) to the true **736:528 = 230:165**.
   **T0.703 = RC703 rel 1.1** — a release we lacked (had 1.0/1.2/TFj), distinct
   (~42% match to 1.2).  Preserved as `extracted_bios/cpm22_56k_rel1.1_rc703.bin`.
   TODO: reconstruct `rc703-rel11`.
+
+## Session 2026-07-02 (cont.) — RC703 rel.1.1 reconstruction + datamuseum source-disk archaeology
+
+**RC703 rel.1.1 BIOS reconstructed, byte-identical.**  `make rc703-rel11` +
+`verify-rc703-rel11` reproduce the reference (9600/9600).  `mkbios_rel11.py`
+auto-derives the data-region/code-end map from rel.1.2 via a difflib address-shift
+(rel.1.1 = rel.1.2 minus two 512-B inserts → code_end 0xE600).  RC703 line now
+byte-verified for 1.0/1.1/1.2/TFj.
+
+**RC703 evolution documented** (extracted_bios/README): 1.0→1.1 = big reformat
+MAXI→QD (relocated); 1.1→1.2 = incremental (89%): signon digit, +512B drive/HD-
+select code @E401, DPB/table reorg @E800.  Plus a **workspace-residue caveat** —
+the F600–F9FF "named table" (Z-80/TABL/EXTENT tags) is SYSGEN-captured RAM from a
+resident component (COMAL-80 prime suspect), NOT BIOS; don't read release diffs
+there as features (user caught this).
+
+**RC703_DIV_ROA disk (Bits:30003296) catalogued** (roa375/RC703_DIV_ROA_DISK.md):
+data-only source disk.  phe358a.mac byte-identical to ours; stc001.32 = its
+assembled PROM (RC702E Autoload v3.0); rob358.mac = M80 original of our zmac port
+(dialect-only diffs, verified by full diff — no new content).  New/off-scope:
+rob584.32 = RC350/"MIC" PROM; **roe114/roe115.128 = two 16 KB ROMs proven NOT
+Z80** (incoherent Z80 disasm, not char-gen, not 6502/8051; structured data) —
+likely char-gen/graphics or peripheral-MCU firmware, unidentified.
+
+Open follow-ups (catalogued, off critical path): ROE114/115 chip identification;
+RC701 port map needs ref [8] "Hardw. portnumre Microdatamat line RC701/RC702".
+
+verify_seek_result TODO resolved (comment-only; `||` confirmed correct).
