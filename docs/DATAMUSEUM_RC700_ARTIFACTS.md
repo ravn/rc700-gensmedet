@@ -125,9 +125,17 @@ Status legend: **✓analysed** · **✓ref** (byte-verified BIOS reference held)
 
 ## C. Languages & compilers (disks — download via bits/<num>)
 
-- **COMAL:** 30005726 (✓used ID-COMAL rev01.11), 30005768 (r1.17), 30007375 (r1.13),
-  30003572 (r1.07), 30003986 (1.08), 30003316/17, 30005765/66, 30003945 (1.1),
-  30003985/30003946/30004120/30003318/30009625/30005767 (RcComal80), 30003916 (Metanic), 30003588 (ID-Comal conv)
+- **ID-COMAL** (a *different* interpreter — NOT COMAL80; own disk format
+  [128-byte FM SD, SW7501 line] + own program format, cannot read/run COMAL80
+  `.PRG` files): 30005726 (rev01.11), **30005768 (SW7501 r1.17)**,
+  **30007375 (SW7501 r1.13, "RC700 comal rev. 01.13", boots standalone in
+  rc702mini)**, 30003588 (ID-Comal conv).  Verified 2026-07-02: ID-COMAL 1.13
+  cannot `LOAD "2/RACE.PRG"` from a COMAL80 disk (format + program-format gap).
+- **COMAL80 / RcComal80:** 30003572 (r1.07), 30003986 (1.08), 30003316/17,
+  30005765/66, 30003945 (1.1), 30003985/30003946/30004120/30003318/30009625/30005767
+  (RcComal80 — all CP/M-hosted distribution disks; v2.0 = 30004120 + 30009625),
+  30003916 (Metanic).  Standalone COMAL80 = the education disk 30003268 (rev 1.07,
+  no external procedures).  See `docs/RC702_COMAL_SEM702_CHARSETS.md`.
 - **Pascal:** 30005922/30005716/30003066/30003287 (PolyPascal 3.10), 30003270 (COMPAS 3.03),
   30005754/30003073/30005838 (COMPAS 2.20/2.13), 30003291/30004118/30003289 (Pascal/MT+),
   30005674 (InterSystems 3.2), 30005750/51/30003074/30005351/30005769 (UCSD), 30003298 (Turbo 3.01A)
