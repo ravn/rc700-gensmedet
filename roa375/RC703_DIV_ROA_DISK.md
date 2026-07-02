@@ -77,15 +77,15 @@ disassembler, or knowing which RC peripheral uses ROE-series ROMs).  What is
 certain is that they are **not Z80 firmware for the RC702/703 CPU**, so they are
 not part of the autoload / BIOS reconstruction work.
 
-**Leading hypothesis (2026-07-02): the RC700 graphics-card / colour extension.**
-There was a graphics-card extension with a **graphics coprocessor** that merged
-with the 8275 CRT output to drive a separate colour screen (user).  A coprocessor
-has its own CPU — which would explain why ROE114/ROE115 are *not* Z80 — and two
-paired 16 KB ROMs fit a coprocessor program + data (or colour char/graphics set).
-Supporting: `rob358.mac` carries a conditional **COLOR CRT autoload variant**
-(`COLOR EQU 0 ;SELECT COLOR CRT AUTOLOAD VERSION`).  Revisit ROE114/115 as the
-graphics-card firmware if/when we model that extension in MAME (catalogue TODO
-#8, `docs/DATAMUSEUM_RC700_ARTIFACTS.md`).
+**Graphics-card connection — CORRECTED (2026-07-02).**  The RC700 graphics/colour
+extension is the **VPB701 board**, and its coprocessor is a **NEC µPD7220 GDC**
+(see `docs/RC702_VPB701_GRAPHICS.md`, RCSL 42-i-2164 / Bits:30005363).  The
+µPD7220 is a **fixed-function controller with no program ROM**, so ROE114/ROE115
+are **NOT** its firmware (my earlier "coprocessor firmware" guess was wrong).
+The µPD7220 *can* do character display via an external char generator, so the two
+16 KB non-Z80 ROMs *might* be the VPB701 graphics/colour char-gen — but this is
+now speculative and unconfirmed.  (`rob358.mac` does carry a conditional COLOR
+CRT autoload variant, confirming firmware awareness of colour.)
 
 ## Net verdict
 

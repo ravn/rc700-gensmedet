@@ -153,21 +153,16 @@ Misc: 30006263 (Måle&Tælle interface).
    system (directory shows `PASCALSYSTEM/USERPROG/DEBUGGER/…`), so `cpmtools`
    can't read it; extraction/running needs UCSD p-System tools or the p-System
    interpreter, not the CP/M path.
-8. **Graphics-card extension** (even later; user has no hardware) — there was a
-   graphics-card extension with a **graphics coprocessor** that merges with the
-   8275 CRT output to drive a separate **colour** screen.  Goal: model it in MAME
-   and run sample programs.  Evidence/leads already in hand:
-   - **Firmware support:** `roa375/rob358.mac` has a conditional **COLOR CRT
-     autoload variant** (`COLOR EQU 0 ;SELECT COLOR CRT AUTOLOAD VERSION`,
-     `COL EQU 193 ;COLOR ATTRIBUTE`, a "CRT COLOR DESCRIPTION" section).
-   - **Candidate programs:** Bits:30003285 "Mikro-Logo … **med grafikkort**",
-     30003947 (SW1740 Mikro-Logo 1.0), 30003312 (turtle/skildpadde graphics),
-     30003268 (COMAL + Tegngenerator) — investigate which actually drive the
-     graphics coprocessor.
-   - **Possible coprocessor firmware:** the two 16 KB **non-Z80** ROMs
-     `ROE114`/`ROE115` on Bits:30003296 (see `roa375/RC703_DIV_ROA_DISK.md`) — a
-     graphics coprocessor has its own CPU, which would explain why they are not
-     Z80.  Worth re-examining as the graphics-card firmware once its CPU is known.
+8. **VPB701 graphics card** (even later; user has no hardware) — the RC700
+   colour/graphics extension is the **VPB701 Video Processor Board** with a
+   **NEC µPD7220 GDC**: B/W graphics merged with the 8275 at 560×275, or 256×256
+   colour on an external monitor.  **Technical manual: Bits:30005363**
+   (RCSL 42-i-2164).  Goal: model in MAME (which has a `upd7220` device) and run
+   samples.  Full analysis + MAME-modelling path in
+   **`docs/RC702_VPB701_GRAPHICS.md`**.  Candidate sample programs: Bits:30003285
+   (Mikro-Logo *med grafikkort*), 30003947, 30003312 (turtle), 30003268.
+   Firmware: `rob358.mac` COLOR CRT autoload variant.  (Note: ROE114/115 are NOT
+   the coprocessor firmware — the µPD7220 has no program ROM.)
 
 ## Analysis status
 
