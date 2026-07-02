@@ -90,8 +90,9 @@ work is the GDC draw callback and the B/W OR-merge.
   the driver disassembly below.
 - **Bits:30003312** — "Elevopgave i styring af skildpadde" (turtle graphics),
   explicitly *"skrevet i PolyPascal"*.  Single `.COM`, card use not yet confirmed.
-- **Bits:30003268** — "COMAL 80 rev1.07 opgaver + Tegngenerator".  *Tegngenerator*
-  = SEM702 RAM char-gen, **not** the VPB701; unlikely a card user.
+- **Bits:30003268** — "COMAL 80 rev1.07 opgaver + Tegngenerator".  **Confirmed NOT
+  a VPB701 user** — it is the SEM702 RAM char-generator, not the graphics card
+  (analysis below).
 
 ## Confirmed VPB701 user: SW1740 Mikro-Logo `HOEJDXY.COM` (2026-07-02)
 
@@ -164,6 +165,28 @@ There is **no source text** for `HOEJBEG`/`HOEJDXY` on the disk (only the compil
 parenthesis-free turtle-graphics Logo, akin to Myresnak).  So the recoverable
 form is the native PolyPascal `.COM`; the graphics driver is understood by
 disassembly (above), not from source.
+
+## COMAL 80 disk (Bits:30003268) — SEM702 char-gen, NOT VPB701 (2026-07-02)
+
+Analysed to settle whether its "Tegngenerator" drives the graphics card.  It does
+**not** — it is the **SEM702 RAM character generator** (user-definable glyphs),
+a different mechanism from the VPB701's µPD7220 bitmap.  Evidence:
+
+- **Port scan of the whole disk image: zero VPB701 GDC accesses** — no
+  `IN A,(0C8h)` / `OUT (0C8h),A` / `OUT (0C9h),A` anywhere (vs the HOEJDXY driver
+  which is full of them).
+- **`DIVERSE.CHR` and `HESTE.CHR` are each exactly 2.0 KB = 256 glyphs × 8
+  bytes** — a complete SEM702 character-generator RAM image.  `TEGNGEN.PRG`
+  (14.5 KB) is the char-set **editor**; `CHRHENT.EXT` is the COMAL external that
+  loads a `.CHR` into the char-gen; `TEGNLOGO` a demo.
+- Disk contents (51 files, CP/M dir at raw offset `0x5D80`): the RcComal80
+  `SYSTEM` (13 KB), the char-gen toolset above, and a set of COMAL exercise/example
+  sources (`opgaveNN`, `eksN.N`, `turtle.eks`, `quicksort`, `horner`, `cardano`,
+  `funktion`) — plain COMAL text/tokenised programs, no graphics-card code.
+
+So 30003268 is a **RcComal80 education disk using SEM702 custom characters** for
+its "graphics", and is off the VPB701 modelling path.  (SEM702 is separately
+modelled in MAME as the `rc702sem702` machine — see the workspace `CLAUDE.md`.)
 
 ## Firmware / ROM notes
 
