@@ -8374,3 +8374,16 @@ Open follow-ups (catalogued, off critical path): ROE114/115 chip identification;
 RC701 port map needs ref [8] "Hardw. portnumre Microdatamat line RC701/RC702".
 
 verify_seek_result TODO resolved (comment-only; `||` confirmed correct).
+
+## Session 2026-07-02 (cont.) — datamuseum RC700 keyword full catalogue
+
+Catalogued all ~160 RC700 artifacts from datamuseum keyword RC/RC700
+(`docs/DATAMUSEUM_RC700_ARTIFACTS.md`) with per-item download links
+(bits/<num>) + local-copy status.  Downloaded + analysed the 118 software disks
+(BIOS runtime census from boot-track signons).  Findings: **RC702E rel 1.7**
+(Bits:30003291) is a NEW distinct BIOS variant (earlier than our 2.01/2.20);
+RC703 rel 1.1 corroborated on 3 disks; most apps run RC702 rel 2.1, dev/office
+suite runs RC702E 2.20; RC701 docs (Bits:30002918/30005728) are the top lead for
+the missing RC701 port map; 6 items are BagIt ZIP bundles; no byte-dups.  Open
+TODOs recorded: RC701 ports, reconstruct rc702e-rel17, RC702 HW-test disk,
+keyboard MCU (ROE114/115 chip).

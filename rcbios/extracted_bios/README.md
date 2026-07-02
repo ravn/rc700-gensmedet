@@ -69,7 +69,12 @@ call addresses documented in the CP/M User's Guide.
 |--------|----------|-----------|-----|---------|------------|
 | 58K | rel.1.3, rel.1.4 | 4864B | 58K | 0xE200 | 0xDD00 |
 | 56K RC700 | rel.2.0, 2.1, 2.2, 2.3 | 4736B mini / 8576B maxi | 56K | 0xDA00 | 0xD480 |
-| RC702E | rel.2.01, rel.2.20 | 4736B / 8832B | 56K | 0xDA00 | 0xD480 |
+| RC702E | rel.2.01, rel.2.20 (+ **rel.1.7** seen, not yet extracted) | 4736B / 8832B | 56K | 0xDA00 | 0xD480 |
+
+> **Lead:** an *earlier* **RC702E rel.1.7** exists — the disk Bits:30003291
+> (MT Pascal+ loader, mini format) boots `RC702E 56k CP/M Ver 2.2 Rel 1.7`, and
+> its BIOS is byte-distinct from our rel.2.01 and rel.2.20 references.  Not yet
+> extracted/reconstructed.  See `docs/DATAMUSEUM_RC700_ARTIFACTS.md`.
 | RC703 | rel.1.0, 1.1, 1.2, TFj | 8576-8832B | 56K | 0xDA00 | 0xD480 |
 
 ### 58K BIOS (oldest)
