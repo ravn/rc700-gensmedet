@@ -192,6 +192,38 @@ cpmcp -f rc703-qd RC703_Div_BIOS_typer.bin '0:*.*' rc703-div-bios-typer/
 
 Trailing CP/M Ctrl-Z (0x1A) EOF characters stripped from all text files.
 
+That `cpmcp` step only copies the **filesystem** (user-0 files, 36 files).  It
+does NOT copy the CP/M **system/boot tracks** (`boottrk 4` in the `rc703-qd`
+diskdef → tracks 0-3 = 4 × 10 × 512 = 20480 B), which hold the *assembled,
+runnable* system.  Those are preserved separately (2026-07-02):
+
+## System tracks — the assembled, runnable TFj build (`RC703_Div_BIOS_typer.systemtracks.bin`)
+
+The first 4 tracks of the raw image (`RC703_Div_BIOS_typer.systemtracks.bin`,
+20480 B, sha256 `fb3fabc2…`) contain the bootstrap + BDOS/CCP + the fully
+assembled BIOS as it actually ran on this disk.  Findings from analysing it
+(source: datamuseum.dk Bits:30003297):
+
+- **Assembled signon = `RC703  56k CP/M vers. 2.2  rel. TFj`** (track 0,
+  sector 3).  The source TITLE line says `RELEASE 1.1  83.09.14`, but the
+  *binary* is self-labelled **`rel. TFj`** — hard evidence that the running
+  system is Torben Fjerdingstad's personal build, not an official RC release.
+- **Embedded BIOS build manifest** (`BIOS BESTÅR AF:`, track 3 sector 2) lists
+  the constituent modules in link order — the definitive 13-module set:
+  `BIOS703 · BIOSTYPE · INIPARMS · DANISHOF · INIT · CPMBOOT · SIO · QDISPLAY ·
+  FLOPPY · HARDDSK · QDISKTAB · INTTAB · PIO` (all present as source above).
+- Runtime strings not obvious from the sources: `Waiting`,
+  **`Cannot read configuration record.`** (the BIOS reads a config record),
+  `Wrong CP/M Version (Requires 2.0)`, and a STAT-style capacity table
+  (`128 Byte Record Capacity / Kilobyte Drive Capacity`).
+- **RC763 references** in the boot area — this build includes the RC763/RC763B
+  hard-disk support (matches HARDDSK.MAC + LO's Rodime-202 work in the history).
+
+Use: a **byte-level golden reference** for validating the rcbios reconstruction
+(boot flow, load addresses, BIOS binary) — an oracle we did not have from the
+source files alone.  Re-extract: `dd if=RC703_Div_BIOS_typer.bin of=- bs=512
+count=40`.
+
 ## Hardware Summary
 
 The BIOS supports the following RC703 hardware:

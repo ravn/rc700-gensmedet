@@ -20,6 +20,7 @@ a 16-bit word at offset 0x0000 (0x0280 for 56K, 0x0380 for 58K).
 | `cpm22_56k_rc702e_rel2.01_mini.bin` | 5504 | 0x0280 | `RC702E 56k CP/M Ver 2.2 Rel 2.01` | PolyPascal_v3.10.imd |
 | `cpm22_56k_rc702e_rel2.20_rc703.bin` | 9600 | 0x0280 | `RC702E 56k CP/M Ver 2.2 Rel 2.20` | RC703_BDS_C_v1.50_workdisk.imd |
 | `cpm22_56k_rel1.0_rc703_maxi.bin` | 9344 | 0x0280 | `RC703   56k CP/M vers.2.2   rel. 1.0` | SW1311-I8.imd |
+| `cpm22_56k_rel1.1_rc703.bin` | 9600 | 0x0280 | `RC703  56k CP/M vers. 2.2  rel. 1.1` | RC703_8051ASM.bin (`T0.703` track-image file, off 0x280) |
 | `cpm22_56k_rel1.2_rc703.bin` | 9600 | 0x0280 | `RC703  56k CP/M vers. 2.2  rel. 1.2` | RC703_CPM_v2.2_r1.2.imd, SW1311_cpm_v.2.2.imd |
 | `cpm22_56k_relTFj_rc703.bin` | 9600 | 0x0280 | `RC703  56k CP/M vers. 2.2  rel. TFj` | RC703_Div_BIOS_typer.imd |
 
@@ -29,6 +30,23 @@ a 16-bit word at offset 0x0000 (0x0280 for 56K, 0x0380 for 58K).
 - rel.2.2 mini: CPM_v.2.2_rel.2.2 = SW1711-I5_r2.2
 - rel.2.3 maxi: SW1711-I8 = PolyPascal_3.10
 - rel.1.2 rc703: RC703_CPM_v2.2_r1.2 = SW1311_cpm_v.2.2
+
+### New: RC703 rel.1.1 (2026-07-02, from RC703_8051ASM.bin)
+
+The disk **RC703_8051ASM.bin** (datamuseum Bits:30003294, an 8051/8048/6502
+cross-assembler work disk) carries a set of **track-image files** used by
+`TRACKSYS`/`SYSG` to lay down bootable system tracks for different machines:
+`T0.702`/`T1.702` (= RC702E rel.2.20), `T0.703`/`T1.703`, `T0.SYS`/`T1.SYS`.
+
+`T0.703` is **`RC703  56k CP/M vers. 2.2  rel. 1.1`** — a release we did NOT
+have (we had rel.1.0, rel.1.2, rel.TFj).  It is a **distinct** build: only
+~42 % byte-match to rel.1.2, ~7 % to rel.1.0, ~43 % to rel.TFj — so it fills
+the 1.0→1.2 gap on the RC703 line.  Extracted as
+`cpm22_56k_rel1.1_rc703.bin` (9600 B, off 0x280).
+
+**TODO (reconstruction task):** add an `rc703-rel11` zmac source + Makefile
+target + `verify-rc703-rel11` against this reference, mirroring `rc703-rel10`
+/ `rc703-rel12`.  Not yet reconstructed — reference preserved so it can be.
 
 ### Non-bootable images skipped
 
@@ -48,7 +66,7 @@ call addresses documented in the CP/M User's Guide.
 | 58K | rel.1.3, rel.1.4 | 4864B | 58K | 0xE200 | 0xDD00 |
 | 56K RC700 | rel.2.0, 2.1, 2.2, 2.3 | 4736B mini / 8576B maxi | 56K | 0xDA00 | 0xD480 |
 | RC702E | rel.2.01, rel.2.20 | 4736B / 8832B | 56K | 0xDA00 | 0xD480 |
-| RC703 | rel.1.0, 1.2, TFj | 8576-8832B | 56K | 0xDA00 | 0xD480 |
+| RC703 | rel.1.0, 1.1, 1.2, TFj | 8576-8832B | 56K | 0xDA00 | 0xD480 |
 
 ### 58K BIOS (oldest)
 

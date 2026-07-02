@@ -8313,3 +8313,36 @@ counter) and is already optimal. Neither instcombine nor aggressive-instcombine 
 phi (needs research-grade cyclic-phi width analysis, option 5). Stays ACCEPTED / off-critical-path.
 
 Documented in `llvm-z80/tasks/known-suboptimal-codegen.md` M1. No code change.
+
+## Session 2026-07-01/02 — autoload QR-at-boot + RC752 aspect + datamuseum archaeology
+
+**autoload QR-at-boot (production):** v2 QR of `github.com/ravn/rc700-gensmedet`
+rendered as ROA327 sextants (bottom-right) on the no-diskette error screen,
+alongside the FULL ROA327 SEM702 font.  Both fit in 2 KB (2033/2048) via a chain
+of measured non-glyph savings (line-outer sequential font loop −17 B decisive;
+sw1 variable-shift fix; flat QR renderer; mask 3).  Build-process fix (size
+ASSERT gated on `--defsym FINAL_LINK=1`).  New oracle `make qr-test`.  QR clean
+after the 8275 **underline<8** fix (`crt_param 0x9A→0x7A`) — underline≥8 blanks
+line 0/last per row, striping semigraphics (real HW behaviour).  llvm-z80 codegen
+notes B21 (stride-IV) + B22 (variable-shift-by-IV) + "LSR is Harmful" beneficial-
+usecase annotation.
+
+**RC752 monitor aspect:** measured active area 230×165 mm → aspect 1.394 (PAR
+0.685).  ravn/mame `rc702.lay` fixed from a "midpoint PAR" compromise (around a
+mis-computed 4:3 = 608×550=1.105) to the true **736:528 = 230:165**.
+
+**datamuseum archaeology (RC700 family):**
+- RC700 = RC701/702/703.  RC701 = different I/O ports + NO semigraphics (MAME
+  emulation needs code changes); PROM inventory (RC701 ROA376/377/195, RC702
+  ROA378/379/375).  6 concrete RC701→RC702 diffs from RCSL 42-i-1495 (test-prog
+  manual, Bits:30004910); actual RC701 ports need ref [8] (we don't have it).
+- RC703_Div_BIOS_typer (Bits:30003297): system tracks = assembled runnable BIOS
+  self-labelled **`rel. TFj`** + embedded 13-module `BIOS BESTÅR AF:` manifest;
+  preserved as `rc703-div-bios-typer/…systemtracks.bin` (rcbios oracle).
+- BDS C v1.50a workdisk (Bits:30005324): system tracks = RC702E rel 2.20, proven
+  byte-identical to our existing reference (extracted from that very disk); no
+  new firmware knowledge.
+- RC703_8051ASM (Bits:30003294): carries `T0.702/703/SYS` SYSGEN track-images.
+  **T0.703 = RC703 rel 1.1** — a release we lacked (had 1.0/1.2/TFj), distinct
+  (~42% match to 1.2).  Preserved as `extracted_bios/cpm22_56k_rel1.1_rc703.bin`.
+  TODO: reconstruct `rc703-rel11`.
