@@ -140,9 +140,17 @@ def decode_tokens(tok):
                 i += 4 + slen
                 first = False
                 continue
+        # small-integer constant: 7F <v> <lo>, value = 0x8F - <v>  (1..~99)
+        if b == 0x7F and i + 2 < n:
+            val = 0x8F - tok[i + 1]
+            if 0 <= val <= 99:
+                out.append(str(val))
+                i += 3
+                first = False
+                continue
         # variable reference: <idx> FF  (idx indexes the symbol table; the same
         # variable always gets the same idx, so vXX is a stable placeholder name)
-        if i + 1 < n and tok[i + 1] == 0xFF:
+        if i + 1 < n and tok[i + 1] == 0xFF and b >= 0xE0:
             out.append("v%02X" % b)
             i += 2
             first = False
