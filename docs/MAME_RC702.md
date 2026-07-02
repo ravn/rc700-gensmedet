@@ -28,11 +28,22 @@ ROMs directory: `~/git/mame/roms/rc702/`
 `-resolution0 1100x720` gives a good ~1.5x window size on M4 Air 24GB.
 
 ## Display layout
-`src/mame/layout/rc702.lay` — custom layout with amber border and midpoint PAR.
-- Midpoint between 1:1 square pixels (1120x550) and true 4:3 (608x550)
-- Content: 1296x825 (1.5x the base 864x550), border 30px -> view 1356x885
+`src/mame/layout/rc702.lay` — custom layout with amber border, at the TRUE
+RC752 physical aspect (updated 2026-07-02; was a "midpoint PAR" compromise).
+- The RC752 (NEC JB-1201M(A)) active display area is **230 x 165 mm** (RCSL
+  44-RT1981) for the 8275's 560x275 visible raster -> physical aspect
+  **230:165 = 46:33 = 1.3939**, pixel aspect ratio **0.685** (pixels ~1.46x
+  taller than wide).  See `RC702_HARDWARE_TECHNICAL_REFERENCE.md` "Video Monitor".
+- Screen content bounds **736x528** (= 46:33 exactly), border 20 -> view 776x568.
+- The previous layout used a midpoint between square pixels and a MIS-computed
+  "4:3" (608x550 = 1.105, not 1.333 and not the real 230:165); now driven by the
+  measured panel size, not a guess.
 - Background colour: rgb(0xC0, 0x60, 0x00) matching palette pen 0
 - Wired via `#include "rc702.lh"` and `config.set_default_layout(layout_rc702)` in rc702.cpp
+- NOTE: `screen:snapshot()` (used by `make qr-test` / `sw1-test`) captures the
+  RAW screen bitmap (square pixels, ~2:1), NOT this laid-out view; and headless
+  `-aviwrite` records a reduced-resolution raw capture.  For a correct-aspect
+  still, post-process the snapshot to DAR 230:165 (stretch vertical x1.46).
 
 ## What is implemented (and working)
 - Z80 @ 4 MHz, 64 KB RAM
