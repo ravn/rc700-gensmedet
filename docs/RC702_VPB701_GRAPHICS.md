@@ -175,14 +175,17 @@ a different mechanism from the VPB701's µPD7220 bitmap.  Evidence:
 - **Port scan of the whole disk image: zero VPB701 GDC accesses** — no
   `IN A,(0C8h)` / `OUT (0C8h),A` / `OUT (0C9h),A` anywhere (vs the HOEJDXY driver
   which is full of them).
-- **`DIVERSE.CHR` and `HESTE.CHR` are each exactly 2.0 KB = 256 glyphs × 8
-  bytes** — a complete SEM702 character-generator RAM image.  `TEGNGEN.PRG`
-  (14.5 KB) is the char-set **editor**; `CHRHENT.EXT` is the COMAL external that
-  loads a `.CHR` into the char-gen; `TEGNLOGO` a demo.
-- Disk contents (51 files, CP/M dir at raw offset `0x5D80`): the RcComal80
-  `SYSTEM` (13 KB), the char-gen toolset above, and a set of COMAL exercise/example
-  sources (`opgaveNN`, `eksN.N`, `turtle.eks`, `quicksort`, `horner`, `cardano`,
-  `funktion`) — plain COMAL text/tokenised programs, no graphics-card code.
+- **`DIVERSE.CHR` and `HESTE.CHR` are SEM702 custom character sets** —
+  user-definable glyphs (`TEGNGEN.PRG` is the char-set **editor**; `CHRHENT.EXT`
+  the COMAL external that loads a `.CHR` into the char-gen; `TEGNLOGO` a demo).
+  The extracted-and-decoded format is documented in
+  **`docs/RC702_COMAL_SEM702_CHARSETS.md`**: 157 records × 13 bytes
+  (`[0x0b][0x00][11 scan-lines]` = RC700's 8×11 character cell), **not** the
+  256×8 raster I first assumed.  Visualised: DIVERSE = trees/houses/fences tiles;
+  HESTE = horse-figure tiles.
+- Disk contents (51 files): the RcComal80 `SYSTEM` (13 KB), the char-gen toolset
+  above, and a set of COMAL exercise/example sources (`opgaveNN`, `eksN.N`,
+  `turtle.eks`, `quicksort`, `horner`, `cardano`, `funktion`).
 
 So 30003268 is a **RcComal80 education disk using SEM702 custom characters** for
 its "graphics", and is off the VPB701 modelling path.  (SEM702 is separately
