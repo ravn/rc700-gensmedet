@@ -52,7 +52,9 @@ two 512-B blocks rel.1.2 inserted → code_end 0xE600 instead of 0xEA00).
 
 ### Non-bootable images skipped
 
-- **RC703_DIV_ROA.imd**: Data-only disk, no system tracks
+- **RC703_DIV_ROA.imd**: Data-only disk, no system tracks.  Its contents (RC700
+  PROM sources ROB358/PHE358A + ROM images STC001/ROB584 + the non-Z80
+  ROE114/ROE115) are catalogued in `roa375/RC703_DIV_ROA_DISK.md`.
 - **SW1329-d8.imd**: Data-only disk (Compas Pascal 2.20), no system tracks
 - **Metanic_COMAL-80D_v1.8.imd**: Non-standard format (uniform MFM, no FM T0)
 
