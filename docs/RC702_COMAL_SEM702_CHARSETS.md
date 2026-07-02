@@ -89,9 +89,18 @@ keyword-by-keyword and has **no `CHAIN` and no `EXTERNAL`/`.EXT`** entry.  So:
 - `RACE.PRG`/`FUTTOG.PRG`: use **external procedures** — they reference
   **`CHRHENT.EXT`** (the char-set loader external, block 82).  External-procedure
   support is absent from base COMAL80 and un-loadable by rev 1.07, so these apps
-  need a **newer COMAL80 that supports `.EXT` externals**.  (A cross-version test —
-  booting a later COMAL80 and `LOAD "2:race.prg"` from a second drive — would
-  confirm it definitively.)
+  need a **newer COMAL80 that supports `.EXT` externals**.
+
+The newer manual confirms this: **RcComal80 Brugervejledning**, RCSL 42-I-2339,
+Niels Bach, **June 1983** ([Bits:30008320](https://datamuseum.dk/bits/30008320))
+documents **external procedures** in **§8.5 "Externe procedurer" (p. 76–77)** —
+absent from the 1981 edition.  It states an external procedure *"skal altid
+erklæres CLOSED"*, lives in **its own program file** on the disk, is declared by
+which file it is in, and lets the user build a *"procedurebibliotek"* — exactly
+`CHRHENT.EXT`'s role.  (§8.6 documents the `HANDLER` error structure.)  So the
+`.PRG` apps target the external-procedure-capable **RcComal80** line, not the
+disk's older `comal80 rev 1.07`.  A cross-version test (boot RcComal80,
+`LOAD "2:race.prg"` from a second drive) would show it running.
 
 The tiles are building blocks; the finished picture is laid out by the program
 placing tiles in a screen grid, not stored assembled in the `.CHR` file.  To
