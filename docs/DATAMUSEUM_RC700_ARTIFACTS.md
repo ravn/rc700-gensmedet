@@ -143,6 +143,16 @@ Misc: 30006263 (Måle&Tælle interface).
 4. **Keyboard/peripheral MCU** — Bits:30008786 keyboard description could identify
    the non-Z80 ROE114/115 chip family.
 5. **58K / SW7503 CP/M** (Bits:30005838, 30007376) — cross-check the 58K line.
+6. **Get Pascal/MT+ running** (later) — CP/M-based, so runnable under RC702 CP/M
+   in MAME.  Disks: Bits:30003291 (MT Pascal+ 5.5 loader — also our rel.1.7
+   source), 30004118 (SW1720 Pascal/MT+ 5.5, BagIt), 30003289 (Pascal loader
+   82.04.30); product sheet Bits:30004761; spec Bits:30005914 (PASCAL/MI+).
+7. **UCSD Pascal** (later) — we HAVE it (Bits:30005750 SW1322 RC703 UCSD Pascal,
+   30005751 facility, 30003074 UCSD II.0 disk 1, 30005351/30005769 UCSD II.0
+   rel1.2 BagIt; doc 30004932).  **NOT CP/M** — it uses the UCSD p-System file
+   system (directory shows `PASCALSYSTEM/USERPROG/DEBUGGER/…`), so `cpmtools`
+   can't read it; extraction/running needs UCSD p-System tools or the p-System
+   interpreter, not the CP/M path.
 
 ## Analysis status
 
