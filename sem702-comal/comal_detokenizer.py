@@ -1,0 +1,181 @@
+#!/usr/bin/env python3
+"""Detokenizer for RC700 standalone COMAL80 (rev 1.07) saved programs.
+
+COMAL80 stores a program as a binary "SAVE" image, not source text.  This tool
+reconstructs the source by decoding that image.  The keyword token values are
+taken from the interpreter's own keyword table, found in the `SYSTEM` file of the
+education disk (Bits:30003268) at offset ~0x1C00: entries are
+`<class byte><KEYWORD letters>[<0x00 pad>]<token byte>`, and the value a *program*
+uses is that token byte minus 1 (verified against logon: DIM=0x67, END=0x6b,
+DIR=0x6f, PRINT=0x86, INPUT=0x87, CHAIN=0x8a).
+
+Image layout (little-endian):
+  [0]   09 81                      magic
+  [2]   6 header bytes             (workspace ptrs / checksum — not needed here)
+  [8]   "d/NAME" padded            program name, d = drive digit
+  then  line records               <linenum:2> <tokens...>  separated by 01 00
+  then  symbol table               variable names (referenced from lines)
+
+Usage:
+    comal_detokenizer.py <program-file> [--bytes] [--system SYSTEM]
+    comal_detokenizer.py --dump-tokens [--system SYSTEM]
+
+Status: reconstructs keywords, string constants and line structure; numbers,
+operators and variable references are partially decoded and otherwise shown as
+`{XX}` so nothing is silently lost.  Unknown/newer tokens are flagged — this is
+how the tool exposes what a newer save format adds (e.g. EXTERNAL procedures).
+"""
+import sys
+
+# --- program token map (token byte in a program -> keyword) --------------------
+# Generated from the SYSTEM keyword table (see build_token_map); embedded so the
+# tool is self-contained.  program token = table token - 1.
+TOKENS = {
+    0x00: "SIZE", 0x02: "AUTO", 0x03: "OUTPUT", 0x04: "EDIT", 0x05: "SAVE",
+    0x06: "LIST", 0x07: "ENDFUNC", 0x08: "NEW", 0x09: "DUMP", 0x0A: "RUN",
+    0x0B: "CON", 0x0C: "DEL", 0x0D: "OPEN", 0x38: "OR", 0x39: "IN", 0x3A: "AT",
+    0x3B: "TO", 0x3C: "DO", 0x3E: "IF", 0x5A: "TAB", 0x5B: "REF", 0x5C: "STEP",
+    0x5D: "ELSE", 0x5E: "FOR", 0x60: "NEXT", 0x61: "CASE", 0x62: "WHEN",
+    0x63: "PROC", 0x65: "EXEC", 0x66: "GOTO", 0x67: "DIM", 0x68: "DATA",
+    0x69: "READ", 0x6A: "STOP", 0x6B: "END", 0x6C: "ZONE", 0x6E: "COPY",
+    0x6F: "DIR", 0x70: "FILE", 0x71: "THEN", 0x73: "STR", 0x74: "KEY",
+    0x76: "VAL", 0x77: "SYS", 0x78: "ERR", 0x7A: "GET", 0x7E: "LOAD",
+    0x7F: "CLOSED", 0x80: "ENDIF", 0x81: "WHILE", 0x83: "REPEAT", 0x84: "UNTIL",
+    0x85: "GLOBAL", 0x86: "PRINT", 0x87: "INPUT", 0x88: "SELECT", 0x89: "MARGIN",
+    0x8A: "CHAIN", 0x8B: "MOUNT", 0x8C: "PREFIX", 0x8D: "CLOSE", 0x8F: "CREATE",
+    0x90: "DELETE", 0x91: "APPEND", 0x92: "RANDOM", 0x93: "WRITE", 0x94: "RENAME",
+    0x95: "FALSE", 0x96: "ENABLE", 0x98: "USING", 0x9F: "RETURN", 0xA0: "ENTER",
+    0xA1: "ENDWHILE", 0xA2: "ENDCASE", 0xA3: "ENDPROC", 0xA4: "RESTORE",
+    0xA5: "DISMOUNT", 0xA6: "DISABLE", 0xA7: "CONTINUE", 0xA8: "HANDLER",
+    0xA9: "EXTERNAL", 0xAF: "RENUMBER", 0xB0: "OTHERWISE", 0xB1: "RANDOMIZE",
+}
+
+# RC700 national character substitution for display (COMAL stores ASCII bracket
+# codes that render as ÆØÅæøå on the RC700 screen).
+NAT = str.maketrans("[\\]{|}", "ÆØÅæøå")
+
+
+def build_token_map(system_path):
+    """Re-derive the token map from a SYSTEM interpreter file (for provenance)."""
+    d = open(system_path, "rb").read()
+    tab, kw, i = {}, b"", 0x1C00
+    while i < 0x2010:
+        b = d[i]
+        if 0x41 <= b <= 0x5A:
+            kw += bytes([b])
+        elif b == 0x00:
+            pass
+        else:
+            if len(kw) >= 2:
+                tab[b - 1] = kw.decode("latin1")  # program token = table token - 1
+            kw = b""
+        i += 1
+    return tab
+
+
+def find_body(data):
+    """Return offset of the first line record (just past the 'd/NAME' field)."""
+    # name starts at 8 as "d/" then letters/spaces, terminated by the first
+    # line's low linenum byte.  The name field is padded with spaces; the body
+    # begins at the first <linenum:2> whose value is small and ascending.
+    i = 10   # 10-byte header: 09 81 + 6 ptr/checksum bytes
+    # skip "d/"
+    if data[i + 1:i + 2] == b"/":
+        i += 2
+    # skip name chars (printable) and trailing spaces
+    while i < len(data) and 0x20 <= data[i] < 0x7F:
+        i += 1
+    return i
+
+
+def read_lines(data):
+    """Yield (linenum, token_bytes) using the 01 00 line separator."""
+    i = find_body(data)
+    n = len(data)
+    while i + 2 <= n:
+        linenum = data[i] | (data[i + 1] << 8)
+        if linenum == 0 or linenum > 9999:
+            break
+        i += 2
+        start = i
+        while i + 1 < n and not (data[i] == 0x01 and data[i + 1] == 0x00):
+            i += 1
+        yield linenum, data[start:i]
+        i += 2  # skip separator
+        # stop once we've emitted END (next bytes are the symbol table)
+        if data[start:i] and data[start] == 0x6B:
+            break
+
+
+def decode_tokens(tok):
+    """Best-effort render of one line's token bytes to source text."""
+    out, i, n = [], 0, len(tok)
+    while i < n:
+        b = tok[i]
+        # string constant: <ptr_lo> BF <len:2> <chars>
+        if i + 3 < n and tok[i + 1] == 0xBF:
+            slen = tok[i + 2] | (tok[i + 3] << 8)
+            s = tok[i + 4:i + 4 + slen]
+            if 0 < slen < 256 and all(0x20 <= c < 0x7F for c in s):
+                out.append('"' + s.decode("latin1").translate(NAT) + '"')
+                i += 4 + slen
+                continue
+        if b in TOKENS:
+            out.append(TOKENS[b])
+            i += 1
+        elif 0x20 <= b < 0x7F:            # literal ASCII (punctuation, digits)
+            out.append(chr(b))
+            i += 1
+        else:
+            out.append("{%02X}" % b)
+            i += 1
+    # tidy spacing
+    return " ".join(p for p in out if p != "")
+
+
+def detokenize(data):
+    name = ""
+    if data[11:12] == b"/":
+        j = 10
+        while j < len(data) and 0x20 <= data[j] < 0x7F:
+            j += 1
+        name = data[8:j].decode("latin1").rstrip()
+    lines = []
+    unknown = set()
+    for linenum, tok in read_lines(data):
+        for b in tok:
+            if b not in TOKENS and not (0x20 <= b < 0x7F):
+                unknown.add(b)
+        lines.append("%04d %s" % (linenum, decode_tokens(tok)))
+    return name, lines, unknown
+
+
+def main(argv):
+    import argparse
+    ap = argparse.ArgumentParser(description="RC700 COMAL80 program detokenizer")
+    ap.add_argument("file", nargs="?")
+    ap.add_argument("--system", help="derive token map from a SYSTEM file")
+    ap.add_argument("--dump-tokens", action="store_true")
+    ap.add_argument("--bytes", action="store_true", help="also show raw line bytes")
+    a = ap.parse_args(argv)
+    if a.system:
+        TOKENS.clear()
+        TOKENS.update(build_token_map(a.system))
+    if a.dump_tokens:
+        for t in sorted(TOKENS):
+            print("0x%02X %s" % (t, TOKENS[t]))
+        return
+    if not a.file:
+        ap.error("program file required")
+    data = open(a.file, "rb").read()
+    name, lines, unknown = detokenize(data)
+    print("# program: %s   (%d bytes)" % (name, len(data)))
+    for ln in lines:
+        print(ln)
+    if unknown:
+        print("# unknown/undecoded tokens: " +
+              " ".join("0x%02X" % b for b in sorted(unknown)))
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
