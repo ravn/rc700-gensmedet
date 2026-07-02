@@ -121,6 +121,39 @@ The caller at `0x2354` pushes drawing parameters via `sub_2386h`, then issues
 command.  This pins the VPB701 host ports (`0xC8` param/data+status, `0xC9`
 command) used in the MAME-modelling section above.
 
+### What the "graphics data" in the binary actually is
+
+`HOEJDXY.COM` is 32 KB, of which the reachability trace marks ~15 KB as code.  The
+other ~17 KB is **not** pixel/bitmap graphics — it is **unreached native code**
+(PolyPascal reaches many routines through indirect dispatch the linear tracer
+can't follow — the two largest "high-entropy" blocks at `0x0C23` and `0x0F3D`
+contain 43 and 36 `CALL` opcodes) plus the interpreter's **Danish text-message
+tables**.  The turtle drawings are rendered as **GDC vector figures** (FIGD /
+lines), not stored bitmaps, so there is very little actual graphics data in the
+file.  (User drawings are saved separately as `.LOG` files — none are on this
+distribution disk, which carries only the interpreter.)
+
+Decoding the strings (RC700 national charset `[\]{|}` → `ÆØÅæøå`) shows a complete
+**Danish Logo interpreter**:
+
+- **Identity:** `Mikro-Logo ver. 01/03/84HP.` (version dated 1984-03-01, author
+  initials "HP"); machine banner `RC-702 Piccolo, RC-855`.
+- **Runtime = PolyPascal/COMPAS:** the error epilogue `USER INTERRUPT` /
+  `EXECUTION` / ` ERROR ` / ` AT PC=` / `Program terminated` is the exact COMPAS
+  runtime signature — corroborating the native-code / not-UCSD finding.
+- **Logo language (Danish):** procedure def `TIL … SLUTTIL`, control
+  `hertil`/`ellers`/`sluthvis`, `løkke` (loop), primitives `sætxy`, `udport`;
+  error tables ("Navn eller tal mangler", "Højre-parentes mangler", "Division
+  med 0", "Parameterstak fuld", "SÆTNING/TIL ikke tilladt", …).
+- **Output devices:** the VPB701 is referred to as *"Grafik-enheden"* — the menu
+  toggles `Grafik-enheden er tændt/slukket` ("graphics unit on/off").  Also a
+  **Roland DXY-800** plotter (terminal port) and an **OKI 82A/80A** printer.
+- **`HOEJDXY.000`** (6912 B) is a **second native-code overlay** (`JP 0x33D1` at
+  entry, 596 `CALL`s) — the editor / menu / disk-file segment: `.LOG` file
+  handling, a Logo-VM cell inspector (`Værdi Nr Kommando Pstakp`), and the
+  interpreter's internal pointers (`konnummer`, `parapeger`, `frinummer`,
+  `procx`, `procy`, `stakp`, `tekstpt`, `lager`).
+
 ## Source code for Mikro-Logo — searched, not found online (2026-07-02)
 
 There is **no source text** for `HOEJBEG`/`HOEJDXY` on the disk (only the compiled
