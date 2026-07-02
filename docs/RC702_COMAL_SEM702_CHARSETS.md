@@ -110,7 +110,8 @@ display them with correct glyphs in MAME you need the SEM702 RAM char-gen
 
 ## How the `.CHR` bytes were extracted (robust route)
 
-RcComal80 uses a **CP/M-format directory with non-standard filenames** (dots
+The education disk is a **standalone COMAL80** system (boots directly into
+COMAL, its own disk format) with a **CP/M-like directory with non-standard filenames** (dots
 inside the 8-char name field, e.g. `DIVERSE.`/`CHR`, `HESTE.CH`/`R`), which makes
 `cpmcp` refuse them ("illegal CP/M filename") and mis-read on bulk copy.  Extracted
 reliably by:

@@ -6,10 +6,12 @@ disk [Bits:30009625](https://datamuseum.dk/bits/30009625) (IMD; boots
 
 - `COMAL80.COM`   — the RcComal80 **v2.0** interpreter (runs under CP/M; has
   graphics keywords, e.g. `CIRCLE`).  Newer than the education disk's `rev 1.07`.
-- `COMALCNV.COM`  — **format converter**: *"Comal80 til CP/M konvertering"*,
-  converts between the **Comal80-native disk format** (the non-standard pseudo-CP/M
-  filesystem on the education disk Bits:30003268) and **CP/M format**.  This is the
-  key to reading/using the education disk's programs under v2.0.
+- `COMALCNV.COM`  — **format converter**: *"Comal80 til CP/M konvertering"* — converts files from the
+  **standalone COMAL80 format** (the self-booting-into-COMAL education disk
+  Bits:30003268, which uses its own disk format) **to CP/M file format**, so the
+  programs can be used under CP/M-hosted COMAL80.  (Our custom extractor already
+  did the equivalent: read the standalone-format files and wrote them as plain
+  files — see `../README.md`.)
 - `PIP.COM`       — CP/M file-copy utility.
 - `COMAL80.ERM`, `GENERRM.CSV` — error-message resources.
 
