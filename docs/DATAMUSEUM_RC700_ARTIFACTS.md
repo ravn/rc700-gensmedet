@@ -20,6 +20,31 @@ Snapshot 2026-07-02 (≈160 entries; 118 software disks downloaded + analysed).
     see `roa375/RC703_DIV_ROA_DISK.md`).
 - Transient working copies during analysis live in `/tmp/rc700dm/` (not kept).
 
+### Booting a disk image in MAME (verified 2026-07-02)
+
+Datamuseum disk images boot directly in the workspace MAME.  Pick the machine
+that matches the disk's **format** (imdinfo tells you MINI vs MAXI vs QD):
+
+| Disk format | MAME machine | FDC rate |
+|-------------|--------------|----------|
+| 5.25" DD "mini" (≈321 KB, 16/9 sectors) | **`rc702mini`** | 250 kbps |
+| 8" DSDD "maxi" (≈1.2 MB, 26/15 sectors) | `rc702` | 500 kbps |
+| 5.25" QD 80-track (≈819 KB, 10 sectors) | `rc703` | 250 kbps |
+
+Steps (a raw `.bin` from `bits/<num>` → bootable):
+```bash
+# 1. raw -> IMD (auto-detects RC702 mini/maxi + RC703 QD by size)
+python3 rc700-gensmedet/rcbios/bin2imd.py disk.bin disk.imd
+# 2. boot it (use the machine from the table; here a 5.25" mini)
+mame/regnecentralend rc702mini -rompath mame/roms -window -skip_gameinfo \
+    -flop1 disk.imd
+```
+The wrong machine gives `Incorrect layout on track 0` (e.g. a 5.25" mini disk in
+the 8" `rc702`).  The `roa375.ic66 WRONG CHECKSUM` warning is harmless — it is the
+clang-built autoload PROM installed over the original dump.  **Verified:** the
+COMAL 80 disk (Bits:30003268) boots to the RcComal80 rev.1.07 menu in `rc702mini`
+(author *Tommy Borch, FAG, 1983*).
+
 Status legend: **✓analysed** · **✓ref** (byte-verified BIOS reference held) ·
 **★lead** (high value, not yet opened) · **·** (out of firmware scope).
 
