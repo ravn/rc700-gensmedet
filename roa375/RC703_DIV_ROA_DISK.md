@@ -77,6 +77,16 @@ disassembler, or knowing which RC peripheral uses ROE-series ROMs).  What is
 certain is that they are **not Z80 firmware for the RC702/703 CPU**, so they are
 not part of the autoload / BIOS reconstruction work.
 
+**Leading hypothesis (2026-07-02): the RC700 graphics-card / colour extension.**
+There was a graphics-card extension with a **graphics coprocessor** that merged
+with the 8275 CRT output to drive a separate colour screen (user).  A coprocessor
+has its own CPU — which would explain why ROE114/ROE115 are *not* Z80 — and two
+paired 16 KB ROMs fit a coprocessor program + data (or colour char/graphics set).
+Supporting: `rob358.mac` carries a conditional **COLOR CRT autoload variant**
+(`COLOR EQU 0 ;SELECT COLOR CRT AUTOLOAD VERSION`).  Revisit ROE114/115 as the
+graphics-card firmware if/when we model that extension in MAME (catalogue TODO
+#8, `docs/DATAMUSEUM_RC700_ARTIFACTS.md`).
+
 ## Net verdict
 
 Bits:30003296 is largely the **PHE358A source disk** (identical to our copy) plus
