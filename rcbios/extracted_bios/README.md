@@ -132,6 +132,38 @@ Runtime-initialized DPBASE. PROM source: ROB358.MAC (proven original).
   `; hard disk type (0=ro103, 1=ro202)`) and the VERIFY/BLOCKS.BAD
   disk utility.
 
+#### RC703 release evolution 1.0 → 1.1 → 1.2 (analysed 2026-07-02)
+
+With byte-exact references for 1.0, 1.1 and 1.2 in hand, the two transitions
+were diffed:
+
+- **rel.1.0 → rel.1.1 — big reformat (MAXI → QD).**  ~44 % naive byte-match,
+  because the whole image was **re-targeted from 8" maxi to 5.25" QD** and
+  relocated: QD DPBs + skew tables replace the MAXI set, the signon spacing
+  changes (`vers.2.2` → `vers. 2.2`), and the tail changes.  Not an incremental
+  patch — it is a format migration with wholesale address relocation.
+- **rel.1.1 → rel.1.2 — small incremental (89 % identical).**  Three real
+  changes: (1) signon version digit `1`→`2` (1 byte @ D830); (2) **+512 B of new
+  drive/HD-select code @ E401** — it disassembles cleanly (reads `CDISK`, sets
+  `DRIVESEL`/`HSTDSK`, calls `HD_SETUP`); (3) **reorganised DPB/table data @ E800**
+  (code-referenced by 24 operands → genuine BIOS data, not residue).
+
+#### Workspace-residue caveat (F600–F9FF)
+
+The top of the BIOS image (≈F600–F9FF) is **uninitialised workspace** captured
+into the system tracks at SYSGEN time (VAR_LABELS there: `ISRSTACK` F620,
+`CONVTAB` F680, `SCREENBUF` F800; only ~7 code operands point into it).  It
+contains a **structured named table** — repeating records `00 03 03 e9 e9 ff
+00 00` + a 4-char tag (`Z-80`, `TABL`, `EXTENT0`, …) + a pointer — which recurs
+across **all** RC703 releases (1.0/1.1/1.2/TFj, from different disks) but is
+**absent in the RC702 line**.  It does **not** byte-match any program on the
+RC703_8051ASM disk (ZSID, gemdebug, asm, …).  It is therefore SYSGEN-captured
+RAM from a **resident system component (COMAL-80 the prime suspect** — RC703 is
+a COMAL machine, and rel.1.0's tail is confirmed COMAL-80 residue above), **not
+BIOS functionality**.  Do NOT treat differences in this region between releases
+as feature changes; the byte-exact reconstructions reproduce it faithfully only
+to match the source disks.
+
 ### Cross-family relationships
 
 | Comparison | Match | Notes |
@@ -153,9 +185,10 @@ Runtime-initialized DPBASE. PROM source: ROB358.MAC (proven original).
                     └── RC702E rel.2.01 (RAM disk fork)
                           └── RC702E rel.2.20 (+ VERIFY utility)
 
-RC703 rel.1.0 (new codebase for RC703 hardware)
-  └── RC703 rel.1.2 (+ config comments, VERIFY utility)
-        └── RC703 rel.TFj (modified, 55% match to 1.2)
+RC703 rel.1.0 (new codebase for RC703 hardware, 8" MAXI)
+  └── RC703 rel.1.1 (reformat MAXI → 5.25" QD)
+        └── RC703 rel.1.2 (+512B drive/HD-select code, DPB/table reorg)
+              └── RC703 rel.TFj (modified, 55% match to 1.2)
 ```
 
 ### COMAL-80 (not CP/M)
