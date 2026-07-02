@@ -50,6 +50,16 @@ TOKENS = {
     0xA9: "EXTERNAL", 0xAF: "RENUMBER", 0xB0: "OTHERWISE", 0xB1: "RANDOMIZE",
 }
 
+# Statement-type codes: a line's FIRST byte.  For a statement that begins with a
+# spelled keyword it is that keyword's token (e.g. PRINT=0x86); for statements
+# with no leading keyword it is a code in the 0xC0-0xFF range.  Decoded empirically
+# from LIST output of programs on the education disk (logon, opgave7, eks9.4):
+STMT = {
+    0xD1: ":=",     # assignment  (opgave7: a:=7)
+    0xD3: "//",     # comment     (opgave7: // opgave 7 ...)
+    0xD8: "FUNC",   # FUNC definition (eks9.4: FUNC k(n,r) EXTERNAL "...")
+}
+
 # RC700 national character substitution for display (COMAL stores ASCII bracket
 # codes that render as ÆØÅæøå on the RC700 screen).
 NAT = str.maketrans("[\\]{|}", "ÆØÅæøå")
@@ -110,6 +120,15 @@ def read_lines(data):
 def decode_tokens(tok):
     """Best-effort render of one line's token bytes to source text."""
     out, i, n = [], 0, len(tok)
+    # comment lines: first byte 0xD3, then <len> 01 01 <text>
+    if n and tok[0] == 0xD3:
+        j = 2
+        while j < n and tok[j] != 0x01:
+            j += 1
+        text = tok[j + 2:] if j + 2 <= n else b""
+        text = bytes(c for c in text if 0x20 <= c < 0x7F)
+        return "// " + text.decode("latin1").translate(NAT).strip()
+    first = True
     while i < n:
         b = tok[i]
         # string constant: <ptr_lo> BF <len:2> <chars>
@@ -119,17 +138,25 @@ def decode_tokens(tok):
             if 0 < slen < 256 and all(0x20 <= c < 0x7F for c in s):
                 out.append('"' + s.decode("latin1").translate(NAT) + '"')
                 i += 4 + slen
+                first = False
                 continue
-        if b in TOKENS:
+        # variable reference: <idx> FF  (idx indexes the symbol table; the same
+        # variable always gets the same idx, so vXX is a stable placeholder name)
+        if i + 1 < n and tok[i + 1] == 0xFF:
+            out.append("v%02X" % b)
+            i += 2
+            first = False
+            continue
+        if first and b in STMT:
+            out.append(STMT[b])
+        elif b in TOKENS:
             out.append(TOKENS[b])
-            i += 1
         elif 0x20 <= b < 0x7F:            # literal ASCII (punctuation, digits)
             out.append(chr(b))
-            i += 1
         else:
             out.append("{%02X}" % b)
-            i += 1
-    # tidy spacing
+        i += 1
+        first = False
     return " ".join(p for p in out if p != "")
 
 
