@@ -38,6 +38,42 @@ VPB701 is very modellable:
    256×256 colour-plane image.
 5. Then boot a VPB701 sample program (see candidates below) to exercise it.
 
+### Two screens in MAME
+
+MAME supports multiple `screen_device`s in one machine, which maps naturally
+onto the VPB701's two output paths.  The two modes want **different** treatment:
+
+- **B/W mode = one screen, two layers.**  The GDC bitmap is *merged (OR'd)* with
+  the 8275 character video on the **same** internal RC752 monitor.  So this is
+  **not** a second screen — it is a second *layer* composited into the existing
+  `"screen"`.  Implementation: in the rc702 screen-update, draw the 8275 output
+  as today, then OR the 560×275 GDC bitmap on top (both are 1-bpp; a pixel is lit
+  if either source is lit).  No new `screen_device` needed for this mode.
+
+- **Colour mode = a genuine second screen.**  The 256×256 colour image goes to a
+  *physically separate* external colour monitor, so model it as a second
+  `screen_device`:
+  ```cpp
+  SCREEN(config, "screen",  SCREEN_TYPE_RASTER);   // internal RC752 (8275 + B/W GDC merge)
+  SCREEN(config, "screen2", SCREEN_TYPE_RASTER);   // external VPB701 colour monitor
+  screen2.set_size(256, 256);
+  screen2.set_screen_update(FUNC(rc702_state::screen_update_vpb701_colour));
+  ```
+  The `upd7220` device drives whichever is active for the current mode; give the
+  colour path its own palette (OR'd colour planes → index into an RGB palette).
+
+- **Layout / how the user sees both.**  MAME shows multiple screens either side
+  by side in one window or in separate windows (`-video bgfx` / multi-window;
+  Tab-menu / hotkeys switch focus).  The `rc702.lay` we already maintain would
+  gain a two-screen view: `<screen index="0">` (internal) alongside
+  `<screen index="1">` (external colour), each with its own `<bounds>`.  A
+  single-screen view for index 0 can stay the default so nothing changes for
+  users without the card.
+
+This is standard MAME (many drivers ship dual-screen: dual-monitor arcade PCBs,
+handhelds with a sub-LCD, etc.), so the two-screen part is low-risk; the real
+work is the GDC draw callback and the B/W OR-merge.
+
 ## Candidate sample programs (in the datamuseum RC700 collection)
 
 - **Bits:30003285** — "Mikro-Logo 18/2-1983 til Piccolo **med grafikkort**"
