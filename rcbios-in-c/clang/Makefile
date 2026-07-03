@@ -36,19 +36,20 @@ else
 endif
 
 CFLAGS = --target=z80 -Oz -g -nostdlib -ffreestanding -std=c23 \
-	 -ffunction-sections -fdata-sections \
+	 -flto -ffunction-sections -fdata-sections \
 	 -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT) \
 	 -Xclang -target-feature -Xclang +static-stack \
 	 -Iclang -I. -Wno-gcc-compat -Wno-return-type \
 	 -Wimplicit-int-conversion \
 	 -DMSIZE=$(MSIZE) \
 	 $(if $(filter B,$(KBDPORT)),-DKBD_PIO_B)
-# -flto default 2026-06-10 (rc700-gensmedet#89): saves 15 B (5905 -> 5890)
-# on the clang BIOS.  ld.lld bitcode-triple plumbing for Z80 shipped in
-# llvm-z80@978fca2; boot_header LTO-safety (used,retain,section(".boot"))
-# in rcbios-in-c@bdd2af2; MAME boot smoke (mame-test, 77-track sweep with
-# ERR=0) verified for the LTO build.  +static-stack is idempotent under
-# LTO; no spills or BSS layout changes observed.
+# -flto re-enabled 2026-07-03 (experiment): boot_entry.c + bios_hw_init.c
+# functions annotated __attribute__((section(".boot_code"),used)) so LTO
+# retains them in BOOT, not in .text.  Linker script gains KEEP(*(.boot_code))
+# before the per-file matchers.  Previously disabled in a7a7293 (2026-06-28)
+# because per-file matchers (*boot_entry.o, *bios_hw_init.o) don't fire under
+# LTO — now covered by explicit section attributes (same fix boot_block.c uses
+# for .boot).  Boot MUST be re-verified with make mame-test after this change.
 # Investigation hook (ravn/llvm-z80#23): inject extra clang flags via
 # `make CLANG_EXTRA="-mllvm -z80-enable-licm -mllvm -z80-enable-cse"`.
 CFLAGS += $(CLANG_EXTRA)

@@ -59,8 +59,14 @@ SECTIONS {
   } > BOOT
 
   /* Boot code: coldboot(), relocate_bios(), bios_hw_init().
-   * Runs once at physical address, overwritten by CCP after boot. */
+   * Runs once at physical address, overwritten by CCP after boot.
+   * KEEP(*(.boot_code)) captures functions annotated with
+   * __attribute__((section(".boot_code"))) — required under LTO
+   * where per-object-file matchers (*bios_hw_init.o etc.) do not fire.
+   * The per-file matchers remain as belt-and-braces for non-LTO builds. */
   .boot_code 0x0280 : {
+    KEEP(*(.boot_code))
+    KEEP(*(.boot_rodata))
     KEEP(*bios_shims.o(.text.coldboot))
     KEEP(*boot_entry.o(.text*))
     KEEP(*boot_entry.o(.rodata*))

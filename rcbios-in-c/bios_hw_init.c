@@ -76,6 +76,7 @@ typedef void (*isr_fn)(void);
 
 #define IVT_ENTRIES 18
 
+__attribute__((section(".boot_rodata"), used))
 static const isr_fn ivt_template[IVT_ENTRIES] = {
     isr_dummy,              /*  0: CTC1 ch0 — SIO-A baud rate */
     isr_dummy,              /*  1: CTC1 ch1 — SIO-B baud rate */
@@ -111,6 +112,7 @@ static const isr_fn ivt_template[IVT_ENTRIES] = {
 #ifdef __clang__
 extern void set_i_reg(byte page);  /* in clang/bios_shims.s */
 #else
+__attribute__((section(".boot_code"), used))
 static void set_i_reg(byte page)
 {
     (void)page;
@@ -119,6 +121,7 @@ static void set_i_reg(byte page)
 #endif
 
 /* Copy IVT to page-aligned RAM and enable IM2 */
+__attribute__((section(".boot_code"), used))
 static void setup_ivt(void)
 {
     memcpy((void *)IVT_ADDR, ivt_template, sizeof(ivt_template));
@@ -131,6 +134,7 @@ static void setup_ivt(void)
  * Configures PIO, CTC, SIO, DMA, FDC, CRT, display, and disk tables.
  * ================================================================ */
 
+__attribute__((section(".boot_code"), used))
 void bios_hw_init(void)
 {
     /* Set up interrupt vector table and IM2 before any device init */

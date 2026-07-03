@@ -62,6 +62,7 @@ extern void bios_hw_init(void);
  *
  * sdcc inlines memcpy as LDIR and memset as LDIR (large) or DJNZ (small).
  * No library functions are linked — verified in the .asm listing. */
+__attribute__((section(".boot_code"), used))
 void relocate_bios(void)
 {
     /* Zero BSS FIRST.  Critical ordering: BSS is unavailable as a spill
@@ -96,6 +97,7 @@ void relocate_bios(void)
  *
  * Called from coldboot() after relocate_bios(), before jumping to the
  * relocated BIOS code.  See issue #51. */
+__attribute__((section(".boot_code"), used))
 void verify_relocation(void)
 {
     if (_sentinel_addr != SENTINEL_VALUE)
