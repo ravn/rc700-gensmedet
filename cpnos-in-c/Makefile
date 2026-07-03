@@ -219,6 +219,15 @@ else ifeq ($(PIO_LOOPBACK_TEST),1)
 CFLAGS += -DPIO_LOOPBACK_TEST
 endif
 
+# Cold-boot default drive/user (zero-page cdisk byte at 0x0004; low nibble =
+# drive, high nibble = user).  Unset => cpnos_main.c default 0x00 (A:), the
+# normal CP/M boot drive.  Tests that want the slave to come up on the tool
+# drive set CPNOS_DEFAULT_DRIVE=0x04 (E: -> master I: hard disk).  E: is
+# opt-in per build, never baked in unconditionally.
+ifneq ($(CPNOS_DEFAULT_DRIVE),)
+CFLAGS += -DCPNOS_DEFAULT_DRIVE=$(CPNOS_DEFAULT_DRIVE)
+endif
+
 # Default goal: pin BEFORE the common.mk include below, otherwise the
 # first non-pattern target inside common.mk ($(MAME_PROM0) ...) wins
 # as `make` (no args) → MAME-ROM install.  After the two-PROM removal
@@ -355,12 +364,17 @@ $(ALL_OBJS): Makefile $(BUILDDIR)/transport_stamp $(BUILDDIR)/toolchain_stamp
 # the target "always out of date" and propagate that to every .o
 # file (since `$(ALL_OBJS): $(BUILDDIR)/transport_stamp`), forcing a
 # full re-compile on every `make` invocation.
+# Stamp key includes CPNOS_DEFAULT_DRIVE too: switching the cold-boot default
+# drive (production A: vs E:-test 0x04) recompiles cpnos_main.o (zp_init_data)
+# the same way a TRANSPORT switch does -- otherwise a `make CPNOS_DEFAULT_DRIVE=
+# 0x04` after a plain `make` would relink stale A: objects.
+_STAMP_KEY := $(TRANSPORT) drv=$(CPNOS_DEFAULT_DRIVE)
 ifeq ($(filter clean cpnos-clean,$(MAKECMDGOALS)),)
 _DUMMY_TRANSPORT_STAMP := $(shell mkdir -p $(BUILDDIR); \
     if [ ! -f $(BUILDDIR)/transport_stamp ] || \
-       [ "`cat $(BUILDDIR)/transport_stamp 2>/dev/null`" != "$(TRANSPORT)" ]; then \
-        echo "$(TRANSPORT)" > $(BUILDDIR)/transport_stamp; \
-        echo "transport stamp: $(TRANSPORT)" >&2; \
+       [ "`cat $(BUILDDIR)/transport_stamp 2>/dev/null`" != "$(_STAMP_KEY)" ]; then \
+        echo "$(_STAMP_KEY)" > $(BUILDDIR)/transport_stamp; \
+        echo "transport stamp: $(_STAMP_KEY)" >&2; \
     fi)
 endif
 
@@ -1036,38 +1050,57 @@ pio-irq-smoke: cpnos-install _check-tag-pio-irq _check-mame-irq
 	-$(MAKE) _kill-mpm  # exit-side reap; best-effort
 	@$(MAKE) _verify-bench WORKLOAD=$(WORKLOAD)
 
-# Stage PPAS+PRIMES onto master's drive I: (= slave's E:) before the
-# polypascal test launches MP/M.  Slave's CFGTBL maps E:->I: (see
-# init.c cfgtbl_init_template), and the mpm-net2 launcher copies
-# disks/library/mpm-net2-drivei.dsk to disks/drivei.dsk on each
-# restart -- so seeding library/ gives PPAS to every test run, fresh.
-# Without this, master I: is a blank E5-filled image and `PPAS<CR>` at
-# the slave's E> prompt finds nothing.
-.PHONY: stage-drivei-ppas
-stage-drivei-ppas:
-	@echo "=== staging PPAS+PRIMES on master's drive I (slave E:) ==="
-	@which cpmcp cpmls >/dev/null 2>&1 || { \
-	  echo "ERROR: cpmcp/cpmls not in PATH; install cpmtools" >&2; exit 1; }
+# ---- drive I: canonical tool folder (= slave E:, the shared tool drive) ---
+# The contents of E: are synchronised with ONE repo folder:
+#   $(SHARED)/drive_i/            <-- single source of truth, git-tracked
+# so every test target sees the SAME drive and new tools are added by
+# dropping a file in that folder.  I: is rebuilt fresh (blank 4 MB HD) each
+# run and re-populated from the folder; slave CFGTBL maps E:->I:
+# (init.c cfgtbl_init_template) and the E:-tests build cpnos with
+# CPNOS_DEFAULT_DRIVE=0x04 so the slave cold-boots into E:.
+#
+#   make stage-drivei-tools   folder -> fresh drive I:  (before a test run)
+#   make sync-drivei-back     drive I: -> folder        (capture E: changes)
+#
+# drive_i_sync.sh encapsulates the cpmtools quirks (z80pack-hd segfault-on-
+# cleanup) and case normalisation.  See $(SHARED)/drive_i/README.md.
+DRIVEI_DIR  = $(SHARED)/drive_i
+DRIVEI_SYNC = $(SHARED)/drive_i_sync.sh
+DRIVEI_DSK  = $(MPM_DIR)/disks/library/mpm-net2-drivei.dsk
+
+.PHONY: stage-drivei-tools stage-drivei-ppas sync-drivei-back
+stage-drivei-ppas: stage-drivei-tools    # backward-compat alias
+stage-drivei-tools:
+	@echo "=== syncing $(DRIVEI_DIR)/ -> master drive I (slave E:) ==="
+	@which cpmcp >/dev/null 2>&1 || { \
+	  echo "ERROR: cpmcp not in PATH; install cpmtools" >&2; exit 1; }
 	@# mkdskimg writes ./disks/drive<x>.dsk in its CWD -- chdir, run, move.
-	@rm -f $(MPM_DIR)/disks/library/mpm-net2-drivei.dsk
+	@rm -f $(DRIVEI_DSK)
 	@cd $(MPM_DIR) && rm -f disks/drivei.dsk && ./srctools/mkdskimg i
-	@mv $(MPM_DIR)/disks/drivei.dsk $(MPM_DIR)/disks/library/mpm-net2-drivei.dsk
-	@# cpmcp + cpmls segfault on z80pack-hd images after any write
-	@# (writes complete first; cpmls crashes on a non-empty directory).
-	@# Ignore rcs; verify directly by grepping the disk image for the
-	@# CP/M-padded filename pattern in the directory area.  CP/M dir
-	@# entries pad name to 8 chars + type to 3 chars, all spaces.
-	@DSK=$(MPM_DIR)/disks/library/mpm-net2-drivei.dsk; \
-	 for f in PPAS.COM PPAS.ERM PRIMES.PAS; do \
-	   cpmcp -f z80pack-hd "$$DSK" $(SHARED)/e_drive_seed/ppas/$$f 0:$$f \
-	     >/dev/null 2>&1 || true; \
-	 done; \
-	 for pat in 'PPAS    COM' 'PPAS    ERM' 'PRIMES  PAS'; do \
-	   head -c 4096 "$$DSK" | grep -qaF "$$pat" || { \
-	     echo "ERROR: '$$pat' not found in drive I directory after staging" >&2; \
-	     exit 1; }; \
-	 done; \
-	 echo "    staged: PPAS.COM PPAS.ERM PRIMES.PAS"
+	@mv $(MPM_DIR)/disks/drivei.dsk $(DRIVEI_DSK)
+	@sh $(DRIVEI_SYNC) to-disk $(DRIVEI_DIR) $(DRIVEI_DSK)
+	@# Verify every folder file landed (grep the CP/M directory area for the
+	@# padded 8+3 name; cpm* rcs are unreliable on z80pack-hd).
+	@for src in $(DRIVEI_DIR)/*; do \
+	   base=$$(basename "$$src"); \
+	   case "$$base" in README*|readme*|.*) continue;; esac; \
+	   nm=$$(printf '%s' "$${base%.*}" | tr 'a-z' 'A-Z'); \
+	   ext=$$(printf '%s' "$${base##*.}" | tr 'a-z' 'A-Z'); \
+	   pat=$$(printf '%-8s%-3s' "$$nm" "$$ext"); \
+	   head -c 16384 $(DRIVEI_DSK) | grep -qaF "$$pat" || { \
+	     echo "ERROR: '$$base' ($$pat) missing on drive I after sync" >&2; exit 1; }; \
+	 done
+	@echo "    synced: $$(ls $(DRIVEI_DIR) | grep -viE 'readme' | tr '\n' ' ')"
+
+# Merge whatever is on drive I: (= slave E:) back into the repo folder --
+# captures files the slave created/modified during a session (compiled
+# .REL/.COM, saved COMAL/Pascal sources, etc.).  Review `git status` and
+# commit intentionally; this is deliberately a separate, explicit target so
+# ordinary test runs don't churn the tree.
+sync-drivei-back:
+	@[ -f $(DRIVEI_DSK) ] || { echo "ERROR: $(DRIVEI_DSK) not found (run a test first)" >&2; exit 1; }
+	@sh $(DRIVEI_SYNC) from-disk $(DRIVEI_DIR) $(DRIVEI_DSK)
+	@echo "    review with: git status $(DRIVEI_DIR)"
 
 # PolyPascal regression: drive cpnos through "PPAS PRIMES" / "R" / "Q"
 # (PPAS is the PolyPascal interpreter command), verify primes are
@@ -1129,7 +1162,7 @@ cpnos-dir-test:
 	@echo "  cpnos-dir-test  COMPILER=$(COMPILER)  TRANSPORT=$(TRANSPORT_NAME)"
 	@echo "========================================================="
 	@echo "=== 1/5 building prom1-lineprog ($(COMPILER)) + installing ==="
-	$(MAKE) MIRROR_SIOB=1 prom1-lineprog-install
+	$(MAKE) MIRROR_SIOB=1 CPNOS_DEFAULT_DRIVE=0x04 prom1-lineprog-install
 	@echo "=== 2/5 refreshing disk-side cpnos.img (locale prefix) ==="
 	$(MAKE) MIRROR_SIOB=1 cpnos-disk-install
 	$(MAKE) stage-drivei-ppas
@@ -1251,7 +1284,7 @@ cpnos-inir-baseline-gdb:
 	  echo "  docker build -t z80-gdb -f scripts/z80-gdb.Dockerfile scripts/"; \
 	  exit 1; }
 	@echo "=== 2/6 building prom1-lineprog ($(COMPILER)) + installing ==="
-	$(MAKE) MIRROR_SIOB=1 prom1-lineprog-install
+	$(MAKE) MIRROR_SIOB=1 CPNOS_DEFAULT_DRIVE=0x04 prom1-lineprog-install
 	@echo "=== 3/6 refreshing disk-side cpnos.img (locale prefix) ==="
 	$(MAKE) MIRROR_SIOB=1 cpnos-disk-install
 	$(MAKE) stage-drivei-ppas
@@ -1334,7 +1367,7 @@ cpnos-inir-baseline:
 	@echo "  cpnos-inir-baseline  COMPILER=$(COMPILER)  TRANSPORT=$(TRANSPORT_NAME)"
 	@echo "========================================================="
 	@echo "=== 1/5 building prom1-lineprog ($(COMPILER)) + installing ==="
-	$(MAKE) MIRROR_SIOB=1 prom1-lineprog-install
+	$(MAKE) MIRROR_SIOB=1 CPNOS_DEFAULT_DRIVE=0x04 prom1-lineprog-install
 	@echo "=== 2/5 refreshing disk-side cpnos.img (locale prefix) ==="
 	$(MAKE) MIRROR_SIOB=1 cpnos-disk-install
 	$(MAKE) stage-drivei-ppas
@@ -1449,7 +1482,7 @@ cpnos-polypascal-test:
 	@echo "  cpnos-polypascal-test  COMPILER=$(COMPILER)  TRANSPORT=$(TRANSPORT_NAME) (env TRANSPORT=$(TRANSPORT))"
 	@echo "========================================================="
 	@echo "=== 1/5 building prom1-lineprog ($(COMPILER)) + installing ==="
-	$(MAKE) MIRROR_SIOB=1 prom1-lineprog-install
+	$(MAKE) MIRROR_SIOB=1 CPNOS_DEFAULT_DRIVE=0x04 prom1-lineprog-install
 	@echo "=== 2/5 refreshing disk-side cpnos.img (locale prefix) ==="
 	$(MAKE) MIRROR_SIOB=1 cpnos-disk-install
 	$(MAKE) stage-drivei-ppas

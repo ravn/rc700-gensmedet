@@ -1,0 +1,124 @@
+&Atype
+&Budtryk
+&Ckonstant
+&Ddefineret
+&EFejlagtig eller ukendt 
+&F forventet
+&Gfiler
+&Hnteger
+&IUdtryk er ikke af 
+&Jtreng
+&KVariable af denne type kan ikke 
+&Ns{tning
+&Ridentifier
+&SSyntaksfejl eller ukendt identifier i 
+&T tillades ikke her
+&UUlovlig
+&Vvariabel
+&WInteger eller real 
+&X ikke
+&YUens typer i 
+&Z tillades
+01'.'&F
+02BEGIN&F
+03&U resultat&A
+04Dubleret &R
+05Absolutte variable&Z&X i poster
+06Type&R&F
+07Filer m} kun v{re VAR parametre
+08&E&A
+09END&F
+10M{ngdes grund&A er for stor
+11Filelementer m}&X v{re &G
+12&U s&Jl{ngde
+13&U grund&A for delinterval
+14'..'&F
+15&Yintervalgr{nser
+16\vre gr{nse st|rre end nedre
+17&Esimpel &A
+18Simpel &A&F
+19Ukendt pointer&A i &Adefinition(er)
+20U&D label i &Nsdel
+21&U GOTO i &Nsdel
+22Label er allerede &D
+23THEN&F
+24DO&F
+25&E&V&R
+26Variabel&A er&X en simpel &A
+27&YFOR &Ns &B
+28TO eller DOWNTO&F
+29Konstant er&X af samme &A som CASE &B
+30END eller OTHERWISE&F
+31Ukendt label
+32For mange nestede WITH &Ner
+33Post&V&F
+34&E&V
+35&U tilskrivning
+36&Ytilskrivning eller parameterliste
+37&I&An i&H
+38&I&An boolean
+39&Ien simpel &A
+40&Ien s&J&A
+Š41&Y&B
+42Operand&A(r) stemmer&X overens med operator
+43Strukturerede variable&T
+44&Ym{ngde
+45&S&B
+46Konstanter&T
+47Udtryks&A er forskellig fra index&A
+48&Efelt&R
+49&E&C
+50I&H &C&F
+51&W&C&F
+52S&J&C&X afsluttet
+53Fejl i i&H &C
+54Fejl i real &C
+55&Ut tegn i &R
+56'[' eller '(.'&F
+57']' eller '.)'&F
+58':'&F
+59';'&F
+60&S&N
+61','&F
+62'('&F
+63')'&F
+64'='&F
+65':='&F
+66OF&F
+67Programmet kan&X slutte her
+68Fil findes&X
+69Buffer overflow
+70Memory overflow
+71&Kindl{ses
+72&Kudl{ses
+73Tekstfil&F
+74Fil&V&F
+75Tekst&G&T
+76Typel|se &G&T
+77S&J&C&F
+78S&Jl{ngde stemmer&X overens med &A
+79Fejlagtig r{kkef|lge af felt&Cer
+80&Ystruktureret &C
+81Konstant udenfor tilladte gr{nser
+82Filer og pointere&T
+83Fejlagtig brug af re&A-facilitet
+84&W&B&F
+85S&J&V&F
+86Tekst&G og &Al|se &G&T
+87Typel|s fil&F
+88Pointer&V&F
+89&W&V&F
+90I&H &V&F
+91Reserveret ord
+92Label er&X indenfor denne blok
+93Procedure eller funktion er&X &D korrekt
+94Fejl i CODE &N
+95&U brug af AT specifikation
+96Overlays&Z kun i programfiler
+97Overlays kan&X forward-erkl{res
+98PROCEDURE eller FUNCTION&F
+99Kan ikke }bne overlay-fil
+100Fejl i EXTERNAL fil
+101Nestede include-&G&Z&X
+102Fejl i compilerdirektiv
+

@@ -356,13 +356,24 @@ static void pio_loopback_test(void) {
  * .init.rodata into a link-time error.  The `zp_init_data` name is
  * file-scope (no static + no dot in symbol) so linker-script
  * ASSERTs can reference it directly. */
+/* Cold-boot default drive/user byte written to zero page 0x0004 (cdisk):
+ * low nibble = drive (0=A:..4=E:), high nibble = user number.  Defaults
+ * to 0x00 (A:, user 0) -- the normal CP/M boot drive (master A:, which
+ * carries the standard tool set).  Booting into a different drive (e.g.
+ * 0x04 = E: -> master I: hard disk, used by the PPAS regression test)
+ * is opt-in via -DCPNOS_DEFAULT_DRIVE at build time; it is NOT baked in
+ * unconditionally. */
+#ifndef CPNOS_DEFAULT_DRIVE
+#define CPNOS_DEFAULT_DRIVE 0x00               /* A:, user 0 */
+#endif
+
 SECTION_RESIDENT_DATA
 const uint8_t zp_init_data[8] = {
     0xC3,
     (uint8_t)((BIOS_JT_COPY_ADDR + 3) & 0xFF),
     (uint8_t)(((BIOS_JT_COPY_ADDR + 3) >> 8) & 0xFF),
     0x00,                                  /* IOBYTE */
-    0x04,                                  /* drive/user (E:) */
+    CPNOS_DEFAULT_DRIVE,                    /* drive/user (default A:; -D for E:) */
     0xC3,
     (uint8_t)(CPNOS_BDOS_ADDR & 0xFF),
     (uint8_t)((CPNOS_BDOS_ADDR >> 8) & 0xFF),
