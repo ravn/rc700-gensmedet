@@ -1,11 +1,12 @@
 CompileFlags:
+  # Include paths come from the CMake compile database (CMakeLists.txt
+  # target_include_directories, absolute via ${CMAKE_CURRENT_SOURCE_DIR}) --
+  # do NOT add relative -I here: clangd resolves them from the source dir, not
+  # this file's dir, so "compiler/compat.h" would not resolve.  Verified via
+  # compile_commands.json (feedback_verify_cmake_fixes).
   Add:
     - -xc
     - -std=c23
-    - -I.
-    - -Iclang
-    - -Isrc
-    - -I../cpnos-shared/include
     - -DENABLE_FDC=0
     - -DMIRROR_SIOB=0
     - -DBOOT_MARK_ENABLED=1
