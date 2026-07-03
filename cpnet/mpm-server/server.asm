@@ -550,6 +550,10 @@ val0:	xchg
 	jc	val1
 	sui	50
 	mov	m,a	; fold 100.. => 50..
+	cpi	55	; gettod (FN 105 -> 55): a clock read needs no
+	jz	val2	; authentication, so exempt it from the login check
+			; like LOGIN itself -- lets a slave ask the time
+			; without first LOGIN PASSWORD (ravn 2026-07-03).
 val1:	push	h
 	dcx	h
 	mov	c,m	; SID

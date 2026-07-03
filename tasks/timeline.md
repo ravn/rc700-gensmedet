@@ -8407,3 +8407,49 @@ Resterende tre komponenter: rcbios, CP/NET, cpnos.
   returnerer); TPA under rcbios 56K CP/M er ~12K free, sieve max ~6000 elementer
 - cpmtools z80pack-hd segfaulter i cleanup men skriver korrekt; `|| true` tilføjet
 - MP/M forurenet tilstand er root cause for hæng; kill → stage → fresh start → test
+
+## Session 2026-07-03 (cont.) — CP/NET erklæret feature complete
+
+**CP/NET er feature complete** (bruger 2026-07-03).  PIO-transport verificeret
+end-to-end: polypascal-test PASS (rcbios 25.81s, cpnos), todget/TOD PASS
+(FN-105 vendor extension over BDOS-66/67), memory map dokumenteret.
+Resterende én komponent: **cpnos**.
+
+## Session 2026-07-03 (cont.) — cpnos PPAS+TOD via no-Lua path; gettod login-exempt
+
+**cpnos-polypascal-test root cause + fix.** The test failed at "wait for E>"
+on a fast M4.  Root cause (definitive, hard evidence): passing ANY
+`-autoboot_script` (even an empty one) puts MAME's Lua engine in the
+emulation loop and perturbs device/scheduler timing, breaking the
+wall-clock-coupled PIO cpnet_bridge netboot handshake -- the slave stalls
+after the FIRST LOGIN byte (1 bridge write vs 3367 for a full transfer).
+Proven by: no-autoboot at 210% speed PASSES; empty-autoboot at 235%
+(faster) FAILS.  It is NOT overhead/speed and the Lua does NOT consume
+bytes (it never reads the PIO port / installs a read-tap; all reads are
+non-consuming memory peeks).
+
+**Fix = no-Lua host-side injection** (like the rcbios harness).  cpnos's
+`impl_conin` reads `SIO_B_DATA` when console_joined (resident.c), so a
+host-side Python injector on the SIO-B socket drives PPAS with NO autoboot
+script: E> -> PPAS -> L PRIMES -> R -> 29989 -> Q -> E>.  Deterministic even
+at 123% MAME speed.  New: `cpnos-in-c/cpnos_polypascal_inject.py`.
+
+**TOD (gettod) now works WITHOUT login.**  TODGET drives FN-105 via
+BDOS-66/67; the master's SERVER.RSP `valid()` gated every request behind
+`chklog` except LOGIN, so gettod returned 0xff ("not logged in") -- even
+after an explicit `LOGIN PASSWORD` on the cpnos slave (client-side login
+not recognised by the master's chklog).  Fix: exempt gettod (FN 105 -> 55)
+from the login check in `cpnet/mpm-server/server.asm` (a clock read needs
+no authentication).  Rebuilt MPM.SYS via `rebuild-mpm-sys.sh --install`.
+Verified: `TODGET: master : 2026-07-03 19:19:34` with no login.
+
+Full production run (PIO, -nothrottle, no autoboot): PPAS PRIMES->29989 +
+Q->E> and TODGET FN-105 date, all 8 injector stages green (36.67s).
+
+New tooling: `scripts/wait_mpm_ready.py` -- deterministic CP/NET readiness
+probe (send ENQ, await master ACK), replaces fragile fixed sleeps;
+verified non-contaminating.
+
+Remaining: wire the no-Lua injector into the cpnos-polypascal-test Makefile
+target (replace the autoboot-Lua launch), stage LOGIN/TODGET on drive I in
+stage-drivei-ppas.
