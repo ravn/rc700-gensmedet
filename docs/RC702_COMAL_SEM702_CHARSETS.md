@@ -131,3 +131,21 @@ reliably by:
 
 (Renderings produced during analysis: `scratch/logo-src/{diverse,heste}_final.png`
 — not committed; regenerate from the disk via the steps above.)
+
+## RESOLVED: why RACE/FUTTOG/CHRHENT won't load on rev 1.07 (2026-07-03)
+
+Root cause found by detokenizing (see `comal_detokenizer.py`) and cross-checking the
+RcComal80 manual §8.5 "Externe procedurer" (Bits:30000027 printed p.64):
+
+- **rev 1.07 supports external FUNCtions but NOT external PROCedures.**
+- `eks9.4` uses `FUNC k(n,r) EXTERNAL "..."` (statement code **0xD8**) → **loads**.
+- `RACE`/`FUTTOG` use `PROC … EXTERNAL "chrhent.ext"` + `EXEC` (statement code
+  **0xD5**) → **error 214** (won't load).
+- `CHRHENT.EXT` is the external procedure itself, `PROC … CLOSED` (CLOSED = local
+  variables, manual p.61-63; external procs must be CLOSED) → also won't load.
+
+So it is NOT a single unknown token (CHRHENT.EXT decodes with none) — it is the
+external-PROCEDURE language feature, documented only in the newer RcComal80
+(§8.5, RCSL 42-I-2339 / Bits:30008320). That is the "newer save format": the
+`.PRG`/`.EXT` apps use external procedures, which the education disk's rev 1.07
+runtime cannot load — they need a newer RcComal80.
