@@ -818,7 +818,7 @@ void bios_boot_c(void)
 
     /* Announce SIO-B debug console when DIP switch 0 enabled it. */
     if (IOBYTE_CON(iobyte) == IOB_UC1)
-        puts_p("SIO-B debugging enabled (" SIOB_BAUD_STR " 8N1)\r\n");
+        puts_p("SIO-B debugging enabled (" SIOB_BAUD_STR " 8N1, SW1 S01=On)\r\n");
 
     wboot_c();
 }

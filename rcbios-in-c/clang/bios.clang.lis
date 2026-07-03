@@ -7,8 +7,8 @@ Disassembly of section .boot:
        0: 80 02 00 00 00 00 00 00         ........
        8: 20 52 43 37 30 32 20 43          RC702 C
       10: 2d 42 49 4f 53 20 32 30         -BIOS 20
-      18: 32 36 2d 30 36 2d 32 38         26-06-28
-      20: 20 31 35 3a 33 37 20 2f          15:37 /
+      18: 32 36 2d 30 37 2d 30 33         26-07-03
+      20: 20 31 31 3a 32 36 20 2f          11:26 /
       28: 54 68 6f 72 62 6a 6f 65         Thorbjoe
       30: 72 6e 20 52 61 76 6e 20         rn Ravn 
       38: 41 6e 64 65 72 73 65 6e         Andersen
@@ -103,10 +103,10 @@ Disassembly of section .boot_code:
 
 00000290 <_relocate_bios>:
 ; {
-     290: 11 ac ec     	ld	de,$ecac
+     290: 11 b8 ec     	ld	de,$ecb8
 ;     _bss_compiler_head = 0;
      293: af           	xor	a
-     294: 21 ab ec     	ld	hl,$ecab
+     294: 21 b7 ec     	ld	hl,$ecb7
      297: 77           	ld	(hl),a
 ;     memcpy(&_bss_compiler_head + 1,
      298: 01 f6 06     	ld	bc,$6f6
@@ -117,7 +117,7 @@ Disassembly of section .boot_code:
 ;     memcpy((void *)BIOS_BASE,
      2a1: 21 70 04     	ld	hl,$470
      2a4: 11 00 da     	ld	de,$da00
-     2a7: 01 ab 12     	ld	bc,$12ab
+     2a7: 01 b7 12     	ld	bc,$12b7
      2aa: 78           	ld	a,b
      2ab: b1           	or	c
      2ac: 28 02        	jr	z,$2b0
@@ -137,7 +137,7 @@ Disassembly of section .boot_code:
 
 000002c7 <_verify_relocation>:
 ;     if (_sentinel_addr != SENTINEL_VALUE)
-     2c7: 2a a9 ec     	ld	hl,($eca9)              ; 0xeca9 <__sentinel_addr>
+     2c7: 2a b5 ec     	ld	hl,($ecb5)              ; 0xecb5 <__sentinel_addr>
      2ca: 7c           	ld	a,h
      2cb: ee 18        	xor	$18
      2cd: 57           	ld	d,a
@@ -314,7 +314,7 @@ Disassembly of section .boot_code:
      3c6: 32 33 da     	ld	($da33),a               ; 0xda33 <_bios_jump_vector_table+0x33>
 ;     stptim_var = CFG.stptim;
      3c9: 2a 2d d5     	ld	hl,($d52d)              ; 0xd52d <__boot_end+0xd0bd>
-     3cc: 22 ea ff     	ld	($ffea),hl              ; 0xffea <__sfrend_sec_rw+0xc48>
+     3cc: 22 ea ff     	ld	($ffea),hl              ; 0xffea <__sfrend_sec_rw+0xc3c>
 ;         memcpy((void *)fd0, (const void *)CFG.infd, sizeof(fd0));
      3cf: 21 10 00     	ld	hl,$10
      3d2: e5           	push	hl
@@ -326,7 +326,7 @@ Disassembly of section .boot_code:
      3de: 11 00 00     	ld	de,$0
 ;         max_drive_num = 0;
      3e1: af           	xor	a
-     3e2: 32 c3 ee     	ld	($eec3),a               ; 0xeec3 <_max_drive_num>
+     3e2: 32 cf ee     	ld	($eecf),a               ; 0xeecf <_max_drive_num>
 ;         for (d = 0; d < 16; d++) {
      3e5: 7b           	ld	a,e
      3e6: fe 10        	cp	$10
@@ -342,13 +342,13 @@ Disassembly of section .boot_code:
      3f3: 62           	ld	h,d
      3f4: 4d           	ld	c,l
      3f5: 7b           	ld	a,e
-     3f6: 32 c3 ee     	ld	($eec3),a               ; 0xeec3 <_max_drive_num>
+     3f6: 32 cf ee     	ld	($eecf),a               ; 0xeecf <_max_drive_num>
 ;         for (d = 0; d < 16; d++) {
      3f9: 13           	inc	de
      3fa: 18 e9        	jr	$3e5
 ;             dph_table[0] = dph0;
      3fc: 21 2c 04     	ld	hl,$42c
-     3ff: 11 d6 ee     	ld	de,$eed6
+     3ff: 11 e2 ee     	ld	de,$eee2
      402: 79           	ld	a,c
 ;             dph_table[0] = dph0;
      403: 01 10 00     	ld	bc,$10
@@ -358,33 +358,33 @@ Disassembly of section .boot_code:
      409: 28 0b        	jr	z,$416
 ;                 dph_table[1] = dph1;
      40b: 21 3c 04     	ld	hl,$43c
-     40e: 11 e6 ee     	ld	de,$eee6
+     40e: 11 f2 ee     	ld	de,$eef2
      411: 01 10 00     	ld	bc,$10
      414: ed b0        	ldir
 ;         hostbuf_valid = 0;
      416: af           	xor	a
-     417: 32 b2 ec     	ld	($ecb2),a               ; 0xecb2 <_wb+0x7>
+     417: 32 be ec     	ld	($ecbe),a               ; 0xecbe <_wb+0x7>
 ;         hostbuf_dirty = 0;
-     41a: 32 b3 ec     	ld	($ecb3),a               ; 0xecb3 <_wb+0x8>
+     41a: 32 bf ec     	ld	($ecbf),a               ; 0xecbf <_wb+0x8>
 ;         unalloc_count = 0;
-     41d: 32 b5 ec     	ld	($ecb5),a               ; 0xecb5 <_unalloc_count>
+     41d: 32 c1 ec     	ld	($ecc1),a               ; 0xecc1 <_unalloc_count>
 ;         disk_error = 0;
-     420: 32 b4 ec     	ld	($ecb4),a               ; 0xecb4 <_wb+0x9>
+     420: 32 c0 ec     	ld	($ecc0),a               ; 0xecc0 <_wb+0x9>
 ;         current_format_idx = 0xFF;       /* force format reload on first SELDSK */
      423: 3e ff        	ld	a,$ff
-     425: 32 c4 ee     	ld	($eec4),a               ; 0xeec4 <_current_format_idx>
+     425: 32 d0 ee     	ld	($eed0),a               ; 0xeed0 <_current_format_idx>
 ;         last_seek_disk = 0xFF;      /* force seek on first access */
-     428: 32 be ee     	ld	($eebe),a               ; 0xeebe <_last_seek_disk>
+     428: 32 ca ee     	ld	($eeca),a               ; 0xeeca <_last_seek_disk>
 ; }
      42b: c9           	ret
 
 0000042c <_bios_hw_init.dph0>:
      42c: 00 00 00 00 00 00 00 00         ........
-     434: 10 ef a4 eb d7 ef 90 ef         ........
+     434: 1c ef a4 eb e3 ef 9c ef         ........
 
 0000043c <_bios_hw_init.dph1>:
      43c: 00 00 00 00 00 00 00 00         ........
-     444: 10 ef a4 eb 3e f0 f7 ef         ....>...
+     444: 1c ef a4 eb 4a f0 03 f0         ....J...
 
 0000044c <_ivt_template>:
      44c: 9a e4 9a e4 7e ea 97 ea         ....~...
@@ -417,7 +417,7 @@ Disassembly of section .text:
     da81: f3           	di
 ;     fdc_irq_fired = 0;
     da82: af           	xor	a
-    da83: 32 0b ef     	ld	($ef0b),a               ; 0xef0b <_fdc_irq_fired>
+    da83: 32 17 ef     	ld	($ef17),a               ; 0xef17 <_fdc_irq_fired>
 ; static __inline__ void intrinsic_ei(void) { __builtin_z80_ei(); }
     da86: fb           	ei
 ; }
@@ -425,7 +425,7 @@ Disassembly of section .text:
 
 0000da88 <_fdc_irq_wait>:
 ;     while (!fdc_irq_fired)
-    da88: 3a 0b ef     	ld	a,($ef0b)               ; 0xef0b <_fdc_irq_fired>
+    da88: 3a 17 ef     	ld	a,($ef17)               ; 0xef17 <_fdc_irq_fired>
     da8b: b7           	or	a
     da8c: 28 fa        	jr	z,$da88
 ; }
@@ -445,9 +445,9 @@ Disassembly of section .text:
     da9d: af           	xor	a
     da9e: 32 04 00     	ld	($4),a                  ; 0x4 <_boot_header+0x4>
 ;     __builtin_memset((void *)&wb, 0, sizeof(wb));
-    daa1: 21 ab ec     	ld	hl,$ecab
+    daa1: 21 b7 ec     	ld	hl,$ecb7
     daa4: 77           	ld	(hl),a
-    daa5: 11 ac ec     	ld	de,$ecac
+    daa5: 11 b8 ec     	ld	de,$ecb8
     daa8: 01 09 00     	ld	bc,$9
     daab: ed b0        	ldir
 ; static __inline__ void intrinsic_di(void) { __builtin_z80_di(); }
@@ -479,14 +479,14 @@ Disassembly of section .text:
 ; static __inline__ void intrinsic_ei(void) { __builtin_z80_ei(); }
     dad4: fb           	ei
 ;     puts_p("\x0C"                       /* form feed = clear screen */
-    dad5: 21 4d ec     	ld	hl,$ec4d
+    dad5: 21 31 ec     	ld	hl,$ec31
     dad8: cd ed da     	call	$daed
 ;     if (IOBYTE_CON(iobyte) == IOB_UC1)
     dadb: 3a 03 00     	ld	a,($3)                  ; 0x3 <_boot_header+0x3>
     dade: e6 03        	and	$3
     dae0: fe 03        	cp	$3
     dae2: 20 06        	jr	nz,$daea
-;         puts_p("SIO-B debugging enabled (" SIOB_BAUD_STR " 8N1)\r\n");
+;         puts_p("SIO-B debugging enabled (" SIOB_BAUD_STR " 8N1, SW1 S01=On)\r\n");
     dae4: 21 81 ec     	ld	hl,$ec81
     dae7: cd ed da     	call	$daed
 ;     wboot_c();
@@ -514,17 +514,17 @@ Disassembly of section .text:
     dafb: cd 64 db     	call	$db64
 ;     unalloc_count = 0;
     dafe: af           	xor	a
-    daff: 32 b5 ec     	ld	($ecb5),a               ; 0xecb5 <_unalloc_count>
+    daff: 32 c1 ec     	ld	($ecc1),a               ; 0xecc1 <_unalloc_count>
 ;     fdc_unit_head = 0;
-    db02: 32 b6 ec     	ld	($ecb6),a               ; 0xecb6 <_fdc_unit_head>
+    db02: 32 c2 ec     	ld	($ecc2),a               ; 0xecc2 <_fdc_unit_head>
 ;     bios_home();
     db05: cd 34 dc     	call	$dc34
 ;     cpm_dma_addr = CCP_BASE;
     db08: 21 00 c4     	ld	hl,$c400
-    db0b: 22 b7 ec     	ld	($ecb7),hl              ; 0xecb7 <_cpm_dma_addr>
+    db0b: 22 c3 ec     	ld	($ecc3),hl              ; 0xecc3 <_cpm_dma_addr>
 ;     cpm_track = 1;
     db0e: 21 01 00     	ld	hl,$1
-    db11: 22 b9 ec     	ld	($ecb9),hl              ; 0xecb9 <_cpm_track>
+    db11: 22 c5 ec     	ld	($ecc5),hl              ; 0xecc5 <_cpm_track>
     db14: 21 00 00     	ld	hl,$0
 ;     for (sec = 0; sec < NSECTS; sec++) {
     db17: 7d           	ld	a,l
@@ -532,23 +532,23 @@ Disassembly of section .text:
     db1a: 28 18        	jr	z,$db34
     db1c: e5           	push	hl
 ;         cpm_sector = sec;
-    db1d: 22 bb ec     	ld	($ecbb),hl              ; 0xecbb <_cpm_sector>
+    db1d: 22 c7 ec     	ld	($ecc7),hl              ; 0xecc7 <_cpm_sector>
 ;         if (xread()) {
     db20: cd 61 dc     	call	$dc61
     db23: b7           	or	a
     db24: 20 34        	jr	nz,$db5a
 ;         cpm_dma_addr += 128;
-    db26: 2a b7 ec     	ld	hl,($ecb7)              ; 0xecb7 <_cpm_dma_addr>
+    db26: 2a c3 ec     	ld	hl,($ecc3)              ; 0xecc3 <_cpm_dma_addr>
     db29: 11 80 00     	ld	de,$80
     db2c: 19           	add	hl,de
-    db2d: 22 b7 ec     	ld	($ecb7),hl              ; 0xecb7 <_cpm_dma_addr>
+    db2d: 22 c3 ec     	ld	($ecc3),hl              ; 0xecc3 <_cpm_dma_addr>
     db30: e1           	pop	hl
 ;     for (sec = 0; sec < NSECTS; sec++) {
     db31: 23           	inc	hl
     db32: 18 e3        	jr	$db17
 ;     cpm_dma_addr = BDOS_DMAADDR;
     db34: 21 80 00     	ld	hl,$80
-    db37: 22 b7 ec     	ld	($ecb7),hl              ; 0xecb7 <_cpm_dma_addr>
+    db37: 22 c3 ec     	ld	($ecc3),hl              ; 0xecc3 <_cpm_dma_addr>
 ;     wboot_jp  = 0xC3;                        /* JP opcode */
     db3a: 3e c3        	ld	a,$c3
     db3c: 32 00 00     	ld	($0),a                  ; 0x0 <_boot_header>
@@ -569,7 +569,7 @@ Disassembly of section .text:
     db57: c3 0b ea     	jp	$ea0b
     db5a: f1           	pop	af
 ;             puts_p("\r\nDisk read error - reset\r\n");
-    db5b: 21 31 ec     	ld	hl,$ec31
+    db5b: 21 65 ec     	ld	hl,$ec65
     db5e: cd ed da     	call	$daed
 ; static __inline__ void intrinsic_halt(void) { __builtin_z80_halt(); }
     db61: 76           	halt
@@ -580,15 +580,15 @@ Disassembly of section .text:
 ; {
     db64: 57           	ld	d,a
 ;     drive = drv;
-    db65: 32 c1 ee     	ld	($eec1),a               ; 0xeec1 <_bios_seldsk_c.drive>
+    db65: 32 cd ee     	ld	($eecd),a               ; 0xeecd <_bios_seldsk_c.drive>
 ;     if (drive > max_drive_num)
-    db68: 3a c3 ee     	ld	a,($eec3)               ; 0xeec3 <_max_drive_num>
+    db68: 3a cf ee     	ld	a,($eecf)               ; 0xeecf <_max_drive_num>
     db6b: 01 00 00     	ld	bc,$0
     db6e: ba           	cp	d
     db6f: da 31 dc     	jp	c,$dc31
 ;     cpm_disk = drive;
     db72: 7a           	ld	a,d
-    db73: 32 bd ee     	ld	($eebd),a               ; 0xeebd <_cpm_disk>
+    db73: 32 c9 ee     	ld	($eec9),a               ; 0xeec9 <_cpm_disk>
 ;     fmt = fd0[drive];
     db76: 4a           	ld	c,d
     db77: 06 00        	ld	b,$0
@@ -596,31 +596,31 @@ Disassembly of section .text:
     db7c: 09           	add	hl,bc
     db7d: 7e           	ld	a,(hl)
     db7e: 57           	ld	d,a
-    db7f: 32 c2 ee     	ld	($eec2),a               ; 0xeec2 <_bios_seldsk_c.fmt>
+    db7f: 32 ce ee     	ld	($eece),a               ; 0xeece <_bios_seldsk_c.fmt>
 ;     if (fmt != current_format_idx) {
-    db82: 21 c4 ee     	ld	hl,$eec4
+    db82: 21 d0 ee     	ld	hl,$eed0
     db85: be           	cp	(hl)
     db86: 28 17        	jr	z,$db9f
 ;         if (hostbuf_dirty) {
-    db88: 3a b3 ec     	ld	a,($ecb3)               ; 0xecb3 <_wb+0x8>
+    db88: 3a bf ec     	ld	a,($ecbf)               ; 0xecbf <_wb+0x8>
     db8b: b7           	or	a
     db8c: 28 11        	jr	z,$db9f
 ;             wrthst();
     db8e: cd f3 e1     	call	$e1f3
 ;             hostbuf_dirty = 0;
     db91: af           	xor	a
-    db92: 32 b3 ec     	ld	($ecb3),a               ; 0xecb3 <_wb+0x8>
+    db92: 32 bf ec     	ld	($ecbf),a               ; 0xecbf <_wb+0x8>
 ;     current_format_idx = fmt;
-    db95: 3a c2 ee     	ld	a,($eec2)               ; 0xeec2 <_bios_seldsk_c.fmt>
+    db95: 3a ce ee     	ld	a,($eece)               ; 0xeece <_bios_seldsk_c.fmt>
     db98: 57           	ld	d,a
 ;         entry = &dph_table[drive];
-    db99: 3a c1 ee     	ld	a,($eec1)               ; 0xeec1 <_bios_seldsk_c.drive>
+    db99: 3a cd ee     	ld	a,($eecd)               ; 0xeecd <_bios_seldsk_c.drive>
     db9c: 4f           	ld	c,a
     db9d: 06 00        	ld	b,$0
 ;     current_format_idx = fmt;
-    db9f: ed 43 89 f3  	ld	($f389),bc              ; 0xf389 <__sfrend_wboot_c>
+    db9f: ed 43 95 f3  	ld	($f395),bc              ; 0xf395 <__sfrend_wboot_c>
     dba3: 7a           	ld	a,d
-    dba4: 32 c4 ee     	ld	($eec4),a               ; 0xeec4 <_current_format_idx>
+    dba4: 32 d0 ee     	ld	($eed0),a               ; 0xeed0 <_current_format_idx>
 ;         idx = (fmt >> 3) & 3;
     dba7: 0f           	rrca
     dba8: 0f           	rrca
@@ -638,18 +638,18 @@ Disassembly of section .text:
     dbb7: 09           	add	hl,bc
     dbb8: 4d           	ld	c,l
     dbb9: 44           	ld	b,h
-    dbba: 22 c5 ee     	ld	($eec5),hl              ; 0xeec5 <_bios_seldsk_c.sp>
+    dbba: 22 d1 ee     	ld	($eed1),hl              ; 0xeed1 <_bios_seldsk_c.sp>
 ;         current_format = &fdf[idx];
     dbbd: 5a           	ld	e,d
     dbbe: 16 00        	ld	d,$0
     dbc0: 21 d1 eb     	ld	hl,$ebd1
     dbc3: 19           	add	hl,de
-    dbc4: 22 c7 ee     	ld	($eec7),hl              ; 0xeec7 <_current_format>
+    dbc4: 22 d3 ee     	ld	($eed3),hl              ; 0xeed3 <_current_format>
     dbc7: 11 05 00     	ld	de,$5
 ;         track0_sectors_per_side = current_format->eot;
     dbca: 19           	add	hl,de
     dbcb: 7e           	ld	a,(hl)
-    dbcc: 32 c9 ee     	ld	($eec9),a               ; 0xeec9 <_track0_sectors_per_side>
+    dbcc: 32 d5 ee     	ld	($eed5),a               ; 0xeed5 <_track0_sectors_per_side>
 ;         current_dpb = sp->dpb;
     dbcf: 69           	ld	l,c
     dbd0: 60           	ld	h,b
@@ -658,14 +658,14 @@ Disassembly of section .text:
     dbd3: 56           	ld	d,(hl)
     dbd4: d5           	push	de
     dbd5: eb           	ex	de,hl
-    dbd6: 22 ca ee     	ld	($eeca),hl              ; 0xeeca <_current_dpb>
+    dbd6: 22 d6 ee     	ld	($eed6),hl              ; 0xeed6 <_current_dpb>
 ;         records_per_alloc_block = sp->records_per_alloc_block;
     dbd9: 59           	ld	e,c
     dbda: 50           	ld	d,b
     dbdb: 13           	inc	de
     dbdc: 13           	inc	de
     dbdd: 1a           	ld	a,(de)
-    dbde: 32 cc ee     	ld	($eecc),a               ; 0xeecc <_records_per_alloc_block>
+    dbde: 32 d8 ee     	ld	($eed8),a               ; 0xeed8 <_records_per_alloc_block>
 ;         cpm_sectors_per_track = sp->cpm_sectors_per_track;
     dbe1: 69           	ld	l,c
     dbe2: 60           	ld	h,b
@@ -676,21 +676,21 @@ Disassembly of section .text:
     dbe7: 23           	inc	hl
     dbe8: 56           	ld	d,(hl)
     dbe9: eb           	ex	de,hl
-    dbea: 22 cd ee     	ld	($eecd),hl              ; 0xeecd <_cpm_sectors_per_track>
+    dbea: 22 d9 ee     	ld	($eed9),hl              ; 0xeed9 <_cpm_sectors_per_track>
     dbed: 11 05 00     	ld	de,$5
 ;         deblock_mask = sp->deblock_mask;
     dbf0: 69           	ld	l,c
     dbf1: 60           	ld	h,b
     dbf2: 19           	add	hl,de
     dbf3: 7e           	ld	a,(hl)
-    dbf4: 32 cf ee     	ld	($eecf),a               ; 0xeecf <_deblock_mask>
+    dbf4: 32 db ee     	ld	($eedb),a               ; 0xeedb <_deblock_mask>
     dbf7: 11 06 00     	ld	de,$6
 ;         deblock_shift = sp->deblock_shift;
     dbfa: 69           	ld	l,c
     dbfb: 60           	ld	h,b
     dbfc: 19           	add	hl,de
     dbfd: 7e           	ld	a,(hl)
-    dbfe: 32 d0 ee     	ld	($eed0),a               ; 0xeed0 <_deblock_shift>
+    dbfe: 32 dc ee     	ld	($eedc),a               ; 0xeedc <_deblock_shift>
     dc01: 11 07 00     	ld	de,$7
 ;         sector_xlate = sp->sector_xlate;
     dc04: 69           	ld	l,c
@@ -700,26 +700,26 @@ Disassembly of section .text:
     dc08: 23           	inc	hl
     dc09: 56           	ld	d,(hl)
     dc0a: eb           	ex	de,hl
-    dc0b: 22 d1 ee     	ld	($eed1),hl              ; 0xeed1 <_sector_xlate>
+    dc0b: 22 dd ee     	ld	($eedd),hl              ; 0xeedd <_sector_xlate>
     dc0e: 11 09 00     	ld	de,$9
 ;         fdc_data_length = sp->fdc_data_length;
     dc11: 69           	ld	l,c
     dc12: 60           	ld	h,b
     dc13: 19           	add	hl,de
     dc14: 7e           	ld	a,(hl)
-    dc15: 32 d3 ee     	ld	($eed3),a               ; 0xeed3 <_fdc_data_length>
+    dc15: 32 df ee     	ld	($eedf),a               ; 0xeedf <_fdc_data_length>
 ;         entry = &dph_table[drive];
-    dc18: 2a 89 f3     	ld	hl,($f389)              ; 0xf389 <__sfrend_wboot_c>
+    dc18: 2a 95 f3     	ld	hl,($f395)              ; 0xf395 <__sfrend_wboot_c>
     dc1b: 29           	add	hl,hl
     dc1c: 29           	add	hl,hl
     dc1d: 29           	add	hl,hl
     dc1e: 29           	add	hl,hl
     dc1f: eb           	ex	de,hl
-    dc20: 21 d6 ee     	ld	hl,$eed6
+    dc20: 21 e2 ee     	ld	hl,$eee2
     dc23: 19           	add	hl,de
     dc24: 4d           	ld	c,l
     dc25: 44           	ld	b,h
-    dc26: 22 d4 ee     	ld	($eed4),hl              ; 0xeed4 <_bios_seldsk_c.entry>
+    dc26: 22 e0 ee     	ld	($eee0),hl              ; 0xeee0 <_bios_seldsk_c.entry>
     dc29: 11 0a 00     	ld	de,$a
 ;         entry->dpb = current_dpb;
     dc2c: 19           	add	hl,de
@@ -734,7 +734,7 @@ Disassembly of section .text:
 
 0000dc34 <_bios_home>:
 ;     if (hostbuf_dirty) {
-    dc34: 3a b3 ec     	ld	a,($ecb3)               ; 0xecb3 <_wb+0x8>
+    dc34: 3a bf ec     	ld	a,($ecbf)               ; 0xecbf <_wb+0x8>
     dc37: b7           	or	a
     dc38: 28 05        	jr	z,$dc3f
 ;         wrthst();
@@ -743,22 +743,22 @@ Disassembly of section .text:
     dc3d: 18 04        	jr	$dc43
 ;         hostbuf_valid = 0;
     dc3f: af           	xor	a
-    dc40: 32 b2 ec     	ld	($ecb2),a               ; 0xecb2 <_wb+0x7>
+    dc40: 32 be ec     	ld	($ecbe),a               ; 0xecbe <_wb+0x7>
 ;     fdstar();
     dc43: cd fd e1     	call	$e1fd
 ;     fdc_unit_head = cpm_disk;
-    dc46: 3a bd ee     	ld	a,($eebd)               ; 0xeebd <_cpm_disk>
-    dc49: 32 b6 ec     	ld	($ecb6),a               ; 0xecb6 <_fdc_unit_head>
+    dc46: 3a c9 ee     	ld	a,($eec9)               ; 0xeec9 <_cpm_disk>
+    dc49: 32 c2 ec     	ld	($ecc2),a               ; 0xecc2 <_fdc_unit_head>
 ;     last_seek_disk = cpm_disk;
-    dc4c: 32 be ee     	ld	($eebe),a               ; 0xeebe <_last_seek_disk>
+    dc4c: 32 ca ee     	ld	($eeca),a               ; 0xeeca <_last_seek_disk>
 ;     last_seek_track = 0;
     dc4f: 21 00 00     	ld	hl,$0
-    dc52: 22 bf ee     	ld	($eebf),hl              ; 0xeebf <_last_seek_track>
+    dc52: 22 cb ee     	ld	($eecb),hl              ; 0xeecb <_last_seek_track>
 ; static __inline__ void intrinsic_di(void) { __builtin_z80_di(); }
     dc55: f3           	di
 ;     fdc_irq_fired = 0;
     dc56: af           	xor	a
-    dc57: 32 0b ef     	ld	($ef0b),a               ; 0xef0b <_fdc_irq_fired>
+    dc57: 32 17 ef     	ld	($ef17),a               ; 0xef17 <_fdc_irq_fired>
 ; static __inline__ void intrinsic_ei(void) { __builtin_z80_ei(); }
     dc5a: fb           	ei
 ;     fdc_recalibrate();
@@ -769,15 +769,15 @@ Disassembly of section .text:
 0000dc61 <_xread>:
 ;     unalloc_count = 0;
     dc61: af           	xor	a
-    dc62: 32 b5 ec     	ld	($ecb5),a               ; 0xecb5 <_unalloc_count>
+    dc62: 32 c1 ec     	ld	($ecc1),a               ; 0xecc1 <_unalloc_count>
 ;     is_read = 1;
     dc65: 3e 01        	ld	a,$1
-    dc67: 32 7b f3     	ld	($f37b),a               ; 0xf37b <_is_read>
+    dc67: 32 87 f3     	ld	($f387),a               ; 0xf387 <_is_read>
 ;     need_pre_read = 1;
-    dc6a: 32 7c f3     	ld	($f37c),a               ; 0xf37c <_need_pre_read>
+    dc6a: 32 88 f3     	ld	($f388),a               ; 0xf388 <_need_pre_read>
 ;     write_type = WRUAL;
     dc6d: 3e 02        	ld	a,$2
-    dc6f: 32 7d f3     	ld	($f37d),a               ; 0xf37d <_write_type>
+    dc6f: 32 89 f3     	ld	($f389),a               ; 0xf389 <_write_type>
 ;     return rwoper();
     dc72: c3 f0 e8     	jp	$e8f0
 
@@ -791,7 +791,7 @@ Disassembly of section .text:
     dc7c: 7b           	ld	a,e
     dc7d: 0f           	rrca
     dc7e: 30 08        	jr	nc,$dc88
-    dc80: 3a ad ec     	ld	a,($ecad)               ; 0xecad <_wb+0x2>
+    dc80: 3a b9 ec     	ld	a,($ecb9)               ; 0xecb9 <_wb+0x2>
     dc83: 1e ff        	ld	e,$ff
     dc85: b7           	or	a
     dc86: 20 12        	jr	nz,$dc9a
@@ -800,10 +800,10 @@ Disassembly of section .text:
     dc89: fe 01        	cp	$1
     dc8b: 28 0b        	jr	z,$dc98
 ;     return (rxtail_b != rxhead_b) ? 0xFF : 0x00;
-    dc8d: 3a b1 ec     	ld	a,($ecb1)               ; 0xecb1 <_wb+0x6>
+    dc8d: 3a bd ec     	ld	a,($ecbd)               ; 0xecbd <_wb+0x6>
     dc90: 1e ff        	ld	e,$ff
 ;     if ((con != 1) && serial_const()) return 0xFF;
-    dc92: 21 b0 ec     	ld	hl,$ecb0
+    dc92: 21 bc ec     	ld	hl,$ecbc
     dc95: be           	cp	(hl)
     dc96: 20 02        	jr	nz,$dc9a
     dc98: 1e 00        	ld	e,$0
@@ -824,16 +824,16 @@ Disassembly of section .text:
     dca7: 7b           	ld	a,e
     dca8: b7           	or	a
     dca9: 28 09        	jr	z,$dcb4
-    dcab: 3a ac ec     	ld	a,($ecac)               ; 0xecac <_wb+0x1>
-    dcae: 21 ab ec     	ld	hl,$ecab
+    dcab: 3a b8 ec     	ld	a,($ecb8)               ; 0xecb8 <_wb+0x1>
+    dcae: 21 b7 ec     	ld	hl,$ecb7
     dcb1: be           	cp	(hl)
     dcb2: 20 3e        	jr	nz,$dcf2
 ;         if ((con != 1) && rxtail_b != rxhead_b) return serial_conin();
     dcb4: 7a           	ld	a,d
     dcb5: fe 01        	cp	$1
     dcb7: 28 09        	jr	z,$dcc2
-    dcb9: 3a b1 ec     	ld	a,($ecb1)               ; 0xecb1 <_wb+0x6>
-    dcbc: 21 b0 ec     	ld	hl,$ecb0
+    dcb9: 3a bd ec     	ld	a,($ecbd)               ; 0xecbd <_wb+0x6>
+    dcbc: 21 bc ec     	ld	hl,$ecbc
     dcbf: be           	cp	(hl)
     dcc0: 20 03        	jr	nz,$dcc5
 ; static __inline__ void intrinsic_halt(void) { __builtin_z80_halt(); }
@@ -841,25 +841,25 @@ Disassembly of section .text:
 ;     for (;;) {
     dcc3: 18 e2        	jr	$dca7
 ;     while (rxtail_b == rxhead_b)
-    dcc5: 3a b1 ec     	ld	a,($ecb1)               ; 0xecb1 <_wb+0x6>
+    dcc5: 3a bd ec     	ld	a,($ecbd)               ; 0xecbd <_wb+0x6>
     dcc8: be           	cp	(hl)
     dcc9: 28 fa        	jr	z,$dcc5
 ;     byte new_tail = (rxtail_b + 1) & RXMASK;
-    dccb: 3a b1 ec     	ld	a,($ecb1)               ; 0xecb1 <_wb+0x6>
+    dccb: 3a bd ec     	ld	a,($ecbd)               ; 0xecbd <_wb+0x6>
     dcce: 3c           	inc	a
     dccf: 5f           	ld	e,a
 ;     byte ch = rxbuf_b[rxtail_b];
-    dcd0: 3a b1 ec     	ld	a,($ecb1)               ; 0xecb1 <_wb+0x6>
+    dcd0: 3a bd ec     	ld	a,($ecbd)               ; 0xecbd <_wb+0x6>
     dcd3: 4f           	ld	c,a
     dcd4: 06 00        	ld	b,$0
-    dcd6: 21 bd ed     	ld	hl,$edbd
+    dcd6: 21 c9 ed     	ld	hl,$edc9
     dcd9: 09           	add	hl,bc
     dcda: 56           	ld	d,(hl)
 ;     rxtail_b = new_tail;
     dcdb: 7b           	ld	a,e
-    dcdc: 32 b1 ec     	ld	($ecb1),a               ; 0xecb1 <_wb+0x6>
+    dcdc: 32 bd ec     	ld	($ecbd),a               ; 0xecbd <_wb+0x6>
 ;     if (new_tail == rxhead_b) {
-    dcdf: 21 b0 ec     	ld	hl,$ecb0
+    dcdf: 21 bc ec     	ld	hl,$ecbc
     dce2: be           	cp	(hl)
     dce3: 20 34        	jr	nz,$dd19
 ; DEFPORT(sio_b_ctrl,   PORT_SIO_B_CTRL)
@@ -872,27 +872,27 @@ Disassembly of section .text:
     dcee: d3 0b        	out	($b),a
     dcf0: 18 27        	jr	$dd19
 ;     byte raw = kbbuf[kbtail];
-    dcf2: 3a ac ec     	ld	a,($ecac)               ; 0xecac <_wb+0x1>
+    dcf2: 3a b8 ec     	ld	a,($ecb8)               ; 0xecb8 <_wb+0x1>
     dcf5: 5f           	ld	e,a
     dcf6: 16 00        	ld	d,$0
-    dcf8: 21 fb ee     	ld	hl,$eefb
+    dcf8: 21 07 ef     	ld	hl,$ef07
     dcfb: 19           	add	hl,de
     dcfc: 4e           	ld	c,(hl)
     dcfd: 42           	ld	b,d
 ;     kbtail = (kbtail + 1) & (KBBUFSZ - 1);
-    dcfe: 3a ac ec     	ld	a,($ecac)               ; 0xecac <_wb+0x1>
+    dcfe: 3a b8 ec     	ld	a,($ecb8)               ; 0xecb8 <_wb+0x1>
     dd01: 3c           	inc	a
     dd02: e6 0f        	and	$f
-    dd04: 32 ac ec     	ld	($ecac),a               ; 0xecac <_wb+0x1>
+    dd04: 32 b8 ec     	ld	($ecb8),a               ; 0xecb8 <_wb+0x1>
 ;     kbstat = (kbtail != kbhead) ? 0xFF : 0x00;
     dd07: 57           	ld	d,a
-    dd08: 3a ab ec     	ld	a,($ecab)               ; 0xecab <_wb>
+    dd08: 3a b7 ec     	ld	a,($ecb7)               ; 0xecb7 <_wb>
     dd0b: 5f           	ld	e,a
     dd0c: 7a           	ld	a,d
     dd0d: 93           	sub	e
     dd0e: c6 ff        	add	a,$ff
     dd10: 9f           	sbc	a,a
-    dd11: 32 ad ec     	ld	($ecad),a               ; 0xecad <_wb+0x2>
+    dd11: 32 b9 ec     	ld	($ecb9),a               ; 0xecb9 <_wb+0x2>
 ;     return inconv[raw];
     dd14: 21 00 f7     	ld	hl,$f700
     dd17: 09           	add	hl,bc
@@ -917,13 +917,13 @@ Disassembly of section .text:
     dd2d: 7a           	ld	a,d
     dd2e: c3 00 e1     	jp	$e100
     dd31: 7a           	ld	a,d
-    dd32: 32 8b f3     	ld	($f38b),a               ; 0xf38b <__sfrend_bios_seldsk_c>
+    dd32: 32 97 f3     	ld	($f397),a               ; 0xf397 <__sfrend_bios_seldsk_c>
     dd35: cd 54 dd     	call	$dd54
-    dd38: 3a 8b f3     	ld	a,($f38b)               ; 0xf38b <__sfrend_bios_seldsk_c>
+    dd38: 3a 97 f3     	ld	a,($f397)               ; 0xf397 <__sfrend_bios_seldsk_c>
     dd3b: 57           	ld	d,a
     dd3c: 7a           	ld	a,d
-    dd3d: 32 da ff     	ld	($ffda),a               ; 0xffda <__sfrend_sec_rw+0xc38>
-    dd40: 3a d7 ff     	ld	a,($ffd7)               ; 0xffd7 <__sfrend_sec_rw+0xc35>
+    dd3d: 32 da ff     	ld	($ffda),a               ; 0xffda <__sfrend_sec_rw+0xc2c>
+    dd40: 3a d7 ff     	ld	a,($ffd7)               ; 0xffd7 <__sfrend_sec_rw+0xc29>
     dd43: b7           	or	a
     dd44: 28 03        	jr	z,$dd49
     dd46: c3 65 dd     	jp	$dd65
@@ -937,14 +937,14 @@ Disassembly of section .text:
 ; static void serial_conout(byte c) {
     dd54: 57           	ld	d,a
 ;     while (!sio_b_tx_ready)
-    dd55: 3a a8 ec     	ld	a,($eca8)               ; 0xeca8 <_sio_b_tx_ready>
+    dd55: 3a b4 ec     	ld	a,($ecb4)               ; 0xecb4 <_sio_b_tx_ready>
     dd58: b7           	or	a
     dd59: 28 fa        	jr	z,$dd55
 ; static __inline__ void intrinsic_di(void) { __builtin_z80_di(); }
     dd5b: f3           	di
 ;     sio_b_tx_ready = 0;
     dd5c: af           	xor	a
-    dd5d: 32 a8 ec     	ld	($eca8),a               ; 0xeca8 <_sio_b_tx_ready>
+    dd5d: 32 b4 ec     	ld	($ecb4),a               ; 0xecb4 <_sio_b_tx_ready>
 ; DEFPORT(sio_b_data,   PORT_SIO_B_DATA)
     dd60: 7a           	ld	a,d
     dd61: d3 09        	out	($9),a
@@ -955,25 +955,25 @@ Disassembly of section .text:
 
 0000dd65 <_xyadd>:
 ;     byte val = (usession & 0b01111111) - 32;
-    dd65: 3a da ff     	ld	a,($ffda)               ; 0xffda <__sfrend_sec_rw+0xc38>
+    dd65: 3a da ff     	ld	a,($ffda)               ; 0xffda <__sfrend_sec_rw+0xc2c>
     dd68: e6 7f        	and	$7f
     dd6a: c6 e0        	add	a,$e0
     dd6c: 67           	ld	h,a
 ;     xflg--;
-    dd6d: 3a d7 ff     	ld	a,($ffd7)               ; 0xffd7 <__sfrend_sec_rw+0xc35>
+    dd6d: 3a d7 ff     	ld	a,($ffd7)               ; 0xffd7 <__sfrend_sec_rw+0xc29>
     dd70: 3d           	dec	a
-    dd71: 32 d7 ff     	ld	($ffd7),a               ; 0xffd7 <__sfrend_sec_rw+0xc35>
+    dd71: 32 d7 ff     	ld	($ffd7),a               ; 0xffd7 <__sfrend_sec_rw+0xc29>
 ;     if (xflg != 0) {
     dd74: 28 05        	jr	z,$dd7b
 ;         adr0 = val;             /* save first coordinate */
     dd76: 7c           	ld	a,h
-    dd77: 32 de ff     	ld	($ffde),a               ; 0xffde <__sfrend_sec_rw+0xc3c>
+    dd77: 32 de ff     	ld	($ffde),a               ; 0xffde <__sfrend_sec_rw+0xc30>
 ; }
     dd7a: c9           	ret
 ;     if (adrmod == 0) {
     dd7b: 3a 33 da     	ld	a,($da33)               ; 0xda33 <_bios_jump_vector_table+0x33>
     dd7e: 5f           	ld	e,a
-    dd7f: 3a de ff     	ld	a,($ffde)               ; 0xffde <__sfrend_sec_rw+0xc3c>
+    dd7f: 3a de ff     	ld	a,($ffde)               ; 0xffde <__sfrend_sec_rw+0xc30>
     dd82: 57           	ld	d,a
 ;     while (x_val >= SCRN_COLS) x_val -= SCRN_COLS;
     dd83: 7b           	ld	a,e
@@ -986,34 +986,34 @@ Disassembly of section .text:
     dd8a: 28 01        	jr	z,$dd8d
     dd8c: 62           	ld	h,d
     dd8d: 7c           	ld	a,h
-    dd8e: 32 8e f3     	ld	($f38e),a               ; 0xf38e <__sfrend_bios_conout_c+0x2>
+    dd8e: 32 9a f3     	ld	($f39a),a               ; 0xf39a <__sfrend_bios_conout_c+0x2>
 ;     while (x_val >= SCRN_COLS) x_val -= SCRN_COLS;
     dd91: 3e 4f        	ld	a,$4f
     dd93: bd           	cp	l
     dd94: 7d           	ld	a,l
-    dd95: 32 8d f3     	ld	($f38d),a               ; 0xf38d <__sfrend_bios_conout_c+0x1>
+    dd95: 32 99 f3     	ld	($f399),a               ; 0xf399 <__sfrend_bios_conout_c+0x1>
     dd98: 38 02        	jr	c,$dd9c
     dd9a: 2e 4f        	ld	l,$4f
     dd9c: 7d           	ld	a,l
 ;     while (x_val >= SCRN_COLS) x_val -= SCRN_COLS;
-    dd9d: 32 8c f3     	ld	($f38c),a               ; 0xf38c <__sfrend_bios_conout_c>
+    dd9d: 32 98 f3     	ld	($f398),a               ; 0xf398 <__sfrend_bios_conout_c>
     dda0: 1e 50        	ld	e,$50
     dda2: cd 0b eb     	call	$eb0b
     dda5: f5           	push	af
-    dda6: 3a 8c f3     	ld	a,($f38c)               ; 0xf38c <__sfrend_bios_conout_c>
+    dda6: 3a 98 f3     	ld	a,($f398)               ; 0xf398 <__sfrend_bios_conout_c>
     dda9: 57           	ld	d,a
     ddaa: f1           	pop	af
     ddab: 92           	sub	d
     ddac: f5           	push	af
-    ddad: 3a 8d f3     	ld	a,($f38d)               ; 0xf38d <__sfrend_bios_conout_c+0x1>
+    ddad: 3a 99 f3     	ld	a,($f399)               ; 0xf399 <__sfrend_bios_conout_c+0x1>
     ddb0: 57           	ld	d,a
     ddb1: f1           	pop	af
     ddb2: 82           	add	a,d
-    ddb3: 32 8d f3     	ld	($f38d),a               ; 0xf38d <__sfrend_bios_conout_c+0x1>
+    ddb3: 32 99 f3     	ld	($f399),a               ; 0xf399 <__sfrend_bios_conout_c+0x1>
 ;     while (y_val >= SCRN_ROWS) y_val -= SCRN_ROWS;
     ddb6: 3e 18        	ld	a,$18
     ddb8: f5           	push	af
-    ddb9: 3a 8e f3     	ld	a,($f38e)               ; 0xf38e <__sfrend_bios_conout_c+0x2>
+    ddb9: 3a 9a f3     	ld	a,($f39a)               ; 0xf39a <__sfrend_bios_conout_c+0x2>
     ddbc: 57           	ld	d,a
     ddbd: f1           	pop	af
     ddbe: ba           	cp	d
@@ -1021,16 +1021,16 @@ Disassembly of section .text:
     ddc1: 16 18        	ld	d,$18
     ddc3: 7a           	ld	a,d
 ;     while (y_val >= SCRN_ROWS) y_val -= SCRN_ROWS;
-    ddc4: 32 8c f3     	ld	($f38c),a               ; 0xf38c <__sfrend_bios_conout_c>
+    ddc4: 32 98 f3     	ld	($f398),a               ; 0xf398 <__sfrend_bios_conout_c>
     ddc7: 1e 19        	ld	e,$19
     ddc9: cd 0b eb     	call	$eb0b
     ddcc: f5           	push	af
-    ddcd: 3a 8c f3     	ld	a,($f38c)               ; 0xf38c <__sfrend_bios_conout_c>
+    ddcd: 3a 98 f3     	ld	a,($f398)               ; 0xf398 <__sfrend_bios_conout_c>
     ddd0: 57           	ld	d,a
     ddd1: f1           	pop	af
     ddd2: 92           	sub	d
     ddd3: f5           	push	af
-    ddd4: 3a 8e f3     	ld	a,($f38e)               ; 0xf38e <__sfrend_bios_conout_c+0x2>
+    ddd4: 3a 9a f3     	ld	a,($f39a)               ; 0xf39a <__sfrend_bios_conout_c+0x2>
     ddd7: 57           	ld	d,a
     ddd8: f1           	pop	af
     ddd9: 82           	add	a,d
@@ -1038,11 +1038,11 @@ Disassembly of section .text:
     dddb: 6f           	ld	l,a
     dddc: 26 00        	ld	h,$0
 ;     curx = x_val;
-    ddde: 3a 8d f3     	ld	a,($f38d)               ; 0xf38d <__sfrend_bios_conout_c+0x1>
-    dde1: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc2f>
+    ddde: 3a 99 f3     	ld	a,($f399)               ; 0xf399 <__sfrend_bios_conout_c+0x1>
+    dde1: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc23>
 ;     cursy = y_val;
     dde4: 7a           	ld	a,d
-    dde5: 32 d4 ff     	ld	($ffd4),a               ; 0xffd4 <__sfrend_sec_rw+0xc32>
+    dde5: 32 d4 ff     	ld	($ffd4),a               ; 0xffd4 <__sfrend_sec_rw+0xc26>
 ;     cury = (word)y_val * SCRN_COLS;
     dde8: 5d           	ld	e,l
     dde9: 54           	ld	d,h
@@ -1053,19 +1053,19 @@ Disassembly of section .text:
     ddee: 29           	add	hl,hl
     ddef: 29           	add	hl,hl
     ddf0: 29           	add	hl,hl
-    ddf1: 22 d2 ff     	ld	($ffd2),hl              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    ddf1: 22 d2 ff     	ld	($ffd2),hl              ; 0xffd2 <__sfrend_sec_rw+0xc24>
 ;     cur_dirty = 1;              /* deferred to isr_crt for speed */
     ddf4: 3e 01        	ld	a,$1
-    ddf6: 32 fa ee     	ld	($eefa),a               ; 0xeefa <_cur_dirty>
+    ddf6: 32 06 ef     	ld	($ef06),a               ; 0xef06 <_cur_dirty>
 ; }
     ddf9: c9           	ret
 
 0000ddfa <_specc>:
 ;     xflg = 0;
     ddfa: af           	xor	a
-    ddfb: 32 d7 ff     	ld	($ffd7),a               ; 0xffd7 <__sfrend_sec_rw+0xc35>
+    ddfb: 32 d7 ff     	ld	($ffd7),a               ; 0xffd7 <__sfrend_sec_rw+0xc29>
 ;     if (usession == 0x0D) { carriage_return(); return; }
-    ddfe: 3a da ff     	ld	a,($ffda)               ; 0xffda <__sfrend_sec_rw+0xc38>
+    ddfe: 3a da ff     	ld	a,($ffda)               ; 0xffda <__sfrend_sec_rw+0xc2c>
     de01: 3d           	dec	a
     de02: fe 1e        	cp	$1e
     de04: 6f           	ld	l,a
@@ -1088,8 +1088,8 @@ Disassembly of section .text:
     de1f: fe fa        	cp	$fa
     de21: 28 22        	jr	z,$de45
 ;         bits = bgstar[i];
-    de23: 21 67 f0     	ld	hl,$f067
-    de26: ed 43 8f f3  	ld	($f38f),bc              ; 0xf38f <__sfrend_xyadd>
+    de23: 21 73 f0     	ld	hl,$f073
+    de26: ed 43 9b f3  	ld	($f39b),bc              ; 0xf39b <__sfrend_xyadd>
     de2a: 09           	add	hl,bc
     de2b: 0e 80        	ld	c,$80
 ;         while (mask) {
@@ -1110,34 +1110,34 @@ Disassembly of section .text:
     de3b: 4f           	ld	c,a
 ;         while (mask) {
     de3c: 18 ef        	jr	$de2d
-    de3e: ed 4b 8f f3  	ld	bc,($f38f)              ; 0xf38f <__sfrend_xyadd>
+    de3e: ed 4b 9b f3  	ld	bc,($f39b)              ; 0xf39b <__sfrend_xyadd>
 ;     for (i = 0; i < BGSTAR_SIZE; i++) {
     de42: 03           	inc	bc
     de43: 18 d9        	jr	$de1e
     de45: eb           	ex	de,hl
-    de46: 22 6a f1     	ld	($f16a),hl              ; 0xf16a <_clear_foreground.p>
+    de46: 22 76 f1     	ld	($f176),hl              ; 0xf176 <_clear_foreground.p>
     de49: c3 7d e0     	jp	$e07d
 ;     curx = COLUMN0;
     de4c: af           	xor	a
-    de4d: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc2f>
+    de4d: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc23>
 ;     cur_dirty = 1;              /* deferred to isr_crt for speed */
     de50: c3 8c e0     	jp	$e08c
 ;     xflg = 2;
     de53: 3e 02        	ld	a,$2
-    de55: 32 d7 ff     	ld	($ffd7),a               ; 0xffd7 <__sfrend_sec_rw+0xc35>
+    de55: 32 d7 ff     	ld	($ffd7),a               ; 0xffd7 <__sfrend_sec_rw+0xc29>
 ;     cury = 0;
     de58: 21 00 00     	ld	hl,$0
-    de5b: 22 d2 ff     	ld	($ffd2),hl              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    de5b: 22 d2 ff     	ld	($ffd2),hl              ; 0xffd2 <__sfrend_sec_rw+0xc24>
 ;     curx = 0;
     de5e: af           	xor	a
-    de5f: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc2f>
+    de5f: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc23>
 ;     cursy = 0;
-    de62: 32 d4 ff     	ld	($ffd4),a               ; 0xffd4 <__sfrend_sec_rw+0xc32>
+    de62: 32 d4 ff     	ld	($ffd4),a               ; 0xffd4 <__sfrend_sec_rw+0xc26>
 ; }
     de65: c9           	ret
 ;     if (usession == 0x14) { bgflg = 1; return; }
     de66: 3e 01        	ld	a,$1
-    de68: 32 66 f0     	ld	($f066),a               ; 0xf066 <_bgflg>
+    de68: 32 72 f0     	ld	($f072),a               ; 0xf072 <_bgflg>
 ; }
     de6b: c9           	ret
 ; DEFPORT(bell,         PORT_BELL)
@@ -1149,7 +1149,7 @@ Disassembly of section .text:
     de70: 3e 02        	ld	a,$2
     de72: c3 d1 df     	jp	$dfd1
 ;     if (cury != ROW24_OFFSET)
-    de75: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    de75: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc24>
     de78: 4d           	ld	c,l
     de79: 44           	ld	b,h
     de7a: 78           	ld	a,b
@@ -1181,11 +1181,11 @@ Disassembly of section .text:
     dea4: 11 20 00     	ld	de,$20
     dea7: cd ee ea     	call	$eaee
 ;     if (bgflg) {
-    deaa: 3a 66 f0     	ld	a,($f066)               ; 0xf066 <_bgflg>
+    deaa: 3a 72 f0     	ld	a,($f072)               ; 0xf072 <_bgflg>
     dead: b7           	or	a
     deae: ca 7d e0     	jp	z,$e07d
 ;         dl_off = (byte)(cury >> 3);  /* cury is row*80, /8 = row*10 */
-    deb1: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    deb1: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc24>
     deb4: 4d           	ld	c,l
     deb5: 44           	ld	b,h
 ;         if (dl_bgcount)
@@ -1214,7 +1214,7 @@ Disassembly of section .text:
     ded8: eb           	ex	de,hl
 ;             memcpy(bgstar + dl_off, bgstar + dl_off + BG_ROW_BYTES, dl_bgcount);
     ded9: 06 00        	ld	b,$0
-    dedb: 21 67 f0     	ld	hl,$f067
+    dedb: 21 73 f0     	ld	hl,$f073
     dede: 09           	add	hl,bc
     dedf: e5           	push	hl
     dee0: fd e1        	pop	iy
@@ -1233,10 +1233,10 @@ Disassembly of section .text:
 ;         memset(bgstar + BGSTAR_SIZE - BG_ROW_BYTES, 0, BG_ROW_BYTES);
     def4: 21 0a 00     	ld	hl,$a
     def7: e5           	push	hl
-    def8: 21 57 f1     	ld	hl,$f157
+    def8: 21 63 f1     	ld	hl,$f163
     defb: c3 db df     	jp	$dfdb
 ;     count = ROW24_OFFSET - cury;
-    defe: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    defe: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc24>
     df01: 4d           	ld	c,l
     df02: 44           	ld	b,h
 ;     if (count != 0) {
@@ -1258,7 +1258,7 @@ Disassembly of section .text:
     df1a: 11 cf ff     	ld	de,$ffcf
     df1d: cd 02 eb     	call	$eb02
 ;     memset(screen + cury, ' ', SCRN_COLS);
-    df20: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    df20: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc24>
     df23: eb           	ex	de,hl
     df24: 21 00 f8     	ld	hl,$f800
     df27: 19           	add	hl,de
@@ -1269,11 +1269,11 @@ Disassembly of section .text:
     df2e: 11 20 00     	ld	de,$20
     df31: cd ee ea     	call	$eaee
 ;     if (bgflg) {
-    df34: 3a 66 f0     	ld	a,($f066)               ; 0xf066 <_bgflg>
+    df34: 3a 72 f0     	ld	a,($f072)               ; 0xf072 <_bgflg>
     df37: b7           	or	a
     df38: ca 7d e0     	jp	z,$e07d
 ;         il_off = (byte)(cury >> 3);
-    df3b: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    df3b: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc24>
     df3e: 5d           	ld	e,l
     df3f: 54           	ld	d,h
     df40: 4d           	ld	c,l
@@ -1285,7 +1285,7 @@ Disassembly of section .text:
     df4a: cb 38        	srl	b
     df4c: cb 19        	rr	c
     df4e: 79           	ld	a,c
-    df4f: 32 69 f1     	ld	($f169),a               ; 0xf169 <_insert_line.il_off>
+    df4f: 32 75 f1     	ld	($f175),a               ; 0xf175 <_insert_line.il_off>
 ;         if (il_bgcount) {
     df52: 7b           	ld	a,e
     df53: e6 f8        	and	$f8
@@ -1306,15 +1306,15 @@ Disassembly of section .text:
     df68: 26 00        	ld	h,$0
 ;             lddr_copy(bgstar + BGSTAR_SIZE - BG_ROW_BYTES - 1,
     df6a: e5           	push	hl
-    df6b: 21 56 f1     	ld	hl,$f156
-    df6e: 11 60 f1     	ld	de,$f160
+    df6b: 21 62 f1     	ld	hl,$f162
+    df6e: 11 6c f1     	ld	de,$f16c
     df71: cd 02 eb     	call	$eb02
 ;         memset(bgstar + il_off, 0, BG_ROW_BYTES);
-    df74: 3a 69 f1     	ld	a,($f169)               ; 0xf169 <_insert_line.il_off>
+    df74: 3a 75 f1     	ld	a,($f175)               ; 0xf175 <_insert_line.il_off>
     df77: 4f           	ld	c,a
     df78: 06 00        	ld	b,$0
 ;         memset(bgstar + il_off, 0, BG_ROW_BYTES);
-    df7a: 21 67 f0     	ld	hl,$f067
+    df7a: 21 73 f0     	ld	hl,$f073
     df7d: 09           	add	hl,bc
     df7e: eb           	ex	de,hl
     df7f: 21 0a 00     	ld	hl,$a
@@ -1329,7 +1329,7 @@ Disassembly of section .text:
     df8c: cd a5 e5     	call	$e5a5
     df8f: c3 a5 e5     	jp	$e5a5
 ;     if (cury != ROW0_OFF) {
-    df92: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    df92: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc24>
     df95: 7d           	ld	a,l
     df96: b4           	or	h
     df97: ca 81 e0     	jp	z,$e081
@@ -1337,10 +1337,10 @@ Disassembly of section .text:
     df9a: c3 42 e6     	jp	$e642
 ;     cury = 0;
     df9d: 21 00 00     	ld	hl,$0
-    dfa0: 22 d2 ff     	ld	($ffd2),hl              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    dfa0: 22 d2 ff     	ld	($ffd2),hl              ; 0xffd2 <__sfrend_sec_rw+0xc24>
 ;     curx = 0;
     dfa3: af           	xor	a
-    dfa4: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc2f>
+    dfa4: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc23>
 ;     cursy = 0;
     dfa7: c3 89 e0     	jp	$e089
 ;     memset(screen, ' ', SCRN_SIZE);
@@ -1351,29 +1351,29 @@ Disassembly of section .text:
     dfb4: cd ee ea     	call	$eaee
 ;     cury = 0;
     dfb7: 21 00 00     	ld	hl,$0
-    dfba: 22 d2 ff     	ld	($ffd2),hl              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    dfba: 22 d2 ff     	ld	($ffd2),hl              ; 0xffd2 <__sfrend_sec_rw+0xc24>
 ;     curx = 0;
     dfbd: af           	xor	a
-    dfbe: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc2f>
+    dfbe: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc23>
 ;     cursy = 0;
-    dfc1: 32 d4 ff     	ld	($ffd4),a               ; 0xffd4 <__sfrend_sec_rw+0xc32>
+    dfc1: 32 d4 ff     	ld	($ffd4),a               ; 0xffd4 <__sfrend_sec_rw+0xc26>
 ;     cur_dirty = 1;              /* deferred to isr_crt for speed */
     dfc4: 3e 01        	ld	a,$1
-    dfc6: 32 fa ee     	ld	($eefa),a               ; 0xeefa <_cur_dirty>
+    dfc6: 32 06 ef     	ld	($ef06),a               ; 0xef06 <_cur_dirty>
 ;     if (bgflg) {
-    dfc9: 3a 66 f0     	ld	a,($f066)               ; 0xf066 <_bgflg>
+    dfc9: 3a 72 f0     	ld	a,($f072)               ; 0xf072 <_bgflg>
     dfcc: b7           	or	a
     dfcd: ca 7d e0     	jp	z,$e07d
 ;         bgflg = 0;
     dfd0: af           	xor	a
-    dfd1: 32 66 f0     	ld	($f066),a               ; 0xf066 <_bgflg>
+    dfd1: 32 72 f0     	ld	($f072),a               ; 0xf072 <_bgflg>
     dfd4: 21 fa 00     	ld	hl,$fa
     dfd7: e5           	push	hl
-    dfd8: 21 67 f0     	ld	hl,$f067
+    dfd8: 21 73 f0     	ld	hl,$f073
     dfdb: 11 00 00     	ld	de,$0
     dfde: c3 ee ea     	jp	$eaee
 ;     if (cury != ROW24_OFFSET)
-    dfe1: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    dfe1: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc24>
     dfe4: 7c           	ld	a,h
     dfe5: ee 07        	xor	$7
     dfe7: 57           	ld	d,a
@@ -1384,14 +1384,14 @@ Disassembly of section .text:
 ;         scroll();
     dfef: c3 e9 e5     	jp	$e5e9
 ;     pos = cury + curx;
-    dff2: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc30>
-    dff5: 3a d1 ff     	ld	a,($ffd1)               ; 0xffd1 <__sfrend_sec_rw+0xc2f>
+    dff2: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc24>
+    dff5: 3a d1 ff     	ld	a,($ffd1)               ; 0xffd1 <__sfrend_sec_rw+0xc23>
     dff8: 5f           	ld	e,a
     dff9: 16 00        	ld	d,$0
     dffb: 19           	add	hl,de
     dffc: 4d           	ld	c,l
     dffd: 44           	ld	b,h
-    dffe: 22 67 f1     	ld	($f167),hl              ; 0xf167 <_erase_to_eos.pos>
+    dffe: 22 73 f1     	ld	($f173),hl              ; 0xf173 <_erase_to_eos.pos>
 ;     count = SCRN_SIZE - pos;
     e001: 21 d0 07     	ld	hl,$7d0
     e004: a7           	and	a
@@ -1409,22 +1409,22 @@ Disassembly of section .text:
     e012: 11 20 00     	ld	de,$20
     e015: cd ee ea     	call	$eaee
 ;     if (bgflg) {
-    e018: 3a 66 f0     	ld	a,($f066)               ; 0xf066 <_bgflg>
+    e018: 3a 72 f0     	ld	a,($f072)               ; 0xf072 <_bgflg>
     e01b: b7           	or	a
     e01c: c8           	ret	z
 ;         bgcl_pos = pos;
-    e01d: 2a 67 f1     	ld	hl,($f167)              ; 0xf167 <_erase_to_eos.pos>
+    e01d: 2a 73 f1     	ld	hl,($f173)              ; 0xf173 <_erase_to_eos.pos>
     e020: 5d           	ld	e,l
     e021: 54           	ld	d,h
-    e022: 22 61 f1     	ld	($f161),hl              ; 0xf161 <_bgcl_pos>
+    e022: 22 6d f1     	ld	($f16d),hl              ; 0xf16d <_bgcl_pos>
 ;         bgcl_count = SCRN_SIZE - pos;
     e025: 21 d0 07     	ld	hl,$7d0
     e028: 18 4a        	jr	$e074
 ;     byte *row = screen + cury;
-    e02a: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    e02a: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc24>
 ;     for (byte i = curx; i < SCRN_COLS; i++)
-    e02d: 22 8f f3     	ld	($f38f),hl              ; 0xf38f <__sfrend_xyadd>
-    e030: 3a d1 ff     	ld	a,($ffd1)               ; 0xffd1 <__sfrend_sec_rw+0xc2f>
+    e02d: 22 9b f3     	ld	($f39b),hl              ; 0xf39b <__sfrend_xyadd>
+    e030: 3a d1 ff     	ld	a,($ffd1)               ; 0xffd1 <__sfrend_sec_rw+0xc23>
     e033: 57           	ld	d,a
     e034: 4f           	ld	c,a
     e035: 06 00        	ld	b,$0
@@ -1438,7 +1438,7 @@ Disassembly of section .text:
     e041: e5           	push	hl
     e042: fd e1        	pop	iy
     e044: 21 00 f8     	ld	hl,$f800
-    e047: ed 5b 8f f3  	ld	de,($f38f)              ; 0xf38f <__sfrend_xyadd>
+    e047: ed 5b 9b f3  	ld	de,($f39b)              ; 0xf39b <__sfrend_xyadd>
     e04b: 19           	add	hl,de
     e04c: 09           	add	hl,bc
     e04d: eb           	ex	de,hl
@@ -1457,21 +1457,21 @@ Disassembly of section .text:
     e05c: 2b           	dec	hl
     e05d: 18 f5        	jr	$e054
 ;     if (bgflg) {
-    e05f: 3a 66 f0     	ld	a,($f066)               ; 0xf066 <_bgflg>
+    e05f: 3a 72 f0     	ld	a,($f072)               ; 0xf072 <_bgflg>
     e062: b7           	or	a
     e063: c8           	ret	z
 ;         bgcl_pos = cury + curx;
-    e064: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc30>
-    e067: 3a d1 ff     	ld	a,($ffd1)               ; 0xffd1 <__sfrend_sec_rw+0xc2f>
+    e064: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc24>
+    e067: 3a d1 ff     	ld	a,($ffd1)               ; 0xffd1 <__sfrend_sec_rw+0xc23>
     e06a: 5f           	ld	e,a
     e06b: 16 00        	ld	d,$0
     e06d: 19           	add	hl,de
-    e06e: 22 61 f1     	ld	($f161),hl              ; 0xf161 <_bgcl_pos>
+    e06e: 22 6d f1     	ld	($f16d),hl              ; 0xf16d <_bgcl_pos>
 ;         bgcl_count = SCRN_COLS - curx;
     e071: 21 50 00     	ld	hl,$50
     e074: a7           	and	a
     e075: ed 52        	sbc	hl,de
-    e077: 22 63 f1     	ld	($f163),hl              ; 0xf163 <_bgcl_count>
+    e077: 22 6f f1     	ld	($f16f),hl              ; 0xf16f <_bgcl_count>
     e07a: c3 59 e6     	jp	$e659
 ; }
     e07d: c9           	ret
@@ -1479,28 +1479,28 @@ Disassembly of section .text:
     e07e: c3 d2 e5     	jp	$e5d2
 ;         cury = ROW24_OFFSET;
     e081: 21 80 07     	ld	hl,$780
-    e084: 22 d2 ff     	ld	($ffd2),hl              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    e084: 22 d2 ff     	ld	($ffd2),hl              ; 0xffd2 <__sfrend_sec_rw+0xc24>
 ;         cursy = ROW24;
     e087: 3e 18        	ld	a,$18
-    e089: 32 d4 ff     	ld	($ffd4),a               ; 0xffd4 <__sfrend_sec_rw+0xc32>
+    e089: 32 d4 ff     	ld	($ffd4),a               ; 0xffd4 <__sfrend_sec_rw+0xc26>
     e08c: 3e 01        	ld	a,$1
-    e08e: 32 fa ee     	ld	($eefa),a               ; 0xeefa <_cur_dirty>
+    e08e: 32 06 ef     	ld	($ef06),a               ; 0xef06 <_cur_dirty>
 ; }
     e091: c9           	ret
 
 0000e092 <_displ>:
 ;     byte ch = usession;
-    e092: 3a da ff     	ld	a,($ffda)               ; 0xffda <__sfrend_sec_rw+0xc38>
+    e092: 3a da ff     	ld	a,($ffda)               ; 0xffda <__sfrend_sec_rw+0xc2c>
     e095: 57           	ld	d,a
 ;     locad = cury + curx;
-    e096: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc30>
-    e099: 3a d1 ff     	ld	a,($ffd1)               ; 0xffd1 <__sfrend_sec_rw+0xc2f>
+    e096: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc24>
+    e099: 3a d1 ff     	ld	a,($ffd1)               ; 0xffd1 <__sfrend_sec_rw+0xc23>
     e09c: 4f           	ld	c,a
     e09d: 06 00        	ld	b,$0
     e09f: 09           	add	hl,bc
     e0a0: 4d           	ld	c,l
     e0a1: 44           	ld	b,h
-    e0a2: 22 d8 ff     	ld	($ffd8),hl              ; 0xffd8 <__sfrend_sec_rw+0xc36>
+    e0a2: 22 d8 ff     	ld	($ffd8),hl              ; 0xffd8 <__sfrend_sec_rw+0xc2a>
 ;     if (ch >= 192)
     e0a5: 3e bf        	ld	a,$bf
     e0a7: ba           	cp	d
@@ -1515,7 +1515,7 @@ Disassembly of section .text:
     e0b1: 07           	rlca
     e0b2: 38 10        	jr	c,$e0c4
 ;     } else if (!graph) {
-    e0b4: 3a 6c f1     	ld	a,($f16c)               ; 0xf16c <_graph>
+    e0b4: 3a 78 f1     	ld	a,($f178)               ; 0xf178 <_graph>
     e0b7: b7           	or	a
     e0b8: 20 10        	jr	nz,$e0ca
 ;     if (ch >= 128) {
@@ -1529,17 +1529,17 @@ Disassembly of section .text:
 ;         graph = ch & 4;         /* set/clear semigraphics mode (sticky) */
     e0c4: 7a           	ld	a,d
     e0c5: e6 04        	and	$4
-    e0c7: 32 6c f1     	ld	($f16c),a               ; 0xf16c <_graph>
+    e0c7: 32 78 f1     	ld	($f178),a               ; 0xf178 <_graph>
 ;     screen[locad] = ch;
     e0ca: 21 00 f8     	ld	hl,$f800
     e0cd: 09           	add	hl,bc
     e0ce: 72           	ld	(hl),d
 ;     if (bgflg == 2)
-    e0cf: 3a 66 f0     	ld	a,($f066)               ; 0xf066 <_bgflg>
+    e0cf: 3a 72 f0     	ld	a,($f072)               ; 0xf072 <_bgflg>
     e0d2: fe 02        	cp	$2
     e0d4: 20 27        	jr	nz,$e0fd
 ;         bg_set_bit(locad);
-    e0d6: 2a d8 ff     	ld	hl,($ffd8)              ; 0xffd8 <__sfrend_sec_rw+0xc36>
+    e0d6: 2a d8 ff     	ld	hl,($ffd8)              ; 0xffd8 <__sfrend_sec_rw+0xc2a>
     e0d9: 5d           	ld	e,l
     e0da: 54           	ld	d,h
     e0db: 7d           	ld	a,l
@@ -1560,7 +1560,7 @@ Disassembly of section .text:
     e0f1: cb 3f        	srl	a
     e0f3: 10 fc        	djnz	$e0f1
     e0f5: 16 00        	ld	d,$0
-    e0f7: 21 67 f0     	ld	hl,$f067
+    e0f7: 21 73 f0     	ld	hl,$f073
     e0fa: 19           	add	hl,de
     e0fb: b6           	or	(hl)
     e0fc: 77           	ld	(hl),a
@@ -1598,14 +1598,14 @@ Disassembly of section .text:
 ; {
     e127: 57           	ld	d,a
 ;     while (!sio_a_tx_ready)
-    e128: 3a a7 ec     	ld	a,($eca7)               ; 0xeca7 <_sio_a_tx_ready>
+    e128: 3a b3 ec     	ld	a,($ecb3)               ; 0xecb3 <_sio_a_tx_ready>
     e12b: b7           	or	a
     e12c: 28 fa        	jr	z,$e128
 ; static __inline__ void intrinsic_di(void) { __builtin_z80_di(); }
     e12e: f3           	di
 ;     sio_a_tx_ready = 0;                 /* mark busy */
     e12f: af           	xor	a
-    e130: 32 a7 ec     	ld	($eca7),a               ; 0xeca7 <_sio_a_tx_ready>
+    e130: 32 b3 ec     	ld	($ecb3),a               ; 0xecb3 <_sio_a_tx_ready>
 ; DEFPORT(sio_a_data,   PORT_SIO_A_DATA)
     e133: 7a           	ld	a,d
     e134: d3 08        	out	($8),a
@@ -1628,14 +1628,14 @@ Disassembly of section .text:
     e143: fe 02        	cp	$2
     e145: 30 11        	jr	nc,$e158
 ;         while (!sio_a_tx_ready)
-    e147: 3a a7 ec     	ld	a,($eca7)               ; 0xeca7 <_sio_a_tx_ready>
+    e147: 3a b3 ec     	ld	a,($ecb3)               ; 0xecb3 <_sio_a_tx_ready>
     e14a: b7           	or	a
     e14b: 28 fa        	jr	z,$e147
 ; static __inline__ void intrinsic_di(void) { __builtin_z80_di(); }
     e14d: f3           	di
 ;         sio_a_tx_ready = 0;                 /* mark busy */
     e14e: af           	xor	a
-    e14f: 32 a7 ec     	ld	($eca7),a               ; 0xeca7 <_sio_a_tx_ready>
+    e14f: 32 b3 ec     	ld	($ecb3),a               ; 0xecb3 <_sio_a_tx_ready>
 ; DEFPORT(sio_a_data,   PORT_SIO_A_DATA)
     e152: 7a           	ld	a,d
     e153: d3 08        	out	($8),a
@@ -1660,29 +1660,29 @@ Disassembly of section .text:
     e167: 5f           	ld	e,a
     e168: fe 02        	cp	$2
     e16a: 30 39        	jr	nc,$e1a5
-    e16c: 01 ae ec     	ld	bc,$ecae
+    e16c: 01 ba ec     	ld	bc,$ecba
 ;         while (rxtail_a == rxhead_a)
-    e16f: 3a af ec     	ld	a,($ecaf)               ; 0xecaf <_wb+0x4>
+    e16f: 3a bb ec     	ld	a,($ecbb)               ; 0xecbb <_wb+0x4>
     e172: 69           	ld	l,c
     e173: 60           	ld	h,b
     e174: be           	cp	(hl)
     e175: 28 f8        	jr	z,$e16f
 ;         new_tail = (rxtail_a + 1) & RXMASK;
-    e177: 3a af ec     	ld	a,($ecaf)               ; 0xecaf <_wb+0x4>
+    e177: 3a bb ec     	ld	a,($ecbb)               ; 0xecbb <_wb+0x4>
     e17a: 3c           	inc	a
     e17b: f5           	push	af
 ;         ch = rxbuf_a[rxtail_a];
-    e17c: 3a af ec     	ld	a,($ecaf)               ; 0xecaf <_wb+0x4>
+    e17c: 3a bb ec     	ld	a,($ecbb)               ; 0xecbb <_wb+0x4>
     e17f: 5f           	ld	e,a
     e180: 16 00        	ld	d,$0
-    e182: ed 53 92 f3  	ld	($f392),de              ; 0xf392 <__sfrend_specc+0x1>
-    e186: 21 bd ec     	ld	hl,$ecbd
-    e189: ed 5b 92 f3  	ld	de,($f392)              ; 0xf392 <__sfrend_specc+0x1>
+    e182: ed 53 9e f3  	ld	($f39e),de              ; 0xf39e <__sfrend_specc+0x1>
+    e186: 21 c9 ec     	ld	hl,$ecc9
+    e189: ed 5b 9e f3  	ld	de,($f39e)              ; 0xf39e <__sfrend_specc+0x1>
     e18d: 19           	add	hl,de
     e18e: 56           	ld	d,(hl)
     e18f: f1           	pop	af
 ;         rxtail_a = new_tail;
-    e190: 32 af ec     	ld	($ecaf),a               ; 0xecaf <_wb+0x4>
+    e190: 32 bb ec     	ld	($ecbb),a               ; 0xecbb <_wb+0x4>
 ;         if (new_tail == rxhead_a) {
     e193: 69           	ld	l,c
     e194: 60           	ld	h,b
@@ -1701,25 +1701,25 @@ Disassembly of section .text:
 ;     switch (IOBYTE_RDR(iobyte)) {
     e1a7: fe 03        	cp	$3
     e1a9: 28 1d        	jr	z,$e1c8
-    e1ab: 21 b0 ec     	ld	hl,$ecb0
+    e1ab: 21 bc ec     	ld	hl,$ecbc
 ;         while (rxtail_b == rxhead_b)
-    e1ae: 3a b1 ec     	ld	a,($ecb1)               ; 0xecb1 <_wb+0x6>
+    e1ae: 3a bd ec     	ld	a,($ecbd)               ; 0xecbd <_wb+0x6>
     e1b1: be           	cp	(hl)
     e1b2: 28 fa        	jr	z,$e1ae
 ;         new_tail = (rxtail_b + 1) & RXMASK;
-    e1b4: 3a b1 ec     	ld	a,($ecb1)               ; 0xecb1 <_wb+0x6>
+    e1b4: 3a bd ec     	ld	a,($ecbd)               ; 0xecbd <_wb+0x6>
     e1b7: 3c           	inc	a
     e1b8: 5f           	ld	e,a
 ;         ch = rxbuf_b[rxtail_b];
-    e1b9: 3a b1 ec     	ld	a,($ecb1)               ; 0xecb1 <_wb+0x6>
+    e1b9: 3a bd ec     	ld	a,($ecbd)               ; 0xecbd <_wb+0x6>
     e1bc: 4f           	ld	c,a
     e1bd: 06 00        	ld	b,$0
-    e1bf: 21 bd ed     	ld	hl,$edbd
+    e1bf: 21 c9 ed     	ld	hl,$edc9
     e1c2: 09           	add	hl,bc
     e1c3: 56           	ld	d,(hl)
 ;         rxtail_b = new_tail;
     e1c4: 7b           	ld	a,e
-    e1c5: 32 b1 ec     	ld	($ecb1),a               ; 0xecb1 <_wb+0x6>
+    e1c5: 32 bd ec     	ld	($ecbd),a               ; 0xecbd <_wb+0x6>
 ; }
     e1c8: 7a           	ld	a,d
     e1c9: c9           	ret
@@ -1734,17 +1734,17 @@ Disassembly of section .text:
     e1d2: fe 02        	cp	$2
     e1d4: 30 09        	jr	nc,$e1df
 ;         return (rxtail_a != rxhead_a) ? 0xFF : 0x00;
-    e1d6: 3a af ec     	ld	a,($ecaf)               ; 0xecaf <_wb+0x4>
+    e1d6: 3a bb ec     	ld	a,($ecbb)               ; 0xecbb <_wb+0x4>
     e1d9: 57           	ld	d,a
-    e1da: 3a ae ec     	ld	a,($ecae)               ; 0xecae <_wb+0x3>
+    e1da: 3a ba ec     	ld	a,($ecba)               ; 0xecba <_wb+0x3>
     e1dd: 18 0b        	jr	$e1ea
 ;     switch (IOBYTE_RDR(iobyte)) {
     e1df: fe 02        	cp	$2
     e1e1: 20 0e        	jr	nz,$e1f1
 ;         return (rxtail_b != rxhead_b) ? 0xFF : 0x00;
-    e1e3: 3a b1 ec     	ld	a,($ecb1)               ; 0xecb1 <_wb+0x6>
+    e1e3: 3a bd ec     	ld	a,($ecbd)               ; 0xecbd <_wb+0x6>
     e1e6: 57           	ld	d,a
-    e1e7: 3a b0 ec     	ld	a,($ecb0)               ; 0xecb0 <_wb+0x5>
+    e1e7: 3a bc ec     	ld	a,($ecbc)               ; 0xecbc <_wb+0x5>
     e1ea: 5f           	ld	e,a
     e1eb: 7a           	ld	a,d
     e1ec: 93           	sub	e
@@ -1773,12 +1773,12 @@ Disassembly of section .text:
 ; static __inline__ void intrinsic_di(void) { __builtin_z80_di(); }
     e201: f3           	di
 ;     if (timer2 == 0) {
-    e202: 2a e1 ff     	ld	hl,($ffe1)              ; 0xffe1 <__sfrend_sec_rw+0xc3f>
+    e202: 2a e1 ff     	ld	hl,($ffe1)              ; 0xffe1 <__sfrend_sec_rw+0xc33>
     e205: eb           	ex	de,hl
-    e206: 3a e7 ff     	ld	a,($ffe7)               ; 0xffe7 <__sfrend_sec_rw+0xc45>
+    e206: 3a e7 ff     	ld	a,($ffe7)               ; 0xffe7 <__sfrend_sec_rw+0xc39>
     e209: 6f           	ld	l,a
     e20a: 26 00        	ld	h,$0
-    e20c: 22 e1 ff     	ld	($ffe1),hl              ; 0xffe1 <__sfrend_sec_rw+0xc3f>
+    e20c: 22 e1 ff     	ld	($ffe1),hl              ; 0xffe1 <__sfrend_sec_rw+0xc33>
 ; static __inline__ void intrinsic_ei(void) { __builtin_z80_ei(); }
     e20f: fb           	ei
 ;     if (timer2 == 0) {
@@ -1800,7 +1800,7 @@ Disassembly of section .text:
     e220: 3e 07        	ld	a,$7
     e222: cd 71 da     	call	$da71
 ;     fdc_write(fdc_unit_head & 3);      /* drive */
-    e225: 3a b6 ec     	ld	a,($ecb6)               ; 0xecb6 <_fdc_unit_head>
+    e225: 3a c2 ec     	ld	a,($ecc2)               ; 0xecc2 <_fdc_unit_head>
     e228: e6 03        	and	$3
     e22a: c3 71 da     	jp	$da71
 
@@ -1813,43 +1813,43 @@ Disassembly of section .text:
     e230: 57           	ld	d,a
 ;     is_read = 0;
     e231: af           	xor	a
-    e232: 32 7b f3     	ld	($f37b),a               ; 0xf37b <_is_read>
+    e232: 32 87 f3     	ld	($f387),a               ; 0xf387 <_is_read>
 ;     write_type = wt;
     e235: 7a           	ld	a,d
-    e236: 32 7d f3     	ld	($f37d),a               ; 0xf37d <_write_type>
+    e236: 32 89 f3     	ld	($f389),a               ; 0xf389 <_write_type>
 ;     if (wt == WRUAL) {
     e239: fe 02        	cp	$2
     e23b: 20 18        	jr	nz,$e255
 ;         unalloc_count = records_per_alloc_block;
-    e23d: 3a cc ee     	ld	a,($eecc)               ; 0xeecc <_records_per_alloc_block>
+    e23d: 3a d8 ee     	ld	a,($eed8)               ; 0xeed8 <_records_per_alloc_block>
     e240: 4f           	ld	c,a
 ;         unalloc_disk = cpm_disk;
-    e241: 3a bd ee     	ld	a,($eebd)               ; 0xeebd <_cpm_disk>
-    e244: 32 80 f3     	ld	($f380),a               ; 0xf380 <_unalloc_disk>
+    e241: 3a c9 ee     	ld	a,($eec9)               ; 0xeec9 <_cpm_disk>
+    e244: 32 8c f3     	ld	($f38c),a               ; 0xf38c <_unalloc_disk>
 ;         unalloc_track = cpm_track;
-    e247: 2a b9 ec     	ld	hl,($ecb9)              ; 0xecb9 <_cpm_track>
-    e24a: 22 81 f3     	ld	($f381),hl              ; 0xf381 <_unalloc_track>
+    e247: 2a c5 ec     	ld	hl,($ecc5)              ; 0xecc5 <_cpm_track>
+    e24a: 22 8d f3     	ld	($f38d),hl              ; 0xf38d <_unalloc_track>
 ;         unalloc_sector = cpm_sector;
-    e24d: 2a bb ec     	ld	hl,($ecbb)              ; 0xecbb <_cpm_sector>
-    e250: 22 83 f3     	ld	($f383),hl              ; 0xf383 <_unalloc_sector>
+    e24d: 2a c7 ec     	ld	hl,($ecc7)              ; 0xecc7 <_cpm_sector>
+    e250: 22 8f f3     	ld	($f38f),hl              ; 0xf38f <_unalloc_sector>
     e253: 18 04        	jr	$e259
 ;     if (unalloc_count) {
-    e255: 3a b5 ec     	ld	a,($ecb5)               ; 0xecb5 <_unalloc_count>
+    e255: 3a c1 ec     	ld	a,($ecc1)               ; 0xecc1 <_unalloc_count>
     e258: 4f           	ld	c,a
     e259: 79           	ld	a,c
     e25a: b7           	or	a
     e25b: 28 70        	jr	z,$e2cd
 ;         unalloc_count--;
     e25d: 3d           	dec	a
-    e25e: 32 b5 ec     	ld	($ecb5),a               ; 0xecb5 <_unalloc_count>
+    e25e: 32 c1 ec     	ld	($ecc1),a               ; 0xecc1 <_unalloc_count>
 ;         if (cpm_disk != unalloc_disk || cpm_track != unalloc_track || cpm_sector != unalloc_sector)
-    e261: 3a bd ee     	ld	a,($eebd)               ; 0xeebd <_cpm_disk>
-    e264: 21 80 f3     	ld	hl,$f380
+    e261: 3a c9 ee     	ld	a,($eec9)               ; 0xeec9 <_cpm_disk>
+    e264: 21 8c f3     	ld	hl,$f38c
     e267: be           	cp	(hl)
     e268: 20 63        	jr	nz,$e2cd
-    e26a: 2a b9 ec     	ld	hl,($ecb9)              ; 0xecb9 <_cpm_track>
+    e26a: 2a c5 ec     	ld	hl,($ecc5)              ; 0xecc5 <_cpm_track>
     e26d: eb           	ex	de,hl
-    e26e: 2a 81 f3     	ld	hl,($f381)              ; 0xf381 <_unalloc_track>
+    e26e: 2a 8d f3     	ld	hl,($f38d)              ; 0xf38d <_unalloc_track>
     e271: 7a           	ld	a,d
     e272: ac           	xor	h
     e273: 67           	ld	h,a
@@ -1857,10 +1857,10 @@ Disassembly of section .text:
     e275: ad           	xor	l
     e276: b4           	or	h
     e277: 20 54        	jr	nz,$e2cd
-    e279: 2a bb ec     	ld	hl,($ecbb)              ; 0xecbb <_cpm_sector>
+    e279: 2a c7 ec     	ld	hl,($ecc7)              ; 0xecc7 <_cpm_sector>
     e27c: 4d           	ld	c,l
     e27d: 44           	ld	b,h
-    e27e: 2a 83 f3     	ld	hl,($f383)              ; 0xf383 <_unalloc_sector>
+    e27e: 2a 8f f3     	ld	hl,($f38f)              ; 0xf38f <_unalloc_sector>
     e281: 78           	ld	a,b
     e282: ac           	xor	h
     e283: 67           	ld	h,a
@@ -1869,14 +1869,14 @@ Disassembly of section .text:
     e286: b4           	or	h
     e287: 20 44        	jr	nz,$e2cd
     e289: 69           	ld	l,c
-    e28a: 22 94 f3     	ld	($f394),hl              ; 0xf394 <__sfrend_bios_reader_body>
+    e28a: 22 a0 f3     	ld	($f3a0),hl              ; 0xf3a0 <__sfrend_bios_reader_body>
 ;         unalloc_sector++;
     e28d: 03           	inc	bc
     e28e: 69           	ld	l,c
     e28f: 60           	ld	h,b
-    e290: 22 83 f3     	ld	($f383),hl              ; 0xf383 <_unalloc_sector>
+    e290: 22 8f f3     	ld	($f38f),hl              ; 0xf38f <_unalloc_sector>
 ;         if (unalloc_sector >= cpm_sectors_per_track) {
-    e293: 2a cd ee     	ld	hl,($eecd)              ; 0xeecd <_cpm_sectors_per_track>
+    e293: 2a d9 ee     	ld	hl,($eed9)              ; 0xeed9 <_cpm_sectors_per_track>
     e296: 79           	ld	a,c
     e297: 95           	sub	l
     e298: 78           	ld	a,b
@@ -1884,20 +1884,20 @@ Disassembly of section .text:
     e29a: 38 0b        	jr	c,$e2a7
 ;             unalloc_sector = 0;
     e29c: 21 00 00     	ld	hl,$0
-    e29f: 22 83 f3     	ld	($f383),hl              ; 0xf383 <_unalloc_sector>
+    e29f: 22 8f f3     	ld	($f38f),hl              ; 0xf38f <_unalloc_sector>
 ;             unalloc_track++;
     e2a2: 13           	inc	de
     e2a3: eb           	ex	de,hl
-    e2a4: 22 81 f3     	ld	($f381),hl              ; 0xf381 <_unalloc_track>
+    e2a4: 22 8d f3     	ld	($f38d),hl              ; 0xf38d <_unalloc_track>
 ;         need_pre_read = 0;
     e2a7: af           	xor	a
-    e2a8: 32 7c f3     	ld	($f37c),a               ; 0xf37c <_need_pre_read>
+    e2a8: 32 88 f3     	ld	($f388),a               ; 0xf388 <_need_pre_read>
 ;         if ((cpm_sector & deblock_mask) == deblock_mask)
-    e2ab: 3a cf ee     	ld	a,($eecf)               ; 0xeecf <_deblock_mask>
+    e2ab: 3a db ee     	ld	a,($eedb)               ; 0xeedb <_deblock_mask>
     e2ae: 57           	ld	d,a
     e2af: 6f           	ld	l,a
     e2b0: 26 00        	ld	h,$0
-    e2b2: ed 4b 94 f3  	ld	bc,($f394)              ; 0xf394 <__sfrend_bios_reader_body>
+    e2b2: ed 4b a0 f3  	ld	bc,($f3a0)              ; 0xf3a0 <__sfrend_bios_reader_body>
     e2b6: 79           	ld	a,c
     e2b7: a2           	and	d
     e2b8: 5f           	ld	e,a
@@ -1912,14 +1912,14 @@ Disassembly of section .text:
     e2c2: 9f           	sbc	a,a
     e2c3: e6 01        	and	$1
     e2c5: e6 01        	and	$1
-    e2c7: 32 7f f3     	ld	($f37f),a               ; 0xf37f <_unalloc_mask>
+    e2c7: 32 8b f3     	ld	($f38b),a               ; 0xf38b <_unalloc_mask>
     e2ca: c3 f0 e8     	jp	$e8f0
 ;     unalloc_count = 0;
     e2cd: af           	xor	a
-    e2ce: 32 b5 ec     	ld	($ecb5),a               ; 0xecb5 <_unalloc_count>
+    e2ce: 32 c1 ec     	ld	($ecc1),a               ; 0xecc1 <_unalloc_count>
 ;     need_pre_read = deblock_mask;
-    e2d1: 3a cf ee     	ld	a,($eecf)               ; 0xeecf <_deblock_mask>
-    e2d4: 32 7c f3     	ld	($f37c),a               ; 0xf37c <_need_pre_read>
+    e2d1: 3a db ee     	ld	a,($eedb)               ; 0xeedb <_deblock_mask>
+    e2d4: 32 88 f3     	ld	($f388),a               ; 0xf388 <_need_pre_read>
     e2d7: c3 f0 e8     	jp	$e8f0
 
 0000e2da <_bios_listst>:
@@ -1938,7 +1938,7 @@ Disassembly of section .text:
     e2f1: fe 02        	cp	$2
     e2f3: 20 09        	jr	nz,$e2fe
 ;     case IOB_BAT:  return sio_a_tx_ready;   /* LPT: SIO-A TX ready */
-    e2f5: 3a a7 ec     	ld	a,($eca7)               ; 0xeca7 <_sio_a_tx_ready>
+    e2f5: 3a b3 ec     	ld	a,($ecb3)               ; 0xecb3 <_sio_a_tx_ready>
 ; }
     e2f8: c9           	ret
     e2f9: 3e ff        	ld	a,$ff
@@ -1948,7 +1948,7 @@ Disassembly of section .text:
 ; }
     e2fd: c9           	ret
 ;     case IOB_TTY:  return sio_b_tx_ready;   /* SIO-B TX ready (console) */
-    e2fe: 3a a8 ec     	ld	a,($eca8)               ; 0xeca8 <_sio_b_tx_ready>
+    e2fe: 3a b4 ec     	ld	a,($ecb4)               ; 0xecb4 <_sio_b_tx_ready>
 ; }
     e301: c9           	ret
 
@@ -1969,7 +1969,7 @@ Disassembly of section .text:
 ; static __inline__ void intrinsic_ei(void) { __builtin_z80_ei(); }
     e315: fb           	ei
 ;     if (ls_line == 0)
-    e316: 3a f6 ee     	ld	a,($eef6)               ; 0xeef6 <_ls_line>
+    e316: 3a 02 ef     	ld	a,($ef02)               ; 0xef02 <_ls_line>
     e319: 57           	ld	d,a
     e31a: b7           	or	a
     e31b: 28 32        	jr	z,$e34f
@@ -1995,12 +1995,12 @@ Disassembly of section .text:
     e32c: 21 02 00     	ld	hl,$2
     e32f: cd 66 e3     	call	$e366
 ;     if ((ls_port ? rr0_b : rr0_a) & 0b00100000)
-    e332: 3a f7 ee     	ld	a,($eef7)               ; 0xeef7 <_ls_port>
+    e332: 3a 03 ef     	ld	a,($ef03)               ; 0xef03 <_ls_port>
     e335: b7           	or	a
     e336: 28 05        	jr	z,$e33d
-    e338: 11 f8 ee     	ld	de,$eef8
+    e338: 11 04 ef     	ld	de,$ef04
     e33b: 18 03        	jr	$e340
-    e33d: 11 f9 ee     	ld	de,$eef9
+    e33d: 11 05 ef     	ld	de,$ef05
 ;     if ((ls_port ? rr0_b : rr0_a) & 0b00100000)
     e340: 1a           	ld	a,(de)
     e341: e6 20        	and	$20
@@ -2020,7 +2020,7 @@ Disassembly of section .text:
 
 0000e351 <_sio_rd1>:
 ;     byte port = ls_port ? PORT_SIO_B_CTRL : PORT_SIO_A_CTRL;
-    e351: 3a f7 ee     	ld	a,($eef7)               ; 0xeef7 <_ls_port>
+    e351: 3a 03 ef     	ld	a,($ef03)               ; 0xef03 <_ls_port>
     e354: b7           	or	a
     e355: 28 05        	jr	z,$e35c
     e357: 01 0b 00     	ld	bc,$b
@@ -2035,9 +2035,9 @@ Disassembly of section .text:
 
 0000e366 <_waitd>:
 ;     delay_ticks = ticks;
-    e366: 22 e3 ff     	ld	($ffe3),hl              ; 0xffe3 <__sfrend_sec_rw+0xc41>
+    e366: 22 e3 ff     	ld	($ffe3),hl              ; 0xffe3 <__sfrend_sec_rw+0xc35>
 ;     while (delay_ticks)
-    e369: 2a e3 ff     	ld	hl,($ffe3)              ; 0xffe3 <__sfrend_sec_rw+0xc41>
+    e369: 2a e3 ff     	ld	hl,($ffe3)              ; 0xffe3 <__sfrend_sec_rw+0xc35>
     e36c: 7d           	ld	a,l
     e36d: b4           	or	h
     e36e: 20 f9        	jr	nz,$e369
@@ -2048,7 +2048,7 @@ Disassembly of section .text:
 ; static void NOINLINE sio_wr5(byte val) {
     e371: 57           	ld	d,a
 ;     byte port = ls_port ? PORT_SIO_B_CTRL : PORT_SIO_A_CTRL;
-    e372: 3a f7 ee     	ld	a,($eef7)               ; 0xeef7 <_ls_port>
+    e372: 3a 03 ef     	ld	a,($ef03)               ; 0xef03 <_ls_port>
     e375: b7           	or	a
     e376: 28 05        	jr	z,$e37d
     e378: 01 0b 00     	ld	bc,$b
@@ -2097,21 +2097,21 @@ Disassembly of section .text:
     e3ad: 3e 03        	ld	a,$3
     e3af: d3 fa        	out	($fa),a
 ;     if (cur_dirty) {
-    e3b1: 3a fa ee     	ld	a,($eefa)               ; 0xeefa <_cur_dirty>
+    e3b1: 3a 06 ef     	ld	a,($ef06)               ; 0xef06 <_cur_dirty>
     e3b4: b7           	or	a
     e3b5: 28 12        	jr	z,$e3c9
 ;         cur_dirty = 0;
     e3b7: af           	xor	a
-    e3b8: 32 fa ee     	ld	($eefa),a               ; 0xeefa <_cur_dirty>
+    e3b8: 32 06 ef     	ld	($ef06),a               ; 0xef06 <_cur_dirty>
 ; DEFPORT(crt_cmd,      PORT_CRT_CMD)
     e3bb: 3e 80        	ld	a,$80
     e3bd: d3 01        	out	($1),a
 ;         port_out(crt_param, curx);     /* X position */
-    e3bf: 3a d1 ff     	ld	a,($ffd1)               ; 0xffd1 <__sfrend_sec_rw+0xc2f>
+    e3bf: 3a d1 ff     	ld	a,($ffd1)               ; 0xffd1 <__sfrend_sec_rw+0xc23>
 ; DEFPORT(crt_param,    PORT_CRT_PARAM)
     e3c2: d3 00        	out	($0),a
 ;         port_out(crt_param, cursy);    /* Y position */
-    e3c4: 3a d4 ff     	ld	a,($ffd4)               ; 0xffd4 <__sfrend_sec_rw+0xc32>
+    e3c4: 3a d4 ff     	ld	a,($ffd4)               ; 0xffd4 <__sfrend_sec_rw+0xc26>
 ; DEFPORT(crt_param,    PORT_CRT_PARAM)
     e3c7: d3 00        	out	($0),a
 ; DEFPORT(ctc2,         PORT_CTC2)
@@ -2120,48 +2120,48 @@ Disassembly of section .text:
     e3cd: 3e 01        	ld	a,$1
     e3cf: d3 0e        	out	($e),a
 ;     rtc0++;
-    e3d1: 2a fc ff     	ld	hl,($fffc)              ; 0xfffc <__sfrend_sec_rw+0xc5a>
+    e3d1: 2a fc ff     	ld	hl,($fffc)              ; 0xfffc <__sfrend_sec_rw+0xc4e>
     e3d4: 23           	inc	hl
-    e3d5: 22 fc ff     	ld	($fffc),hl              ; 0xfffc <__sfrend_sec_rw+0xc5a>
+    e3d5: 22 fc ff     	ld	($fffc),hl              ; 0xfffc <__sfrend_sec_rw+0xc4e>
 ;     if (rtc0 == 0)
-    e3d8: 2a fc ff     	ld	hl,($fffc)              ; 0xfffc <__sfrend_sec_rw+0xc5a>
+    e3d8: 2a fc ff     	ld	hl,($fffc)              ; 0xfffc <__sfrend_sec_rw+0xc4e>
     e3db: 7d           	ld	a,l
     e3dc: b4           	or	h
     e3dd: 20 07        	jr	nz,$e3e6
 ;         rtc2++;
-    e3df: 2a fe ff     	ld	hl,($fffe)              ; 0xfffe <__sfrend_sec_rw+0xc5c>
+    e3df: 2a fe ff     	ld	hl,($fffe)              ; 0xfffe <__sfrend_sec_rw+0xc50>
     e3e2: 23           	inc	hl
-    e3e3: 22 fe ff     	ld	($fffe),hl              ; 0xfffe <__sfrend_sec_rw+0xc5c>
+    e3e3: 22 fe ff     	ld	($fffe),hl              ; 0xfffe <__sfrend_sec_rw+0xc50>
 ;     if (timer1 != 0) {
-    e3e6: 2a df ff     	ld	hl,($ffdf)              ; 0xffdf <__sfrend_sec_rw+0xc3d>
+    e3e6: 2a df ff     	ld	hl,($ffdf)              ; 0xffdf <__sfrend_sec_rw+0xc31>
     e3e9: 7d           	ld	a,l
     e3ea: b4           	or	h
     e3eb: 28 17        	jr	z,$e404
 ;         timer1--;
-    e3ed: 2a df ff     	ld	hl,($ffdf)              ; 0xffdf <__sfrend_sec_rw+0xc3d>
+    e3ed: 2a df ff     	ld	hl,($ffdf)              ; 0xffdf <__sfrend_sec_rw+0xc31>
     e3f0: 2b           	dec	hl
-    e3f1: 22 df ff     	ld	($ffdf),hl              ; 0xffdf <__sfrend_sec_rw+0xc3d>
+    e3f1: 22 df ff     	ld	($ffdf),hl              ; 0xffdf <__sfrend_sec_rw+0xc31>
 ;         if (timer1 == 0) {
-    e3f4: 2a df ff     	ld	hl,($ffdf)              ; 0xffdf <__sfrend_sec_rw+0xc3d>
+    e3f4: 2a df ff     	ld	hl,($ffdf)              ; 0xffdf <__sfrend_sec_rw+0xc31>
     e3f7: 7d           	ld	a,l
     e3f8: b4           	or	h
     e3f9: 20 09        	jr	nz,$e404
 ;             ((void (*)(void))warmjp)();
-    e3fb: 2a e5 ff     	ld	hl,($ffe5)              ; 0xffe5 <__sfrend_sec_rw+0xc43>
+    e3fb: 2a e5 ff     	ld	hl,($ffe5)              ; 0xffe5 <__sfrend_sec_rw+0xc37>
     e3fe: e5           	push	hl
     e3ff: fd e1        	pop	iy
     e401: cd 09 eb     	call	$eb09
 ;     if (timer2 != 0) {
-    e404: 2a e1 ff     	ld	hl,($ffe1)              ; 0xffe1 <__sfrend_sec_rw+0xc3f>
+    e404: 2a e1 ff     	ld	hl,($ffe1)              ; 0xffe1 <__sfrend_sec_rw+0xc33>
     e407: 7d           	ld	a,l
     e408: b4           	or	h
     e409: 28 16        	jr	z,$e421
 ;         timer2--;
-    e40b: 2a e1 ff     	ld	hl,($ffe1)              ; 0xffe1 <__sfrend_sec_rw+0xc3f>
+    e40b: 2a e1 ff     	ld	hl,($ffe1)              ; 0xffe1 <__sfrend_sec_rw+0xc33>
     e40e: 2b           	dec	hl
-    e40f: 22 e1 ff     	ld	($ffe1),hl              ; 0xffe1 <__sfrend_sec_rw+0xc3f>
+    e40f: 22 e1 ff     	ld	($ffe1),hl              ; 0xffe1 <__sfrend_sec_rw+0xc33>
 ;         if (timer2 == 0)
-    e412: 2a e1 ff     	ld	hl,($ffe1)              ; 0xffe1 <__sfrend_sec_rw+0xc3f>
+    e412: 2a e1 ff     	ld	hl,($ffe1)              ; 0xffe1 <__sfrend_sec_rw+0xc33>
     e415: 7d           	ld	a,l
     e416: b4           	or	h
     e417: 20 08        	jr	nz,$e421
@@ -2174,25 +2174,25 @@ Disassembly of section .text:
     e41e: af           	xor	a
     e41f: d3 14        	out	($14),a
 ;     if (delay_ticks != 0)
-    e421: 2a e3 ff     	ld	hl,($ffe3)              ; 0xffe3 <__sfrend_sec_rw+0xc41>
+    e421: 2a e3 ff     	ld	hl,($ffe3)              ; 0xffe3 <__sfrend_sec_rw+0xc35>
     e424: 7d           	ld	a,l
     e425: b4           	or	h
     e426: c8           	ret	z
 ;         delay_ticks--;
-    e427: 2a e3 ff     	ld	hl,($ffe3)              ; 0xffe3 <__sfrend_sec_rw+0xc41>
+    e427: 2a e3 ff     	ld	hl,($ffe3)              ; 0xffe3 <__sfrend_sec_rw+0xc35>
     e42a: 2b           	dec	hl
-    e42b: 22 e3 ff     	ld	($ffe3),hl              ; 0xffe3 <__sfrend_sec_rw+0xc41>
+    e42b: 22 e3 ff     	ld	($ffe3),hl              ; 0xffe3 <__sfrend_sec_rw+0xc35>
 ; }
     e42e: c9           	ret
 
 0000e42f <_isr_pio_kbd>:
 ; {
-    e42f: 21 ac ec     	ld	hl,$ecac
+    e42f: 21 b8 ec     	ld	hl,$ecb8
 ; DEFPORT(pio_a_data,   PORT_PIO_A_DATA)
     e432: db 10        	in	a,($10)
     e434: 57           	ld	d,a
 ;         new_head = (kbhead + 1) & KBMASK;
-    e435: 3a ab ec     	ld	a,($ecab)               ; 0xecab <_wb>
+    e435: 3a b7 ec     	ld	a,($ecb7)               ; 0xecb7 <_wb>
     e438: 3c           	inc	a
     e439: e6 0f        	and	$f
 ;         if (new_head != kbtail) {
@@ -2200,25 +2200,25 @@ Disassembly of section .text:
     e43c: c8           	ret	z
     e43d: 5f           	ld	e,a
 ;             kbbuf[kbhead] = key;
-    e43e: 3a ab ec     	ld	a,($ecab)               ; 0xecab <_wb>
+    e43e: 3a b7 ec     	ld	a,($ecb7)               ; 0xecb7 <_wb>
     e441: 4f           	ld	c,a
     e442: 06 00        	ld	b,$0
-    e444: 21 fb ee     	ld	hl,$eefb
+    e444: 21 07 ef     	ld	hl,$ef07
     e447: 09           	add	hl,bc
     e448: 72           	ld	(hl),d
 ;             kbhead = new_head;
     e449: 7b           	ld	a,e
-    e44a: 32 ab ec     	ld	($ecab),a               ; 0xecab <_wb>
+    e44a: 32 b7 ec     	ld	($ecb7),a               ; 0xecb7 <_wb>
 ;             kbstat = 0xFF;
     e44d: 3e ff        	ld	a,$ff
-    e44f: 32 ad ec     	ld	($ecad),a               ; 0xecad <_wb+0x2>
+    e44f: 32 b9 ec     	ld	($ecb9),a               ; 0xecb9 <_wb+0x2>
 ; }
     e452: c9           	ret
 
 0000e453 <_isr_floppy>:
 ;         fdc_irq_fired = 0xFF;
     e453: 3e ff        	ld	a,$ff
-    e455: 32 0b ef     	ld	($ef0b),a               ; 0xef0b <_fdc_irq_fired>
+    e455: 32 17 ef     	ld	($ef17),a               ; 0xef17 <_fdc_irq_fired>
 ; DEFPORT(fdc_status,   PORT_FDC_STATUS)
     e458: db 04        	in	a,($4)
 ;         if (port_in(fdc_status) & FDC_MSR_CB)     /* CB set: still in result phase */
@@ -2226,10 +2226,10 @@ Disassembly of section .text:
     e45c: 20 03        	jr	nz,$e461
 ;             fdc_sense_int();
     e45e: c3 83 e4     	jp	$e483
-    e461: 11 5e f0     	ld	de,$f05e
+    e461: 11 6a f0     	ld	de,$f06a
     e464: 26 f9        	ld	h,$f9
     e466: 7c           	ld	a,h
-    e467: 32 97 f3     	ld	($f397),a               ; 0xf397 <__sfrend_bios_linsel_body>
+    e467: 32 a3 f3     	ld	($f3a3),a               ; 0xf3a3 <__sfrend_bios_linsel_body>
 ;         *p++ = fdc_read();
     e46a: d5           	push	de
     e46b: cd f6 e9     	call	$e9f6
@@ -2244,9 +2244,9 @@ Disassembly of section .text:
 ;         *p++ = fdc_read();
     e475: 13           	inc	de
 ;     } while (--n);
-    e476: 3a 97 f3     	ld	a,($f397)               ; 0xf397 <__sfrend_bios_linsel_body>
+    e476: 3a a3 f3     	ld	a,($f3a3)               ; 0xf3a3 <__sfrend_bios_linsel_body>
     e479: c6 01        	add	a,$1
-    e47b: 32 97 f3     	ld	($f397),a               ; 0xf397 <__sfrend_bios_linsel_body>
+    e47b: 32 a3 f3     	ld	($f3a3),a               ; 0xf3a3 <__sfrend_bios_linsel_body>
     e47e: 9f           	sbc	a,a
     e47f: 0f           	rrca
     e480: 30 e8        	jr	nc,$e46a
@@ -2259,14 +2259,14 @@ Disassembly of section .text:
     e485: cd 71 da     	call	$da71
 ;     fdc_result.st0 = fdc_read();
     e488: cd f6 e9     	call	$e9f6
-    e48b: 32 5e f0     	ld	($f05e),a               ; 0xf05e <_fdc_result>
+    e48b: 32 6a f0     	ld	($f06a),a               ; 0xf06a <_fdc_result>
 ;     if ((fdc_result.st0 & FDC_ST0_INTERRUPT_CODE) != FDC_ST0_IC_INVALID_CMD)
     e48e: ee 80        	xor	$80
     e490: fe 40        	cp	$40
     e492: d8           	ret	c
 ;         fdc_result.st1 = fdc_read();
     e493: cd f6 e9     	call	$e9f6
-    e496: 32 5f f0     	ld	($f05f),a               ; 0xf05f <_fdc_result+0x1>
+    e496: 32 6b f0     	ld	($f06b),a               ; 0xf06b <_fdc_result+0x1>
 ; }
     e499: c9           	ret
 
@@ -2288,7 +2288,7 @@ Disassembly of section .text:
     e4a3: d3 0b        	out	($b),a
 ;     sio_b_tx_ready = 0xFF;              /* printer ready */
     e4a5: 3e ff        	ld	a,$ff
-    e4a7: 32 a8 ec     	ld	($eca8),a               ; 0xeca8 <_sio_b_tx_ready>
+    e4a7: 32 b4 ec     	ld	($ecb4),a               ; 0xecb4 <_sio_b_tx_ready>
 ; }
     e4aa: f1           	pop	af
     e4ab: fb           	ei
@@ -2300,7 +2300,7 @@ Disassembly of section .text:
 ; DEFPORT(sio_b_ctrl,   PORT_SIO_B_CTRL)
     e4af: db 0b        	in	a,($b)
 ;     rr0_b = port_in(sio_b_ctrl);  /* read RR0 */
-    e4b1: 32 f8 ee     	ld	($eef8),a               ; 0xeef8 <_rr0_b>
+    e4b1: 32 04 ef     	ld	($ef04),a               ; 0xef04 <_rr0_b>
 ; DEFPORT(sio_b_ctrl,   PORT_SIO_B_CTRL)
     e4b4: 3e 10        	ld	a,$10
     e4b6: d3 0b        	out	($b),a
@@ -2319,25 +2319,25 @@ Disassembly of section .text:
     e4c0: db 09        	in	a,($9)
     e4c2: 57           	ld	d,a
 ;     new_head = (rxhead_b + 1) & RXMASK;
-    e4c3: 3a b0 ec     	ld	a,($ecb0)               ; 0xecb0 <_wb+0x5>
+    e4c3: 3a bc ec     	ld	a,($ecbc)               ; 0xecbc <_wb+0x5>
     e4c6: 3c           	inc	a
 ;     if (new_head == rxtail_b)
-    e4c7: 21 b1 ec     	ld	hl,$ecb1
+    e4c7: 21 bd ec     	ld	hl,$ecbd
     e4ca: be           	cp	(hl)
     e4cb: 28 18        	jr	z,$e4e5
     e4cd: 5f           	ld	e,a
 ;     rxbuf_b[rxhead_b] = ch;
-    e4ce: 3a b0 ec     	ld	a,($ecb0)               ; 0xecb0 <_wb+0x5>
+    e4ce: 3a bc ec     	ld	a,($ecbc)               ; 0xecbc <_wb+0x5>
     e4d1: 4f           	ld	c,a
     e4d2: 06 00        	ld	b,$0
-    e4d4: 21 bd ed     	ld	hl,$edbd
+    e4d4: 21 c9 ed     	ld	hl,$edc9
     e4d7: 09           	add	hl,bc
     e4d8: 72           	ld	(hl),d
 ;     rxhead_b = new_head;
     e4d9: 7b           	ld	a,e
-    e4da: 32 b0 ec     	ld	($ecb0),a               ; 0xecb0 <_wb+0x5>
+    e4da: 32 bc ec     	ld	($ecbc),a               ; 0xecbc <_wb+0x5>
 ;     used = (new_head - rxtail_b) & RXMASK;
-    e4dd: 21 b1 ec     	ld	hl,$ecb1
+    e4dd: 21 bd ec     	ld	hl,$ecbd
     e4e0: 96           	sub	(hl)
 ;     if (used < RXTHHI)
     e4e1: fe f8        	cp	$f8
@@ -2366,15 +2366,15 @@ Disassembly of section .text:
     e4fa: d3 0b        	out	($b),a
     e4fc: db 0b        	in	a,($b)
 ;     rr1_b = port_in(sio_b_ctrl);  /* read RR1 */
-    e4fe: 32 0c ef     	ld	($ef0c),a               ; 0xef0c <_rr1_b>
+    e4fe: 32 18 ef     	ld	($ef18),a               ; 0xef18 <_rr1_b>
 ; DEFPORT(sio_b_ctrl,   PORT_SIO_B_CTRL)
     e501: 3e 30        	ld	a,$30
     e503: d3 0b        	out	($b),a
 ;     rxhead_b = 0;               /* flush ring buffer on error */
     e505: af           	xor	a
-    e506: 32 b0 ec     	ld	($ecb0),a               ; 0xecb0 <_wb+0x5>
+    e506: 32 bc ec     	ld	($ecbc),a               ; 0xecbc <_wb+0x5>
 ;     rxtail_b = 0;
-    e509: 32 b1 ec     	ld	($ecb1),a               ; 0xecb1 <_wb+0x6>
+    e509: 32 bd ec     	ld	($ecbd),a               ; 0xecbd <_wb+0x6>
 ; }
     e50c: f1           	pop	af
     e50d: fb           	ei
@@ -2388,7 +2388,7 @@ Disassembly of section .text:
     e513: d3 0a        	out	($a),a
 ;     sio_a_tx_ready = 0xFF;              /* punch ready */
     e515: 3e ff        	ld	a,$ff
-    e517: 32 a7 ec     	ld	($eca7),a               ; 0xeca7 <_sio_a_tx_ready>
+    e517: 32 b3 ec     	ld	($ecb3),a               ; 0xecb3 <_sio_a_tx_ready>
 ; }
     e51a: f1           	pop	af
     e51b: fb           	ei
@@ -2400,7 +2400,7 @@ Disassembly of section .text:
 ; DEFPORT(sio_a_ctrl,   PORT_SIO_A_CTRL)
     e51f: db 0a        	in	a,($a)
 ;     rr0_a = port_in(sio_a_ctrl);  /* read RR0 */
-    e521: 32 f9 ee     	ld	($eef9),a               ; 0xeef9 <_rr0_a>
+    e521: 32 05 ef     	ld	($ef05),a               ; 0xef05 <_rr0_a>
 ; DEFPORT(sio_a_ctrl,   PORT_SIO_A_CTRL)
     e524: 3e 10        	ld	a,$10
     e526: d3 0a        	out	($a),a
@@ -2414,25 +2414,25 @@ Disassembly of section .text:
     e52c: db 08        	in	a,($8)
     e52e: 57           	ld	d,a
 ;         new_head = (rxhead_a + 1) & RXMASK;
-    e52f: 3a ae ec     	ld	a,($ecae)               ; 0xecae <_wb+0x3>
+    e52f: 3a ba ec     	ld	a,($ecba)               ; 0xecba <_wb+0x3>
     e532: 3c           	inc	a
 ;         if (new_head == rxtail_a)
-    e533: 21 af ec     	ld	hl,$ecaf
+    e533: 21 bb ec     	ld	hl,$ecbb
     e536: be           	cp	(hl)
     e537: 28 17        	jr	z,$e550
     e539: 5f           	ld	e,a
 ;         rxbuf_a[rxhead_a] = ch;
-    e53a: 3a ae ec     	ld	a,($ecae)               ; 0xecae <_wb+0x3>
+    e53a: 3a ba ec     	ld	a,($ecba)               ; 0xecba <_wb+0x3>
     e53d: 4f           	ld	c,a
     e53e: 06 00        	ld	b,$0
-    e540: 21 bd ec     	ld	hl,$ecbd
+    e540: 21 c9 ec     	ld	hl,$ecc9
     e543: 09           	add	hl,bc
     e544: 72           	ld	(hl),d
 ;         rxhead_a = new_head;
     e545: 7b           	ld	a,e
-    e546: 32 ae ec     	ld	($ecae),a               ; 0xecae <_wb+0x3>
+    e546: 32 ba ec     	ld	($ecba),a               ; 0xecba <_wb+0x3>
 ;         used = (new_head - rxtail_a) & RXMASK;
-    e549: 21 af ec     	ld	hl,$ecaf
+    e549: 21 bb ec     	ld	hl,$ecbb
     e54c: 96           	sub	(hl)
 ;         if (used < RXTHHI)
     e54d: fe f8        	cp	$f8
@@ -2456,15 +2456,15 @@ Disassembly of section .text:
     e55f: d3 0a        	out	($a),a
     e561: db 0a        	in	a,($a)
 ;     rr1_a = port_in(sio_a_ctrl);  /* read RR1 */
-    e563: 32 0d ef     	ld	($ef0d),a               ; 0xef0d <_rr1_a>
+    e563: 32 19 ef     	ld	($ef19),a               ; 0xef19 <_rr1_a>
 ; DEFPORT(sio_a_ctrl,   PORT_SIO_A_CTRL)
     e566: 3e 30        	ld	a,$30
     e568: d3 0a        	out	($a),a
 ;     rxhead_a = 0;                 /* flush ring buffer */
     e56a: af           	xor	a
-    e56b: 32 ae ec     	ld	($ecae),a               ; 0xecae <_wb+0x3>
+    e56b: 32 ba ec     	ld	($ecba),a               ; 0xecba <_wb+0x3>
 ;     rxtail_a = 0;
-    e56e: 32 af ec     	ld	($ecaf),a               ; 0xecaf <_wb+0x4>
+    e56e: 32 bb ec     	ld	($ecbb),a               ; 0xecbb <_wb+0x4>
 ; }
     e571: f1           	pop	af
     e572: fb           	ei
@@ -2477,23 +2477,23 @@ Disassembly of section .text:
 
 0000e578 <_cursor_left>:
 ;     if (curx != COLUMN0) {
-    e578: 3a d1 ff     	ld	a,($ffd1)               ; 0xffd1 <__sfrend_sec_rw+0xc2f>
+    e578: 3a d1 ff     	ld	a,($ffd1)               ; 0xffd1 <__sfrend_sec_rw+0xc23>
     e57b: 4f           	ld	c,a
     e57c: b7           	or	a
     e57d: 28 0a        	jr	z,$e589
 ;         curx--;
     e57f: 3d           	dec	a
-    e580: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc2f>
+    e580: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc23>
 ;     cur_dirty = 1;              /* deferred to isr_crt for speed */
     e583: 3e 01        	ld	a,$1
-    e585: 32 fa ee     	ld	($eefa),a               ; 0xeefa <_cur_dirty>
+    e585: 32 06 ef     	ld	($ef06),a               ; 0xef06 <_cur_dirty>
 ; }
     e588: c9           	ret
 ;         curx = COLUMN79;
     e589: 3e 4f        	ld	a,$4f
-    e58b: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc2f>
+    e58b: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc23>
 ;         if (cury != ROW0_OFF) {
-    e58e: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    e58e: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc24>
     e591: 7d           	ld	a,l
     e592: b4           	or	h
     e593: 28 03        	jr	z,$e598
@@ -2501,30 +2501,30 @@ Disassembly of section .text:
     e595: c3 42 e6     	jp	$e642
 ;             cury = ROW24_OFFSET;
     e598: 21 80 07     	ld	hl,$780
-    e59b: 22 d2 ff     	ld	($ffd2),hl              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    e59b: 22 d2 ff     	ld	($ffd2),hl              ; 0xffd2 <__sfrend_sec_rw+0xc24>
 ;             cursy = ROW24;
     e59e: 3e 18        	ld	a,$18
-    e5a0: 32 d4 ff     	ld	($ffd4),a               ; 0xffd4 <__sfrend_sec_rw+0xc32>
+    e5a0: 32 d4 ff     	ld	($ffd4),a               ; 0xffd4 <__sfrend_sec_rw+0xc26>
     e5a3: 18 de        	jr	$e583
 
 0000e5a5 <_cursor_right>:
 ;     if (curx < COLUMN79) {
-    e5a5: 3a d1 ff     	ld	a,($ffd1)               ; 0xffd1 <__sfrend_sec_rw+0xc2f>
+    e5a5: 3a d1 ff     	ld	a,($ffd1)               ; 0xffd1 <__sfrend_sec_rw+0xc23>
     e5a8: fe 4f        	cp	$4f
     e5aa: 30 0a        	jr	nc,$e5b6
 ;         curx++;
     e5ac: 3c           	inc	a
-    e5ad: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc2f>
+    e5ad: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc23>
 ;     cur_dirty = 1;              /* deferred to isr_crt for speed */
     e5b0: 3e 01        	ld	a,$1
-    e5b2: 32 fa ee     	ld	($eefa),a               ; 0xeefa <_cur_dirty>
+    e5b2: 32 06 ef     	ld	($ef06),a               ; 0xef06 <_cur_dirty>
 ; }
     e5b5: c9           	ret
 ;         curx = COLUMN0;
     e5b6: af           	xor	a
-    e5b7: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc2f>
+    e5b7: 32 d1 ff     	ld	($ffd1),a               ; 0xffd1 <__sfrend_sec_rw+0xc23>
 ;         if (cury != ROW24_OFFSET) {
-    e5ba: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    e5ba: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc24>
     e5bd: 7c           	ld	a,h
     e5be: ee 07        	xor	$7
     e5c0: 57           	ld	d,a
@@ -2534,7 +2534,7 @@ Disassembly of section .text:
     e5c5: 20 08        	jr	nz,$e5cf
 ;     cur_dirty = 1;              /* deferred to isr_crt for speed */
     e5c7: 3e 01        	ld	a,$1
-    e5c9: 32 fa ee     	ld	($eefa),a               ; 0xeefa <_cur_dirty>
+    e5c9: 32 06 ef     	ld	($ef06),a               ; 0xef06 <_cur_dirty>
 ;             scroll();
     e5cc: c3 e9 e5     	jp	$e5e9
 ;             rowdn();
@@ -2542,17 +2542,17 @@ Disassembly of section .text:
 
 0000e5d2 <_rowdn>:
 ;     cury += SCRN_COLS;
-    e5d2: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    e5d2: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc24>
     e5d5: 11 50 00     	ld	de,$50
     e5d8: 19           	add	hl,de
-    e5d9: 22 d2 ff     	ld	($ffd2),hl              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    e5d9: 22 d2 ff     	ld	($ffd2),hl              ; 0xffd2 <__sfrend_sec_rw+0xc24>
 ;     cursy++;
-    e5dc: 3a d4 ff     	ld	a,($ffd4)               ; 0xffd4 <__sfrend_sec_rw+0xc32>
+    e5dc: 3a d4 ff     	ld	a,($ffd4)               ; 0xffd4 <__sfrend_sec_rw+0xc26>
     e5df: 3c           	inc	a
-    e5e0: 32 d4 ff     	ld	($ffd4),a               ; 0xffd4 <__sfrend_sec_rw+0xc32>
+    e5e0: 32 d4 ff     	ld	($ffd4),a               ; 0xffd4 <__sfrend_sec_rw+0xc26>
 ;     cur_dirty = 1;              /* deferred to isr_crt for speed */
     e5e3: 3e 01        	ld	a,$1
-    e5e5: 32 fa ee     	ld	($eefa),a               ; 0xeefa <_cur_dirty>
+    e5e5: 32 06 ef     	ld	($ef06),a               ; 0xef06 <_cur_dirty>
 ; }
     e5e8: c9           	ret
 
@@ -2585,19 +2585,19 @@ Disassembly of section .text:
     e61c: 11 20 00     	ld	de,$20
     e61f: cd ee ea     	call	$eaee
 ;     if (bgflg) {
-    e622: 3a 66 f0     	ld	a,($f066)               ; 0xf066 <_bgflg>
+    e622: 3a 72 f0     	ld	a,($f072)               ; 0xf072 <_bgflg>
     e625: b7           	or	a
     e626: c8           	ret	z
 ;         memcpy(bgstar, bgstar + BG_ROW_BYTES, BGSTAR_SIZE - BG_ROW_BYTES);
     e627: 21 f0 00     	ld	hl,$f0
     e62a: e5           	push	hl
-    e62b: 21 67 f0     	ld	hl,$f067
-    e62e: 11 71 f0     	ld	de,$f071
+    e62b: 21 73 f0     	ld	hl,$f073
+    e62e: 11 7d f0     	ld	de,$f07d
     e631: cd e2 ea     	call	$eae2
 ;         memset(bgstar + BGSTAR_SIZE - BG_ROW_BYTES, 0, BG_ROW_BYTES);
     e634: 21 0a 00     	ld	hl,$a
     e637: e5           	push	hl
-    e638: 21 57 f1     	ld	hl,$f157
+    e638: 21 63 f1     	ld	hl,$f163
     e63b: 11 00 00     	ld	de,$0
     e63e: cd ee ea     	call	$eaee
 ; }
@@ -2605,27 +2605,27 @@ Disassembly of section .text:
 
 0000e642 <_rowup>:
 ;     cury -= SCRN_COLS;
-    e642: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    e642: 2a d2 ff     	ld	hl,($ffd2)              ; 0xffd2 <__sfrend_sec_rw+0xc24>
     e645: 11 b0 ff     	ld	de,$ffb0
     e648: 19           	add	hl,de
-    e649: 22 d2 ff     	ld	($ffd2),hl              ; 0xffd2 <__sfrend_sec_rw+0xc30>
+    e649: 22 d2 ff     	ld	($ffd2),hl              ; 0xffd2 <__sfrend_sec_rw+0xc24>
 ;     cursy--;
-    e64c: 3a d4 ff     	ld	a,($ffd4)               ; 0xffd4 <__sfrend_sec_rw+0xc32>
+    e64c: 3a d4 ff     	ld	a,($ffd4)               ; 0xffd4 <__sfrend_sec_rw+0xc26>
     e64f: 3d           	dec	a
-    e650: 32 d4 ff     	ld	($ffd4),a               ; 0xffd4 <__sfrend_sec_rw+0xc32>
+    e650: 32 d4 ff     	ld	($ffd4),a               ; 0xffd4 <__sfrend_sec_rw+0xc26>
 ;     cur_dirty = 1;              /* deferred to isr_crt for speed */
     e653: 3e 01        	ld	a,$1
-    e655: 32 fa ee     	ld	($eefa),a               ; 0xeefa <_cur_dirty>
+    e655: 32 06 ef     	ld	($ef06),a               ; 0xef06 <_cur_dirty>
 ; }
     e658: c9           	ret
 
 0000e659 <_bg_clear_from>:
 ;     if (!bgflg)
-    e659: 3a 66 f0     	ld	a,($f066)               ; 0xf066 <_bgflg>
+    e659: 3a 72 f0     	ld	a,($f072)               ; 0xf072 <_bgflg>
     e65c: b7           	or	a
     e65d: ca 5d e7     	jp	z,$e75d
 ;     byteoff = (byte)(bgcl_pos >> 3);
-    e660: 2a 61 f1     	ld	hl,($f161)              ; 0xf161 <_bgcl_pos>
+    e660: 2a 6d f1     	ld	hl,($f16d)              ; 0xf16d <_bgcl_pos>
     e663: 5d           	ld	e,l
     e664: 54           	ld	d,h
     e665: 4d           	ld	c,l
@@ -2640,31 +2640,31 @@ Disassembly of section .text:
     e674: 60           	ld	h,b
     e675: 45           	ld	b,l
     e676: 7d           	ld	a,l
-    e677: 32 65 f1     	ld	($f165),a               ; 0xf165 <_bg_clear_from.byteoff>
+    e677: 32 71 f1     	ld	($f171),a               ; 0xf171 <_bg_clear_from.byteoff>
     e67a: 6b           	ld	l,e
 ;     if (bitno) {
-    e67b: 22 9a f3     	ld	($f39a),hl              ; 0xf39a <__sfrend_isr_sio_b_tx>
+    e67b: 22 a6 f3     	ld	($f3a6),hl              ; 0xf3a6 <__sfrend_isr_sio_b_tx>
     e67e: 7b           	ld	a,e
     e67f: e6 07        	and	$7
     e681: 6f           	ld	l,a
-    e682: 22 9c f3     	ld	($f39c),hl              ; 0xf39c <__sfrend_isr_sio_b_tx+0x2>
+    e682: 22 a8 f3     	ld	($f3a8),hl              ; 0xf3a8 <__sfrend_isr_sio_b_tx+0x2>
     e685: 16 00        	ld	d,$0
 ;     whole = (byte)(bgcl_count >> 3);
-    e687: 2a 63 f1     	ld	hl,($f163)              ; 0xf163 <_bgcl_count>
+    e687: 2a 6f f1     	ld	hl,($f16f)              ; 0xf16f <_bgcl_count>
 ;     if (bitno) {
-    e68a: ed 5b 9c f3  	ld	de,($f39c)              ; 0xf39c <__sfrend_isr_sio_b_tx+0x2>
+    e68a: ed 5b a8 f3  	ld	de,($f3a8)              ; 0xf3a8 <__sfrend_isr_sio_b_tx+0x2>
     e68e: 7b           	ld	a,e
     e68f: b7           	or	a
     e690: 78           	ld	a,b
-    e691: 32 9e f3     	ld	($f39e),a               ; 0xf39e <__sfrend_isr_sio_b_tx+0x4>
+    e691: 32 aa f3     	ld	($f3aa),a               ; 0xf3aa <__sfrend_isr_sio_b_tx+0x4>
     e694: 28 5a        	jr	z,$e6f0
 ;         bgstar[byteoff] &= ~((byte)0xFF >> bitno);
-    e696: ed 5b 9a f3  	ld	de,($f39a)              ; 0xf39a <__sfrend_isr_sio_b_tx>
+    e696: ed 5b a6 f3  	ld	de,($f3a6)              ; 0xf3a6 <__sfrend_isr_sio_b_tx>
     e69a: 7b           	ld	a,e
     e69b: e6 07        	and	$7
     e69d: 5f           	ld	e,a
     e69e: 16 00        	ld	d,$0
-    e6a0: 22 9c f3     	ld	($f39c),hl              ; 0xf39c <__sfrend_isr_sio_b_tx+0x2>
+    e6a0: 22 a8 f3     	ld	($f3a8),hl              ; 0xf3a8 <__sfrend_isr_sio_b_tx+0x2>
     e6a3: 21 00 ff     	ld	hl,$ff00
     e6a6: 47           	ld	b,a
     e6a7: 04           	inc	b
@@ -2673,30 +2673,30 @@ Disassembly of section .text:
     e6ab: cb 2c        	sra	h
     e6ad: cb 1d        	rr	l
     e6af: 10 fa        	djnz	$e6ab
-    e6b1: 22 9a f3     	ld	($f39a),hl              ; 0xf39a <__sfrend_isr_sio_b_tx>
+    e6b1: 22 a6 f3     	ld	($f3a6),hl              ; 0xf3a6 <__sfrend_isr_sio_b_tx>
     e6b4: 42           	ld	b,d
-    e6b5: 21 67 f0     	ld	hl,$f067
+    e6b5: 21 73 f0     	ld	hl,$f073
     e6b8: 09           	add	hl,bc
     e6b9: e5           	push	hl
     e6ba: fd e1        	pop	iy
-    e6bc: 2a 9a f3     	ld	hl,($f39a)              ; 0xf39a <__sfrend_isr_sio_b_tx>
+    e6bc: 2a a6 f3     	ld	hl,($f3a6)              ; 0xf3a6 <__sfrend_isr_sio_b_tx>
     e6bf: 7d           	ld	a,l
     e6c0: fd e5        	push	iy
     e6c2: e1           	pop	hl
     e6c3: a6           	and	(hl)
     e6c4: fd 77 00     	ld	(iy+$0),a
 ;         byteoff++;
-    e6c7: 3a 9e f3     	ld	a,($f39e)               ; 0xf39e <__sfrend_isr_sio_b_tx+0x4>
+    e6c7: 3a aa f3     	ld	a,($f3aa)               ; 0xf3aa <__sfrend_isr_sio_b_tx+0x4>
     e6ca: 3c           	inc	a
-    e6cb: 32 9e f3     	ld	($f39e),a               ; 0xf39e <__sfrend_isr_sio_b_tx+0x4>
-    e6ce: 32 65 f1     	ld	($f165),a               ; 0xf165 <_bg_clear_from.byteoff>
+    e6cb: 32 aa f3     	ld	($f3aa),a               ; 0xf3aa <__sfrend_isr_sio_b_tx+0x4>
+    e6ce: 32 71 f1     	ld	($f171),a               ; 0xf171 <_bg_clear_from.byteoff>
 ;         bgcl_count = (bgcl_count > (byte)(8 - bitno)) ? bgcl_count - (8 - bitno) : 0;
     e6d1: 21 08 00     	ld	hl,$8
     e6d4: a7           	and	a
     e6d5: ed 52        	sbc	hl,de
     e6d7: 4d           	ld	c,l
     e6d8: 44           	ld	b,h
-    e6d9: 2a 9c f3     	ld	hl,($f39c)              ; 0xf39c <__sfrend_isr_sio_b_tx+0x2>
+    e6d9: 2a a8 f3     	ld	hl,($f3a8)              ; 0xf3a8 <__sfrend_isr_sio_b_tx+0x2>
     e6dc: 11 00 00     	ld	de,$0
     e6df: 79           	ld	a,c
     e6e0: 95           	sub	l
@@ -2708,7 +2708,7 @@ Disassembly of section .text:
     e6e8: eb           	ex	de,hl
     e6e9: 6b           	ld	l,e
     e6ea: 62           	ld	h,d
-    e6eb: 22 63 f1     	ld	($f163),hl              ; 0xf163 <_bgcl_count>
+    e6eb: 22 6f f1     	ld	($f16f),hl              ; 0xf16f <_bgcl_count>
     e6ee: 18 01        	jr	$e6f1
     e6f0: eb           	ex	de,hl
 ;     whole = (byte)(bgcl_count >> 3);
@@ -2721,16 +2721,16 @@ Disassembly of section .text:
     e6fb: cb 38        	srl	b
     e6fd: cb 19        	rr	c
     e6ff: 79           	ld	a,c
-    e700: 32 66 f1     	ld	($f166),a               ; 0xf166 <_bg_clear_from.whole>
+    e700: 32 72 f1     	ld	($f172),a               ; 0xf172 <_bg_clear_from.whole>
 ;     if (whole) {
     e703: b7           	or	a
     e704: 28 2a        	jr	z,$e730
 ;         memset(bgstar + byteoff, 0, whole);
-    e706: 3a 9e f3     	ld	a,($f39e)               ; 0xf39e <__sfrend_isr_sio_b_tx+0x4>
+    e706: 3a aa f3     	ld	a,($f3aa)               ; 0xf3aa <__sfrend_isr_sio_b_tx+0x4>
     e709: 57           	ld	d,a
     e70a: 5a           	ld	e,d
     e70b: 16 00        	ld	d,$0
-    e70d: 21 67 f0     	ld	hl,$f067
+    e70d: 21 73 f0     	ld	hl,$f073
     e710: 19           	add	hl,de
     e711: eb           	ex	de,hl
     e712: 06 00        	ld	b,$0
@@ -2741,17 +2741,17 @@ Disassembly of section .text:
     e718: 11 00 00     	ld	de,$0
     e71b: cd ee ea     	call	$eaee
 ;         byteoff += whole;
-    e71e: 3a 66 f1     	ld	a,($f166)               ; 0xf166 <_bg_clear_from.whole>
+    e71e: 3a 72 f1     	ld	a,($f172)               ; 0xf172 <_bg_clear_from.whole>
     e721: 57           	ld	d,a
-    e722: 3a 65 f1     	ld	a,($f165)               ; 0xf165 <_bg_clear_from.byteoff>
+    e722: 3a 71 f1     	ld	a,($f171)               ; 0xf171 <_bg_clear_from.byteoff>
     e725: 82           	add	a,d
     e726: 4f           	ld	c,a
-    e727: 32 65 f1     	ld	($f165),a               ; 0xf165 <_bg_clear_from.byteoff>
+    e727: 32 71 f1     	ld	($f171),a               ; 0xf171 <_bg_clear_from.byteoff>
 ;     tail = (byte)(bgcl_count & 7);
-    e72a: 2a 63 f1     	ld	hl,($f163)              ; 0xf163 <_bgcl_count>
+    e72a: 2a 6f f1     	ld	hl,($f16f)              ; 0xf16f <_bgcl_count>
     e72d: eb           	ex	de,hl
     e72e: 18 04        	jr	$e734
-    e730: 3a 9e f3     	ld	a,($f39e)               ; 0xf39e <__sfrend_isr_sio_b_tx+0x4>
+    e730: 3a aa f3     	ld	a,($f3aa)               ; 0xf3aa <__sfrend_isr_sio_b_tx+0x4>
     e733: 4f           	ld	c,a
 ;     if (tail) {
     e734: 7b           	ld	a,e
@@ -2770,7 +2770,7 @@ Disassembly of section .text:
     e747: 10 fa        	djnz	$e743
     e749: eb           	ex	de,hl
     e74a: 06 00        	ld	b,$0
-    e74c: 21 67 f0     	ld	hl,$f067
+    e74c: 21 73 f0     	ld	hl,$f073
     e74f: 09           	add	hl,bc
     e750: e5           	push	hl
     e751: fd e1        	pop	iy
@@ -2786,15 +2786,15 @@ Disassembly of section .text:
 
 0000e75e <_chktrk>:
 ;     sec = (byte)hostbuf_sector;
-    e75e: 3a 6d f1     	ld	a,($f16d)               ; 0xf16d <_hostbuf_sector>
+    e75e: 3a 79 f1     	ld	a,($f179)               ; 0xf179 <_hostbuf_sector>
     e761: 5f           	ld	e,a
 ;     ev = track0_sectors_per_side;
-    e762: 3a c9 ee     	ld	a,($eec9)               ; 0xeec9 <_track0_sectors_per_side>
+    e762: 3a d5 ee     	ld	a,($eed5)               ; 0xeed5 <_track0_sectors_per_side>
     e765: 67           	ld	h,a
 ;     fdc_unit_head = hostbuf_disk;
-    e766: 3a 6e f1     	ld	a,($f16e)               ; 0xf16e <_hostbuf_disk>
+    e766: 3a 7a f1     	ld	a,($f17a)               ; 0xf17a <_hostbuf_disk>
     e769: 57           	ld	d,a
-    e76a: 32 b6 ec     	ld	($ecb6),a               ; 0xecb6 <_fdc_unit_head>
+    e76a: 32 c2 ec     	ld	($ecc2),a               ; 0xecc2 <_fdc_unit_head>
 ;     if (sec >= ev) {
     e76d: 7b           	ld	a,e
     e76e: bc           	cp	h
@@ -2802,48 +2802,48 @@ Disassembly of section .text:
 ;         fdc_unit_head |= 4;
     e771: 7a           	ld	a,d
     e772: f6 04        	or	$4
-    e774: 32 b6 ec     	ld	($ecb6),a               ; 0xecb6 <_fdc_unit_head>
+    e774: 32 c2 ec     	ld	($ecc2),a               ; 0xecc2 <_fdc_unit_head>
 ;         sec -= ev;
     e777: 7b           	ld	a,e
     e778: 94           	sub	h
     e779: 5f           	ld	e,a
 ;     tp = sector_xlate;
-    e77a: 2a d1 ee     	ld	hl,($eed1)              ; 0xeed1 <_sector_xlate>
+    e77a: 2a dd ee     	ld	hl,($eedd)              ; 0xeedd <_sector_xlate>
 ;     fdc_sector = tp[sec];
     e77d: 4b           	ld	c,e
     e77e: 06 00        	ld	b,$0
     e780: 09           	add	hl,bc
     e781: 7e           	ld	a,(hl)
-    e782: 32 6f f1     	ld	($f16f),a               ; 0xf16f <_fdc_sector>
+    e782: 32 7b f1     	ld	($f17b),a               ; 0xf17b <_fdc_sector>
 ;     fdc_track = (byte)hostbuf_track;
-    e785: 2a 70 f1     	ld	hl,($f170)              ; 0xf170 <_hostbuf_track>
+    e785: 2a 7c f1     	ld	hl,($f17c)              ; 0xf17c <_hostbuf_track>
     e788: 4d           	ld	c,l
     e789: 44           	ld	b,h
     e78a: 7d           	ld	a,l
-    e78b: 32 72 f1     	ld	($f172),a               ; 0xf172 <_fdc_track>
+    e78b: 32 7e f1     	ld	($f17e),a               ; 0xf17e <_fdc_track>
 ;     fdc_dma_addr = &hstbuf[0];
-    e78e: 21 73 f1     	ld	hl,$f173
-    e791: 22 73 f3     	ld	($f373),hl              ; 0xf373 <_fdc_dma_addr>
+    e78e: 21 7f f1     	ld	hl,$f17f
+    e791: 22 7f f3     	ld	($f37f),hl              ; 0xf37f <_fdc_dma_addr>
 ;     if (hostbuf_disk == last_seek_disk && hostbuf_track == last_seek_track)
-    e794: 21 be ee     	ld	hl,$eebe
+    e794: 21 ca ee     	ld	hl,$eeca
     e797: 7a           	ld	a,d
     e798: be           	cp	(hl)
     e799: 20 07        	jr	nz,$e7a2
-    e79b: 2a bf ee     	ld	hl,($eebf)              ; 0xeebf <_last_seek_track>
+    e79b: 2a cb ee     	ld	hl,($eecb)              ; 0xeecb <_last_seek_track>
     e79e: a7           	and	a
     e79f: ed 42        	sbc	hl,bc
     e7a1: c8           	ret	z
 ;     last_seek_disk = hostbuf_disk;
-    e7a2: 32 be ee     	ld	($eebe),a               ; 0xeebe <_last_seek_disk>
+    e7a2: 32 ca ee     	ld	($eeca),a               ; 0xeeca <_last_seek_disk>
 ;     last_seek_track = hostbuf_track;
     e7a5: 69           	ld	l,c
     e7a6: 60           	ld	h,b
-    e7a7: 22 bf ee     	ld	($eebf),hl              ; 0xeebf <_last_seek_track>
+    e7a7: 22 cb ee     	ld	($eecb),hl              ; 0xeecb <_last_seek_track>
 ; static __inline__ void intrinsic_di(void) { __builtin_z80_di(); }
     e7aa: f3           	di
 ;     fdc_irq_fired = 0;
     e7ab: af           	xor	a
-    e7ac: 32 0b ef     	ld	($ef0b),a               ; 0xef0b <_fdc_irq_fired>
+    e7ac: 32 17 ef     	ld	($ef17),a               ; 0xef17 <_fdc_irq_fired>
 ; static __inline__ void intrinsic_ei(void) { __builtin_z80_ei(); }
     e7af: fb           	ei
 ;     fdc_seek();
@@ -2851,10 +2851,10 @@ Disassembly of section .text:
 ;     fdc_irq_wait_rearm();
     e7b3: cd 7e da     	call	$da7e
 ;     if (fdc_result.st0 == (FDC_ST0_SEEK_END | (fdc_unit_head & 3)))
-    e7b6: 3a b6 ec     	ld	a,($ecb6)               ; 0xecb6 <_fdc_unit_head>
+    e7b6: 3a c2 ec     	ld	a,($ecc2)               ; 0xecc2 <_fdc_unit_head>
     e7b9: e6 03        	and	$3
     e7bb: f6 20        	or	$20
-    e7bd: 21 5e f0     	ld	hl,$f05e
+    e7bd: 21 6a f0     	ld	hl,$f06a
     e7c0: be           	cp	(hl)
     e7c1: 20 01        	jr	nz,$e7c4
 ; }
@@ -2863,7 +2863,7 @@ Disassembly of section .text:
     e7c4: f3           	di
 ;     fdc_irq_fired = 0;
     e7c5: af           	xor	a
-    e7c6: 32 0b ef     	ld	($ef0b),a               ; 0xef0b <_fdc_irq_fired>
+    e7c6: 32 17 ef     	ld	($ef17),a               ; 0xef17 <_fdc_irq_fired>
 ; static __inline__ void intrinsic_ei(void) { __builtin_z80_ei(); }
     e7c9: fb           	ei
 ;     fdc_recalibrate();
@@ -2876,7 +2876,7 @@ Disassembly of section .text:
     e7d3: f3           	di
 ;     fdc_irq_fired = 0;
     e7d4: af           	xor	a
-    e7d5: 32 0b ef     	ld	($ef0b),a               ; 0xef0b <_fdc_irq_fired>
+    e7d5: 32 17 ef     	ld	($ef17),a               ; 0xef17 <_fdc_irq_fired>
 ; static __inline__ void intrinsic_ei(void) { __builtin_z80_ei(); }
     e7d8: fb           	ei
 ;     fdc_seek();
@@ -2888,13 +2888,13 @@ Disassembly of section .text:
 
 0000e7e2 <_sec_rw>:
 ;     s_cmd = cmd;
-    e7e2: 32 75 f3     	ld	($f375),a               ; 0xf375 <_sec_rw.s_cmd>
+    e7e2: 32 81 f3     	ld	($f381),a               ; 0xf381 <_sec_rw.s_cmd>
 ;     s_dma_dir = dma_dir;
     e7e5: 7d           	ld	a,l
-    e7e6: 32 76 f3     	ld	($f376),a               ; 0xf376 <_sec_rw.s_dma_dir>
+    e7e6: 32 82 f3     	ld	($f382),a               ; 0xf382 <_sec_rw.s_dma_dir>
     e7e9: 3e 0a        	ld	a,$a
 ;     for (repet = 10; repet != 0; repet--) {
-    e7eb: 32 77 f3     	ld	($f377),a               ; 0xf377 <_sec_rw.repet>
+    e7eb: 32 83 f3     	ld	($f383),a               ; 0xf383 <_sec_rw.repet>
     e7ee: b7           	or	a
     e7ef: ca d3 e8     	jp	z,$e8d3
 ;         fdstar();
@@ -2903,27 +2903,27 @@ Disassembly of section .text:
     e7f5: f3           	di
 ;     fdc_irq_fired = 0;
     e7f6: af           	xor	a
-    e7f7: 32 0b ef     	ld	($ef0b),a               ; 0xef0b <_fdc_irq_fired>
+    e7f7: 32 17 ef     	ld	($ef17),a               ; 0xef17 <_fdc_irq_fired>
 ; static __inline__ void intrinsic_ei(void) { __builtin_z80_ei(); }
     e7fa: fb           	ei
 ;         dma_count = current_format->dma_count;
-    e7fb: 2a c7 ee     	ld	hl,($eec7)              ; 0xeec7 <_current_format>
+    e7fb: 2a d3 ee     	ld	hl,($eed3)              ; 0xeed3 <_current_format>
     e7fe: 23           	inc	hl
     e7ff: 5e           	ld	e,(hl)
     e800: 23           	inc	hl
     e801: 56           	ld	d,(hl)
     e802: eb           	ex	de,hl
-    e803: 22 78 f3     	ld	($f378),hl              ; 0xf378 <_dma_count>
+    e803: 22 84 f3     	ld	($f384),hl              ; 0xf384 <_dma_count>
 ;         dma_write = s_dma_dir;
-    e806: 3a 76 f3     	ld	a,($f376)               ; 0xf376 <_sec_rw.s_dma_dir>
-    e809: 32 7a f3     	ld	($f37a),a               ; 0xf37a <_dma_write>
+    e806: 3a 82 f3     	ld	a,($f382)               ; 0xf382 <_sec_rw.s_dma_dir>
+    e809: 32 86 f3     	ld	($f386),a               ; 0xf386 <_dma_write>
 ; static __inline__ void intrinsic_di(void) { __builtin_z80_di(); }
     e80c: f3           	di
 ; DEFPORT(dma_smsk,     PORT_DMA_SMSK)
     e80d: 3e 05        	ld	a,$5
     e80f: d3 fa        	out	($fa),a
 ;     port_out(dma_mode, dma_write
-    e811: 3a 7a f3     	ld	a,($f37a)               ; 0xf37a <_dma_write>
+    e811: 3a 86 f3     	ld	a,($f386)               ; 0xf386 <_dma_write>
     e814: b7           	or	a
     e815: 28 04        	jr	z,$e81b
     e817: 3e 49        	ld	a,$49
@@ -2935,22 +2935,22 @@ Disassembly of section .text:
     e81f: af           	xor	a
     e820: d3 fc        	out	($fc),a
 ;     hal_dma_flp_addr((word)fdc_dma_addr);
-    e822: 2a 73 f3     	ld	hl,($f373)              ; 0xf373 <_fdc_dma_addr>
+    e822: 2a 7f f3     	ld	hl,($f37f)              ; 0xf37f <_fdc_dma_addr>
     e825: 7d           	ld	a,l
 ; DEFPORT(dma_flp_addr, PORT_DMA_FLP_ADDR)
     e826: d3 f2        	out	($f2),a
 ;     hal_dma_flp_addr((word)fdc_dma_addr);
-    e828: 2a 73 f3     	ld	hl,($f373)              ; 0xf373 <_fdc_dma_addr>
+    e828: 2a 7f f3     	ld	hl,($f37f)              ; 0xf37f <_fdc_dma_addr>
 ; DEFPORT(dma_flp_addr, PORT_DMA_FLP_ADDR)
     e82b: 7c           	ld	a,h
     e82c: d3 f2        	out	($f2),a
 ;     hal_dma_flp_wc(dma_count);
-    e82e: 2a 78 f3     	ld	hl,($f378)              ; 0xf378 <_dma_count>
+    e82e: 2a 84 f3     	ld	hl,($f384)              ; 0xf384 <_dma_count>
     e831: 7d           	ld	a,l
 ; DEFPORT(dma_flp_wc,   PORT_DMA_FLP_WC)
     e832: d3 f3        	out	($f3),a
 ;     hal_dma_flp_wc(dma_count);
-    e834: 2a 78 f3     	ld	hl,($f378)              ; 0xf378 <_dma_count>
+    e834: 2a 84 f3     	ld	hl,($f384)              ; 0xf384 <_dma_count>
 ; DEFPORT(dma_flp_wc,   PORT_DMA_FLP_WC)
     e837: 7c           	ld	a,h
     e838: d3 f3        	out	($f3),a
@@ -2960,9 +2960,9 @@ Disassembly of section .text:
 ; static __inline__ void intrinsic_ei(void) { __builtin_z80_ei(); }
     e83e: fb           	ei
 ;         fdc_general_cmd(s_cmd, &current_format->mf);
-    e83f: 3a 75 f3     	ld	a,($f375)               ; 0xf375 <_sec_rw.s_cmd>
+    e83f: 3a 81 f3     	ld	a,($f381)               ; 0xf381 <_sec_rw.s_cmd>
     e842: 57           	ld	d,a
-    e843: 2a c7 ee     	ld	hl,($eec7)              ; 0xeec7 <_current_format>
+    e843: 2a d3 ee     	ld	hl,($eed3)              ; 0xeed3 <_current_format>
     e846: e5           	push	hl
     e847: 4d           	ld	c,l
     e848: 44           	ld	b,h
@@ -2976,20 +2976,20 @@ Disassembly of section .text:
     e84e: 82           	add	a,d
     e84f: cd 71 da     	call	$da71
 ;     fdc_write(fdc_unit_head);              /* drive + head */
-    e852: 3a b6 ec     	ld	a,($ecb6)               ; 0xecb6 <_fdc_unit_head>
-    e855: 32 9f f3     	ld	($f39f),a               ; 0xf39f <__sfrend_bg_clear_from>
+    e852: 3a c2 ec     	ld	a,($ecc2)               ; 0xecc2 <_fdc_unit_head>
+    e855: 32 ab f3     	ld	($f3ab),a               ; 0xf3ab <__sfrend_bg_clear_from>
     e858: cd 71 da     	call	$da71
 ;     fdc_write(fdc_track);              /* cylinder */
-    e85b: 3a 72 f1     	ld	a,($f172)               ; 0xf172 <_fdc_track>
+    e85b: 3a 7e f1     	ld	a,($f17e)               ; 0xf17e <_fdc_track>
     e85e: cd 71 da     	call	$da71
 ;     fdc_write((fdc_unit_head >> 2) & 3);   /* head number */
-    e861: 3a 9f f3     	ld	a,($f39f)               ; 0xf39f <__sfrend_bg_clear_from>
+    e861: 3a ab f3     	ld	a,($f3ab)               ; 0xf3ab <__sfrend_bg_clear_from>
     e864: 0f           	rrca
     e865: 0f           	rrca
     e866: e6 03        	and	$3
     e868: cd 71 da     	call	$da71
 ;     fdc_write(fdc_sector);              /* sector */
-    e86b: 3a 6f f1     	ld	a,($f16f)               ; 0xf16f <_fdc_sector>
+    e86b: 3a 7b f1     	ld	a,($f17b)               ; 0xf17b <_fdc_sector>
     e86e: cd 71 da     	call	$da71
     e871: 11 04 00     	ld	de,$4
 ;     fdc_write(fdfp[1]);            /* N (sector size code) */
@@ -3012,22 +3012,22 @@ Disassembly of section .text:
     e88a: 7e           	ld	a,(hl)
     e88b: cd 71 da     	call	$da71
 ;     fdc_write(fdc_data_length);               /* data length */
-    e88e: 3a d3 ee     	ld	a,($eed3)               ; 0xeed3 <_fdc_data_length>
+    e88e: 3a df ee     	ld	a,($eedf)               ; 0xeedf <_fdc_data_length>
     e891: cd 71 da     	call	$da71
 ; static __inline__ void intrinsic_ei(void) { __builtin_z80_ei(); }
     e894: fb           	ei
 ;         fdc_irq_wait();
     e895: cd 88 da     	call	$da88
 ;         if (!(fdc_result.st0 & FDC_ST0_ANY_ERROR))
-    e898: 3a 5e f0     	ld	a,($f05e)               ; 0xf05e <_fdc_result>
+    e898: 3a 6a f0     	ld	a,($f06a)               ; 0xf06a <_fdc_result>
     e89b: fe 08        	cp	$8
     e89d: d8           	ret	c
 ;         if (fdc_result.st0 & FDC_ST0_NOT_READY) /* drive not ready — retry won't help */
-    e89e: 3a 5e f0     	ld	a,($f05e)               ; 0xf05e <_fdc_result>
+    e89e: 3a 6a f0     	ld	a,($f06a)               ; 0xf06a <_fdc_result>
     e8a1: e6 08        	and	$8
     e8a3: 20 2e        	jr	nz,$e8d3
 ;         if (repet == 6) {               /* halfway (5 failures): recalibrate before retry */
-    e8a5: 3a 77 f3     	ld	a,($f377)               ; 0xf377 <_sec_rw.repet>
+    e8a5: 3a 83 f3     	ld	a,($f383)               ; 0xf383 <_sec_rw.repet>
     e8a8: 4f           	ld	c,a
     e8a9: fe 06        	cp	$6
     e8ab: 20 22        	jr	nz,$e8cf
@@ -3035,7 +3035,7 @@ Disassembly of section .text:
     e8ad: f3           	di
 ;     fdc_irq_fired = 0;
     e8ae: af           	xor	a
-    e8af: 32 0b ef     	ld	($ef0b),a               ; 0xef0b <_fdc_irq_fired>
+    e8af: 32 17 ef     	ld	($ef17),a               ; 0xef17 <_fdc_irq_fired>
 ; static __inline__ void intrinsic_ei(void) { __builtin_z80_ei(); }
     e8b2: fb           	ei
 ;             fdc_recalibrate();
@@ -3048,7 +3048,7 @@ Disassembly of section .text:
     e8bc: f3           	di
 ;     fdc_irq_fired = 0;
     e8bd: af           	xor	a
-    e8be: 32 0b ef     	ld	($ef0b),a               ; 0xef0b <_fdc_irq_fired>
+    e8be: 32 17 ef     	ld	($ef17),a               ; 0xef17 <_fdc_irq_fired>
 ; static __inline__ void intrinsic_ei(void) { __builtin_z80_ei(); }
     e8c1: fb           	ei
 ;             fdc_seek();
@@ -3058,16 +3058,16 @@ Disassembly of section .text:
 ;             fdc_sense_int();
     e8c8: cd 83 e4     	call	$e483
 ;     for (repet = 10; repet != 0; repet--) {
-    e8cb: 3a 77 f3     	ld	a,($f377)               ; 0xf377 <_sec_rw.repet>
+    e8cb: 3a 83 f3     	ld	a,($f383)               ; 0xf383 <_sec_rw.repet>
     e8ce: 4f           	ld	c,a
     e8cf: 3d           	dec	a
     e8d0: c3 eb e7     	jp	$e7eb
 ;     hostbuf_valid = 0;
     e8d3: af           	xor	a
-    e8d4: 32 b2 ec     	ld	($ecb2),a               ; 0xecb2 <_wb+0x7>
+    e8d4: 32 be ec     	ld	($ecbe),a               ; 0xecbe <_wb+0x7>
 ;     disk_error = 1;
     e8d7: 3e 01        	ld	a,$1
-    e8d9: 32 b4 ec     	ld	($ecb4),a               ; 0xecb4 <_wb+0x9>
+    e8d9: 32 c0 ec     	ld	($ecc0),a               ; 0xecc0 <_wb+0x9>
 ; }
     e8dc: c9           	ret
 
@@ -3076,17 +3076,17 @@ Disassembly of section .text:
     e8dd: 3e 0f        	ld	a,$f
     e8df: cd 71 da     	call	$da71
 ;     fdc_write(fdc_unit_head & 3);      /* drive + head */
-    e8e2: 3a b6 ec     	ld	a,($ecb6)               ; 0xecb6 <_fdc_unit_head>
+    e8e2: 3a c2 ec     	ld	a,($ecc2)               ; 0xecc2 <_fdc_unit_head>
     e8e5: e6 03        	and	$3
     e8e7: cd 71 da     	call	$da71
 ;     fdc_write(fdc_track);          /* cylinder */
-    e8ea: 3a 72 f1     	ld	a,($f172)               ; 0xf172 <_fdc_track>
+    e8ea: 3a 7e f1     	ld	a,($f17e)               ; 0xf17e <_fdc_track>
     e8ed: c3 71 da     	jp	$da71
 
 0000e8f0 <_rwoper>:
 ;     cpm_sector_as_host = (byte)(cpm_sector >> (byte)(deblock_shift - 1));
-    e8f0: 2a bb ec     	ld	hl,($ecbb)              ; 0xecbb <_cpm_sector>
-    e8f3: 3a d0 ee     	ld	a,($eed0)               ; 0xeed0 <_deblock_shift>
+    e8f0: 2a c7 ec     	ld	hl,($ecc7)              ; 0xecc7 <_cpm_sector>
+    e8f3: 3a dc ee     	ld	a,($eedc)               ; 0xeedc <_deblock_shift>
     e8f6: 3d           	dec	a
     e8f7: 47           	ld	b,a
     e8f8: 04           	inc	b
@@ -3097,26 +3097,26 @@ Disassembly of section .text:
     e900: 10 fa        	djnz	$e8fc
     e902: 55           	ld	d,l
     e903: 7d           	ld	a,l
-    e904: 32 7e f3     	ld	($f37e),a               ; 0xf37e <_cpm_sector_as_host>
+    e904: 32 8a f3     	ld	($f38a),a               ; 0xf38a <_cpm_sector_as_host>
 ;     if (hostbuf_valid) {
-    e907: 3a b2 ec     	ld	a,($ecb2)               ; 0xecb2 <_wb+0x7>
+    e907: 3a be ec     	ld	a,($ecbe)               ; 0xecbe <_wb+0x7>
     e90a: 67           	ld	h,a
 ;     hostbuf_disk = cpm_disk;
-    e90b: 3a bd ee     	ld	a,($eebd)               ; 0xeebd <_cpm_disk>
+    e90b: 3a c9 ee     	ld	a,($eec9)               ; 0xeec9 <_cpm_disk>
     e90e: 5f           	ld	e,a
 ;     if (hostbuf_valid) {
     e90f: 7c           	ld	a,h
     e910: b7           	or	a
     e911: 28 2f        	jr	z,$e942
 ;         if (cpm_disk == hostbuf_disk && hostbuf_track == cpm_track && cpm_sector_as_host == hostbuf_sector)
-    e913: 21 6e f1     	ld	hl,$f16e
+    e913: 21 7a f1     	ld	hl,$f17a
     e916: 7b           	ld	a,e
     e917: be           	cp	(hl)
     e918: 20 17        	jr	nz,$e931
-    e91a: 2a 70 f1     	ld	hl,($f170)              ; 0xf170 <_hostbuf_track>
+    e91a: 2a 7c f1     	ld	hl,($f17c)              ; 0xf17c <_hostbuf_track>
     e91d: 4d           	ld	c,l
     e91e: 44           	ld	b,h
-    e91f: 2a b9 ec     	ld	hl,($ecb9)              ; 0xecb9 <_cpm_track>
+    e91f: 2a c5 ec     	ld	hl,($ecc5)              ; 0xecc5 <_cpm_track>
     e922: 78           	ld	a,b
     e923: ac           	xor	h
     e924: 67           	ld	h,a
@@ -3124,45 +3124,45 @@ Disassembly of section .text:
     e926: ad           	xor	l
     e927: b4           	or	h
     e928: 20 07        	jr	nz,$e931
-    e92a: 21 6d f1     	ld	hl,$f16d
+    e92a: 21 79 f1     	ld	hl,$f179
     e92d: 7a           	ld	a,d
     e92e: be           	cp	(hl)
     e92f: 28 42        	jr	z,$e973
 ;         if (hostbuf_dirty)
-    e931: 3a b3 ec     	ld	a,($ecb3)               ; 0xecb3 <_wb+0x8>
+    e931: 3a bf ec     	ld	a,($ecbf)               ; 0xecbf <_wb+0x8>
     e934: b7           	or	a
     e935: 28 0b        	jr	z,$e942
 ;             wrthst();
     e937: cd f3 e1     	call	$e1f3
 ;     hostbuf_disk = cpm_disk;
-    e93a: 3a bd ee     	ld	a,($eebd)               ; 0xeebd <_cpm_disk>
+    e93a: 3a c9 ee     	ld	a,($eec9)               ; 0xeec9 <_cpm_disk>
     e93d: 5f           	ld	e,a
 ;     hostbuf_sector = cpm_sector_as_host;
-    e93e: 3a 7e f3     	ld	a,($f37e)               ; 0xf37e <_cpm_sector_as_host>
+    e93e: 3a 8a f3     	ld	a,($f38a)               ; 0xf38a <_cpm_sector_as_host>
     e941: 57           	ld	d,a
 ;     hostbuf_valid = 1;
     e942: 3e 01        	ld	a,$1
-    e944: 32 b2 ec     	ld	($ecb2),a               ; 0xecb2 <_wb+0x7>
+    e944: 32 be ec     	ld	($ecbe),a               ; 0xecbe <_wb+0x7>
 ;     hostbuf_disk = cpm_disk;
     e947: 7b           	ld	a,e
-    e948: 32 6e f1     	ld	($f16e),a               ; 0xf16e <_hostbuf_disk>
+    e948: 32 7a f1     	ld	($f17a),a               ; 0xf17a <_hostbuf_disk>
 ;     hostbuf_track = cpm_track;
-    e94b: 2a b9 ec     	ld	hl,($ecb9)              ; 0xecb9 <_cpm_track>
-    e94e: 22 70 f1     	ld	($f170),hl              ; 0xf170 <_hostbuf_track>
+    e94b: 2a c5 ec     	ld	hl,($ecc5)              ; 0xecc5 <_cpm_track>
+    e94e: 22 7c f1     	ld	($f17c),hl              ; 0xf17c <_hostbuf_track>
 ;     hostbuf_sector = cpm_sector_as_host;
     e951: 7a           	ld	a,d
-    e952: 32 6d f1     	ld	($f16d),a               ; 0xf16d <_hostbuf_sector>
+    e952: 32 79 f1     	ld	($f179),a               ; 0xf179 <_hostbuf_sector>
 ;     if (need_pre_read)
-    e955: 3a 7c f3     	ld	a,($f37c)               ; 0xf37c <_need_pre_read>
+    e955: 3a 88 f3     	ld	a,($f388)               ; 0xf388 <_need_pre_read>
     e958: b7           	or	a
     e959: 28 14        	jr	z,$e96f
 ;     if (unalloc_mask)
-    e95b: 3a 7f f3     	ld	a,($f37f)               ; 0xf37f <_unalloc_mask>
+    e95b: 3a 8b f3     	ld	a,($f38b)               ; 0xf38b <_unalloc_mask>
     e95e: b7           	or	a
     e95f: 20 04        	jr	nz,$e965
 ;         unalloc_count = 0;
     e961: af           	xor	a
-    e962: 32 b5 ec     	ld	($ecb5),a               ; 0xecb5 <_unalloc_count>
+    e962: 32 c1 ec     	ld	($ecc1),a               ; 0xecc1 <_unalloc_count>
 ;     chktrk();
     e965: cd 5e e7     	call	$e75e
 ;     sec_rw(6, 0);               /* READ DATA, FDC→mem */
@@ -3171,19 +3171,19 @@ Disassembly of section .text:
     e96c: cd e2 e7     	call	$e7e2
 ;     hostbuf_dirty = 0;
     e96f: af           	xor	a
-    e970: 32 b3 ec     	ld	($ecb3),a               ; 0xecb3 <_wb+0x8>
+    e970: 32 bf ec     	ld	($ecbf),a               ; 0xecbf <_wb+0x8>
 ;     if (is_read) {
-    e973: 3a 7b f3     	ld	a,($f37b)               ; 0xf37b <_is_read>
+    e973: 3a 87 f3     	ld	a,($f387)               ; 0xf387 <_is_read>
     e976: ee 01        	xor	$1
     e978: 20 29        	jr	nz,$e9a3
 ;         memcpy(cpm_dma_addr, &hstbuf[(word)(cpm_sector & deblock_mask) << 7], 128);
-    e97a: 2a b7 ec     	ld	hl,($ecb7)              ; 0xecb7 <_cpm_dma_addr>
+    e97a: 2a c3 ec     	ld	hl,($ecc3)              ; 0xecc3 <_cpm_dma_addr>
     e97d: e5           	push	hl
     e97e: fd e1        	pop	iy
-    e980: 2a bb ec     	ld	hl,($ecbb)              ; 0xecbb <_cpm_sector>
+    e980: 2a c7 ec     	ld	hl,($ecc7)              ; 0xecc7 <_cpm_sector>
     e983: 4d           	ld	c,l
     e984: 44           	ld	b,h
-    e985: 21 cf ee     	ld	hl,$eecf
+    e985: 21 db ee     	ld	hl,$eedb
     e988: 79           	ld	a,c
     e989: a6           	and	(hl)
     e98a: 6f           	ld	l,a
@@ -3196,7 +3196,7 @@ Disassembly of section .text:
     e992: 29           	add	hl,hl
     e993: 29           	add	hl,hl
     e994: eb           	ex	de,hl
-    e995: 21 73 f1     	ld	hl,$f173
+    e995: 21 7f f1     	ld	hl,$f17f
     e998: 19           	add	hl,de
     e999: eb           	ex	de,hl
     e99a: 21 80 00     	ld	hl,$80
@@ -3206,11 +3206,11 @@ Disassembly of section .text:
     e9a1: 18 29        	jr	$e9cc
 ;         hostbuf_dirty = 1;
     e9a3: 3e 01        	ld	a,$1
-    e9a5: 32 b3 ec     	ld	($ecb3),a               ; 0xecb3 <_wb+0x8>
+    e9a5: 32 bf ec     	ld	($ecbf),a               ; 0xecbf <_wb+0x8>
 ;         memcpy(&hstbuf[(word)(cpm_sector & deblock_mask) << 7], cpm_dma_addr, 128);
-    e9a8: 2a bb ec     	ld	hl,($ecbb)              ; 0xecbb <_cpm_sector>
+    e9a8: 2a c7 ec     	ld	hl,($ecc7)              ; 0xecc7 <_cpm_sector>
     e9ab: eb           	ex	de,hl
-    e9ac: 21 cf ee     	ld	hl,$eecf
+    e9ac: 21 db ee     	ld	hl,$eedb
     e9af: 7b           	ld	a,e
     e9b0: a6           	and	(hl)
     e9b1: 6f           	ld	l,a
@@ -3223,11 +3223,11 @@ Disassembly of section .text:
     e9b9: 29           	add	hl,hl
     e9ba: 29           	add	hl,hl
     e9bb: eb           	ex	de,hl
-    e9bc: 21 73 f1     	ld	hl,$f173
+    e9bc: 21 7f f1     	ld	hl,$f17f
     e9bf: 19           	add	hl,de
     e9c0: 4d           	ld	c,l
     e9c1: 44           	ld	b,h
-    e9c2: 2a b7 ec     	ld	hl,($ecb7)              ; 0xecb7 <_cpm_dma_addr>
+    e9c2: 2a c3 ec     	ld	hl,($ecc3)              ; 0xecc3 <_cpm_dma_addr>
     e9c5: eb           	ex	de,hl
     e9c6: 21 80 00     	ld	hl,$80
     e9c9: e5           	push	hl
@@ -3235,30 +3235,30 @@ Disassembly of section .text:
     e9cb: 60           	ld	h,b
     e9cc: cd e2 ea     	call	$eae2
 ;     if (disk_error) {
-    e9cf: 3a b4 ec     	ld	a,($ecb4)               ; 0xecb4 <_wb+0x9>
+    e9cf: 3a c0 ec     	ld	a,($ecc0)               ; 0xecc0 <_wb+0x9>
     e9d2: b7           	or	a
     e9d3: 28 04        	jr	z,$e9d9
 ;         hostbuf_valid = 0;
     e9d5: af           	xor	a
-    e9d6: 32 b2 ec     	ld	($ecb2),a               ; 0xecb2 <_wb+0x7>
+    e9d6: 32 be ec     	ld	($ecbe),a               ; 0xecbe <_wb+0x7>
 ;     if (write_type == WRDIR && !disk_error) {
-    e9d9: 3a 7d f3     	ld	a,($f37d)               ; 0xf37d <_write_type>
+    e9d9: 3a 89 f3     	ld	a,($f389)               ; 0xf389 <_write_type>
     e9dc: 3d           	dec	a
     e9dd: 20 0d        	jr	nz,$e9ec
-    e9df: 3a b4 ec     	ld	a,($ecb4)               ; 0xecb4 <_wb+0x9>
+    e9df: 3a c0 ec     	ld	a,($ecc0)               ; 0xecc0 <_wb+0x9>
     e9e2: b7           	or	a
     e9e3: 20 07        	jr	nz,$e9ec
 ;         hostbuf_dirty = 0;
     e9e5: af           	xor	a
-    e9e6: 32 b3 ec     	ld	($ecb3),a               ; 0xecb3 <_wb+0x8>
+    e9e6: 32 bf ec     	ld	($ecbf),a               ; 0xecbf <_wb+0x8>
 ;         wrthst();
     e9e9: cd f3 e1     	call	$e1f3
 ;         byte err = disk_error;
-    e9ec: 3a b4 ec     	ld	a,($ecb4)               ; 0xecb4 <_wb+0x9>
+    e9ec: 3a c0 ec     	ld	a,($ecc0)               ; 0xecc0 <_wb+0x9>
     e9ef: 57           	ld	d,a
 ;         disk_error = 0;
     e9f0: af           	xor	a
-    e9f1: 32 b4 ec     	ld	($ecb4),a               ; 0xecb4 <_wb+0x9>
+    e9f1: 32 c0 ec     	ld	($ecc0),a               ; 0xecc0 <_wb+0x9>
 ;         return err;
     e9f4: 7a           	ld	a,d
     e9f5: c9           	ret
@@ -3305,15 +3305,15 @@ Disassembly of section .text:
     ea21: c9           	ret
 
 0000ea22 <_bios_settrk_shim>:
-    ea22: ed 43 b9 ec  	ld	($ecb9),bc              ; 0xecb9 <_cpm_track>
+    ea22: ed 43 c5 ec  	ld	($ecc5),bc              ; 0xecc5 <_cpm_track>
     ea26: c9           	ret
 
 0000ea27 <_bios_setsec_shim>:
-    ea27: ed 43 bb ec  	ld	($ecbb),bc              ; 0xecbb <_cpm_sector>
+    ea27: ed 43 c7 ec  	ld	($ecc7),bc              ; 0xecc7 <_cpm_sector>
     ea2b: c9           	ret
 
 0000ea2c <_bios_setdma_shim>:
-    ea2c: ed 43 b7 ec  	ld	($ecb7),bc              ; 0xecb7 <_cpm_dma_addr>
+    ea2c: ed 43 c3 ec  	ld	($ecc3),bc              ; 0xecc3 <_cpm_dma_addr>
     ea30: c9           	ret
 
 0000ea31 <_bios_seldsk_shim>:
@@ -3343,34 +3343,34 @@ Disassembly of section .text:
 
 0000ea48 <_bios_wfitr_shim>:
     ea48: cd 7e da     	call	$da7e
-    ea4b: 3a 5e f0     	ld	a,($f05e)               ; 0xf05e <_fdc_result>
+    ea4b: 3a 6a f0     	ld	a,($f06a)               ; 0xf06a <_fdc_result>
     ea4e: 47           	ld	b,a
-    ea4f: 3a 5f f0     	ld	a,($f05f)               ; 0xf05f <_fdc_result+0x1>
+    ea4f: 3a 6b f0     	ld	a,($f06b)               ; 0xf06b <_fdc_result+0x1>
     ea52: 4f           	ld	c,a
     ea53: c9           	ret
 
 0000ea54 <_bios_linsel_shim>:
-    ea54: 32 f7 ee     	ld	($eef7),a               ; 0xeef7 <_ls_port>
+    ea54: 32 03 ef     	ld	($ef03),a               ; 0xef03 <_ls_port>
     ea57: 78           	ld	a,b
-    ea58: 32 f6 ee     	ld	($eef6),a               ; 0xeef6 <_ls_line>
+    ea58: 32 02 ef     	ld	($ef02),a               ; 0xef02 <_ls_line>
     ea5b: c3 02 e3     	jp	$e302
 
 0000ea5e <_bios_exit_shim>:
-    ea5e: 22 e5 ff     	ld	($ffe5),hl              ; 0xffe5 <__sfrend_sec_rw+0xc43>
+    ea5e: 22 e5 ff     	ld	($ffe5),hl              ; 0xffe5 <__sfrend_sec_rw+0xc37>
     ea61: eb           	ex	de,hl
-    ea62: 22 df ff     	ld	($ffdf),hl              ; 0xffdf <__sfrend_sec_rw+0xc3d>
+    ea62: 22 df ff     	ld	($ffdf),hl              ; 0xffdf <__sfrend_sec_rw+0xc31>
     ea65: c9           	ret
 
 0000ea66 <_bios_clock_shim>:
     ea66: b7           	or	a
     ea67: 28 0a        	jr	z,$ea73
     ea69: f3           	di
-    ea6a: ed 5b fc ff  	ld	de,($fffc)              ; 0xfffc <__sfrend_sec_rw+0xc5a>
-    ea6e: 2a fe ff     	ld	hl,($fffe)              ; 0xfffe <__sfrend_sec_rw+0xc5c>
+    ea6a: ed 5b fc ff  	ld	de,($fffc)              ; 0xfffc <__sfrend_sec_rw+0xc4e>
+    ea6e: 2a fe ff     	ld	hl,($fffe)              ; 0xfffe <__sfrend_sec_rw+0xc50>
     ea71: fb           	ei
     ea72: c9           	ret
-    ea73: ed 53 fc ff  	ld	($fffc),de              ; 0xfffc <__sfrend_sec_rw+0xc5a>
-    ea77: 22 fe ff     	ld	($fffe),hl              ; 0xfffe <__sfrend_sec_rw+0xc5c>
+    ea73: ed 53 fc ff  	ld	($fffc),de              ; 0xfffc <__sfrend_sec_rw+0xc4e>
+    ea77: 22 fe ff     	ld	($fffe),hl              ; 0xfffe <__sfrend_sec_rw+0xc50>
     ea7a: c9           	ret
 
 0000ea7b <_set_i_reg>:
@@ -3378,7 +3378,7 @@ Disassembly of section .text:
     ea7d: c9           	ret
 
 0000ea7e <_isr_crt_wrapper>:
-    ea7e: ed 73 0e ef  	ld	($ef0e),sp              ; 0xef0e <_sp_sav>
+    ea7e: ed 73 1a ef  	ld	($ef1a),sp              ; 0xef1a <_sp_sav>
     ea82: 31 00 f6     	ld	sp,$f600
     ea85: f5           	push	af
     ea86: c5           	push	bc
@@ -3389,12 +3389,12 @@ Disassembly of section .text:
     ea8d: d1           	pop	de
     ea8e: c1           	pop	bc
     ea8f: f1           	pop	af
-    ea90: ed 7b 0e ef  	ld	sp,($ef0e)              ; 0xef0e <_sp_sav>
+    ea90: ed 7b 1a ef  	ld	sp,($ef1a)              ; 0xef1a <_sp_sav>
     ea94: fb           	ei
     ea95: ed 4d        	reti
 
 0000ea97 <_isr_floppy_wrapper>:
-    ea97: ed 73 0e ef  	ld	($ef0e),sp              ; 0xef0e <_sp_sav>
+    ea97: ed 73 1a ef  	ld	($ef1a),sp              ; 0xef1a <_sp_sav>
     ea9b: 31 00 f6     	ld	sp,$f600
     ea9e: f5           	push	af
     ea9f: c5           	push	bc
@@ -3405,12 +3405,12 @@ Disassembly of section .text:
     eaa6: d1           	pop	de
     eaa7: c1           	pop	bc
     eaa8: f1           	pop	af
-    eaa9: ed 7b 0e ef  	ld	sp,($ef0e)              ; 0xef0e <_sp_sav>
+    eaa9: ed 7b 1a ef  	ld	sp,($ef1a)              ; 0xef1a <_sp_sav>
     eaad: fb           	ei
     eaae: ed 4d        	reti
 
 0000eab0 <_isr_pio_kbd_wrapper>:
-    eab0: ed 73 0e ef  	ld	($ef0e),sp              ; 0xef0e <_sp_sav>
+    eab0: ed 73 1a ef  	ld	($ef1a),sp              ; 0xef1a <_sp_sav>
     eab4: 31 00 f6     	ld	sp,$f600
     eab7: f5           	push	af
     eab8: c5           	push	bc
@@ -3421,12 +3421,12 @@ Disassembly of section .text:
     eabf: d1           	pop	de
     eac0: c1           	pop	bc
     eac1: f1           	pop	af
-    eac2: ed 7b 0e ef  	ld	sp,($ef0e)              ; 0xef0e <_sp_sav>
+    eac2: ed 7b 1a ef  	ld	sp,($ef1a)              ; 0xef1a <_sp_sav>
     eac6: fb           	ei
     eac7: ed 4d        	reti
 
 0000eac9 <_isr_sio_a_rx_wrapper>:
-    eac9: ed 73 0e ef  	ld	($ef0e),sp              ; 0xef0e <_sp_sav>
+    eac9: ed 73 1a ef  	ld	($ef1a),sp              ; 0xef1a <_sp_sav>
     eacd: 31 00 f6     	ld	sp,$f600
     ead0: f5           	push	af
     ead1: c5           	push	bc
@@ -3437,7 +3437,7 @@ Disassembly of section .text:
     ead8: d1           	pop	de
     ead9: c1           	pop	bc
     eada: f1           	pop	af
-    eadb: ed 7b 0e ef  	ld	sp,($ef0e)              ; 0xef0e <_sp_sav>
+    eadb: ed 7b 1a ef  	ld	sp,($ef1a)              ; 0xef1a <_sp_sav>
     eadf: fb           	ei
     eae0: ed 4d        	reti
 
