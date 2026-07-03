@@ -7,6 +7,7 @@ Last triaged: 2026-06-15.
 | File | State | Purpose |
 |---|---|---|
 | [`finishing-checklist.md`](finishing-checklist.md) | live | "What's left to call cpnos finished" master list.  Refreshed 2026-06-15 with current PROM1 size (2015 / 2048, 33 B free). |
+| [`cpnet-tod-and-netboot-findings-2026-07-03.md`](cpnet-tod-and-netboot-findings-2026-07-03.md) | **live** | Session findings: no-Lua PPAS injector (autoboot breaks PIO netboot), TOD `ff` = stale MPM.SYS, CP/NET SID/login model, tasks T1–T5. |
 | [`PIO_INIR_PARKED.md`](PIO_INIR_PARKED.md) | **PARKED 2026-06-14** | `#115` Steps 2+4 (PIO → INIR refactor) waiting on physical RC702 + Pi/Pico bridge. |
 | [`TWO_PROM_PARKED.md`](TWO_PROM_PARKED.md) | PARKED | Two-PROM build (cpnos PROM0 + slave PROM1) parked 2026-05-17 — production sole topology is autoload PROM0 + cpnos PROM1-only line program. |
 

@@ -1,5 +1,16 @@
 # cpnos-in-c — finishing checklist (2026-06-03; refreshed 2026-06-15)
 
+> **2026-07-03 update — PPAS + TOD verified via no-Lua path (PIO,
+> -nothrottle, no autoboot).** Full oracle green: PPAS PRIMES→29989 + Q→E>
+> and TODGET FN-105 date. Two root causes fixed: (1) `-autoboot_script`
+> breaks the PIO netboot handshake — replaced by host-side SIO-B injector
+> `cpnos_polypascal_inject.py`; (2) TOD `ff` was a stale MPM.SYS, not a bug
+> (rebuild `rebuild-mpm-sys.sh --install`; a mistaken login-exemption was
+> reverted in 3bfa4a1). New tooling: `scripts/wait_mpm_ready.py`. Open tasks
+> T1–T5 in `cpnet-tod-and-netboot-findings-2026-07-03.md` — chiefly **T1:
+> wire the injector into the `cpnos-polypascal-test` Makefile target**
+> (the autoboot-Lua target is fundamentally broken on fast hosts).
+
 > **STATUS 2026-06-04: PARKED — awaiting physical Z80-PIO parallel cable.**
 > All MAME oracles are green (cpnos-polypascal-test PASS clang ×
 > {PIO, SIO}; PROM1 **2015 / 2048 B = 33 B free (1.6 %)** as of

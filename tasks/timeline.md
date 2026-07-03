@@ -8480,3 +8480,18 @@ request behind chklog except LOGIN); cpnos logs in automatically at netboot
 (init.c), so no manual login is needed.  server.asm gettod exemption
 REVERTED -- no hack.  Full test (PIO, -nothrottle, no autoboot): PPAS
 PRIMES->29989 + TODGET date 2026-07-03 21:43:21, 8 stages green.
+
+## Session 2026-07-03 (cont.) — analysis wrap-up: findings doc + tasks
+
+Consolidated the CP/NET/cpnos session into
+`cpnos-in-c/tasks/cpnet-tod-and-netboot-findings-2026-07-03.md`: no-Lua
+netboot fragility (autoboot breaks PIO timing; host-side SIO-B injector is
+the fix), TOD `ff` = stale MPM.SYS, CP/NET SID/login model (byte SID,
+client-assigned, password-once, per-request SID-only = spoofable-by-design),
+and a reusable wire-decode method.  Tasks T1–T5 raised (T1: wire injector
+into Makefile; T2: stage TODGET on drive I; T3: guard stale MPM.SYS; T4:
+server.asm login DI-without-EI on table-full; T5: document SID spoofability).
+Memory rule `feedback_cpnos_pio_netboot_no_autoboot` added.  Reverted the
+exploratory Makefile/lua changes (based on a superseded speed theory) and
+rebuild-noise artifacts; only committed tooling (injector, wait_mpm_ready)
+and docs remain.
