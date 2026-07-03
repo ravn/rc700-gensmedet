@@ -129,8 +129,9 @@ Status legend: **✓analysed** · **✓ref** (byte-verified BIOS reference held)
   [128-byte FM SD, SW7501 line] + own program format, cannot read/run COMAL80
   `.PRG` files): 30005726 (rev01.11), **30005768 (SW7501 r1.17)**,
   **30007375 (SW7501 r1.13, "RC700 comal rev. 01.13", boots standalone in
-  rc702mini)**, 30003588 (ID-Comal conv).  Verified 2026-07-02: ID-COMAL 1.13
-  cannot `LOAD "2/RACE.PRG"` from a COMAL80 disk (format + program-format gap).
+  rc702mini)**, 30003588 (ID-Comal conv).  Verified: ID-COMAL 1.13 cannot read a COMAL80 disk
+  (128-byte FM vs 512-byte MFM format gap) AND does not support external
+  procedures (per manual Bits:30000045) — a double dead-end for COMAL80 programs.
 - **COMAL80 / RcComal80:** 30003572 (r1.07), 30003986 (1.08), 30003316/17,
   30005765/66, 30003945 (1.1), 30003985/30003946/30004120/30003318/30009625/30005767
   (RcComal80 — all CP/M-hosted distribution disks; v2.0 = 30004120 + 30009625),
