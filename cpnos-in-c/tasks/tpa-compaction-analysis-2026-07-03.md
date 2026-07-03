@@ -17,13 +17,18 @@ system is ~54-56 KB TPA), so the headroom for compaction is modest.
 
 | Module | .rel | Notes |
 |--------|------|-------|
-| `cpndos` (NDOS) | 3200 B | DRI network BDOS — the dominant block; not our code to shrink |
-| `cpbdos` (RESBDOS) | 896 B | local BDOS delegation (fn 12 GET VERSION etc.); already minimal |
+| `cpndos` (NDOS) | 3200 B | DRI network BDOS — dominant block, and **editable** (we own cpnet-z80 DRI sources, [[project_dri_ndos_frozen]]).  The real lever, see T7. |
+| `cpbdos` (RESBDOS) | 896 B | local BDOS delegation (fn 12 GET VERSION etc.); editable, trim to genuinely-local fns (T7) |
 | `cpnios` (SNIOS) | 128 B | tiny shim |
 | conversion tables | 384 B | OUTCON+INCONV @ 0xF680 (Danish locale) |
 | PIO-B ring | 256 B | transport_pio |
 | display buffer | 2000 B | 0xF800.. — hardware-fixed, not reclaimable |
 | IVT + int stack | ~256 B | IM2 hardware-fixed |
+
+**Correction (user, 2026-07-03):** the DRI NDOS/RESBDOS/CCP are NOT
+off-limits — they are abandonware and we own the sources
+(`cpnet-z80/dist/src/cpndos.asm` etc.).  So the 3.2 KB NDOS is the largest
+*addressable* block, not an untouchable given.  See T7.
 
 ## Levers, largest first
 
@@ -41,23 +46,36 @@ system is ~54-56 KB TPA), so the headroom for compaction is modest.
 3. **PIO-B ring 256→16 B — ~240 B.** Coupled to INIR and PARKED
    (`feedback_ring_shrink_inir_coupled`, `PIO_INIR_PARKED.md`) — do not ship
    the shrink without INIR or netboot overflows.
-4. **NDOS (~3 KB)** — dominant but DRI upstream code; not a practical lever.
-5. **RESBDOS (~700 B)** — already minimal; needed for local BDOS-fn delegation.
+4. **NDOS + RESBDOS trim for a diskless slave (largest addressable, T7).**
+   cpnos has NO local disk — every drive in the CFGTBL is a network drive, so
+   NDOS almost always routes to the master. The DRI NDOS still carries the full
+   local-disk-vs-network decision path and RESBDOS carries local-BDOS handlers.
+   Collapsing the local-disk branch (drive is *always* network) and reducing
+   RESBDOS to the genuinely-local functions (GET VERSION, console/list I/O that
+   the BIOS serves) is real reclaimable space in the 3.2 KB + 0.9 KB blocks.
+   Since it's abandonware we own, this is editable. Needs a BDOS-function
+   usage audit (what cpnos workloads actually call) + full oracle re-test
+   (polypascal + TOD + smoke on both transports); risk is breaking a program
+   that calls a trimmed path, so gate on the value-oracle. Estimated
+   several hundred B to ~1 KB.
 
 ## Honest assessment
 
-Without restructuring, the realistically reclaimable TPA is ~**600 B**
-(384 B locale tables if collapsible + ~240 B PIO ring once INIR lands) — and
-both are gated (config-specific / parked). The **relocatable-resident** path
-(T6) is the only structural lever, and even it is bounded because the resident
-is already densely packed. The +256 B TPA-grow (2026-06-04, shift resident up
-$100) already captured the cheap win, and the PROM1 line program is at only
-35 B free, so further upward shifts of the resident are blocked by the 2 KB
-PROM cap, not by the resident layout.
+The cheap config/parked levers (locale tables 384 B, PIO ring ~240 B) total
+~600 B and are gated. The **structural** levers are (a) T7 — trim the DRI
+NDOS/RESBDOS for the diskless case, the largest addressable block; and (b) T6
+— make the resident relocatable so the loader packs it tightly. Note the PROM1
+line program is at only 35 B free against the 2 KB cap, so shifting the
+resident *up* is blocked by the PROM, not the resident — which is why
+*shrinking* the resident (T7) is the more promising direction than moving it.
 
-## Task raised
+## Tasks raised
 
-- **T6:** investigate making the cpnos server-side resident module relocatable
-  at load time instead of hardwired to fixed CODE/DATA bases, so the netboot
-  loader can place it to maximise TPA / adapt to memory size. Refines
-  `todo-cpnos-relocatable-2026-05-17.md`. (User "to do later", 2026-07-03.)
+- **T6:** make the cpnos resident relocatable at load time instead of hardwired
+  to fixed CODE/DATA bases, so the netboot loader can place it to maximise TPA.
+  Refines `todo-cpnos-relocatable-2026-05-17.md`. (User "to do later".)
+- **T7:** trim the DRI NDOS + RESBDOS for the diskless slave — collapse the
+  local-disk path (drives are always network) and reduce RESBDOS to the
+  genuinely-local functions. We own the sources ([[project_dri_ndos_frozen]]).
+  Audit BDOS-function usage first; gate on the full value-oracle. Largest
+  addressable block (3.2 KB NDOS + 0.9 KB RESBDOS). (User, 2026-07-03.)
