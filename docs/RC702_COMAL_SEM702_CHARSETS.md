@@ -149,3 +149,80 @@ external-PROCEDURE language feature, documented only in the newer RcComal80
 (§8.5, RCSL 42-I-2339 / Bits:30008320). That is the "newer save format": the
 `.PRG`/`.EXT` apps use external procedures, which the education disk's rev 1.07
 runtime cannot load — they need a newer RcComal80.
+
+---
+
+# COMAL80 knowledge summary (parked 2026-07-03)
+
+Consolidated findings from the investigation into why the education-disk `.PRG`
+apps (RACE/FUTTOG/TEGNGEN) won't load, plus the `comal_detokenizer.py` tool.
+
+## COMAL taxonomy on RC700
+
+Two *different* COMAL product lines exist — tell them apart by how they boot:
+
+| Boots to… | Product | Disk format | External procs |
+|-----------|---------|-------------|----------------|
+| **`* ` prompt** | **RC700 comal = ID-COMAL** (SW7501 line, rev 01.13/01.17) | 128-byte FM SD, uniform | **NO** (Bits:30000045) |
+| **`1/…` top banner** | **COMAL80 / RcComal80** (rev 1.07 … 2.0) | RC702-mini (mixed-density track 0, 9×512 MFM) | yes |
+
+They cannot read each other's disks (format gap), and ID-COMAL cannot run COMAL80
+programs at all.
+
+## Why RACE/FUTTOG won't load — narrowed precisely
+
+`LOAD "race.prg"` → **error 214** on every COMAL80 we could run:
+
+| COMAL80 | Reads the education disk? | Loads race.prg? | Bits |
+|---------|:--:|:--:|------|
+| rev 1.07 (education disk 30003268; standalone 30003572) | ✅ | ❌ 214 | — |
+| rev 1.08 (30003986) | ✅ | ❌ 214 | 30003986 |
+| Rev 1.1 (30003317) | — | untested (sysgen-only disk) | 30003317 |
+| RcComal80 v2.0 (CP/M-hosted) | ✅ | ❌ "ikke SAVE-fil" | 30009625 |
+| ID-COMAL 1.13 | ❌ format | ❌ | 30007375 |
+
+So race.prg was **SAVEd by a newer COMAL80 (> 1.08, i.e. Rev 1.1+)** whose save
+format the 1.07/1.08 loaders reject.  It is **not** the external-procedure
+*language* feature: rev 1.07 accepts `PROC a EXTERNAL "proc1"` / `EXEC a` typed
+live (verified) — it is the saved-file *format*.  (Earlier "1.07 lacks external
+PROC" conclusion was wrong; corrected.)  External procedures are documented for
+rev 1.07 in Bits:30000027 §8.5 p.64 (`CLOSED` = local variables, p.61-63).
+
+## race.prg content (via `comal_detokenizer.py`)
+
+A **horse-race game** (48 lines):
+- `DIM` string arrays; loads movement patterns `"MCCDDMDCMMDM"`, `"PCCDDPDCPPDP"`,
+  flags `"FL"/"fl"`, horse `"HEST"`.
+- `PROC … EXTERNAL "CHRHENT.EXT"` + `EXEC` → loads the **`HESTE`** SEM702 char-set
+  through the external char-loader.
+- Draws the track with semigraphic characters (`PRINT "JGJJJ…MCCDDMDCMMDM…GJ"` etc).
+- `FOR`/`IF` loop with `RANDOM` horse movement = the race simulation.
+
+`FUTTOG.PRG` is the same shape (toy train, `DIVERSE.CHR`).
+
+## chrhent.ext is a different file *format*
+
+`CHRHENT.EXT` (the external proc module) has an extra per-statement record
+`<ascending counter> 26 <byte>` (20+ of them; ad,ae,af,b0…c1) that **no normal
+program has** (not even race).  It is the compiled external-procedure/library
+format — referenced via `EXTERNAL`/`EXEC`, not `LOAD`ed directly (→ error 214).
+
+## The detokenizer (`comal_detokenizer.py`)
+
+- **Token map** derived from the interpreter's own keyword table in `SYSTEM`
+  (offset ~0x1C00; program token = table token − 1; verified vs logon).
+- Decodes: line structure (line-number anchors), keyword tokens, string constants
+  (perfectly), comments (`//`=0xD3), assignment (`:=`=0xD1), FUNC-def (0xD8),
+  external-PROC-def (0xD5), small integers (`7F <v>` → `0x8F−v`), variable refs
+  (`<idx> FF` → `vXX`).
+- **Not yet decoded** (needs a statement-length-aware structural parser):
+  operators, exact numeric floats, variable *names* (symbol-table resolution).
+- Oracle methods used: (1) the SYSTEM keyword table; (2) LIST in MAME on programs
+  that load (logon, opgave7, eks9.4/9.5) for canonical source; (3) live typing to
+  test syntax.  A SAVE-oracle was blocked — MAME can't write IMD, and the
+  mixed-density RC702 disk crashes MAME's writable MFI path (`track < tracks`).
+
+## Parked next steps
+- To actually LOAD race.prg: run **COMAL80 Rev 1.1** — needs generating a runnable
+  system from the 30003317 sysgen, which needs a writable disk (MFI blocker).
+- To finish the detokenizer: a statement-length-aware parser for expressions.

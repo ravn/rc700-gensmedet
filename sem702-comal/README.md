@@ -41,3 +41,16 @@ sector trace (`boottrk 4`, 2:1 skew `0,2,4,6,8,1,3,5,7`; see the analysis doc).
 The disk uses a CP/M directory with non-standard filenames (dots inside the name
 field), so `cpmcp` cannot copy them directly — hence the custom extractor.
 Re-fetch the raw disk any time from the Bits URL above.
+
+## Possible runnable SEM702 demo program here
+
+`programs/RACE.PRG` is a **horse-race game** and `FUTTOG.PRG` a **toy-train**
+program — both draw with the SEM702 custom char-sets (`HESTE.CHR` / `DIVERSE.CHR`)
+loaded via the external procedure `CHRHENT.EXT`.  They are the most promising
+programs to run as a live SEM702 char-gen demo in MAME.
+
+**Blocker (parked 2026-07-03):** they were SAVEd by COMAL80 **Rev 1.1+** and won't
+load on the education disk's rev 1.07 / rev 1.08 (`error 214`); and their custom
+glyphs need the SEM702 RAM char-gen hardware (`rc702sem702`, currently 8"-only).
+Full analysis + the `comal_detokenizer.py` that decoded RACE's content:
+`../docs/RC702_COMAL_SEM702_CHARSETS.md`.

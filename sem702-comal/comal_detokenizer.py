@@ -99,22 +99,29 @@ def find_body(data):
 
 
 def read_lines(data):
-    """Yield (linenum, token_bytes) using the 01 00 line separator."""
-    i = find_body(data)
+    """Yield (linenum, token_bytes).
+
+    Lines are split on ascending line-number *anchors* (a plausible 16-bit
+    line number that sits at the body start or right after a 01 00 link).  This
+    is more robust than splitting on 01 00 alone, because 01 00 also occurs
+    *inside* statements (as operand/pointer bytes), which truncated large
+    programs (e.g. RACE.PRG) at the first internal 01 00.
+    """
+    body = find_body(data)
     n = len(data)
-    while i + 2 <= n:
-        linenum = data[i] | (data[i + 1] << 8)
-        if linenum == 0 or linenum > 9999:
-            break
-        i += 2
-        start = i
-        while i + 1 < n and not (data[i] == 0x01 and data[i + 1] == 0x00):
-            i += 1
-        yield linenum, data[start:i]
-        i += 2  # skip separator
-        # stop once we've emitted END (next bytes are the symbol table)
-        if data[start:i] and data[start] == 0x6B:
-            break
+    cands = []
+    for p in range(body, n - 2):
+        if p == body or (data[p - 2] == 1 and data[p - 1] == 0):
+            v = data[p] | (data[p + 1] << 8)
+            if 0 < v <= 9999:
+                cands.append((p, v))
+    last = -1
+    for idx, (p, v) in enumerate(cands):
+        if v > last:
+            end = cands[idx + 1][0] - 2 if idx + 1 < len(cands) else n
+            # trim trailing zero padding / symbol-table start
+            yield v, data[p + 2:end]
+            last = v
 
 
 def decode_tokens(tok):
