@@ -75,6 +75,26 @@ line program is at only 35 B free against the 2 KB cap, so shifting the
 resident *up* is blocked by the PROM, not the resident — which is why
 *shrinking* the resident (T7) is the more promising direction than moving it.
 
+## Source provenance (verified 2026-07-04)
+
+The build's DRI resident sources are **pristine upstream**, byte-identical to
+durgadas311's `cpnet-z80` upstream/master (fetched, current to 2026-06-06):
+
+- `cpnet-z80/dist/src/cpndos.asm` (NDOS) — IDENTICAL to upstream; 8080; authored
+  only by Douglas Miller (no ravn edits).
+- `cpnet-z80/dist/src/cpbdos.asm` (RESBDOS) — IDENTICAL to upstream; 8080; ditto.
+- SNIOS is **ours** already: the build links `cpnios` from our local
+  `cpnos-build/src/cpnios-shim.asm` (a symbol-resolution shim, not the upstream
+  `dist/src/cpnios.asm`); the real SNIOS is `snios_c.c`, already clang/Z80.
+
+**Implication for T7/T8:** NDOS and RESBDOS are unmodified upstream, so editing
+them (local-branch trim or Z80 rewrite) **forks** the pristine sources and
+sacrifices clean upstream-tracking (e.g. the fn-102 fix, the 2026-06-06
+Diablo630 update pull cleanly today).  Prefer the **server.asm pattern**: keep
+`dist/src/` pristine and build from a project-side patched copy, so upstream
+DRI fixes can still be diffed/re-applied.  Weigh the ~100-150 B (T8) + ~50-100 B
+(T7) against losing zero-friction upstream sync.
+
 ## Tasks raised
 
 - **T6:** make the cpnos resident relocatable at load time instead of hardwired
