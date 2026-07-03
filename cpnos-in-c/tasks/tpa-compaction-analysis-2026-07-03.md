@@ -46,18 +46,24 @@ off-limits — they are abandonware and we own the sources
 3. **PIO-B ring 256→16 B — ~240 B.** Coupled to INIR and PARKED
    (`feedback_ring_shrink_inir_coupled`, `PIO_INIR_PARKED.md`) — do not ship
    the shrink without INIR or netboot overflows.
-4. **NDOS + RESBDOS trim for a diskless slave (largest addressable, T7).**
-   cpnos has NO local disk — every drive in the CFGTBL is a network drive, so
-   NDOS almost always routes to the master. The DRI NDOS still carries the full
-   local-disk-vs-network decision path and RESBDOS carries local-BDOS handlers.
-   Collapsing the local-disk branch (drive is *always* network) and reducing
-   RESBDOS to the genuinely-local functions (GET VERSION, console/list I/O that
-   the BIOS serves) is real reclaimable space in the 3.2 KB + 0.9 KB blocks.
-   Since it's abandonware we own, this is editable. Needs a BDOS-function
-   usage audit (what cpnos workloads actually call) + full oracle re-test
-   (polypascal + TOD + smoke on both transports); risk is breaking a program
-   that calls a trimmed path, so gate on the value-oracle. Estimated
-   several hundred B to ~1 KB.
+4. **Z80-mnemonic rewrite of the DRI resident (T8 — best structural lever).**
+   The DRI modules (cpndos, cpbdos, cpnios) are pure **8080** assembled by RMAC:
+   every jump is a 3-byte `JMP`/`Jcc`, no `JR`/`DJNZ`.  Counts: NDOS 46 jmp +
+   66 jcc + 21 dcr-loops; RESBDOS 22 + 29 + 7.  Converting in-range jumps to
+   `JR`/`JR cc` (-1 B each, ~30-50% within +/-127 B) and `DCR B`/`JNZ` -> `DJNZ`
+   (-2 B) recovers **~100-150 B** of pure resident shrink = direct TPA.
+   Mechanical; needs a Z80 assembler (workspace has `zmac`) instead of RMAC and
+   an 8080->Z80 syntax pass.  Editable because it's abandonware we own
+   ([[project_dri_ndos_frozen]]).  (User suggestion, 2026-07-04.)
+
+5. **NDOS never-taken local-disk branch (T7 — small).**
+   cpnos is diskless, so NDOS's local-vs-network routing always goes network;
+   the local branch is dead.  BUT this is smaller than first estimated:
+   `cpbdos.asm` is *already* the "diskless BDOS, functions 0-12 only" (no
+   SELDSK/READ/WRITE), and the Phase-20 local-floppy attempt was rejected and
+   never merged ([[project_cpnos_no_local_floppy]]).  The local-vs-network
+   decision is DRI-inherent, not our leftover.  So the trim is just removing
+   the never-taken drive-map local branch in NDOS -- ~50-100 B, not ~1 KB.
 
 ## Honest assessment
 
@@ -74,8 +80,15 @@ resident *up* is blocked by the PROM, not the resident — which is why
 - **T6:** make the cpnos resident relocatable at load time instead of hardwired
   to fixed CODE/DATA bases, so the netboot loader can place it to maximise TPA.
   Refines `todo-cpnos-relocatable-2026-05-17.md`. (User "to do later".)
-- **T7:** trim the DRI NDOS + RESBDOS for the diskless slave — collapse the
-  local-disk path (drives are always network) and reduce RESBDOS to the
-  genuinely-local functions. We own the sources ([[project_dri_ndos_frozen]]).
-  Audit BDOS-function usage first; gate on the full value-oracle. Largest
-  addressable block (3.2 KB NDOS + 0.9 KB RESBDOS). (User, 2026-07-03.)
+- **T7 (small, corrected):** remove NDOS's never-taken local-disk routing
+  branch (cpnos is diskless; all drives network).  ~50-100 B.  NOT a leftover
+  of a local-drive attempt — cpbdos is already the diskless fn-0-12 BDOS and
+  the Phase-20 local-floppy build was rejected/never merged
+  ([[project_cpnos_no_local_floppy]]); the local-vs-network routing is
+  DRI-inherent.  Gate on the value-oracle.
+- **T8 (best structural, user 2026-07-04):** rewrite the DRI resident modules
+  (cpndos, cpbdos, cpnios) from 8080 to Z80 mnemonics so JMP/Jcc -> JR/JR cc
+  and DCR B/JNZ -> DJNZ.  ~100-150 B of direct TPA.  Needs a Z80 assembler
+  (zmac) replacing RMAC + an 8080->Z80 syntax pass; verify byte-for-byte
+  behaviour against the current build, then full value-oracle.  We own the
+  sources ([[project_dri_ndos_frozen]]).
