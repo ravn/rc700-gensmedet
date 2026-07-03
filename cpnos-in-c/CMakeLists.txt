@@ -63,9 +63,10 @@ if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/clang/cpnos_addrs.h AND
 endif()
 
 target_include_directories(cpnos_sources PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}          # root: for #include "compiler/compat.h"
     ${CMAKE_CURRENT_SOURCE_DIR}/clang
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${SHARED_INCLUDE}
+    ${SHARED_INCLUDE}                    # cpnos-shared/include: for cfgtbl.h
     ${Z88DK_INCLUDE}
 )
 

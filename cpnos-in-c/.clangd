@@ -2,6 +2,7 @@ CompileFlags:
   Add:
     - -xc
     - -std=c23
+    - -I.
     - -Iclang
     - -Isrc
     - -I../cpnos-shared/include
