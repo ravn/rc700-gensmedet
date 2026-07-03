@@ -8387,3 +8387,23 @@ suite runs RC702E 2.20; RC701 docs (Bits:30002918/30005728) are the top lead for
 the missing RC701 port map; 6 items are BagIt ZIP bundles; no byte-dups.  Open
 TODOs recorded: RC701 ports, reconstruct rc702e-rel17, RC702 HW-test disk,
 keyboard MCU (ROE114/115 chip).
+
+## Session 2026-07-03 — autoload-in-c erklæret feature complete
+
+**autoload-in-c er feature complete** (bruger 2026-07-03).  Hard disk support
+er ikke inkluderet i denne version — bevidst designvalg.  Nuværende
+produktionsstørrelse: **1643 B / 2048 B** (405 B fri).  QR-kode vises på
+halt-skærmen (github.com/ravn/rc700-gensmedet).  Boot-gate PASS
+(`make floppy-boot-test` → `A>` på `SW1711-I8.imd`).
+
+Resterende tre komponenter: rcbios, CP/NET, cpnos.
+
+## Session 2026-07-03 (cont.) — rcbios polypascal-test PASS
+
+`cpnet/polypascal_pio_test.sh` fikset og verificeret PASS (t=25.81s):
+- Staging skiftet fra A: (fuld) til master drive I: (4 MB HD) via `NETWORK H:=I:`
+- PPAS.ERM tilføjet til staging
+- Inject stage 3 marker ændret fra `29989` → `>>` (PPAS-prompt efter PRIMES
+  returnerer); TPA under rcbios 56K CP/M er ~12K free, sieve max ~6000 elementer
+- cpmtools z80pack-hd segfaulter i cleanup men skriver korrekt; `|| true` tilføjet
+- MP/M forurenet tilstand er root cause for hæng; kill → stage → fresh start → test

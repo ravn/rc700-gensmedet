@@ -77,7 +77,9 @@ for f in "$CPNET_DIST"/*.com "$CPNET_DIST"/*.spr; do
 done >/dev/null
 # PPAS+PRIMES live on master's A: (staged in step 4), accessed via
 # slave H: after NETWORK.  Exercises CP/NET PIO fully -- both the
-# file load and the interactive run go over the wire.
+# file load and the interactive run go over the wire.  PPAS lives on
+# master's I: (4 MB HD, fresh each run) mapped to slave H: via
+# NETWORK H:=I:.  mpm-net2-1.dsk (A:) is too small to hold PPAS.COM.
 python3 -c "
 def rec(cmd):
     b = cmd.encode('ascii')
@@ -88,21 +90,12 @@ def rec(cmd):
 #                bit 2; bit clear -> PIO transport in the new dual-
 #                transport SNIOS)
 #   LOGIN     -> first real CP/NET login frame, exercises PIO send/recv
-#   NETWORK   -> map slave H: to master A:
-#   H:        -> change default drive to H: (first remote-drive SELDSK
-#                -- earlier suspect-of-hanging, but in fact works fine;
-#                the previous 'Bdos Err' was the SUB record order being
-#                reversed)
+#   NETWORK   -> map slave H: to master I: (4 MB HD has PPAS; A: is full)
+#   H:        -> change default drive to H:
 # CCP $$$.SUB exec is BOTTOM-UP: pops the last record first.
-# PPAS is NOT in the SUB -- per cpnos's polypascal_test.lua reference,
-# program-launch commands go through the keyboard injector (with
-# explicit CR) so the slave's CCP handles them like a typed command.
-# SUB-fed PPAS works in some MAME/timing configurations but not all:
-# without a TCP-proxy between MAME's cpnet_bridge and mpm-net2 the
-# byte timing breaks the PPAS.COM load over CP/NET (confirmed
-# 2026-05-18, both clang and SDCC BIOS).  Inject path is robust.
+# PPAS is NOT in the SUB -- inject via SIO-B keyboard path (robust).
 data = (rec('H:')
-      + rec('NETWORK H:=A:')
+      + rec('NETWORK H:=I:')
       + rec('LOGIN PASSWORD')
       + rec('CPNETLDR'))
 open('/tmp/cpnet_pio_sub.tmp', 'wb').write(data)
@@ -110,28 +103,23 @@ open('/tmp/cpnet_pio_sub.tmp', 'wb').write(data)
 cpmcp -f "$FORMAT" "$WORK_IMAGE" /tmp/cpnet_pio_sub.tmp '0:$$$.SUB'
 
 echo "=== 4/6 killing prior MP/M (so disk cpmcp lands before re-open) ==="
-# cpmsim caches sector reads at startup; updating mpm-net2-1.dsk while it's
+# cpmsim caches sector reads at startup; updating the disk image while it's
 # open silently serves stale content.  See cpnos-polypascal-test docstring.
 screen -wipe 2>/dev/null >/dev/null || true
 screen -ls 2>/dev/null | grep -E "mpm|cpmsim" | awk '{print $1}' | while read s; do screen -S "$s" -X quit 2>/dev/null || true; done
 pkill -f "cpmsim" 2>/dev/null || true
 sleep 6
 
-echo "=== staging PPAS+PRIMES on master's A: source disk ==="
-# z80pack/cpmsim/mpm-net2 boot script copies cpnetsmk-1.dsk to drivea.dsk
-# if present (smoke-test variant), else mpm-net2-1.dsk.  Stage on
-# whichever is active so master's A: has PPAS.COM + PRIMES.PAS.
-MPM_LIB="$HERE/z80pack/cpmsim/disks/library"
-if [ -f "$MPM_LIB/cpnetsmk-1.dsk" ]; then
-    MPM_DISK="$MPM_LIB/cpnetsmk-1.dsk"
-else
-    MPM_DISK="$MPM_LIB/mpm-net2-1.dsk"
-fi
-echo "  master A: source = $MPM_DISK"
-cpmrm -f ibm-3740 "$MPM_DISK" 0:PPAS.COM    2>/dev/null || true
-cpmrm -f ibm-3740 "$MPM_DISK" 0:PRIMES.PAS  2>/dev/null || true
-cpmcp -f ibm-3740 "$MPM_DISK" cpnos-shared/e_drive_seed/ppas/PPAS.COM   0:PPAS.COM   2>&1 | grep -v "device full" || true
-cpmcp -f ibm-3740 "$MPM_DISK" cpnos-shared/e_drive_seed/ppas/PRIMES.PAS 0:PRIMES.PAS 2>&1 | grep -v "device full" || true
+echo "=== staging PPAS+PRIMES+PPAS.ERM on master's drive I: (4 MB HD) ==="
+# mpm-net2 copies library/mpm-net2-drivei.dsk to drivei.dsk each start.
+# Build a fresh drive I image with PPAS files (mirrors cpnos stage-drivei-ppas).
+MPM_DIR_LOCAL="$HERE/z80pack/cpmsim"
+DSK="$MPM_DIR_LOCAL/disks/library/mpm-net2-drivei.dsk"
+for f in PPAS.COM PPAS.ERM PRIMES.PAS; do
+    cpmrm -f z80pack-hd "$DSK" "0:$f" 2>/dev/null || true
+    cpmcp -f z80pack-hd "$DSK" "$HERE/cpnos-shared/e_drive_seed/ppas/$f" "0:$f" 2>&1 || true
+done
+cpmls -f z80pack-hd "$DSK" 2>/dev/null | grep -iE "ppas|primes" | sed 's/^/  /'
 
 echo "=== 5/6 starting MP/M + polypascal_pio_inject ==="
 
