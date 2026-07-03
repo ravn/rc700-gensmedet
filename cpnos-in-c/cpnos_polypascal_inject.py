@@ -26,12 +26,14 @@ Flow (markers are literal substrings of the SIO-B CONOUT mirror):
     YYYY-MM-DD HH:MM:SS          -> TOD via CP/NET FN-105 confirmed
     E>       back at CCP         -> PASS
 
-TOD works WITHOUT the slave logging in: the master's SERVER.RSP gated every
-request behind chklog except LOGIN, so gettod used to return 0xff ("not
-logged in").  cpnet/mpm-server/server.asm now exempts gettod (FN 105 -> 55)
-from that check -- a clock read needs no authentication -- so any slave can
-ask the time directly (ravn 2026-07-03).  Requires MPM.SYS rebuilt via
-cpnet/mpm-server/rebuild-mpm-sys.sh --install.
+TOD (gettod, FN-105 via BDOS-66/67) works with login exactly as designed:
+the master's SERVER.RSP requires every request to come from a logged-in
+slave, and cpnos logs in automatically during netboot (init.c LOGIN with
+the built-in password), so no manual LOGIN is needed and gettod is served.
+If TODGET returns 0xff ("not logged in"), the master is running a STALE
+MPM.SYS whose baked-in SERVER.RSP predates the gettod handling -- rebuild it
+with cpnet/mpm-server/rebuild-mpm-sys.sh --install (RSP edits are inert
+until GENSYS rebakes MPM.SYS; see reference_mpm_sys_baked_via_gensys).
 
 Writes /tmp/cpnos_inject_result.txt with PASS or FAIL+reason.
 """

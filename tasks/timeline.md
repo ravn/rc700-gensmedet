@@ -8453,3 +8453,30 @@ verified non-contaminating.
 Remaining: wire the no-Lua injector into the cpnos-polypascal-test Makefile
 target (replace the autoboot-Lua launch), stage LOGIN/TODGET on drive I in
 stage-drivei-ppas.
+
+## Session 2026-07-03 (cont.) — cpnos TOD `ff` root cause = STALE MPM.SYS (hack reverted)
+
+Correction to the earlier "gettod login-exempt" commit (21c2f13).  Deep dive
+with a decoding wire proxy proved the exemption was UNNECESSARY and the
+premise wrong.
+
+Wire evidence (slave->master, HCS-validated frames): EVERY request --
+gettod (FN 105), OPEN (15), READ (20), LOGIN (64) -- carries identical
+DID=0x00, SID=0x01.  So it was never a DID/SID mismatch.  Master responses
+(master->slave): LOGIN -> SIZ=0 DAT0=0x00 (SUCCESS, cpnos IS logged in);
+gettod -> SIZ=25 date payload (SUCCESS).
+
+Root cause of the original `ff`: a STALE MPM.SYS on the master.  While
+debugging the truncated-PPAS staging earlier this session I overwrote the
+good disks/local/mpm-net2-1.dsk with the older disks/library copy, whose
+baked-in SERVER.RSP predated the current gettod handling.  Per
+reference_mpm_sys_baked_via_gensys, RSP source edits are inert until GENSYS
+rebakes MPM.SYS -- so the master ran a stale server and rejected gettod.
+Rebuilding MPM.SYS (rebuild-mpm-sys.sh --install) from the current
+server.asm fixed it, with login working as designed.
+
+Conclusion: login IS necessary by DRI CP/NET design (SERVER gates every
+request behind chklog except LOGIN); cpnos logs in automatically at netboot
+(init.c), so no manual login is needed.  server.asm gettod exemption
+REVERTED -- no hack.  Full test (PIO, -nothrottle, no autoboot): PPAS
+PRIMES->29989 + TODGET date 2026-07-03 21:43:21, 8 stages green.
