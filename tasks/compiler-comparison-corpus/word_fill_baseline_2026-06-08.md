@@ -137,3 +137,10 @@ loop 2 body: ld a,(hl) + ld (ix-2),a + inc hl                =  5 B
 epilogue:    pop af + pop ix + ret                           =  3 B
 total                                                          55 B
 ```
+
+## Update 2026-07-04 — issue filed
+
+Re-verified: current clang HEAD emits byte-identical asm to this baseline
+(IY-shuttle pattern unchanged). Filed ravn/llvm-z80#251 (HLReg sister class
+for the pointer vreg, per the fix already sketched in the #97a XFAIL test
+comment). Not yet implemented; #99 remains a partial fix only.
