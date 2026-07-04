@@ -8495,3 +8495,35 @@ Memory rule `feedback_cpnos_pio_netboot_no_autoboot` added.  Reverted the
 exploratory Makefile/lua changes (based on a superseded speed theory) and
 rebuild-noise artifacts; only committed tooling (injector, wait_mpm_ready)
 and docs remain.
+
+## Session 2026-07-04 — `+static-stack` settled: keep it (empirical, both hard-capped targets fail without it)
+
+User asked whether disabling `+static-stack` (locals in BSS instead of
+real-stack/IX-frame) might now produce better code, given a lot of backend
+work has landed since it was adopted. Measured directly on both hard-capped
+production targets: **autoload-in-c** raw `.text` +769 B (+22.7%),
+ZX0-compressed 2272 B vs. the 2048 B cap (build fails, 224 B over);
+**cpnos-in-c PROM1-lineprog** `.init` region overflows by 218 B (link
+fails outright). Root cause: IX is reserved either way (#112), IY is only
+allocatable under `+static-stack` at `-Oz` (`z80IsIYAllocatable`), and
+without static-stack the frame lowering falls back to SP-relative
+addressing (no native `LD reg,(SP+d)`; needs `LD HL,n; ADD HL,SP` per
+access) or an IX frame with no single-instruction 16-bit indexed store —
+both costlier than BSS-direct addressing. Verdict: keep the flag; not a
+legacy artifact, still load-bearing. Both experiments reverted immediately
+(git-tracked build artifacts restored, baselines rebuilt clean). Writeup:
+`tasks/static-stack-vs-real-stack-2026-07-04.md`.
+
+Same session, also investigated a "push-code-pop" idea (use plain PUSH/POP
+to preserve values across code spans, register pressure being severe) and
+filed two issues on ravn/llvm-z80: **#251** (HLReg sister register class
+needed — the word_fill i16-pointer-vs-counter BC/HL conflict shuttles the
+pointer through IY every iteration, +63% slower than zsdcc despite 3x
+smaller binary) and **#252** (broaden PUSH/POP-based value preservation
+beyond the existing spill->PUSH/POP peephole family; follow-up to the B21
+"SP-is-inviolable" observation from 2026-07-01). Also root-caused and fixed
+**#247** (fannkuch clang -O1/-O2 miscompile: `MO_MCSymbol::isIdenticalTo`/
+`getHashValue` ignored the offset, so BranchFolding tail-merged two distinct
+static-frame stores) with a 2-line generic fix in `MachineOperand.cpp`,
+verified A/B to also root-fix **B15** (pi-cse miscompile). Both llvm-z80
+and rc700-gensmedet pushed to origin main; #247 closed.
