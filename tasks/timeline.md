@@ -1,5 +1,47 @@
 # RC700-SYSGEN Project Timeline
 
+## Session: #116 investigated + closed stale; #119 filed + PARKED (polypascal-test hang, both compilers) (Jul 4, 2026) — Medium
+
+**#116** ("restore SDCC cpnos build") was stale: `make prom1-lineprog
+COMPILER=sdcc` already builds cleanly (2132 B raw / 4096 B padded). The
+clang-only INIR helper #116 worried about never landed to main (per
+`cpnos-in-c/tasks/PIO_INIR_PARKED.md`, dated *after* #116 was filed) --
+only compiler-agnostic BSS-based scaffolding (no call sites) exists.
+Closed as obsolete.
+
+While verifying, found `make cpnos-polypascal-test` fails identically
+for **both** clang and SDCC: banner prints, then hangs forever with no
+further output ("timeout waiting for E> boot prompt"). Root-caused the
+symptom (not the fix) down to `_transport_recv_byte` spinning forever
+waiting for a network byte that never arrives, via live PC/register
+dumps. Ruled out: autoload/BIOS (floppy-boot-test PASS), cpnos PROM1
+signature/DIP (banner proves the jump works), the MP/M master itself
+(new `cpnos-in-c/scripts/cpnet_ping.py` tool speaks one full CP/NET
+LOGIN round-trip directly over :4002 and gets a clean reply -- master
+is alive), `cpnet_bridge.cpp` (no logic changes since the 2026-05-31
+baseline), and PIO/PIO transport-consistency (both MAME's `-piob` slot
+and the bridge device are PIO-only by construction, confirmed
+consistent). A real, matching MAME PIO chip race (`mame@72c5e46c`,
+filed as `ravn/mame#11`) was found in the history but is already fixed
+in the currently-built binary -- not the live cause. Two dated,
+unexamined candidates remain (`mame@7be8a027` DMA/CTC wiring;
+`mame@fb6da69a` a 1061-commit upstream merge). **Parked** as
+`ravn/rc700-gensmedet#119` with the full trail --
+`cpnos-in-c/tasks/KNOWN_ISSUE_polypascal_hang_2026-07-04.md`.
+
+Also hardened `cpnos-in-c/Makefile`: the 9 `mpm-net2`-dependent targets
+used to wait for `:4002` with an **unbounded** loop (hangs forever if
+the master never starts); now bounded to 20s AND additionally gated on
+`cpnet_ping.py` completing a real protocol round-trip, not just a bare
+TCP-accept.
+
+Correction logged: an earlier hypothesis in this session ("`mame@3d77a3a3`
+changed `cpnet_bridge.cpp`") was a shallow-clone artifact (`mame` is
+shallow-cloned; a diff against the shallow boundary renders unrelated
+files as "new"). Retracted after `git fetch --deepen=50` showed the
+real history. Lesson: always deepen shallow clones before trusting
+`git log`/`git show` on old-looking commits in this repo.
+
 ## Session 73s: #112 full oracle with IY default-ON -> NOT clean (regalloc-class blockers remain) (May 25, 2026) — Medium
 
 After the peephole fix, flipped `-z80-unreserve-iy` default ON and ran the full
