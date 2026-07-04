@@ -115,3 +115,59 @@ attached). Parked: sweep.sh marks `fannkuch:llvm-z80:speed` (clang -O2) as
 XFAIL; the SIZE cell (-Oz) stays a hard PASS gate, matching production. Unpark
 when root-cause work resumes: llvm-reduce with a runtime sentinel oracle, then
 fix + lit test + test-runner fixture, then close #247.
+
+## ROOT-CAUSED + FIXED 2026-07-01 — MO_MCSymbol offset ignored by branch-folder
+
+**Minimal reproducer** (`llvm-reduce` from f_o1.ll with a runtime oracle):
+a 26-line, 5-block `bench_run` (`llvm/test/CodeGen/Z80/branch-folder-mcsymbol-offset-247.ll`).
+Reproduces O0/-Oz PASS, O1/O2 FAIL; disabling all three CFG-layout passes
+(branch-fold + tail-dup + block-placement) makes it PASS.
+
+**Mechanism (verified via MIR before/after each pass on the minimal case):**
+The Control Flow Optimizer (`branch-folder`, `llvm/lib/CodeGen/BranchFolding.cpp`)
+tail-merges two stores from `bb.2` and `bb.3` into their common successor `bb.4`:
+- `bb.2` (the `%4` edge): `ld (__sfrend_bench_run-4),hl`   (phi source, slot fi#1)
+- `bb.3` (the `%1` edge): `ld (__sfrend_bench_run-2),hl`   (phi source, slot fi#0)
+It considers them **identical** and collapses them into ONE store to `-2` in the
+join block, so slot `-4` never receives its value -> `bench_run` returns 0
+instead of 1.
+
+**Why branch-folder thinks they are identical (the root cause):**
+The Z80 static-frame lowering encodes a BSS slot address as an `MO_MCSymbol`
+operand carrying a **nonzero offset** set via `MachineOperand::setOffset()`
+(`Z80InstrInfo.cpp:1147,1155,... `store side, `:1258,...` load side). But
+generic `MachineOperand::isIdenticalTo()` and `getHashValue()` for
+`MO_MCSymbol` (`llvm/lib/CodeGen/MachineOperand.cpp:383,453`) compared **only
+the symbol and ignored the offset** — unlike `MO_GlobalAddress`,
+`MO_ExternalSymbol`, `MO_ConstantPoolIndex`, `MO_BlockAddress`, which all
+compare `getOffset()`. So `__sfrend-2` and `__sfrend-4` hashed equal and
+compared equal, and branch-folder merged them. Only `-O1+` triggers it because
+branch-folder + block-placement create the mergeable common tail; `-O0`/`-Oz`
+leave the two predecessors distinct. (The Z80 backend already knew about this
+offset-blindness and worked around it in its OWN pass —
+`Z80LateOptimization.cpp:423`: "MO_MCSymbol::isIdenticalTo ignores the offset,
+so compare it explicitly" — but the generic branch-folder path was never
+guarded.)
+
+**Fix (generic, applied in the fork; upstream-filing prepared for
+llvm/llvm-project):** teach `MO_MCSymbol` `isIdenticalTo`/`getHashValue` to also
+compare/hash `getOffset()` (`llvm/lib/CodeGen/MachineOperand.cpp`). Two-operand
+change mirroring `MO_GlobalAddress`.
+
+**Verification (all with the rebuilt clang AND llc):**
+- minimal repro: O0/O1/O2 all PASS at runtime (was O1/O2 FAIL).
+- full fannkuch: `clang -O2` (integrated) AND `f_o1.ll`/`f_o2.ll` via `llc
+  -O0/-O1/-O2` all PASS.
+- 3-way sweep: `fannkuch llvm-z80 speed` now PASS (22.44 M ts, ~3.9x faster
+  than dcc's 87.94 M); XFAIL removed from `sweep.sh`.
+- Z80 lit suite: 182 PASS + 5 XFAIL, 0 regressions; new lit test added.
+
+**Related — B15 (pi-cse miscompile):** the documented B15 root cause in
+`llvm-z80/tasks/known-suboptimal-codegen.md` (branch-folder hoisting two
+consecutive stores to different static-frame slots) is the SAME mechanism. This
+fix eliminates that root cause. **Attribution VERIFIED by A/B 2026-07-01:**
+reproducing the pi trigger via `llc -O2 -z80-enable-cse pi_o2.ll`, the
+fix-reverted baseline llc FAILS (exit=1) and the fixed llc PASSES (exit=0), so
+this change — not #248's orthogonal shape-mitigation — root-fixes B15.
+
+UNPARKED and ready to close #247 once the fix is committed.

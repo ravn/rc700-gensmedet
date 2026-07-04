@@ -143,10 +143,11 @@ want() {
 #     pessimization measurement (it elides the optimizer-defeat write the
 #     bench relies on).  Read dcc's licm timing with that caveat.
 # Cells keyed bench:compiler fail in BOTH modes; bench:compiler:mode fails
-# only in that mode.  fannkuch:llvm-z80:speed = clang -O2 branch-folder
-# miscompile (ravn/llvm-z80#247); SIZE cell (-Oz) is correct so stays a hard
-# PASS gate.  See tasks/clang-fannkuch-O1-backend-miscompile-2026-06-28.md.
-EXPECTED_FAIL=" fannkuch:zsdcc pi:zsdcc fannkuch:llvm-z80:speed "
+# only in that mode.  (fannkuch:llvm-z80:speed WAS an XFAIL for the clang -O2
+# branch-folder miscompile ravn/llvm-z80#247 -- FIXED 2026-07-01 by teaching
+# MachineOperand MO_MCSymbol isIdenticalTo/hash to compare the offset, so both
+# modes are now hard PASS gates.)
+EXPECTED_FAIL=" fannkuch:zsdcc pi:zsdcc "
 is_expected_fail() {
   # $1=bench $2=compiler $3=mode(size|speed)
   case "$EXPECTED_FAIL" in
