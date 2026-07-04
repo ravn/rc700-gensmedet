@@ -940,7 +940,7 @@ sio-smoke:
 	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
 	@echo "=== 3/5 waiting for MP/M CP/NET server on :4002 ==="
-	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.5; done
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
 	@sleep 4
 	@echo "=== 4/5 launching MAME + smoke injector (workload: $(WORKLOAD)) ==="
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_smoke_inject.log /tmp/cpnos_boot_marks.txt
@@ -984,7 +984,7 @@ pio-irq-netboot: cpnos-install _check-tag-pio-irq _check-mame-irq
 	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
 	@echo "=== 2/4 waiting for MP/M CP/NET server on :4002 ==="
-	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_screen.txt /tmp/cpnos_boot_marks.txt
 	@echo "=== 4/4 launching MAME (PIO-B -> mpm-net2 :4002) ==="
@@ -1027,7 +1027,7 @@ pio-irq-smoke: cpnos-install _check-tag-pio-irq _check-mame-irq
 	@echo "=== 2/5 restarting MP/M with fresh disks ==="
 	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
-	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_wboot.txt /tmp/cpnos_boot_result.txt \
 	    /tmp/cpnos_smoke_inject.log /tmp/cpnos_boot_marks.txt
@@ -1121,7 +1121,7 @@ cpnos-polypascal-test-no-mirror:
 	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
 	@echo "=== 3/4 waiting for MP/M CP/NET server on :4002 ==="
-	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt
@@ -1170,7 +1170,7 @@ cpnos-dir-test:
 	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
 	@echo "=== 4/5 waiting for MP/M CP/NET server on :4002 ==="
-	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt
@@ -1292,7 +1292,7 @@ cpnos-inir-baseline-gdb:
 	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
 	@echo "=== 5/6 waiting for MP/M CP/NET server on :4002 ==="
-	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt \
@@ -1375,7 +1375,7 @@ cpnos-inir-baseline:
 	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
 	@echo "=== 4/5 waiting for MP/M CP/NET server on :4002 ==="
-	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt \
@@ -1490,7 +1490,7 @@ cpnos-polypascal-test:
 	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
 	@echo "=== 4/5 waiting for MP/M CP/NET server on :4002 ==="
-	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt
@@ -1651,7 +1651,7 @@ cpnos-bios-jt-trace:
 	$(MAKE) _kill-mpm
 	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
 	@echo "=== 3/4 waiting for MP/M CP/NET server on :4002 ==="
-	@until nc -z 127.0.0.1 4002 2>/dev/null; do sleep 0.3; done
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       /tmp/cpnos_bios_jt_trace.log
