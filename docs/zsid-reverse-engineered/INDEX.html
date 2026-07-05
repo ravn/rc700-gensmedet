@@ -1,0 +1,95 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 //EN">
+<html>
+
+<!-- Mirrored from www.cirsovius.de/CPM/Projekte/Disassembler/ZSID-en.html by HTTrack Website Copier/3.x [XR&CO'2014], Tue, 16 Aug 2016 11:07:43 GMT -->
+<head><title>ZSID</title></head>
+
+<body  background="../../../gif/dri.gif" style="margin-top:2cm;margin-left:0.2cm">
+
+<div align="center"><h1>ZSID</h1></div>
+
+A very important tool developing assembler programs is a <a href="ZSID/Debuginfo-en.html">debugger</a>.
+The standard debugger for CP/M 2.x was the <b>DDT</b> (<b>D</b>ynamic <b>D</b>ebugging <b>T</b>ool).
+CP/M 3.x was shipped withe the advanced version, called <b>SID</b> (<b>S</b>ymbolic <b>I</b>nstruction <b>D</b>ebugger).
+There also did exist an unofficial version of SID handling Z80 mnemonics &#8212; the <b>ZSID</b> (<b>Z</b>80-SID).
+<br />
+Running on the Joyce there did exist a problem referring to the interrupt vector.
+So I decided to disassemble the original ZSID.
+I eliminated some bugs in the source and made some slight modifications.
+<p></p>
+New commands are:
+<table align="center" border="1">
+<tr><th>Command</th><th>Action</th></tr>
+<tr><td><b>B</b></td><td>Find byte or string series</td></tr>
+<tr><td><b>O</b></td><td>Other bank select than TPA bank 1</td></tr>
+<tr><td><b>Q</b></td><td>Quit debugger (instead quit by ^C)</td></tr>
+</table>
+<p></p>
+Suggested by the disassembler <b>DASM</b> the module for the commands <b>L</b> (<i><b>L</b>ist assembler code</i>) and <b>A</b> (<i><b>A</b>ssemble</i>) may be selected either for the 8080 or Z80 CPU.
+<p></p>
+Debuggers &#8212; such as the programs to be examined &#8212; are .COM files which must also be loaded into memory starting at location 0100H.
+After loading the debugger it must be moved into top of memory to allow the program to be examined to be loaded into 0100H.
+
+<p></p>
+Usually program interrupts will be performed by breakpoints.
+In fact using the 8080 resp. Z80 it is the <code>RST</code> opcode.
+This leads to an conflict running on the JOYCE:
+This machine runs in interrupt mode 1 using address 038H to be entered if an interrupt occurs.
+ZSID used <code>RST&nbsp;7</code> for the breakpoint &#8212; that is the same address 0038h!
+
+<p></p>
+
+A guide for creating a new version of ZSID may be found <a href="ZSID/SID-DOC_en.txt">hier</a>.
+
+<p></p>
+
+<table width="80%" cellpadding="5" border="3" bordercolor="red" align="center">
+<tr><td valign="top">
+Find the sources here:
+
+<ul>
+<li><a href="ZSID/LDBLD-MAC.txt">The binding utility</a><p></p></li>
+<li><a href="ZSID/XSID-LIB.txt">The library</a></li>
+<li><a href="ZSID/XSIDLOAD-MAC.txt">The loader</a></li>
+<li><a href="ZSID/SIDRELO-MAC.txt">The kernel</a></li>
+<li><a href="ZSID/SIDLA-MAC.txt">The 8080 part</a></li>
+<li><a href="ZSID/ZSIDLA-MAC.txt">The Z80 part</a></li>
+<li><a href="ZSID/SIDCMD-MAC.txt">The&nbsp;command&nbsp;interpreter</a></li>
+</ul>
+</td>
+<td valign="top">
+<div align="center"><b>Original sources</b></div>
+<ul>
+<li><a href="ZSID/Original/ZSIDO-MAC.txt">The&nbsp;loader</a></li>
+<li><a href="ZSID/Original/ZSIDREL-MAC.txt">The&nbsp;Debugger</a></li>
+</ul>
+</td>
+<td valign="top">
+Two utilites may be combined with SID as well as with ZSID which must be loaded additionally.
+
+<ol>
+<li>
+<code>HIST.UTL</code> creates a histogram (bar graph) showing the relative frequency of execution of code within selected program segments of the test program.
+The <code>HIST</code> utility allows you to monitor those sections of code that execute most frequently.
+</li>
+<li>
+<code>TRACE.UTL</code> obtains a backtrace of the instructions that led to a particular breakpoint address in a program under test.
+You can collect the addresses of up to 256 instructions between pass points in <b>U</b> or <b>T</b> modes.
+</li>
+</ol>
+
+<table><tr><td>Find the sources here:</td><td><ul><li><a href="ZSID/HIST-MAC.txt">HIST</a></li></ul></td><td><ul><li><a href="ZSID/TRACE-MAC.txt">TRACE</a></li></ul></td></tr></table>
+
+</td></tr>
+</table>
+
+<table border="1" bgcolor="#F4F4F4" align="center"><tr><td>
+<a href="Disassembler-en.html">Back to the disassembler activities</a>
+</td></tr></table>
+
+</body>
+
+
+<!-- Mirrored from www.cirsovius.de/CPM/Projekte/Disassembler/ZSID-en.html by HTTrack Website Copier/3.x [XR&CO'2014], Tue, 16 Aug 2016 11:07:43 GMT -->
+</html>
+

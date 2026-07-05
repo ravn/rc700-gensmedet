@@ -40,6 +40,10 @@ cpm56.hex
 cpm56_cr.hex
 memmove_test
 memmove_test_CODE.bin
+conotest
+conotest.com
+CONOTEST.COM
+conotest_CODE.bin
 
 # Test disk images
 /tmp/
