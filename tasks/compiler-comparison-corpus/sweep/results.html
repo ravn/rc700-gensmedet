@@ -1,0 +1,35 @@
+<!doctype html><meta charset="utf-8">
+<title>Z80 compiler sweep</title>
+<style>
+ body{font:14px/1.4 -apple-system,Segoe UI,Roboto,sans-serif;margin:2rem;color:#0f172a}
+ h1{font-size:1.3rem} .sub{color:#64748b;margin-bottom:1rem}
+ table{border-collapse:collapse;font-variant-numeric:tabular-nums}
+ th,td{padding:.35rem .6rem;text-align:right;border:1px solid #e2e8f0}
+ th{background:#f1f5f9;position:sticky;top:0}
+ td.bench,td.comp,th.l{text-align:left}
+ td.bench{font-weight:600}
+ .best{background:#dcfce7;font-weight:700}
+ .pass{color:#059669;font-weight:600} .xfail{color:#d97706} .fail{color:#dc2626;font-weight:700}
+ .grp{background:#e0e7ff} .leg{margin:.8rem 0;color:#475569}
+ .leg b{color:#0f172a}
+</style>
+<h1>Z80 compiler comparison sweep &mdash; 4-way</h1>
+<div class="sub">2026-07-06 00:30 &nbsp;|&nbsp; 5 benchmarks &times; {size, speed} &nbsp;|&nbsp; green cell = best (min) that verified PASS</div>
+<div class="leg">
+ <span style="color:#2563eb">&#9679;</span> <b>llvm-z80</b> freestanding (direct ELF link) &nbsp;
+ <span style="color:#059669">&#9679;</span> <b>zsdcc</b> &nbsp;
+ <span style="color:#d97706">&#9679;</span> <b>dcc</b> &nbsp;
+ <span style="color:#db2777">&#9679;</span> <b>llvm-z88dk</b> (clang &rarr; z88dk clib .COM; bin includes full RTL, text n/a)
+</div>
+<table>
+<thead>
+<tr><th class="l">bench</th><th class="l">compiler</th>
+    <th class="grp" colspan="4">size mode</th>
+    <th class="grp" colspan="4">speed mode</th></tr>
+<tr><th></th><th></th>
+    <th>bin</th><th>text</th><th>tstates</th><th>verify</th>
+    <th>bin</th><th>text</th><th>tstates</th><th>verify</th></tr>
+</thead>
+<tbody>
+<tr><td class="bench">sieve</td><td class="comp"><span style="color:#2563eb">&#9679;</span> llvm-z80</td><td class="best">198</td><td>103</td><td class="best">3204513</td><td class="pass">PASS</td><td class="best">261</td><td>166</td><td>3498167</td><td class="pass">PASS</td></tr><tr><td class="bench">sieve</td><td class="comp"><span style="color:#059669">&#9679;</span> zsdcc</td><td>624</td><td>n/a</td><td>6755084</td><td class="pass">PASS</td><td>618</td><td>n/a</td><td>5084573</td><td class="pass">PASS</td></tr><tr><td class="bench">sieve</td><td class="comp"><span style="color:#d97706">&#9679;</span> dcc</td><td>1024</td><td>n/a</td><td>9310306</td><td class="pass">PASS</td><td>896</td><td>n/a</td><td>8251160</td><td class="pass">PASS</td></tr><tr><td class="bench">sieve</td><td class="comp"><span style="color:#db2777">&#9679;</span> llvm-z88dk</td><td>14237</td><td>n/a</td><td>3803610</td><td class="pass">PASS</td><td>14370</td><td>n/a</td><td class="best">3303306</td><td class="pass">PASS</td></tr><tr style="border-top:2px solid #cbd5e1"><td class="bench">fannkuch</td><td class="comp"><span style="color:#2563eb">&#9679;</span> llvm-z80</td><td class="best">584</td><td>489</td><td>36203397</td><td class="pass">PASS</td><td class="best">1152</td><td>1057</td><td class="best">22440559</td><td class="pass">PASS</td></tr><tr><td class="bench">fannkuch</td><td class="comp"><span style="color:#059669">&#9679;</span> zsdcc</td><td>1245</td><td>n/a</td><td>51893280</td><td class="xfail">XFAIL(exit=1)</td><td>1252</td><td>n/a</td><td>50394081</td><td class="xfail">XFAIL(exit=1)</td></tr><tr><td class="bench">fannkuch</td><td class="comp"><span style="color:#d97706">&#9679;</span> dcc</td><td>2176</td><td>n/a</td><td>111127589</td><td class="pass">PASS</td><td>1664</td><td>n/a</td><td>87491643</td><td class="pass">PASS</td></tr><tr><td class="bench">fannkuch</td><td class="comp"><span style="color:#db2777">&#9679;</span> llvm-z88dk</td><td>6640</td><td>n/a</td><td class="best">32550282</td><td class="pass">PASS</td><td>7350</td><td>n/a</td><td>22455244</td><td class="pass">PASS</td></tr><tr style="border-top:2px solid #cbd5e1"><td class="bench">pi</td><td class="comp"><span style="color:#2563eb">&#9679;</span> llvm-z80</td><td class="best">888</td><td>253</td><td class="best">38056063</td><td class="pass">PASS</td><td class="best">970</td><td>335</td><td class="best">38049977</td><td class="pass">PASS</td></tr><tr><td class="bench">pi</td><td class="comp"><span style="color:#059669">&#9679;</span> zsdcc</td><td>1193</td><td>n/a</td><td>45966471</td><td class="xfail">XFAIL(exit=1)</td><td>1148</td><td>n/a</td><td>52682541</td><td class="xfail">XFAIL(exit=1)</td></tr><tr><td class="bench">pi</td><td class="comp"><span style="color:#d97706">&#9679;</span> dcc</td><td>2048</td><td>n/a</td><td>39619520</td><td class="pass">PASS</td><td>1920</td><td>n/a</td><td>39272214</td><td class="pass">PASS</td></tr><tr><td class="bench">pi</td><td class="comp"><span style="color:#db2777">&#9679;</span> llvm-z88dk</td><td>6949</td><td>n/a</td><td>231354560</td><td class="pass">PASS</td><td>7096</td><td>n/a</td><td>253756819</td><td class="pass">PASS</td></tr><tr style="border-top:2px solid #cbd5e1"><td class="bench">word_fill</td><td class="comp"><span style="color:#2563eb">&#9679;</span> llvm-z80</td><td class="best">178</td><td>83</td><td>210147</td><td class="pass">PASS</td><td class="best">186</td><td>91</td><td>195344</td><td class="pass">PASS</td></tr><tr><td class="bench">word_fill</td><td class="comp"><span style="color:#059669">&#9679;</span> zsdcc</td><td>526</td><td>n/a</td><td class="best">128796</td><td class="pass">PASS</td><td>521</td><td>n/a</td><td class="best">128746</td><td class="pass">PASS</td></tr><tr><td class="bench">word_fill</td><td class="comp"><span style="color:#d97706">&#9679;</span> dcc</td><td>1024</td><td>n/a</td><td>409819</td><td class="pass">PASS</td><td>896</td><td>n/a</td><td>351587</td><td class="pass">PASS</td></tr><tr><td class="bench">word_fill</td><td class="comp"><span style="color:#db2777">&#9679;</span> llvm-z88dk</td><td>7140</td><td>n/a</td><td>200435</td><td class="pass">PASS</td><td>7287</td><td>n/a</td><td>185578</td><td class="pass">PASS</td></tr><tr style="border-top:2px solid #cbd5e1"><td class="bench">licm_pessimize</td><td class="comp"><span style="color:#2563eb">&#9679;</span> llvm-z80</td><td class="best">143</td><td>53</td><td class="best">4163</td><td class="pass">PASS</td><td class="best">285</td><td>195</td><td class="best">1367</td><td class="pass">PASS</td></tr><tr><td class="bench">licm_pessimize</td><td class="comp"><span style="color:#059669">&#9679;</span> zsdcc</td><td>554</td><td>n/a</td><td>12721</td><td class="pass">PASS</td><td>550</td><td>n/a</td><td>12034</td><td class="pass">PASS</td></tr><tr><td class="bench">licm_pessimize</td><td class="comp"><span style="color:#d97706">&#9679;</span> dcc</td><td>1024</td><td>n/a</td><td>24620</td><td class="pass">PASS</td><td>896</td><td>n/a</td><td>21959</td><td class="pass">PASS</td></tr><tr><td class="bench">licm_pessimize</td><td class="comp"><span style="color:#db2777">&#9679;</span> llvm-z88dk</td><td>6087</td><td>n/a</td><td>22142</td><td class="pass">PASS</td><td>6366</td><td>n/a</td><td>19346</td><td class="pass">PASS</td></tr>
+</tbody></table>
