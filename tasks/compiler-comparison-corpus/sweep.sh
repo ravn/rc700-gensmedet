@@ -312,6 +312,41 @@ run_dcc() {
     "$bench" "$sbin" "$sts" "$sver" "$pbin" "$pts" "$pver"
 }
 
+# The FOURTH friend: ravn/llvm-z80 clang linked against z88dk's CP/M runtime
+# via the copt bridge (build_z88clang_corpus.sh).  Like dcc it emits a real
+# CP/M .COM that bundles the RTL and verifies via the 0xC000 sentinel from a
+# ticks RAM dump, so bin/text are not byte-comparable to the freestanding
+# llvm-z80 cell -- read it as a "does the z88dk-clib path work + its cost"
+# trend, not size parity.  size=-Oz / speed=-O2 (mirrors the llvm-z80 cell).
+measure_z88clang() {
+  local bench=$1 opt=$2
+  local raw bin text ts verify rc
+  raw=$(LLVM_Z80="$LLVM_Z80" CLANG="$CLANG" Z88DK="$Z88DK" TICKS="$TICKS" \
+        "$HERE/build_z88clang_corpus.sh" "$bench" "$opt" 2>/dev/null) || true
+  IFS=$'\t' read -r bin text ts verify <<< "$raw"
+  case "$verify" in
+    PASS)          rc=0 ;;
+    COMPILE_ERROR) rc=2 ;;
+    *)             rc=1 ;;
+  esac
+  verify=$(classify_verify "$bench" llvm-z88dk "$rc" "$opt")
+  : "${bin:=FAIL}"; : "${text:=n/a}"; : "${ts:=-}"
+  printf '%s\t%s\t%s\t%s' "$bin" "$text" "$ts" "$verify"
+}
+
+run_z88clang() {
+  local bench=$1
+  local sres pres sbin stext sts sver pbin ptext pts pver
+  sres=$(measure_z88clang "$bench" size)
+  pres=$(measure_z88clang "$bench" speed)
+  IFS=$'\t' read -r sbin stext sts sver <<< "$sres"
+  IFS=$'\t' read -r pbin ptext pts pver <<< "$pres"
+  printf '%s\tllvm-z88dk\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$bench" "$sbin" "$stext" "$sts" "$sver" "$pbin" "$ptext" "$pts" "$pver" >> "$TSV"
+  printf '%-15s llvm-z88dk size[bin=%5s ts=%10s %s]  speed[bin=%5s ts=%10s %s]\n' \
+    "$bench" "$sbin" "$sts" "$sver" "$pbin" "$pts" "$pver"
+}
+
 echo "Each (bench, compiler) is measured twice: SIZE (clang -Oz / zsdcc"
 echo "--opt-code-size / dcc dccpeep-off) and SPEED (clang -O2 / zsdcc"
 echo "--opt-code-speed / dcc dccpeep-on)."
@@ -320,9 +355,10 @@ echo "Note: dcc .COM bundles the CP/M RTL (bin not byte-comparable) and its"
 echo "ts includes a small fixed CRT-startup cost; read dcc as trend, not parity."
 echo
 for b in "${BENCHES[@]}"; do
-  want llvm-z80 && run_llvm_z80 "$b"
-  want zsdcc    && run_zsdcc "$b"
-  want dcc      && run_dcc "$b"
+  want llvm-z80   && run_llvm_z80 "$b"
+  want zsdcc      && run_zsdcc "$b"
+  want dcc        && run_dcc "$b"
+  want llvm-z88dk && run_z88clang "$b"
 done
 
 echo
