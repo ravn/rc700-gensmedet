@@ -265,8 +265,9 @@ in the Makefile catches any decoder bug at build time.
 
 Resolved by **removing** the SIO-B debug facility outright (not gating it): the
 user confirmed it was temporary no-start-debugging scaffolding, no longer needed,
-and a better debug path (the gdb-z80 stub in `tasks/gdb-z80/`, or a cleaner
-serial facility) will be built later.  Removed the `sio_b_*` block +
+and a better debug path (the gdb-z80 stub findings in
+`tasks/gdb-z80-stub-findings-2026-06-19.md`, or a cleaner serial facility)
+will be built later.  Removed the `sio_b_*` block +
 `autoload_bios_loaded_bp` MAME-bpset hook (`rom.c`) and the SIO-B port
 defs/macros (`rom.h`); recovered 249 B (1909 → 1660 B, **388 B free**), boot
 PASS.  Original task notes kept below for context.

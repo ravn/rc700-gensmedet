@@ -116,8 +116,8 @@ byte-flow identical; only the removed debug code differs).
 
 **Open finishing items now:** (a) SDCC parity probe — was Docker-blocked, now
 runnable (Docker up + native SDCC at `z88dk/src/sdcc-build/bin`).  (b) the
-"better debug path" the user wants to build later (the gdb-z80 stub in
-`tasks/gdb-z80/`, or a cleaner serial facility) — parked feature, not a blocker.
+"better debug path" the user wants to build later (the gdb-z80 stub findings in
+`tasks/gdb-z80-stub-findings-2026-06-19.md`, or a cleaner serial facility) — parked feature, not a blocker.
 Banner cosmetic bug (#2) RESOLVED this pass — auto-generated from build date +
 git hash.
 

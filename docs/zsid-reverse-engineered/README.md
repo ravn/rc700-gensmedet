@@ -25,7 +25,7 @@ do the "heavy lifting" of the on-target debug engine while we keep only
 the GDB-RSP packet layer.  The architectural alternative is to use the
 upstream FSF stub at
 [`gdb-17.2/gdb/stubs/z80-stub.c`](https://sourceware.org/git/?p=binutils-gdb.git;a=blob;f=gdb/stubs/z80-stub.c)
-verbatim.  See `tasks/gdb-z80/findings.md` for the tradeoff analysis.
+verbatim.  See `tasks/gdb-z80-stub-findings-2026-06-19.md` for the tradeoff analysis.
 
 The two paths are **complementary**, not mutually exclusive:
 - `z80-stub.c` → compiled into our firmware (rcbios) for debugging the
