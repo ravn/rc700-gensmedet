@@ -9,4 +9,5 @@ sweep/*.map
 sweep/results.tsv
 sweep/dcc_*
 sweep/z88clang_*
+sweep/xcc_*
 sweep.sonnyboy.sh

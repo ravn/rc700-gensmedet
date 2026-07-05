@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Compiler-comparison corpus sweep: each benchmark × (llvm-z80, zsdcc, dcc)
-# at production-like flags.  Writes machine-readable TSV + markdown
-# summary.  Mirrors aes256-corpus/flag_sweep.sh's harness style.
+# Compiler-comparison corpus sweep: each benchmark × (llvm-z80, zsdcc, dcc,
+# llvm-z88dk, xcc) at production-like flags.  Writes machine-readable TSV +
+# markdown summary.  Mirrors aes256-corpus/flag_sweep.sh's harness style.
 #
 # Per-benchmark each compiler writes a 7-byte sentinel at 0xC000:
 #   [0..1] actual, [2..3] expected, [4] match (0/1), [5] reserved, [6] 0xA5.
@@ -10,7 +10,7 @@
 #
 # Usage: ./sweep.sh                   # all benchmarks, all compilers
 #        BENCH=sieve ./sweep.sh       # filter
-#        ONLY=llvm-z80 ./sweep.sh     # one compiler (llvm-z80|zsdcc|dcc)
+#        ONLY=llvm-z80 ./sweep.sh     # one compiler (llvm-z80|zsdcc|dcc|llvm-z88dk|xcc)
 #        ONLY=both ./sweep.sh         # the original pair (llvm-z80+zsdcc)
 #
 # Each (bench, compiler) is measured at TWO optimization modes and the
@@ -56,6 +56,13 @@ ZCC="$Z88DK/bin/zcc"
 DCC_DIR=/Users/ravn/z80/dcc
 VCPM_JAR=/Users/ravn/z80/cpnet-z80/tools/VirtualCpm.jar
 DCC_JAVA="${DCC_JAVA:-java}"   # must be Java 21+ (VirtualCpm.jar is class-file v65)
+
+# xcc (XYZ Suite Z80 C compiler, retro-vault/xyz) -- the FIFTH "friend".
+# An independent SDCC-ABI compiler that emits real CP/M .COM; measured via
+# the same 64 KB image + ticks 0xC000 sentinel path as the dcc/z88clang
+# lanes.  NOT a submodule yet (evaluation) -- staged by setup_xcc.sh at the
+# stable XCC_PREFIX symlink.  Recipe + beta libc-workaround: XCC_ORACLE_SETUP.md.
+XCC_PREFIX="${XCC_PREFIX:-/Users/ravn/z80/xyz-eval/xcc-current}"
 
 # llvm-z80 production flags (matches aes256-corpus 09_Oz_prod_like).
 # NOTE the in-tree disablePass(LICM/CSE) is already in effect via the
@@ -147,7 +154,12 @@ want() {
 # branch-folder miscompile ravn/llvm-z80#247 -- FIXED 2026-07-01 by teaching
 # MachineOperand MO_MCSymbol isIdenticalTo/hash to compare the offset, so both
 # modes are now hard PASS gates.)
-EXPECTED_FAIL=" fannkuch:zsdcc pi:zsdcc "
+#
+# xcc note: fannkuch:xcc XFAILs in BOTH modes -- xcc (beta) miscompiles
+# fannkuchredux and returns 0x0000 instead of 0x10E4 (ts collapses to ~8.7k,
+# the flip loop never runs).  Independent of the llvm-z80#247 fix; a genuine
+# xcc beta codegen bug (candidate to file upstream against retro-vault/xyz).
+EXPECTED_FAIL=" fannkuch:zsdcc pi:zsdcc fannkuch:xcc "
 is_expected_fail() {
   # $1=bench $2=compiler $3=mode(size|speed)
   case "$EXPECTED_FAIL" in
@@ -347,6 +359,41 @@ run_z88clang() {
     "$bench" "$sbin" "$sts" "$sver" "$pbin" "$pts" "$pver"
 }
 
+# The FIFTH friend: xcc (XYZ Suite, retro-vault/xyz), an independent SDCC-ABI
+# Z80 C compiler.  Emits a real CP/M .COM linked against its own libc/CP/M
+# runtime, measured via the SAME 64 KB image + ticks 0xC000 sentinel path as
+# the dcc/z88clang lanes (build_xcc_corpus.sh), so bin bundles the RTL and is
+# NOT byte-comparable to the freestanding llvm-z80 cell -- read as a trend.
+# size=-Os / speed=-Of.  Requires setup_xcc.sh (see XCC_ORACLE_SETUP.md).
+measure_xcc() {
+  local bench=$1 opt=$2
+  local raw bin text ts verify rc
+  raw=$(XCC_PREFIX="$XCC_PREFIX" Z88DK="$Z88DK" TICKS="$TICKS" \
+        "$HERE/build_xcc_corpus.sh" "$bench" "$opt" 2>/dev/null) || true
+  IFS=$'\t' read -r bin text ts verify <<< "$raw"
+  case "$verify" in
+    PASS)          rc=0 ;;
+    COMPILE_ERROR) rc=2 ;;
+    *)             rc=1 ;;
+  esac
+  verify=$(classify_verify "$bench" xcc "$rc" "$opt")
+  : "${bin:=FAIL}"; : "${text:=n/a}"; : "${ts:=-}"
+  printf '%s\t%s\t%s\t%s' "$bin" "$text" "$ts" "$verify"
+}
+
+run_xcc() {
+  local bench=$1
+  local sres pres sbin stext sts sver pbin ptext pts pver
+  sres=$(measure_xcc "$bench" size)
+  pres=$(measure_xcc "$bench" speed)
+  IFS=$'\t' read -r sbin stext sts sver <<< "$sres"
+  IFS=$'\t' read -r pbin ptext pts pver <<< "$pres"
+  printf '%s\txcc\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$bench" "$sbin" "$stext" "$sts" "$sver" "$pbin" "$ptext" "$pts" "$pver" >> "$TSV"
+  printf '%-15s xcc       size[bin=%5s ts=%10s %s]  speed[bin=%5s ts=%10s %s]\n' \
+    "$bench" "$sbin" "$sts" "$sver" "$pbin" "$pts" "$pver"
+}
+
 echo "Each (bench, compiler) is measured twice: SIZE (clang -Oz / zsdcc"
 echo "--opt-code-size / dcc dccpeep-off) and SPEED (clang -O2 / zsdcc"
 echo "--opt-code-speed / dcc dccpeep-on)."
@@ -354,12 +401,24 @@ echo "bin = binary bytes, ts = z80 t-states (lower is faster)."
 echo "Note: dcc .COM bundles the CP/M RTL (bin not byte-comparable) and its"
 echo "ts includes a small fixed CRT-startup cost; read dcc as trend, not parity."
 echo
+# xcc is optional (evaluation, not a submodule).  Skip its lane with a single
+# hint if the toolchain isn't staged, rather than emitting 10 COMPILE_ERROR
+# rows.  setup_xcc.sh installs it; XCC_ORACLE_SETUP.md has the details.
+XCC_OK=1
+if want xcc && [ ! -x "$XCC_PREFIX/bin/xcc" ]; then
+  XCC_OK=0
+  echo "Note: xcc not found at $XCC_PREFIX/bin/xcc -- skipping the xcc lane."
+  echo "      Run ./setup_xcc.sh to add it (see XCC_ORACLE_SETUP.md)."
+  echo
+fi
 for b in "${BENCHES[@]}"; do
   want llvm-z80   && run_llvm_z80 "$b"
   want zsdcc      && run_zsdcc "$b"
   want dcc        && run_dcc "$b"
   want llvm-z88dk && run_z88clang "$b"
+  want xcc        && [ "$XCC_OK" = 1 ] && run_xcc "$b"
 done
 
 echo
 echo "Wrote sweep/$TSV"
+python3 "$HERE/gen_results_html.py" || echo "warn: results.html not regenerated" >&2
