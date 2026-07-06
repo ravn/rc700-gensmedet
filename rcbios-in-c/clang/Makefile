@@ -57,6 +57,16 @@ CFLAGS += $(CLANG_EXTRA)
 OBJS = boot_block.o boot_confi.o boot_entry.o bios_hw_init.o \
        bios_jump_vector_table.o bios.o bios_shims.o runtime.o
 
+# Flag fingerprint — the "fewest surprises when toggling a compiler flag" guard.
+# Every C object depends on .cflags, whose contents ARE $(CFLAGS).  The recipe
+# rewrites .cflags only when the flags actually change (cmp guard), so its mtime
+# bumps exactly when you edit CFLAGS (e.g. toggle -flto).  That forces a rebuild
+# of the affected objects instead of silently relinking stale ones built with
+# the OLD flags — the exact trap that produced fd4a197's false "mame-test PASS"
+# and hid the -flto boot hang for three days.  No more "remember to rm *.o".
+.cflags: FORCE
+	@printf '%s\n' '$(CFLAGS)' | cmp -s - $@ 2>/dev/null || printf '%s\n' '$(CFLAGS)' > $@
+
 .PHONY: clean
 
 # Build rules — $(RUN) is empty for native, Docker prefix for container
@@ -75,22 +85,22 @@ bios.clang.cim: $(PARENT)/builddate.h $(OBJS) rc700_bios.ld
 		echo "ERROR: RC702 signature not found!"; exit 1; \
 	fi
 
-boot_block.o: $(PARENT)/boot_block.c $(PARENT)/bios.h $(PARENT)/builddate.h $(CLANG_BIN)
+boot_block.o: $(PARENT)/boot_block.c $(PARENT)/bios.h $(PARENT)/builddate.h $(CLANG_BIN) .cflags
 	$(RUN) $(B)/clang $(CFLAGS) -c boot_block.c -o clang/$@
 
-boot_confi.o: $(PARENT)/boot_confi.c $(PARENT)/bios.h $(CLANG_BIN)
+boot_confi.o: $(PARENT)/boot_confi.c $(PARENT)/bios.h $(CLANG_BIN) .cflags
 	$(RUN) $(B)/clang $(CFLAGS) $(if $(filter-out DANISH,$(KBLANG)),-D$(KBLANG)) -c boot_confi.c -o clang/$@
 
-boot_entry.o: $(PARENT)/boot_entry.c $(PARENT)/bios.h $(PARENT)/hal.h intrinsic.h $(CLANG_BIN)
+boot_entry.o: $(PARENT)/boot_entry.c $(PARENT)/bios.h $(PARENT)/hal.h intrinsic.h $(CLANG_BIN) .cflags
 	$(RUN) $(B)/clang $(CFLAGS) -c boot_entry.c -o clang/$@
 
-bios_hw_init.o: $(PARENT)/bios_hw_init.c $(PARENT)/bios.h $(PARENT)/hal.h intrinsic.h $(CLANG_BIN)
+bios_hw_init.o: $(PARENT)/bios_hw_init.c $(PARENT)/bios.h $(PARENT)/hal.h intrinsic.h $(CLANG_BIN) .cflags
 	$(RUN) $(B)/clang $(CFLAGS) -c bios_hw_init.c -o clang/$@
 
-bios_jump_vector_table.o: bios_jump_vector_table.c $(PARENT)/bios.h $(CLANG_BIN)
+bios_jump_vector_table.o: bios_jump_vector_table.c $(PARENT)/bios.h $(CLANG_BIN) .cflags
 	$(RUN) $(B)/clang $(CFLAGS) -c clang/bios_jump_vector_table.c -o clang/$@
 
-bios.o: $(PARENT)/bios.c $(PARENT)/bios.h $(PARENT)/hal.h intrinsic.h string.h $(PARENT)/builddate.h $(CLANG_BIN)
+bios.o: $(PARENT)/bios.c $(PARENT)/bios.h $(PARENT)/hal.h intrinsic.h string.h $(PARENT)/builddate.h $(CLANG_BIN) .cflags
 	$(RUN) $(B)/clang $(CFLAGS) -c bios.c -o clang/$@
 
 bios_shims.o: bios_shims.s $(CLANG_BIN)
@@ -106,7 +116,7 @@ $(PARENT)/builddate.h: FORCE
 FORCE:
 
 clean:
-	rm -f *.o bios.clang.elf bios.clang.cim bios.bin bios_src.S bios_src.lis
+	rm -f *.o .cflags bios.clang.elf bios.clang.cim bios.bin bios_src.S bios_src.lis
 	# Note: clang/bios.clang.lis is intentionally NOT removed by clean —
 	# it is tracked in git so historical disassembly is available without
 	# rebuilding clang.  Use `git restore clang/bios.clang.lis` if needed.

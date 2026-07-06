@@ -51,8 +51,16 @@ SECTIONS {
   } > BOOT
 
   /* CONFI defaults (128B) + conversion tables (384B).
-   * Must follow boot header at 0x0080. */
+   * Must follow boot header at 0x0080.
+   * KEEP(*(.boot_data)) captures confi_on_disk[]/conv_tables[] annotated with
+   * __attribute__((section(".boot_data"))) — required under LTO where the
+   * per-object-file matchers (*boot_confi.o) do not fire.  Without this the
+   * arrays land in generic .rodata at a high runtime address and
+   * relocate_bios() copies uninitialised RAM into CFG (garbage CTC config
+   * -> spurious FDC interrupts -> boot hang).  Per-file matchers remain as
+   * belt-and-braces for non-LTO builds. */
   .boot_data 0x0080 : {
+    KEEP(*(.boot_data))
     KEEP(*boot_confi.o(.rodata*))
     KEEP(*boot_confi.o(.text*))
     KEEP(*boot_confi.o(.data*))
@@ -88,6 +96,7 @@ SECTIONS {
    * Contains the CP/M JP table, JTVARS, and extended JP table. */
   .bios_jt BIOSAD : AT(__boot_end) {
     __bios_load = LOADADDR(.bios_jt);
+    KEEP(*(.bios_jt))
     KEEP(*bios_jump_vector_table.o(.rodata*))
     KEEP(*bios_jump_vector_table.o(.data*))
   } > BIOS
@@ -153,6 +162,30 @@ SECTIONS {
   /* BIOS code must not overflow into BSS (sanity check) */
   ASSERT(__bss_head >= BIOSAD,
     "BIOS code underflows BIOSAD!")
+
+  /* ----------------------------------------------------------------
+   * LTO placement guards (added 2026-07-06).
+   *
+   * Under -flto ld.lld merges every C TU into one bitcode module, so the
+   * per-object-file matchers above (*boot_confi.o, *bios_jump_vector_table.o)
+   * match NOTHING and the anchored symbols silently fall to generic .rodata
+   * at a high runtime address.  relocate_bios() then copies uninitialised RAM
+   * into CFG (garbage CTC -> spurious FDC IRQ -> boot hang) and the CP/M jump
+   * table lands off BIOSAD (banner shows but no A>).  These asserts turn that
+   * silent 3-day runtime hang into an immediate, self-explaining link error.
+   * The section attributes in boot_confi.c / bios_jump_vector_table.c are the
+   * FIX; these asserts are the GUARD that a future edit did not undo it.
+   * Same discipline cpnos-in-c/clang-prom1lineprog/payload.ld already uses. */
+  ASSERT(_confi_on_disk == 0x0080,
+    "confi_on_disk not at 0x0080 - LTO per-file matcher failed; add section(.boot_data)")
+  ASSERT(_conv_tables == 0x0100,
+    "conv_tables not at 0x0100 - LTO per-file matcher failed; add section(.boot_data)")
+  ASSERT(_bios_jump_vector_table == BIOSAD,
+    "CP/M jump table not at BIOSAD - LTO leak; add section(.bios_jt) to the struct")
+  ASSERT(SIZEOF(.boot_data) == 0x200,
+    "boot_data != 512 B (confi 128 + conv 384) - a boot_data symbol leaked out")
+  ASSERT(SIZEOF(.bios_jt) == 0x71,
+    "bios_jt != 113 B - the CP/M ABI jump table changed size or leaked out")
 
   /DISCARD/ : {
     *(.comment)

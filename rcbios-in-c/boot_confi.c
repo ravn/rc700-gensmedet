@@ -14,7 +14,16 @@
 
 /* CONFI hardware configuration defaults (128 bytes).
  * Sector 2 of Track 0.  CONFI.COM reads/writes this block.
- * See ConfiBlock typedef in bios.h for field documentation. */
+ * See ConfiBlock typedef in bios.h for field documentation.
+ *
+ * section(".boot_data") is the LTO-safe anchor: under -flto all TUs merge
+ * into one bitcode module, so the linker script's per-file matcher
+ * `*boot_confi.o(.rodata*)` matches nothing and this array would fall to
+ * generic .rodata at a high runtime address.  relocate_bios() copies FROM
+ * this symbol at coldboot (physical 0x0080, where the ROM loaded Track 0),
+ * so it MUST land at 0x0080 — otherwise the copy reads uninitialised RAM
+ * and CFG/CTC get garbage.  bios.h #defines __attribute__ away under SDCC. */
+__attribute__((section(".boot_data"), used))
 const byte confi_on_disk[128] = {
     /* CTC channels 0-3 (ports 0x0C-0x0F).
      * Session 17 proved SIO x1 async RX is unreliable for continuous data
@@ -92,7 +101,9 @@ const byte confi_on_disk[128] = {
 
 /* Character conversion tables (384 bytes).
  * Sectors 3-5 of Track 0.  Copied to 0xF680 at boot.
- * Selected at build time via KBLANG define (default: Danish). */
+ * Selected at build time via KBLANG define (default: Danish).
+ * section(".boot_data") anchor required under -flto — see confi_on_disk. */
+__attribute__((section(".boot_data"), used))
 const byte conv_tables[384] = {
 #ifdef SWEDISH
 #include "locale/swedish_tables.h"

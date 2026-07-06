@@ -82,7 +82,16 @@ const struct {
     /* Reserved */
     byte    reserved[19];
     word    pchsav;
-} bios_jump_vector_table = {
+}
+/* section(".bios_jt") is the LTO-safe anchor: this table is the frozen CP/M
+ * BIOS ABI and MUST sit at exactly BIOSAD (0xDA00).  Under -flto the linker
+ * script's per-file matcher `*bios_jump_vector_table.o(.rodata*)` matches
+ * nothing (all TUs merged), so without this attribute the table falls into
+ * generic .rodata and _jump_ccp lands at 0xDA00 instead -> CCP/BDOS call the
+ * wrong BIOS entries -> no A>.  The attribute follows the variable name so it
+ * binds to the object, not the anonymous struct type.  bios.h #defines
+ * __attribute__ away under SDCC. */
+bios_jump_vector_table __attribute__((section(".bios_jt"), used)) = {
     /* Standard JP table — shims for register translation */
     .jt_boot    = { 0xC3, (fptr)bios_boot_shim },
     .jt_wboot   = { 0xC3, (fptr)bios_wboot_shim },
