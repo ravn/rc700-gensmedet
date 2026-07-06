@@ -19,6 +19,7 @@ COMPILERS = {
     "dcc":        ("#d97706", ""),
     "llvm-z88dk": ("#db2777", "clang &rarr; z88dk clib .COM; bin includes full RTL, text n/a"),
     "xcc":        ("#0891b2", "XYZ Suite; SDCC-ABI .COM, bin includes libc/RTL, text n/a"),
+    "ez80clang":  ("#7c3aed", "CEdev ez80-clang -triple z80 &rarr; z88dk clib .COM; bin includes RTL, text n/a; code-quality trend only"),
 }
 
 

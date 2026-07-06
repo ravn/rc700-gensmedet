@@ -13,9 +13,9 @@
  .grp{background:#e0e7ff} .leg{margin:.8rem 0;color:#475569}
  .leg b{color:#0f172a}
 </style>
-<h1>Z80 compiler comparison sweep &mdash; 5-way</h1>
-<div class="sub">2026-07-06 11:27 &nbsp;|&nbsp; 5 benchmarks &times; {size, speed} &nbsp;|&nbsp; green cell = best (min) that verified PASS</div>
-<div class="leg"><span style="color:#2563eb">&#9679;</span> <b>llvm-z80</b> freestanding (direct ELF link) &nbsp;<span style="color:#059669">&#9679;</span> <b>zsdcc</b> &nbsp;<span style="color:#d97706">&#9679;</span> <b>dcc</b> &nbsp;<span style="color:#db2777">&#9679;</span> <b>llvm-z88dk</b> clang &rarr; z88dk clib .COM; bin includes full RTL, text n/a &nbsp;<span style="color:#0891b2">&#9679;</span> <b>xcc</b> XYZ Suite; SDCC-ABI .COM, bin includes libc/RTL, text n/a &nbsp;</div>
+<h1>Z80 compiler comparison sweep &mdash; 6-way</h1>
+<div class="sub">2026-07-06 13:27 &nbsp;|&nbsp; 5 benchmarks &times; {size, speed} &nbsp;|&nbsp; green cell = best (min) that verified PASS</div>
+<div class="leg"><span style="color:#2563eb">&#9679;</span> <b>llvm-z80</b> freestanding (direct ELF link) &nbsp;<span style="color:#059669">&#9679;</span> <b>zsdcc</b> &nbsp;<span style="color:#d97706">&#9679;</span> <b>dcc</b> &nbsp;<span style="color:#db2777">&#9679;</span> <b>llvm-z88dk</b> clang &rarr; z88dk clib .COM; bin includes full RTL, text n/a &nbsp;<span style="color:#0891b2">&#9679;</span> <b>xcc</b> XYZ Suite; SDCC-ABI .COM, bin includes libc/RTL, text n/a &nbsp;<span style="color:#7c3aed">&#9679;</span> <b>ez80clang</b> CEdev ez80-clang -triple z80 &rarr; z88dk clib .COM; bin includes RTL, text n/a; code-quality trend only &nbsp;</div>
 <table>
 <thead>
 <tr><th class="l">bench</th><th class="l">compiler</th><th class="grp" colspan="4">size mode</th><th class="grp" colspan="4">speed mode</th></tr>
@@ -40,9 +40,11 @@
 <tr><td class="bench">word_fill</td><td class="comp"><span style="color:#d97706">&#9679;</span> dcc</td><td>1024</td><td>n/a</td><td>409819</td><td class="pass">PASS</td><td>896</td><td>n/a</td><td>351587</td><td class="pass">PASS</td></tr>
 <tr><td class="bench">word_fill</td><td class="comp"><span style="color:#db2777">&#9679;</span> llvm-z88dk</td><td>7140</td><td>n/a</td><td>200435</td><td class="pass">PASS</td><td>7287</td><td>n/a</td><td>185578</td><td class="pass">PASS</td></tr>
 <tr><td class="bench">word_fill</td><td class="comp"><span style="color:#0891b2">&#9679;</span> xcc</td><td>1713</td><td>n/a</td><td>457824</td><td class="pass">PASS</td><td>1693</td><td>n/a</td><td>457722</td><td class="pass">PASS</td></tr>
+<tr><td class="bench">word_fill</td><td class="comp"><span style="color:#7c3aed">&#9679;</span> ez80clang</td><td>6474</td><td>n/a</td><td>233627</td><td class="pass">PASS</td><td>6474</td><td>n/a</td><td>233627</td><td class="pass">PASS</td></tr>
 <tr style="border-top:2px solid #cbd5e1"><td class="bench">licm_pessimize</td><td class="comp"><span style="color:#2563eb">&#9679;</span> llvm-z80</td><td class="best">143</td><td>53</td><td class="best">4163</td><td class="pass">PASS</td><td class="best">285</td><td>195</td><td class="best">1367</td><td class="pass">PASS</td></tr>
 <tr><td class="bench">licm_pessimize</td><td class="comp"><span style="color:#059669">&#9679;</span> zsdcc</td><td>554</td><td>n/a</td><td>12721</td><td class="pass">PASS</td><td>550</td><td>n/a</td><td>12034</td><td class="pass">PASS</td></tr>
 <tr><td class="bench">licm_pessimize</td><td class="comp"><span style="color:#d97706">&#9679;</span> dcc</td><td>1024</td><td>n/a</td><td>24620</td><td class="pass">PASS</td><td>896</td><td>n/a</td><td>21959</td><td class="pass">PASS</td></tr>
 <tr><td class="bench">licm_pessimize</td><td class="comp"><span style="color:#db2777">&#9679;</span> llvm-z88dk</td><td>6087</td><td>n/a</td><td>22142</td><td class="pass">PASS</td><td>6366</td><td>n/a</td><td>19346</td><td class="pass">PASS</td></tr>
 <tr><td class="bench">licm_pessimize</td><td class="comp"><span style="color:#0891b2">&#9679;</span> xcc</td><td>710</td><td>n/a</td><td>16374</td><td class="pass">PASS</td><td>685</td><td>n/a</td><td>15433</td><td class="pass">PASS</td></tr>
+<tr><td class="bench">licm_pessimize</td><td class="comp"><span style="color:#7c3aed">&#9679;</span> ez80clang</td><td>5593</td><td>n/a</td><td>20141</td><td class="pass">PASS</td><td>5593</td><td>n/a</td><td>20141</td><td class="pass">PASS</td></tr>
 </tbody></table>

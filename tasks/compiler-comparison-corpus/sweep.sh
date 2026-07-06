@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Compiler-comparison corpus sweep: each benchmark × (llvm-z80, zsdcc, dcc,
-# llvm-z88dk, xcc) at production-like flags.  Writes machine-readable TSV +
-# markdown summary.  Mirrors aes256-corpus/flag_sweep.sh's harness style.
+# llvm-z88dk, xcc, ez80clang) at production-like flags.  Writes machine-readable
+# TSV + markdown summary.  Mirrors aes256-corpus/flag_sweep.sh's harness style.
 #
 # Per-benchmark each compiler writes a 7-byte sentinel at 0xC000:
 #   [0..1] actual, [2..3] expected, [4] match (0/1), [5] reserved, [6] 0xA5.
@@ -10,7 +10,7 @@
 #
 # Usage: ./sweep.sh                   # all benchmarks, all compilers
 #        BENCH=sieve ./sweep.sh       # filter
-#        ONLY=llvm-z80 ./sweep.sh     # one compiler (llvm-z80|zsdcc|dcc|llvm-z88dk|xcc)
+#        ONLY=llvm-z80 ./sweep.sh     # one compiler (llvm-z80|zsdcc|dcc|llvm-z88dk|xcc|ez80clang)
 #        ONLY=both ./sweep.sh         # the original pair (llvm-z80+zsdcc)
 #
 # Each (bench, compiler) is measured at TWO optimization modes and the
@@ -63,6 +63,18 @@ DCC_JAVA="${DCC_JAVA:-java}"   # must be Java 21+ (VirtualCpm.jar is class-file 
 # lanes.  NOT a submodule yet (evaluation) -- staged by setup_xcc.sh at the
 # stable XCC_PREFIX symlink.  Recipe + beta libc-workaround: XCC_ORACLE_SETUP.md.
 XCC_PREFIX="${XCC_PREFIX:-/Users/ravn/z80/xyz-eval/xcc-current}"
+
+# ez80clang (CEdev ez80-clang, CE-Programming/llvm-project) -- the SIXTH
+# "friend", a CODE-QUALITY comparison oracle only.  A SelectionDAG eZ80 LLVM
+# fork (distinct from ravn/llvm-z80's GlobalISel backend); its `-triple z80`
+# sub-target emits genuine 16-bit z80 code, driven by z88dk's own
+# `zcc +cpm -compiler=ez80clang` (build_ez80clang_corpus.sh, same .COM +
+# ticks 0xC000 sentinel path as the dcc/z88clang/xcc lanes -- bin bundles the
+# z88dk RTL, read as trend not parity).  z88dk makes NO changes to clang: you
+# copy CEdev/bin/ez80-clang into z88dk/bin (setup_ez80clang.sh symlinks the
+# staged CEDEV_PREFIX copy).  CEdev v15.0 needs two clang_rules.1 additions
+# (dotted .section, `rb ($$ - $) and N` align) -- see EZ80CLANG_ORACLE_SETUP.md.
+CEDEV_PREFIX="${CEDEV_PREFIX:-/Users/ravn/z80/cedev-eval/CEdev}"
 
 # llvm-z80 production flags (matches aes256-corpus 09_Oz_prod_like).
 # NOTE the in-tree disablePass(LICM/CSE) is already in effect via the
@@ -119,9 +131,9 @@ if [ -n "${BENCH:-}" ]; then BENCHES=("$BENCH"); fi
 ONLY="${ONLY:-all}"
 
 # want <compiler> -> succeed if this compiler should run under $ONLY.
-#   all  = llvm-z80 + zsdcc + dcc (default)
+#   all  = every lane (llvm-z80, zsdcc, dcc, llvm-z88dk, xcc, ez80clang; default)
 #   both = the original pair (llvm-z80 + zsdcc), kept for back-compat
-#   <name> = just that one
+#   <name> = just that one (e.g. ONLY=ez80clang)
 want() {
   case "$ONLY" in
     all)  return 0 ;;
@@ -162,6 +174,22 @@ want() {
 # NOTE: fannkuch:zsdcc + pi:zsdcc are NOT listed here -- they are SKIPPED
 # entirely (see SKIP_CELL below), so they never produce an XFAIL row.  Only
 # fannkuch:xcc remains as a genuine run-it-and-XFAIL cell.
+#
+# ez80clang note (CODE-QUALITY oracle, added CEdev v15.0 2026-07-06): all three
+# failing ez80clang cells are SKIPPED (see SKIP_CELL), not XFAIL-run -- ez80clang
+# is a code-quality oracle, so a cell that can't produce correct code produces
+# no useful size/speed datapoint, and two of them hang for the full 300 s ticks
+# alarm.  Tracked for fixing in rc700-gensmedet#122.  Reasons:
+#   - pi:ez80clang: ez80-clang emits CE-toolchain 32-bit libcall names
+#     (__llmulu / __ldivu / __llshru) implemented only in CEdev's libcrt.a as
+#     ADL-24-bit eZ80 code, which z88dk's z80 clib does not provide -> link
+#     failure.  A runtime-library integration gap, NOT a codegen bug.
+#   - sieve:ez80clang + fannkuch:ez80clang: CE's z80 sub-target miscompiles
+#     non-trivial 16-bit loops -- a codegen cliff (sieve at array size >=~450:
+#     the emitted binary SHRINKS yet the program hangs / wild-jumps).  Each
+#     hang burns the full 300 s alarm.  Symptom verified; not root-caused.
+#   word_fill + licm_pessimize compile to correct code and DO contribute
+#   code-quality (size/speed) datapoints.
 EXPECTED_FAIL=" fannkuch:xcc "
 is_expected_fail() {
   # $1=bench $2=compiler $3=mode(size|speed)
@@ -184,7 +212,7 @@ is_expected_fail() {
 # cause CONFIRMED + red-green validated (see zsdcc-bench-divergence-2026-06-08.md
 # and zsdcc-repro/modsint_sdcccall1.c); it's a build-config/stdlib-ABI mismatch,
 # NOT a compiler bug, so there's nothing to catch by re-running -> skip.
-SKIP_CELL=" fannkuch:zsdcc pi:zsdcc "
+SKIP_CELL=" fannkuch:zsdcc pi:zsdcc sieve:ez80clang fannkuch:ez80clang pi:ez80clang "
 is_skipped() {
   # $1=bench $2=compiler
   case "$SKIP_CELL" in
@@ -418,6 +446,40 @@ run_xcc() {
     "$bench" "$sbin" "$sts" "$sver" "$pbin" "$pts" "$pver"
 }
 
+# The SIXTH friend: ez80clang (CEdev ez80-clang, CODE-QUALITY oracle only).
+# Same .COM + ticks 0xC000 sentinel path as the dcc/z88clang/xcc lanes
+# (build_ez80clang_corpus.sh); bin bundles the z88dk RTL, read as trend.
+# size=--opt-code-size (-Oz) / speed=default (-O3).  Requires ez80-clang on
+# PATH (setup_ez80clang.sh); see EZ80CLANG_ORACLE_SETUP.md.
+measure_ez80clang() {
+  local bench=$1 opt=$2
+  local raw bin text ts verify rc
+  raw=$(Z88DK="$Z88DK" TICKS="$TICKS" \
+        "$HERE/build_ez80clang_corpus.sh" "$bench" "$opt" 2>/dev/null) || true
+  IFS=$'\t' read -r bin text ts verify <<< "$raw"
+  case "$verify" in
+    PASS)          rc=0 ;;
+    COMPILE_ERROR) rc=2 ;;
+    *)             rc=1 ;;
+  esac
+  verify=$(classify_verify "$bench" ez80clang "$rc" "$opt")
+  : "${bin:=FAIL}"; : "${text:=n/a}"; : "${ts:=-}"
+  printf '%s\t%s\t%s\t%s' "$bin" "$text" "$ts" "$verify"
+}
+
+run_ez80clang() {
+  local bench=$1
+  local sres pres sbin stext sts sver pbin ptext pts pver
+  sres=$(measure_ez80clang "$bench" size)
+  pres=$(measure_ez80clang "$bench" speed)
+  IFS=$'\t' read -r sbin stext sts sver <<< "$sres"
+  IFS=$'\t' read -r pbin ptext pts pver <<< "$pres"
+  printf '%s\tez80clang\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$bench" "$sbin" "$stext" "$sts" "$sver" "$pbin" "$ptext" "$pts" "$pver" >> "$TSV"
+  printf '%-15s ez80clang size[bin=%5s ts=%10s %s]  speed[bin=%5s ts=%10s %s]\n' \
+    "$bench" "$sbin" "$sts" "$sver" "$pbin" "$pts" "$pver"
+}
+
 echo "Each (bench, compiler) is measured twice: SIZE (clang -Oz / zsdcc"
 echo "--opt-code-size / dcc dccpeep-off) and SPEED (clang -O2 / zsdcc"
 echo "--opt-code-speed / dcc dccpeep-on)."
@@ -435,12 +497,24 @@ if want xcc && [ ! -x "$XCC_PREFIX/bin/xcc" ]; then
   echo "      Run ./setup_xcc.sh to add it (see XCC_ORACLE_SETUP.md)."
   echo
 fi
+# ez80clang is a code-quality oracle (evaluation, not a submodule).  Skip its
+# lane with one hint if ez80-clang isn't on PATH.  setup_ez80clang.sh stages
+# it; EZ80CLANG_ORACLE_SETUP.md has the details.
+EZ80CLANG_OK=1
+if want ez80clang && ! command -v ez80-clang >/dev/null 2>&1 \
+   && [ ! -x "$Z88DK/bin/ez80-clang" ]; then
+  EZ80CLANG_OK=0
+  echo "Note: ez80-clang not found (PATH or $Z88DK/bin) -- skipping the ez80clang lane."
+  echo "      Run ./setup_ez80clang.sh to add it (see EZ80CLANG_ORACLE_SETUP.md)."
+  echo
+fi
 for b in "${BENCHES[@]}"; do
   want llvm-z80   && ! is_skipped "$b" llvm-z80   && run_llvm_z80 "$b"
   want zsdcc      && ! is_skipped "$b" zsdcc      && run_zsdcc "$b"
   want dcc        && ! is_skipped "$b" dcc        && run_dcc "$b"
   want llvm-z88dk && ! is_skipped "$b" llvm-z88dk && run_z88clang "$b"
   want xcc        && [ "$XCC_OK" = 1 ] && ! is_skipped "$b" xcc && run_xcc "$b"
+  want ez80clang  && [ "$EZ80CLANG_OK" = 1 ] && ! is_skipped "$b" ez80clang && run_ez80clang "$b"
 done
 
 echo
