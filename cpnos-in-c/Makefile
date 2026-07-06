@@ -726,13 +726,28 @@ cpnos-install: prom1-lineprog-install
 # wrong string or crashes → grep fails → make target fails.
 #
 # Preconditions:
-#   - MP/M is running in a screen session (see
-#     z80pack/cpmsim/mpm-net2).  Target restarts it so the drive
-#     staging is fresh.
+#   - MP/M is running as a backgrounded process (see START_MPM /
+#     z80pack/cpmsim/mpm-net2, PID in $(MPM_PIDFILE)).  Target restarts
+#     it so the drive staging is fresh.
 #   - cpnos-rom is built and installed into MAME.
 #
 # Prints PASS or FAIL and exits accordingly.
 MPM_DIR ?= $(CURDIR)/../z80pack/cpmsim
+# MP/M CP/NET master (mpm-net2) lifecycle -- kill by SAVED PID, not `pkill -f`.
+#
+# We keep launching under `screen`: cpmsim needs a PTY on its console stdin so
+# MP/M's operator-console read BLOCKS at `0A>`.  With a plain `</dev/null` the
+# console gets instant EOF and busy-loops, starving the CP/NET server task so
+# the slave never finishes booting to E> (verified 2026-07-06).  screen -dmS
+# gives that PTY.
+#
+# START_MPM launches the named session AND records the screen session PID in
+# $(MPM_PIDFILE).  _kill-mpm then reaps cpmsim by killing the CHILDREN OF THAT
+# EXACT PID (`pkill -P $$PID`, parent-PID-targeted) rather than a broad
+# `pkill -f cpmsim` that could hit an unrelated cpmsim on the same host.
+MPM_PIDFILE = /tmp/mpm-net2.pid
+START_MPM   = cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2 && sleep 0.3 && \
+	screen -ls | grep -oE '[0-9]+\.mpm' | head -1 | cut -d. -f1 > $(MPM_PIDFILE)
 SMOKE_PORT ?= 9001
 
 # WORKLOAD selects which CCP-driven program the bench harness runs.
@@ -823,18 +838,16 @@ _check-mame-irq:
 # smoke_inject "bench=X.XXXs" timing, and (for filecopy) extracts
 # SUMTEST.ASM + SUMTEST.CPY from the master's drivea.dsk and byte-
 # compares them.  WORKLOAD must already be set by the caller.
-# Comprehensive shutdown of any lingering mpm-net2 + cpmsim + screen
-# session from a previous run.  Entry-side safety net (subsequent test
-# runs always find :4002 clean even if a prior run aborted without
-# exit-side cleanup) and exit-side reaper (so daemons don't accumulate
-# across sessions).
+# Comprehensive shutdown of the mpm-net2 / cpmsim master from a previous
+# run.  Entry-side safety net (subsequent test runs always find :4002
+# clean even if a prior run aborted without exit-side cleanup) and
+# exit-side reaper (so daemons don't accumulate across sessions).
 #
-# Tries `screen -X quit` first (preferred — the screen session sends
-# SIGHUP to its child mpm-net2 chain).  Then pkills any orphan
-# `login -pflq ravn ./mpm-net2` (reparented to PID 1 when screen
-# master died) and any standalone `cpmsim`.  Verifies :4002 is
-# actually free at the end so callers get a hard error if cleanup
-# didn't take.
+# PID-based (see START_MPM): kills the exact PID recorded in $(MPM_PIDFILE)
+# at launch, escalating TERM -> KILL; then, as a fallback for an orphan left
+# without a pidfile, kills whatever `lsof -t` reports still holding :4002 (by
+# PID, never a broad `pkill -f`).  Verifies :4002 is actually free at the end
+# so callers get a hard error if cleanup didn't take.
 #
 # Use as `$(MAKE) _kill-mpm` (errors if cleanup fails) at the entry of
 # any test target spawning the mpm-net2 daemon; use as
@@ -842,27 +855,38 @@ _check-mame-irq:
 # on the happy path.  See ravn/rc700-gensmedet#99.
 .PHONY: _kill-mpm
 _kill-mpm:
+	@# Reap the master by the SAVED screen-session PID ($(MPM_PIDFILE)), not a
+	@# broad `pkill -f cpmsim` that could hit an unrelated cpmsim.  cpmsim runs
+	@# as a child of that screen session, so `pkill -P $$PID` (parent-PID
+	@# targeted) kills exactly our cpmsim; then quit the session and kill the
+	@# screen backend itself.  A stale master from a crashed run can otherwise
+	@# survive holding disk locks on mpm-net2-1.dsk and a non-LISTEN :4002
+	@# socket, so a fresh master binds the port yet fails the CP/NET handshake
+	@# (slave never reaches E>).
+	@PID=$$(cat $(MPM_PIDFILE) 2>/dev/null); \
+	 if [ -n "$$PID" ]; then \
+	   for sig in TERM TERM KILL; do \
+	     pkill -$$sig -P $$PID 2>/dev/null || true; \
+	     sleep 0.5; \
+	     pgrep -P $$PID >/dev/null 2>&1 || break; \
+	   done; \
+	   screen -S mpm -X quit >/dev/null 2>&1 || true; \
+	   kill -KILL $$PID 2>/dev/null || true; \
+	 fi; \
+	 rm -f $(MPM_PIDFILE)
+	@# Belt-and-braces: quit any lingering named session even without a pidfile.
 	-@screen -S mpm -X quit >/dev/null 2>&1 || true
-	@# Ensure the NEXT `screen -dmS mpm ./mpm-net2` creates a genuinely
-	@# fresh master.  A stale cpmsim from a crashed/interrupted run can
-	@# survive in a non-LISTEN socket state (e.g. CLOSE_WAIT left by a
-	@# dead MAME) while still holding disk locks on mpm-net2-1.dsk.  The
-	@# old narrow `login -pflq ravn ./mpm-net2` pattern + a LISTEN-only
-	@# port check missed it, so a new master would bind :4002 yet fail
-	@# the CP/NET handshake (slave never reaches E>).  Match the master
-	@# broadly (the mpm-net2 launcher AND the cpmsim it execs), escalate
-	@# TERM -> KILL, and verify the PROCESS is gone -- not just the port.
-	@for sig in TERM TERM KILL; do \
-	    pkill -$$sig -f mpm-net2 >/dev/null 2>&1 || true; \
-	    pkill -$$sig -f cpmsim   >/dev/null 2>&1 || true; \
-	    sleep 0.5; \
-	    pgrep -f cpmsim >/dev/null 2>&1 || break; \
-	done
-	@if pgrep -f cpmsim >/dev/null 2>&1; then \
-	    echo "ERROR: cpmsim master process survived _kill-mpm:"; \
-	    pgrep -lf cpmsim; \
-	    exit 1; \
-	fi
+	@# Safety net for an orphan master left WITHOUT a pidfile (older sessions):
+	@# find whatever still holds :4002 by PID via `lsof -t` and kill THAT exact
+	@# PID -- still surgical, still never a broad pkill.
+	@PORTPID=$$(lsof -nP -iTCP:4002 -sTCP:LISTEN -t 2>/dev/null); \
+	 if [ -n "$$PORTPID" ]; then \
+	   for sig in TERM KILL; do \
+	     kill -$$sig $$PORTPID 2>/dev/null || break; \
+	     sleep 0.5; \
+	     lsof -nP -iTCP:4002 -sTCP:LISTEN -t >/dev/null 2>&1 || break; \
+	   done; \
+	 fi
 	@if lsof -nP -iTCP:4002 -sTCP:LISTEN 2>/dev/null | grep -q .; then \
 	    echo "ERROR: port 4002 still bound after _kill-mpm:"; \
 	    lsof -nP -iTCP:4002 -sTCP:LISTEN; \
@@ -938,10 +962,10 @@ sio-smoke:
 	$(SHARED)/testutil/mksmokedisk.sh
 	@echo "=== 2/5 restarting MP/M with fresh drive D: ==="
 	$(MAKE) _kill-mpm
-	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	$(START_MPM)
 	@echo "=== 3/5 waiting for MP/M CP/NET server on :4002 ==="
-	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
-	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see screen -r mpm / $(MPM_DIR)/mpm-net2"; exit 1; }
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see 'screen -r mpm' for the crash)"; exit 1; fi; sleep 0.5; done
+	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see 'screen -r mpm'"; exit 1; }
 	@sleep 4
 	@echo "=== 4/5 launching MAME + smoke injector (workload: $(WORKLOAD)) ==="
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_smoke_inject.log /tmp/cpnos_boot_marks.txt
@@ -983,10 +1007,10 @@ sio-smoke:
 pio-irq-netboot: cpnos-install _check-tag-pio-irq _check-mame-irq
 	@echo "=== 1/4 restarting MP/M with fresh disks ==="
 	$(MAKE) _kill-mpm
-	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	$(START_MPM)
 	@echo "=== 2/4 waiting for MP/M CP/NET server on :4002 ==="
-	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
-	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see screen -r mpm / $(MPM_DIR)/mpm-net2"; exit 1; }
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see 'screen -r mpm' for the crash)"; exit 1; fi; sleep 0.5; done
+	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see 'screen -r mpm'"; exit 1; }
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_screen.txt /tmp/cpnos_boot_marks.txt
 	@echo "=== 4/4 launching MAME (PIO-B -> mpm-net2 :4002) ==="
@@ -1028,9 +1052,9 @@ pio-irq-smoke: cpnos-install _check-tag-pio-irq _check-mame-irq
 	$(SHARED)/testutil/mksmokedisk.sh
 	@echo "=== 2/5 restarting MP/M with fresh disks ==="
 	$(MAKE) _kill-mpm
-	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
-	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
-	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see screen -r mpm / $(MPM_DIR)/mpm-net2"; exit 1; }
+	$(START_MPM)
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see 'screen -r mpm' for the crash)"; exit 1; fi; sleep 0.5; done
+	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see 'screen -r mpm'"; exit 1; }
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_wboot.txt /tmp/cpnos_boot_result.txt \
 	    /tmp/cpnos_smoke_inject.log /tmp/cpnos_boot_marks.txt
@@ -1122,10 +1146,23 @@ cpnos-polypascal-test-no-mirror:
 	$(MAKE) MIRROR_SIOB=0 cpnos-install
 	@echo "=== 2/4 (re)starting MP/M with fresh disks ==="
 	$(MAKE) _kill-mpm
-	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	$(START_MPM)
 	@echo "=== 3/4 waiting for MP/M CP/NET server on :4002 ==="
-	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
-	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see screen -r mpm / $(MPM_DIR)/mpm-net2"; exit 1; }
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see 'screen -r mpm' for the crash)"; exit 1; fi; sleep 0.5; done
+	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see 'screen -r mpm'"; exit 1; }
+	@# CRITICAL (#119 root cause, found 2026-07-06): the health-gate ping above
+	@# CONSUMES the mpm-net2 master's single CP/NET connection and leaves its
+	@# protocol state machine wedged mid-frame — a verified 2nd connection gets
+	@# ENQ (0x05) back instead of ACK.  MAME's slave is that 2nd connection, so
+	@# without a restart it hangs forever in _transport_recv_byte after printing
+	@# its banner and never reaches E> (both transports, both compilers — exactly
+	@# the parked polypascal-hang symptom).  The ping was added in eb116e9
+	@# (2026-07-04) as a startup gate but silently broke the test it guards.
+	@# Fix: keep the ping (real health-check value) but restart the master FRESH
+	@# afterwards so MAME connects to a pristine, un-probed one.
+	@$(MAKE) _kill-mpm
+	$(START_MPM)
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 restart-after-ping did not reopen :4002 within 20s"; exit 1; fi; sleep 0.5; done
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt
@@ -1172,10 +1209,23 @@ cpnos-dir-test:
 	$(MAKE) stage-drivei-ppas
 	@echo "=== 3/5 (re)starting MP/M with fresh disks ==="
 	$(MAKE) _kill-mpm
-	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	$(START_MPM)
 	@echo "=== 4/5 waiting for MP/M CP/NET server on :4002 ==="
-	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
-	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see screen -r mpm / $(MPM_DIR)/mpm-net2"; exit 1; }
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see 'screen -r mpm' for the crash)"; exit 1; fi; sleep 0.5; done
+	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see 'screen -r mpm'"; exit 1; }
+	@# CRITICAL (#119 root cause, found 2026-07-06): the health-gate ping above
+	@# CONSUMES the mpm-net2 master's single CP/NET connection and leaves its
+	@# protocol state machine wedged mid-frame — a verified 2nd connection gets
+	@# ENQ (0x05) back instead of ACK.  MAME's slave is that 2nd connection, so
+	@# without a restart it hangs forever in _transport_recv_byte after printing
+	@# its banner and never reaches E> (both transports, both compilers — exactly
+	@# the parked polypascal-hang symptom).  The ping was added in eb116e9
+	@# (2026-07-04) as a startup gate but silently broke the test it guards.
+	@# Fix: keep the ping (real health-check value) but restart the master FRESH
+	@# afterwards so MAME connects to a pristine, un-probed one.
+	@$(MAKE) _kill-mpm
+	$(START_MPM)
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 restart-after-ping did not reopen :4002 within 20s"; exit 1; fi; sleep 0.5; done
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt
@@ -1295,10 +1345,23 @@ cpnos-inir-baseline-gdb:
 	$(MAKE) stage-drivei-ppas
 	@echo "=== 4/6 (re)starting MP/M with fresh disks ==="
 	$(MAKE) _kill-mpm
-	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	$(START_MPM)
 	@echo "=== 5/6 waiting for MP/M CP/NET server on :4002 ==="
-	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
-	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see screen -r mpm / $(MPM_DIR)/mpm-net2"; exit 1; }
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see 'screen -r mpm' for the crash)"; exit 1; fi; sleep 0.5; done
+	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see 'screen -r mpm'"; exit 1; }
+	@# CRITICAL (#119 root cause, found 2026-07-06): the health-gate ping above
+	@# CONSUMES the mpm-net2 master's single CP/NET connection and leaves its
+	@# protocol state machine wedged mid-frame — a verified 2nd connection gets
+	@# ENQ (0x05) back instead of ACK.  MAME's slave is that 2nd connection, so
+	@# without a restart it hangs forever in _transport_recv_byte after printing
+	@# its banner and never reaches E> (both transports, both compilers — exactly
+	@# the parked polypascal-hang symptom).  The ping was added in eb116e9
+	@# (2026-07-04) as a startup gate but silently broke the test it guards.
+	@# Fix: keep the ping (real health-check value) but restart the master FRESH
+	@# afterwards so MAME connects to a pristine, un-probed one.
+	@$(MAKE) _kill-mpm
+	$(START_MPM)
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 restart-after-ping did not reopen :4002 within 20s"; exit 1; fi; sleep 0.5; done
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt \
@@ -1379,10 +1442,23 @@ cpnos-inir-baseline:
 	$(MAKE) stage-drivei-ppas
 	@echo "=== 3/5 (re)starting MP/M with fresh disks ==="
 	$(MAKE) _kill-mpm
-	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	$(START_MPM)
 	@echo "=== 4/5 waiting for MP/M CP/NET server on :4002 ==="
-	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
-	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see screen -r mpm / $(MPM_DIR)/mpm-net2"; exit 1; }
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see 'screen -r mpm' for the crash)"; exit 1; fi; sleep 0.5; done
+	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see 'screen -r mpm'"; exit 1; }
+	@# CRITICAL (#119 root cause, found 2026-07-06): the health-gate ping above
+	@# CONSUMES the mpm-net2 master's single CP/NET connection and leaves its
+	@# protocol state machine wedged mid-frame — a verified 2nd connection gets
+	@# ENQ (0x05) back instead of ACK.  MAME's slave is that 2nd connection, so
+	@# without a restart it hangs forever in _transport_recv_byte after printing
+	@# its banner and never reaches E> (both transports, both compilers — exactly
+	@# the parked polypascal-hang symptom).  The ping was added in eb116e9
+	@# (2026-07-04) as a startup gate but silently broke the test it guards.
+	@# Fix: keep the ping (real health-check value) but restart the master FRESH
+	@# afterwards so MAME connects to a pristine, un-probed one.
+	@$(MAKE) _kill-mpm
+	$(START_MPM)
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 restart-after-ping did not reopen :4002 within 20s"; exit 1; fi; sleep 0.5; done
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt \
@@ -1495,10 +1571,23 @@ cpnos-polypascal-test:
 	$(MAKE) stage-drivei-ppas
 	@echo "=== 3/5 (re)starting MP/M with fresh disks ==="
 	$(MAKE) _kill-mpm
-	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	$(START_MPM)
 	@echo "=== 4/5 waiting for MP/M CP/NET server on :4002 ==="
-	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
-	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see screen -r mpm / $(MPM_DIR)/mpm-net2"; exit 1; }
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see 'screen -r mpm' for the crash)"; exit 1; fi; sleep 0.5; done
+	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see 'screen -r mpm'"; exit 1; }
+	@# CRITICAL (#119 root cause, found 2026-07-06): the health-gate ping above
+	@# CONSUMES the mpm-net2 master's single CP/NET connection and leaves its
+	@# protocol state machine wedged mid-frame — a verified 2nd connection gets
+	@# ENQ (0x05) back instead of ACK.  MAME's slave is that 2nd connection, so
+	@# without a restart it hangs forever in _transport_recv_byte after printing
+	@# its banner and never reaches E> (both transports, both compilers — exactly
+	@# the parked polypascal-hang symptom).  The ping was added in eb116e9
+	@# (2026-07-04) as a startup gate but silently broke the test it guards.
+	@# Fix: keep the ping (real health-check value) but restart the master FRESH
+	@# afterwards so MAME connects to a pristine, un-probed one.
+	@$(MAKE) _kill-mpm
+	$(START_MPM)
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 restart-after-ping did not reopen :4002 within 20s"; exit 1; fi; sleep 0.5; done
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt
@@ -1657,10 +1746,10 @@ cpnos-bios-jt-trace:
 	$(MAKE) MIRROR_SIOB=1 cpnos-install
 	@echo "=== 2/4 (re)starting MP/M with fresh disks ==="
 	$(MAKE) _kill-mpm
-	cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2
+	$(START_MPM)
 	@echo "=== 3/4 waiting for MP/M CP/NET server on :4002 ==="
-	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see screen -r mpm / $(MPM_DIR)/mpm-net2 for the crash)"; exit 1; fi; sleep 0.5; done
-	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see screen -r mpm / $(MPM_DIR)/mpm-net2"; exit 1; }
+	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 did not open :4002 within 20s (see 'screen -r mpm' for the crash)"; exit 1; fi; sleep 0.5; done
+	@python3 $(CURDIR)/scripts/cpnet_ping.py 127.0.0.1 4002 --timeout=5 || { echo "ERROR: mpm-net2 has :4002 open but did not answer a CP/NET LOGIN ""round-trip -- see 'screen -r mpm'"; exit 1; }
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       /tmp/cpnos_bios_jt_trace.log

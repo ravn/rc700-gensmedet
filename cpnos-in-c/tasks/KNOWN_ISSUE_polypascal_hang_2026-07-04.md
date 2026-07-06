@@ -161,3 +161,39 @@ or bisected:
    MAME/z80pack regression turns out to be, and is exactly why this
    hang has no natural timeout today. Worth its own follow-up
    regardless of how this issue resolves.
+
+---
+
+## RESOLVED 2026-07-06 (SIO) — the health-gate ping wedged the master
+
+Root cause: the `cpnet_ping.py` startup gate added in eb116e9 (2026-07-04, the
+SAME commit that documented this hang) does a full CP/NET LOGIN round-trip
+against mpm-net2 and **consumes the master's single CP/NET connection**, leaving
+its protocol state machine wedged mid-frame.  Proven directly: against a fresh
+master, ping #1 PASSES but a 2nd connection gets ENQ (0x05) back instead of ACK.
+MAME's slave is that 2nd connection, so it hangs in `_transport_recv_byte` after
+the banner and never reaches E> — exactly the symptom above.  The diagnostic
+tool corrupted the thing it was diagnosing; the #119 author ran the ping once,
+saw it pass, and wrongly cleared the master.
+
+Fix (Makefile, all polypascal-test variants): keep the ping (real health-check
+value) but **restart the master FRESH afterwards** (`_kill-mpm` + `$(START_MPM)`)
+so MAME connects to a pristine, un-probed one.  `make cpnos-polypascal-test
+COMPILER=clang TRANSPORT=sio` now PASSES: `PPAS PRIMES ran to completion (29989
+seen) and Q returned to E>`.
+
+Also hardened in the same change: mpm-net2 lifecycle is now killed by the SAVED
+screen-session PID (`pkill -P $PID`, parent-PID targeted) + an `lsof -t` orphan
+fallback, instead of a broad `pkill -f cpmsim` that could reap an unrelated
+cpmsim.  screen is retained for the launch because cpmsim needs a PTY on its
+console stdin (a plain `</dev/null` EOFs the MP/M console into a busy-loop that
+starves the CP/NET server — verified).
+
+## STILL OPEN (PIO only): cpnet_bridge byte delivery — ravn/mame#6
+
+With the ping fix, `TRANSPORT=pio-irq` still fails: the slave boots (banner) but
+the `cpnet_bridge` MAME PIO-B slot device delivers the slave's first byte to the
+master and never returns the reply (bridge log shows a lone `write(00) -> TCP`,
+no refill).  This is the separate, already-parked `project_ravn_mame_6` PIO-B
+timing regression at the MAME device layer — independent of the master-wedge bug
+fixed here, and of cpnos code.  SIO is the working transport in MAME.
