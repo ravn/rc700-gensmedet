@@ -2,6 +2,41 @@
 
 **Status:** marked XFAIL in `compiler-comparison-corpus/sweep.sh` (2026-06-08).  Sweep TSV reports `XFAIL(exit=1)` on these two cells; the rest of the corpus is PASS.
 
+---
+
+## ✅ ROOT CAUSE CONFIRMED (2026-07-06) — `--sdcccall 1` + default-convention stdlib
+
+Both XFAILs share **one** root cause, red-green validated this session:
+
+**The sweep builds the zsdcc lane with `--sdcccall 1` (register-arg ABI) but links z88dk's default stdlib/crt0, which is built for the default `--sdcccall 0` convention.**  The runtime arithmetic helpers therefore return their result in a register the `--sdcccall 1` caller does not read:
+
+- **fannkuch:** `checksum += (permCount % 2 == 0) ? f : -f` — the signed `int % 2` lowers to a `__modsint` call.  The caller reads the remainder from `E`; under the mismatched stdlib that byte is `0`, so `permCount % 2` is `0` for *every* iteration.  The value emitted is unstable across surrounding code (all-`-f` = 40, all-`+f`, etc.) because the "always-0" parity feeds different branch selections after regalloc — hence the earlier confusing 40-vs-180 manifestations.
+- **pi:** heavy `uint32_t` division/modulo hits the 32-bit sibling helpers (`__divulong`/`__modulong`); same return-register mismatch → the accumulator never advances → `0x0000`.
+
+z88dk **explicitly warns** about exactly this: `warning 296: non-default sdcccall specified, but default stdlib or crt0`.  **`sweep.sh` suppresses it** with `-Cs"--disable-warning 296"`.
+
+### Evidence (verified)
+- Both benches **FAIL under `--sdcccall 1`, PASS under `--sdcccall 0`** (same compiler, clib, flags — only the ABI flag differs).  Runtime-verified via ticks exit code.
+- Isolated `p % dv` (dv=2 volatile → forces `__modsint`) prints `00000000` under `--sdcccall 1` vs correct `01010101` under `--sdcccall 0` and on x86 gcc.  Fails with BOTH `-clib=sdcc_iy` and plain `-clib=sdcc`.
+- asm: `call __modsint` / `pop bc` / `pop hl` / `ld a,e` — the caller reads the remainder from `E`.
+- `(permCount & 1) == 0` (bitwise, no `__modsint`) computes the **correct** checksum → confirms the bug is the modulo runtime helper, not the ternary.
+- **Not** signed-overflow UB: max intermediate `|checksum|` for N=7 = **269** (≪ INT16 32767).
+
+### Not an SDCC upstream bug (inference, not runtime-verified)
+Mainline SDCC 4.2.0 emits `ld de,(_dv)` / `jp __modsint` (tail-call), i.e. it *does* have a consistent internal convention; a matching-convention stdlib would compute correctly.  This is a **build-configuration mismatch** in the corpus (—sdcccall 1 with a —sdcccall 0 stdlib), which z88dk documents via warning 296 — **not** a bug to file upstream.
+
+### Minimal repro
+`compiler-comparison-corpus/zsdcc-repro/modsint_sdcccall1.c` (6-line core; prints `00000000` buggy / `01010101` correct).
+
+### Fix options for the corpus (decision pending)
+1. Switch the zsdcc lane to `--sdcccall 0` → both benches PASS (all-PASS corpus), but changes the ABI for *every* zsdcc cell (sizes/tstates shift; breaks parity with aes256-corpus `01_baseline_prod` and cross-run history).
+2. Keep `--sdcccall 1` + XFAIL, now with a **confirmed** root cause instead of a guess (stop suppressing warning 296, or annotate it).
+3. Build/link an `--sdcccall 1`-matched stdlib (heavy; not worth it for characterization benches).
+
+---
+
+## Original triage notes (2026-06-08, superseded by the confirmed cause above)
+
 **Priority:** low.  Both benches are characterization tools, not production deliverables.  The four finishing-firmware components (rcbios, autoload-in-c, CP/NET, cpnos) work correctly under both compilers.  Picking this up only makes sense when (a) we want to clean the corpus to all-PASS as a precondition to claiming compiler-quality parity, or (b) the same bug class shows up in a production component.
 
 **Origin:** `0ca7d3c` (2026-05-21).  Original commit added the benches noting "zsdcc divergence noted" and deferred investigation.  Documented again 2026-06-08 after the harness ED-FE-trap rewrite (`[[reference_ticks_canonical_exit_trap]]`) made the failures visible in the TSV instead of masking them behind a 200 M-counter cap.
