@@ -284,3 +284,29 @@ bytes that happen to coincide with the same opcode pattern by chance.
    with clang (bypassing all backend optimization passes) to see if the hang
    persists — would strongly implicate a specific optimization pass over a
    frontend/ABI issue.
+
+---
+
+## RESOLVED 2026-07-06 — root cause was LTO data-placement, not FDC/miscompile
+
+The hang was NOT an FDC timing quirk, a spurious-interrupt race, or a codegen
+miscompile. It was **`-flto` mis-placing two data sections** the linker script
+anchors via per-object-file matchers:
+
+1. `confi_on_disk[]` / `conv_tables[]` (`.boot_data 0x0080`) fell to generic
+   `.rodata` at 0xE78D/0xE80D under LTO. `relocate_bios()` copies FROM these at
+   coldboot expecting physical 0x0080/0x0100 (ROM-loaded Track 0), so it read
+   uninitialised RAM into CFG. Garbage CTC config -> the spurious 2nd FDC
+   interrupt (Sense-Int ST0=0x80 at t=1.62s) and phantom 2nd SPECIFY (t=3.43s)
+   documented above were downstream symptoms, not causes.
+2. `bios_jump_vector_table` (`.bios_jt` @ BIOSAD) also fell out of place ->
+   `_jump_ccp` at 0xDA00 -> banner shows but CCP calls wrong entries -> no `A>`.
+
+Fix: `__attribute__((section(...), used))` on all three symbols +
+`KEEP(*(.boot_data))` / `KEEP(*(.bios_jt))` anchors in `rc700_bios.ld`.
+`make mame-test COMPILER={clang,sdcc}` both boot to `A>`; clang 5906 B.
+See memory `feedback_rcbios_no_lto_boot_placement.md` for the full mechanism.
+
+Every "ruled out" and "still unknown" item above is explained by this single
+root cause; the FDC model was behaving correctly the whole time given the
+garbage config it was fed.

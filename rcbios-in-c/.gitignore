@@ -10,6 +10,7 @@ bios.cim
 clang/bios.clang.cim
 clang/bios.clang.elf
 clang/*.o
+clang/.cflags
 sdcc/bios.cim
 sdcc/bios.elf
 bios.map
