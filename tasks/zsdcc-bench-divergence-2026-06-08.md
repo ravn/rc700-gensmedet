@@ -1,6 +1,10 @@
 # TODO: zsdcc bench divergence — fannkuch + pi
 
-**Status:** marked XFAIL in `compiler-comparison-corpus/sweep.sh` (2026-06-08).  Sweep TSV reports `XFAIL(exit=1)` on these two cells; the rest of the corpus is PASS.
+**Status:** RESOLVED (2026-07-06).  Root cause confirmed + red-green validated (below).  Both cells are now **SKIPPED entirely** in `compiler-comparison-corpus/sweep.sh` (`SKIP_CELL`, commit `073ff82`) — it's a build-config/stdlib-ABI mismatch, not a compiler bug, so re-running adds no signal.  (Historically marked XFAIL.)
+
+**Follow-ups filed:**
+- **rc700-gensmedet#121** — optional register-arg runtime shims to restore `--sdcccall 1` coverage on these two benches (the `__modsint` shim is proven; pi needs 4 more 32-bit shims).
+- **Deferred upstream (pending go-ahead):** (a) z88dk/z88dk — ships only stack-convention runtime arithmetic helpers, no `--sdcccall 1` variant; (b) retro-vault/xyz — xcc beta miscompiles fannkuchredux (unrelated, tracked as `fannkuch:xcc` XFAIL).
 
 ---
 
