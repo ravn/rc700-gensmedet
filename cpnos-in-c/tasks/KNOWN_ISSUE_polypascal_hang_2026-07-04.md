@@ -197,3 +197,11 @@ master and never returns the reply (bridge log shows a lone `write(00) -> TCP`,
 no refill).  This is the separate, already-parked `project_ravn_mame_6` PIO-B
 timing regression at the MAME device layer — independent of the master-wedge bug
 fixed here, and of cpnos code.  SIO is the working transport in MAME.
+
+## FOLLOW-UP (2026-07-07): residual ~50% alternation on SIO
+
+Even with the ping-wedge fixed, SIO polypascal-test reaches E> in a PERFECTLY
+ALTERNATING pass/fail pattern (F,P,F,P,...).  This is a separate, still-open
+issue with its own thorough writeup (ruled-out causes, diagnostic dead-ends,
+best hypothesis = MAME<->cpmsim emulator timing coupling, untested fixes):
+see `KNOWN_ISSUE_polypascal_alternation_2026-07-07.md`.
