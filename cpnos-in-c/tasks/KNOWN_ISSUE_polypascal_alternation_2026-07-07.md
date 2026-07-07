@@ -4,6 +4,42 @@ Status: OPEN. Root cause NOT found. Deterministic F,P,F,P alternation fully
 characterized; both master-side byte-trace diagnostics hit walls (documented
 below so they are not re-attempted blindly).
 
+## UPDATE 2026-07-07 (later): MAME EXONERATED — flake is SIO-intrinsic, not a MAME regression
+
+A pre/post-merge MAME A/B settled the "it worked before" hypothesis. The
+suspicion was that the 2026-06-16 MAME upstream merge (`fb6da69a`, 1061 commits
+mame0284..0288) broke the transport. Built a pre-merge MAME
+(`7be8a027`, 2026-06-14, the merge's non-upstream parent) in a git worktree and
+ran the boot-to-E> gate (`SECONDS_TO_RUN_POLYPASCAL=25`, 6 runs each), current
+firmware unchanged, only the MAME binary varying:
+
+| Transport | pre-merge MAME (7be8a027) | post-merge MAME (current) |
+|-----------|:------------------------:|:-------------------------:|
+| **PIO** (pio-irq) | PPPPPP (6/6) | PPPPPP (6/6) |
+| **SIO** (sio)     | PFPFPF       | PFPFPF (this doc)         |
+
+Conclusion: the variable is **transport, not MAME version**. SIO alternates
+PFPFPF identically on BOTH MAME builds → the MAME merge is NOT the cause;
+rolling MAME back does NOT fix the flake. PIO reaches E> rock-solid (6/6) on
+both. So the flake is **intrinsic to the SIO byte-path**, and "it worked
+before" = PIO (still reliable today). Refocus root-causing on the SIO transport
+(`-rs232a null_modem -bitb1 socket:4002` direct SIO-A socket), NOT MAME.
+
+Two side-findings from this A/B:
+- **Master-side bug fixed:** the `cpmsim` binary was built with `WANT_ICE`
+  enabled (from z80pack `sim.h` commit 8afbaaf1), so `mpm-net2` dropped into the
+  ICE monitor (`>>>`) at boot instead of auto-booting MP/M — :4002 opened but
+  the CP/NET server never ran, so the health-gate ping got "Connection reset by
+  peer" and blocked EVERY polypascal run regardless of MAME/transport. Fixed by
+  rebuilding cpmsim from the (already-committed) `WANT_ICE`-off source. If the
+  health gate ever fails with connection-reset again, check the cpmsim binary
+  was rebuilt after any `sim.h` change.
+- **mame#6 / "PIO blocked" claim needs re-checking:** this doc and CLAUDE.md say
+  PIO is blocked by ravn/mame#6, but PIO reaches E> 6/6 on the CURRENT MAME. The
+  25s gate only proves boot-to-E>, not the full PPAS primes run — mame#6 may be
+  about sustained INIR/throughput in the long run, not boot. Verify with a full
+  PIO run before rewriting the "PIO blocked" claim.
+
 This is a SEPARATE, residual issue on top of the ping-wedge hang that was fixed
 2026-07-06 (see `KNOWN_ISSUE_polypascal_hang_2026-07-04.md`). The ping-wedge was
 100% fail; this is the ~50% flakiness that remains after that fix.
