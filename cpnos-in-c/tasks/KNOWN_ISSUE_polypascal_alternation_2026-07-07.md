@@ -148,6 +148,17 @@ cfg that MAME saves on exit and reloads on start).
 
 ## Untested pragmatic fixes (for a future session)
 
+- **A MAME bridge device for SIO (LEADING IDEA, user 2026-07-07 — do not
+  investigate yet).** PIO is reliable and SIO is not, and the one structural
+  difference is that PIO goes through a MAME *bridge device*
+  (`-piob cpnet_bridge`, `src/devices/bus/rc702/pio_port/cpnet_bridge.cpp`) that
+  mediates the byte handshake with proper rdy/strobe timing, whereas SIO wires
+  MAME's SIO-A **directly** to the raw TCP socket (`-rs232a null_modem -bitb1
+  socket.127.0.0.1:4002`) with no timing mediation. The way forward for SIO may
+  be to give it an analogous bridge (an rs232/SIO-side `cpnet_bridge` equivalent)
+  instead of the direct raw socket, so the same handshake discipline that makes
+  PIO deterministic also governs SIO. Since PIO is the chosen production path,
+  this is parked — revisit only if SIO is ever un-parked.
 - **`-throttle`** (MAME realtime) on the SIO polypascal MAME line
   (`cpnos-in-c/Makefile`, the `-nothrottle` in the `ifeq ($(TRANSPORT),sio)`
   branch). If realtime stops the alternation, the emulator-timing coupling is
