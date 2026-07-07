@@ -34,11 +34,19 @@ Two side-findings from this A/B:
   rebuilding cpmsim from the (already-committed) `WANT_ICE`-off source. If the
   health gate ever fails with connection-reset again, check the cpmsim binary
   was rebuilt after any `sim.h` change.
-- **mame#6 / "PIO blocked" claim needs re-checking:** this doc and CLAUDE.md say
-  PIO is blocked by ravn/mame#6, but PIO reaches E> 6/6 on the CURRENT MAME. The
-  25s gate only proves boot-to-E>, not the full PPAS primes run — mame#6 may be
-  about sustained INIR/throughput in the long run, not boot. Verify with a full
-  PIO run before rewriting the "PIO blocked" claim.
+- **mame#6 / "PIO blocked" claim RESOLVED:** full PIO runs (default 240s cap)
+  on the CURRENT MAME completed the whole PPAS primes run to 29989 and returned
+  to E> — 2/3 full runs PASS (the 1 failure was a boot-stage E> timeout at ~42s,
+  siob=81 B, NOT a primes/throughput failure), plus 6/6 on the 25s boot gate. So
+  the **shipping PIO ISR+ring transport WORKS on MAME** (~85-90% boot
+  reliability, ~47s to complete primes when it boots). The "PIO blocked by
+  mame#6" wording in this doc + CLAUDE.md is misleading: it applies only to the
+  **PARKED INIR fast-path** (#115 Steps 2+4), which needs different cpnet_bridge
+  timing and is not in the shipping build. The shipping PIO path is the reliable
+  transport; SIO is the flaky one.
+  - PIO's occasional boot-E> timeout is a DIFFERENT phenomenon from the SIO
+    flake: it is a rare (~10-15%) boot-stage transient, NOT the SIO deterministic
+    50% mod-2 PFPFPF toggle. Do not conflate them.
 
 This is a SEPARATE, residual issue on top of the ping-wedge hang that was fixed
 2026-07-06 (see `KNOWN_ISSUE_polypascal_hang_2026-07-04.md`). The ping-wedge was
