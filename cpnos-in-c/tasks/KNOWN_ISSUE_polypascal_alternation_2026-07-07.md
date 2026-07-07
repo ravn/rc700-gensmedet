@@ -1,8 +1,13 @@
 # KNOWN ISSUE (open, parked 2026-07-07): polypascal-test reaches E> in a PERFECTLY ALTERNATING pass/fail pattern
 
-Status: OPEN. Root cause NOT found. Deterministic F,P,F,P alternation fully
-characterized; both master-side byte-trace diagnostics hit walls (documented
-below so they are not re-attempted blindly).
+Status: SIO transport PARKED 2026-07-07 (decision: use PIO). Root cause of the
+SIO flake NOT found, but it does NOT block production: **PIO (pio-irq) is the
+verified/recommended transport** and runs the full PPAS primes reliably; SIO is
+parked as the flaky path until someone root-causes the mod-2 toggle. Deterministic
+F,P,F,P alternation fully characterized; both master-side byte-trace diagnostics
+hit walls (documented below so they are not re-attempted blindly). See the
+2026-07-07 UPDATE below for the pre/post-merge MAME A/B that exonerated MAME and
+confirmed PIO as the reliable path.
 
 ## UPDATE 2026-07-07 (later): MAME EXONERATED — flake is SIO-intrinsic, not a MAME regression
 
