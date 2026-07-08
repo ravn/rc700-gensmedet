@@ -324,7 +324,7 @@ CPNOS_LOCALE_TAG ?= da_US
 # PROM1-only line program (see PROM1ONLY_* rules below; build dirs
 # clang-prom1lineprog/ and sdcc-prom1lineprog/).  The two-PROM build
 # was removed 2026-06-03 (TWO_PROM_PARKED → deleted).
-PAYLOAD_OBJS = $(BUILDDIR)/runtime.o $(BUILDDIR)/bios_jt.o \
+PAYLOAD_OBJS = $(BUILDDIR)/bios_jt.o \
                $(BUILDDIR)/cpnos_main.o \
                $(BUILDDIR)/resident.o $(BUILDDIR)/init.o \
                $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o \
@@ -408,9 +408,10 @@ $(BUILDDIR)/toolchain_stamp: ;
 
 # ---- Compile ------------------------------------------------------
 
-$(BUILDDIR)/runtime.o: runtime.s
-	@mkdir -p $(BUILDDIR)
-	$(CC) $(ASFLAGS) -c $< -o $@
+# runtime.o removed 2026-07-08: memcpy/memset/memmove/memchr/__call_iy were
+# all dead code — compiler inlines __builtin_memcpy/__builtin_memset directly
+# and no call sites reference the external symbols.  Verified byte-identical
+# output on both clang and SDCC builds.
 
 $(BUILDDIR)/bios_jt.o: bios_jt.s
 	@mkdir -p $(BUILDDIR)
