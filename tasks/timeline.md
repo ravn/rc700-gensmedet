@@ -8569,3 +8569,51 @@ beyond the existing spill->PUSH/POP peephole family; follow-up to the B21
 static-frame stores) with a 2-line generic fix in `MachineOperand.cpp`,
 verified A/B to also root-fix **B15** (pi-cse miscompile). Both llvm-z80
 and rc700-gensmedet pushed to origin main; #247 closed.
+
+## Session 2026-07-08 — z80pio stuck-IUS fix + cpnet_bridge 8-bit-clean
+
+**Outcome:** Two ravn/mame commits; upstream mamedev/mame issue filed; rcbios
+CP/NET PIO transfer now flows without stalling.
+
+### cpmtools3/libdsk heap overflow (session open, resolved early)
+libdsk `dsk_defgetgeom` segfault: `secbuf` was realloc'd to geom->dg_secsize
+after re-reading, not before → heap overflow on oversized reads. Fixed in
+ravn/libdsk, PR filed to lipro-cpm4l/libdsk.
+
+### ravn/mame 12ea19d0 — cpnet_bridge 8-bit-clean
+`read()` on empty FIFO returned `0xff` sentinel. Fixed to return `m_last_byte`
+(last real byte). Login→H> dropped from 58s/flaky to ~2.9s clean. The old
+0xff was vestigial from the polled cpnos-rom path; the IRQ-driven snios.asm
+ring never depended on it.
+
+### z80pio investigation — two-port theory, stuck B.ius
+Hypothesis: two ports A+B interfere via shared daisy-chain IUS.
+Instrumented `check_interrupts` with a one-line diagnostic:
+```
+PIO-B IRQ BLOCKED  A(ie=1 ip=0 ius=0)  B(ie=1 ip=1 ius=1)
+```
+27 330 consecutive blocked events. **Two-port theory REFUTED** (A.ip=0 ius=0
+always). Root cause: `check_interrupts` used `ius = A.ius || B.ius` globally,
+so B.ius blocked B itself. After the first Mode-0→Mode-1 flip during CP/NET
+ACK, B.ius stuck at 1 → every subsequent byte set B.ip=1 but IRQ suppressed
+→ ISR_PIO_RX never ran → ring froze → deadlock.
+
+### ravn/mame 2eb88cea — z80pio check_interrupts fix
+Replace global `ius` flag with `ius_above` scanned A→B: each port gated only
+by higher-priority ports. B.ius no longer blocks B.ip. Correct Z80 daisy-chain
+model. Filed upstream: mamedev/mame#15664.
+
+**Verified:** 28 436 CP/NET bytes delivered without stalling; ravn/mame#9 closed.
+
+### Speed analysis — z80pack 10ms poll cycle
+Attempted: `-video none -sound none` (no effect), z80pack `-f0` (0.3x vs 4.3x,
+worse), poll_tick reduction (marginal). Bottleneck is z80pack's
+`sleep_for_us(10000 - tdiff)` per 40k T-states in `simz80.c`. Native CP/NET
+server would reduce transfer from ~750s wall to < 10s. Tracked: ravn/rc700-gensmedet#123.
+
+### Status
+- **cpnos PIO polypascal:** 6/6 PASS (unchanged, the production path).
+- **rcbios PIO polypascal:** transfer flows without stalling (fix verified),
+  but no automated PASS yet — limited by z80pack speed, not correctness.
+  Manual test requires ~20 min wall; `cpnet/polypascal_pio_test.sh` timeouts
+  updated accordingly (commit f6b47f2).

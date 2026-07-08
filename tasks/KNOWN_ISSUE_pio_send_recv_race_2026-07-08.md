@@ -1,7 +1,10 @@
 # KNOWN ISSUE — CP/NET PIO SEND→RECV mode-flip race (2026-07-08)
 
-**Status:** open, root-caused, parked. Not on the critical path — production
-(cpnos-in-c PIO) works 6/6 without depending on this.
+**Status:** **FIXED 2026-07-08** — ravn/mame commit `2eb88cea` (z80pio:
+fix `check_interrupts` — port N.ius must not block port N itself). Filed
+upstream as mamedev/mame#15664. Transfer now flows without stalling (28 436+
+bytes); remaining constraint is z80pack's 10 ms I/O poll speed (see speed
+analysis section below), tracked in ravn/rc700-gensmedet#123.
 
 **Symptom:** the rcbios CP/NET PIO polypascal test
 (`cpnet/polypascal_pio_test.sh`) reaches `H>` cleanly and starts loading
