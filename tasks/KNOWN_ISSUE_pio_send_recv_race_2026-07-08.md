@@ -64,6 +64,51 @@ reconfiguration. See the `ravn/mame#8` note already in
 `cpnet_bridge.cpp::poll_tick` ("MAME doesn't auto-raise BRDY on Mode-1
 entry per Zilog datasheet").
 
+### MEASURED root cause (2026-07-08 instrumentation)
+
+A targeted `logerror` was added to `z80pio.cpp::check_interrupts()` that
+fires only when port B wants to interrupt (`ie && ip`) but the shared IRQ
+line stays CLEAR — i.e. B is blocked — dumping both ports' daisy state.
+Result at the stall (and throughout):
+
+```
+[:pio] [NNN us] PIO-B IRQ BLOCKED  A(ie=1 ip=0 ius=0)  B(ie=1 ip=1 ius=1)
+```
+
+Two conclusions, both from direct measurement:
+
+1. **The "two ports A+B interfere" theory is REFUTED.** Port A (the
+   keyboard channel) shows `ip=0 ius=0` at *every* blocked event — it never
+   has a pending or in-service interrupt during the test (keyboard input
+   comes over SIO-B, not PIO-A). It is not the blocker.
+
+2. **Port B is blocked by its OWN stuck in-service bit.**
+   `check_interrupts()` computes `ius = A.ius || B.ius`; with `B.ius=1` the
+   line is forced CLEAR, so B can never take its next (pending) interrupt.
+   `m_ius` is set in exactly one place — `z80daisy_irq_ack` when the CPU
+   accepts the interrupt — and cleared only by `z80daisy_irq_reti` (RETI).
+   So the CPU *accepted* a B interrupt (B.ius←1) but **no RETI ever cleared
+   it**, and it happens right at the `write(06)` ACK-send / output→input
+   mode flip. From then on every strobed byte sets B.ip=1 but is suppressed.
+
+The firmware side is correct: `ISR_PIO_RX` ends with `EI` + `RETI`, and
+`PIO_TO_INPUT` matches cpnos-in-c `transport_pio.c` (which passes 6/6). So
+the stuck `B.ius` is a **MAME z80pio interrupt-model artifact** around the
+Mode-0(send)→Mode-1(recv) excursion — the accept/reti bookkeeping loses a
+RETI for a B interrupt that was acknowledged during the flux. A real Z80
+PIO clears IUS via the daisy IEO chain on the ISR's RETI, so **this is not
+expected to reproduce on real hardware.**
+
+### Real-hardware implication
+
+Because both the refuted (two-port) and the confirmed (stuck B.ius)
+mechanisms are MAME emulation deficiencies, and the firmware ISR/RETI +
+mode-flip sequence are correct, a real RC702 + Pi/Pico bridge is the
+decisive validation: if PPAS loads over CP/NET on iron, the firmware is
+proven correct and this stall is MAME-only (nothing to fix in the
+firmware). This mirrors the parked INIR path, which likewise can only be
+hardware-verified (`feedback_ring_shrink_inir_coupled`).
+
 ## How to reproduce / observe
 
 ```bash
@@ -96,7 +141,13 @@ The last healthy events before a stall are always the same shape:
    any already-latched byte after arming interrupts, but that fights the
    IRQ-ring design.
 
-Option 1 is the recommended real fix if/when this path is unparked.
+**Revised after the 2026-07-08 measurement:** the primary defect is the
+stuck `B.ius` (a RETI lost for a B interrupt acknowledged during the
+send→recv flip), so the real MAME fix targets the daisy accept/reti
+bookkeeping (option 1's interrupt half) — assert-BRDY-on-Mode-1 (option 1's
+BRDY half) is secondary. But since the firmware is correct and this is a
+MAME-only artifact, **real-hardware validation (below) is the higher-value
+next step** than fixing MAME's PIO model.
 
 ## Why parked
 
