@@ -76,3 +76,28 @@ llvm-z80 fork's runtime test suite to stay green (z80-utils/test-runner).
 Field note posted to ravn/llvm-z80 #35 (the runtime-library issue): the
 archive-link recipe + the per-symbol size gap + the two suggestions
 (document the recipe; retune the helpers to the pop-iy idiom).
+
+## Compiler fix: memmove runtime-base fold (2026-07-08) — and why rc700 still keeps lddr_copy
+
+Root-caused why `__builtin_memmove(base + K, base, n)` did NOT fold to inline
+LDDR when `base` is a runtime value (`screen + cury`): the Z80 memmove
+direction analysis (`Z80LegalizerInfo.cpp`) had a too-strict guard
+(`SrcBase == Register()`) that spuriously failed when `src` was itself a
+G_PTR_ADD.  Fixed in llvm-z80 (merged to main): drop the guard on case 1/2 so
+`dst = SrcPtr + const` folds regardless of SrcPtr's internal structure.  Lit
+182+5, runtime O1-Oz both directions.  It does NOT need to prove absolute
+"A > B" (overflow-unsafe) — only the relative same-base + positive-constant
+delta, which is explicit in the IR.
+
+**But rc700 insert_line still keeps lddr_copy.**  Measured with the fix:
+- archive + lddr_copy: 5951 B
+- archive + __builtin_memmove (folds to inline LDDR): **6000 B (+49)**
+
+Inline LDDR with a *runtime* count needs per-site end-pointer computation
+(`add hl,bc; dec hl` for both src and dst).  lddr_copy centralizes this in a
+shared 7 B helper whose callers pass pre-computed end pointers — strictly
+smaller for rc700's 2-site screen-scroll.  The compiler fold wins for
+single-site / compile-time-count cases and is the right general capability;
+it just doesn't beat a hand-tuned shared primitive for this specific
+multi-site runtime-count pattern.  **Decision: keep lddr_copy** (size-optimal
+here); the compiler fix ships regardless.
