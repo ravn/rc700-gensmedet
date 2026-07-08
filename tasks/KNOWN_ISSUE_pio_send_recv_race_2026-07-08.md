@@ -162,3 +162,31 @@ next step** than fixing MAME's PIO model.
 Related: `tasks/session34-direct-pio-stall-rootcause.md` (the older 0xff
 sentinel stall), `cpnos-in-c/tasks/KNOWN_ISSUE_polypascal_alternation_2026-07-07.md`
 (the SIO-side parked flake).
+
+## Speed analysis — why the MAME test still takes ~750 s wall (2026-07-08)
+
+The z80pio `check_interrupts` fix (ravn/mame `2eb88cea`) eliminates the
+stuck-IUS deadlock.  The transfer now flows continuously (28 436+ bytes
+delivered), but the test harness needs ~20 minutes wall time.
+
+Root cause of slowness: **z80pack's 10 ms I/O poll cycle.**  z80pack
+(mpm-net2) throttles itself to real Z80 speed via `sleep_for_us(10000 -
+tdiff)` every 40 000 T-states (`simz80.c` line ~645).  Each CP/NET frame
+exchange requires at least one z80pack poll cycle (10 ms wall) for the
+slave's request to be seen, plus one more for the response.  With ~5 frame
+exchanges per 128-byte record and 222 records, theoretical minimum is
+~22 s wall — but actual is ~750 s, indicating the server-side Z80 code
+uses many T-state cycles per record.
+
+**What was tried and ruled out:**
+- `-video none -sound none`: no effect (MAME CPU unchanged, ~84%)
+- z80pack `-f0` (unthrottled): **worse** (0.3x vs 4.3x) — suspected TCP
+  socket polling issue in z80pack's tight loop; CPU is not the contention
+  (MAME holds ~85% regardless).
+- Reduce poll_tick 1 ms → 0.1 ms: marginal (first-byte delay < 1% of
+  total time once pipeline is running).
+
+**The only path to a fast test:** replace z80pack with a native CP/NET
+server (Python/Rust) that responds to READ requests in < 1 ms without Z80
+emulation overhead.  Estimated transfer time with native server: < 10 s
+wall.
