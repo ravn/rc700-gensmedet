@@ -8601,7 +8601,7 @@ ACK, B.ius stuck at 1 → every subsequent byte set B.ip=1 but IRQ suppressed
 ### ravn/mame 2eb88cea — z80pio check_interrupts fix
 Replace global `ius` flag with `ius_above` scanned A→B: each port gated only
 by higher-priority ports. B.ius no longer blocks B.ip. Correct Z80 daisy-chain
-model. Filed upstream: mamedev/mame#15664.
+model. Filed upstream: ravn/mame#13 (upstream candidate).
 
 **Verified:** 28 436 CP/NET bytes delivered without stalling; ravn/mame#9 closed.
 
@@ -8617,3 +8617,30 @@ server would reduce transfer from ~750s wall to < 10s. Tracked: ravn/rc700-gensm
   but no automated PASS yet — limited by z80pack speed, not correctness.
   Manual test requires ~20 min wall; `cpnet/polypascal_pio_test.sh` timeouts
   updated accordingly (commit f6b47f2).
+
+### snios.asm: RECVBY_PIO timeout + retransmit counters
+`RECVBY_PIO` was an unbounded busy-wait.  Changed to `JP RECVBT_PIO`
+(existing ~82ms timeout).  This is why cpnos passed all along while rcbios
+deadlocked: cpnos's `transport_pio_recv_byte` had a `timeout_ticks` parameter;
+rcbios's SNIOS assembly did not.  With timeout, RECALL retries on byte-loss
+instead of spinning forever.  Also added `TX_RETRY_CNT`/`RX_RETRY_CNT` BSS
+counters (incremented at `SNDRET`/`RECALL`) and `ERRRTN` CONOUT reporting
+("CPNET ERR T:xx R:xx\r\n" via `B$CONOUT` 0DA0Ch).  `NETIN` now propagates
+CY from `RECVBY` so `MSGIN`'s existing `RET C` guards are no longer dead code.
+
+### polypascal-pio-test: compile+run native, TESTDONE.COM
+- Inject now: L PRIMES → P PRIMES (PROGRAM → PRIMES.COM on H:) → Q → PRIMES
+  (native run) → TESTDONE (generated 9-byte CP/M COM prints "RCBIOS PIO TEST
+  DONE" via BDOS-9).
+- MAME runs in background; inject kills it (SIGKILL) when stages complete.
+- **PASS 16.25 s wall.** 0 retransmissions. PRIMES printed all primes to 29989
+  natively compiled (full sieve — interpreted mode was workspace-limited).
+
+### Why it works now
+Two fixes compounded:
+1. **z80pio `check_interrupts`** (ravn/mame `2eb88cea`): ISR_PIO_RX now fires
+   correctly for every byte.  Root cause of the deadlock.
+2. **RECVBY_PIO timeout** (snios.asm `8f64d9d`): even if a byte is lost,
+   RECVBY returns TIMEOUT so RECALL retries.  Explains 750s→16s: without
+   stuck-IUS, ISR fires immediately → ring always has data → no busy-wait
+   overhead → protocol runs at MAME emulation speed, not z80pack poll speed.
