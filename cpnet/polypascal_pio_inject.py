@@ -42,9 +42,12 @@ STAGES = [
     # the sieve array to ~6000 elements.  We do NOT assert a specific
     # last prime; instead we wait for the '>>' prompt that PPAS shows
     # when PRIMES returns (stage 3), proving the computation completed.
-    (60.0,           b'H>',          b'PPAS\r',         'wait H> then send PPAS'),
-    (90.0,           b'>>',          b'L PRIMES\r',     'initial PPAS prompt / L PRIMES'),
-    (90.0,           b'>>',          b'R\r',            'post-load prompt / R'),
+    (120.0,          b'H>',          b'PPAS\r',         'wait H> then send PPAS'),
+    # PPAS.COM (222 × 128 B CP/NET records) loads at ~4-5x MAME speed
+    # over TCP — each record is a full frame round-trip through cpnet_bridge
+    # to z80pack (~3600 s emulated / ~750 s wall).
+    (800.0,          b'>>',          b'L PRIMES\r',     'initial PPAS prompt / L PRIMES'),
+    (120.0,          b'>>',          b'R\r',            'post-load prompt / R'),
     (300.0,          b'>>',          b'Q\r',            'PRIMES complete: post-Run >> prompt / Q'),
     (30.0,           None,           None,              'CCP return (any drive prompt)'),
 ]

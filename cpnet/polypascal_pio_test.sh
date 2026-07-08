@@ -132,16 +132,18 @@ rm -f /tmp/cpnet_pio_polypascal_result.txt /tmp/cpnos_siob.raw \
 
 python3 -u cpnet/polypascal_pio_inject.py "$SIOB_PORT" \
     --log /tmp/cpnos_siob.raw \
-    --timeout 240 > /tmp/cpnet_pio_polypascal_log.txt 2>&1 &
+    --timeout 1200 > /tmp/cpnet_pio_polypascal_log.txt 2>&1 &
 INJECT_PID=$!
 sleep 0.5
 
 echo "=== 6/6 launching MAME (PIO=:4002 master, SIO-B=:$SIOB_PORT inject) ==="
-perl -e 'alarm 250; exec @ARGV' "$MAME_DIR/regnecentralend" rc702 \
+# PPAS.COM (28 KB, 222 CP/NET records) loads at ~4-5x MAME speed over TCP:
+# ~3600 s emulated / ~750 s wall.  seconds_to_run and alarm must cover that.
+perl -e 'alarm 1200; exec @ARGV' "$MAME_DIR/regnecentralend" rc702 \
     -rompath "$MAME_DIR/roms" \
     -flop1 "$WORK_IMAGE" \
     -nothrottle -window -skip_gameinfo \
-    -seconds_to_run 240 \
+    -seconds_to_run 7200 \
     -rs232a null_modem -bitb1 /tmp/cpnet_pio_sioa.raw \
     -rs232b null_modem -bitb2 "socket.127.0.0.1:$SIOB_PORT" \
     -piob cpnet_bridge \
