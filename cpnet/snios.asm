@@ -18,6 +18,7 @@
 B$PUNCH	EQU	0DA12H		; BIOS PUNCH (send byte in C via SIO Ch.A)
 B$READ	EQU	0DA15H		; BIOS READER (receive byte from SIO Ch.A)
 B$RSTA	EQU	0DA4DH		; BIOS READS (reader status, 0=not ready)
+B$CONOUT EQU	0DA0CH		; BIOS CONOUT (send char in C to console)
 
 ; RC702 ports — used by PIO transport (see byte-IO dispatcher below).
 ; Mirrors cpnos-in-c/src/transport_pio.c (the cpnos-side equivalent).
@@ -118,6 +119,12 @@ PIO_DIR:	DS	1	; 0 = input, 1 = output (PIO-B mode flip)
 PIO_HEAD:	DS	1	; ISR_PIO_RX write head into PIO_RING
 PIO_TAIL:	DS	1	; RECVBY_PIO read tail
 PIO_RING:	DS	256	; SPSC ring; head/tail wrap mod 256 (each DS-reserved byte is 0x00 in the loaded image, which is fine — ring starts empty)
+
+; Retransmit counters — wrapping uint8; zeroed by CP/NET loader on cold start.
+; Reported to console by ERRRTN on protocol failure so they appear in the
+; SIO-B mirror log.  Readable externally (Lua debugscript) at runtime.
+TX_RETRY_CNT:	DS	1	; increments at SNDRET (send-side retransmit)
+RX_RETRY_CNT:	DS	1	; increments at RECALL retry (recv-side retransmit)
 
 ;================================================
 ;= CHARACTER I/O DISPATCHERS                    =
@@ -233,32 +240,15 @@ SENDP1:	LD	A,E
 	POP	HL
 	RET
 
-; RECVBY_PIO - Receive one byte (busy wait, no timeout).
-; Returns: A = byte, CY clear.
-; If we're still in output mode (e.g. after sending the last frame
-; byte), flip to input first so ISR_PIO_RX starts capturing.
+; RECVBY_PIO - Receive one byte with timeout.
+; Returns: A = byte, CY clear on success; CY set on timeout.
+; Identical to RECVBT_PIO — mid-frame byte loss (e.g. from MAME's stuck-IUS
+; emulation bug) must not deadlock the slave.  Timeout allows RCVMSG to retry
+; the frame via RECALL rather than spinning forever (previous behaviour).
+; Timeout budget: ~82 ms (HL=0x8000 * ~10 T-states / 4 MHz) — same as
+; RECVBT_PIO and the SIO RECVBT_SIO equivalent.
 RECVBY_PIO:
-	PUSH	HL
-	PUSH	DE
-	CALL	PIO_TO_INPUT	; idempotent; ensures Mode 1 + IE on
-RECVP1:	LD	A,(PIO_HEAD)
-	LD	E,A
-	LD	A,(PIO_TAIL)
-	CP	E
-	JR	Z,RECVP1	; empty, spin
-	; Ring has data.  Tail-indexed read; tail wraps mod 256.
-	LD	HL,PIO_RING
-	LD	D,0
-	LD	E,A		; A still has PIO_TAIL
-	ADD	HL,DE
-	LD	A,(HL)		; the byte
-	INC	E		; next tail (wraps in E since E is uint8)
-	LD	HL,PIO_TAIL
-	LD	(HL),E
-	POP	DE
-	POP	HL
-	OR	A		; CLEAR CARRY
-	RET
+	JP	RECVBT_PIO
 
 ; RECVBT_PIO - Receive one byte with timeout.
 ; Returns: A = byte, CY clear on success; CY set on timeout.
@@ -360,9 +350,11 @@ NETOUT:	LD	A,D
 	JP	SENDBY		; SEND RAW BYTE
 
 ; NETIN - Receive byte, accumulate checksum in D
-; Returns: A = byte, D updated, Z flag reflects checksum
-; CY set on timeout
-NETIN:	CALL	RECVBY		; GET RAW BYTE
+; Returns: A = byte, D updated, Z flag reflects checksum; CY set on timeout.
+; CY from RECVBY is now propagated — MSGIN's RET C guard and all other
+; callers that check RET C after NETIN now correctly abort on timeout.
+NETIN:	CALL	RECVBY		; GET RAW BYTE (CY set on timeout)
+	RET	C		; PROPAGATE TIMEOUT — skip checksum update
 	LD	B,A
 	ADD	A,D		; ADD TO CHECKSUM
 	LD	D,A
@@ -469,6 +461,8 @@ CHKACK:	AND	7FH
 	RET	Z		; GOT ACK, A=0
 ; Fall through to retry
 SNDRET:	POP	HL		; DISCARD RETURN ADDRESS
+	LD	HL,TX_RETRY_CNT
+	INC	(HL)		; COUNT SEND-SIDE RETRANSMIT (wraps at 256)
 	LD	HL,RETCNT
 	DEC	(HL)
 	JR	NZ,SEND		; RETRY
@@ -491,6 +485,8 @@ RERCV:	LD	A,MAXRETRY
 	LD	(RETCNT),A
 RECALL:	CALL	RECV		; ON RETURN = RECEIVE ERROR
 	; Retry
+	LD	HL,RX_RETRY_CNT
+	INC	(HL)		; COUNT RECV-SIDE RETRANSMIT (wraps at 256)
 	LD	HL,RETCNT
 	DEC	(HL)
 	JR	NZ,RECALL
@@ -603,10 +599,72 @@ BADCKS:	LD	A,NAK
 ERRRTN:	LD	HL,CFGTBL
 	OR	(HL)
 	LD	(HL),A		; SET ERROR BIT IN STATUS
+	; Report retransmit counts to console so they appear in the SIO-B
+	; mirror log: "CPNET ERR T:xx R:xx\r\n"  (xx = 2-digit hex, no
+	; leading zeros stripped so width is fixed and easy to grep).
+	PUSH	AF
+	PUSH	BC
+	PUSH	DE
+	PUSH	HL
+	LD	HL,ERRMSG
+ERRMSG1: LD	C,(HL)
+	INC	HL
+	LD	A,C
+	OR	A
+	JR	Z,ERRMSG2	; END OF STRING
+	CALL	B$CONOUT
+	JR	ERRMSG1
+ERRMSG2: ; Print TX_RETRY_CNT as two hex digits
+	LD	A,(TX_RETRY_CNT)
+	CALL	PRTHEX
+	LD	C,' '
+	CALL	B$CONOUT
+	LD	C,'R'
+	CALL	B$CONOUT
+	LD	C,':'
+	CALL	B$CONOUT
+	LD	A,(RX_RETRY_CNT)
+	CALL	PRTHEX
+	LD	C,0DH		; CR
+	CALL	B$CONOUT
+	LD	C,0AH		; LF
+	CALL	B$CONOUT
+	POP	HL
+	POP	DE
+	POP	BC
+	POP	AF
 	CALL	NTWKER		; DEVICE RE-INIT IF NEEDED
 SNDERR1:
 	LD	A,0FFH
 	RET
+
+; PRTHEX — print byte in A as two uppercase hex digits via CONOUT.
+; Clobbers: A, C, F.  Preserves: BC (other), DE, HL.
+PRTHEX:	PUSH	BC
+	LD	C,A
+	RRCA
+	RRCA
+	RRCA
+	RRCA
+	AND	0FH
+	ADD	A,'0'
+	CP	'9'+1
+	JR	C,PRTH1
+	ADD	A,'A'-'0'-10
+PRTH1:	CALL	B$CONOUT
+	LD	A,C
+	AND	0FH
+	ADD	A,'0'
+	CP	'9'+1
+	JR	C,PRTH2
+	ADD	A,'A'-'0'-10
+PRTH2:	LD	C,A
+	CALL	B$CONOUT
+	POP	BC
+	RET
+
+; Error report prefix string (null-terminated).
+ERRMSG:	DB	'C','P','N','E','T',' ','E','R','R',' ','T',':',0
 
 ;================================================
 ;= NTWKIN - NETWORK INITIALIZATION               =
