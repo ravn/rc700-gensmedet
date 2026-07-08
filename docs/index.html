@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RC700 Gensmedet</title>
+<link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body style="margin: 0px">
+
+<!-- ============================================================
+     Header bar — two-row table matching the jbox.dk layout.
+     Row 1: white background, project title in the wide cell.
+     Row 2: #779ABC steel-blue navigation bar.
+     ============================================================ -->
+<table class="header" width="100%" border="0" cellspacing="0" cellpadding="0">
+  <tr>
+    <th class="header" width="80px" height="60px">&nbsp;</th>
+    <th class="header" height="60px" style="text-align:left">
+      <span class="site-title">RC700 Gensmedet</span>
+    </th>
+    <th class="header" height="60px" align="right" style="padding-right:16px">
+      <span style="font-family:Arial; font-size:9pt; color:#779ABC">
+        Regnecentralen RC702 &mdash; reforged firmware in C
+      </span>
+    </th>
+  </tr>
+  <tr>
+    <td class="header" width="80px" height="20px" nowrap>&nbsp;</td>
+    <td class="header" height="20px" colspan="2" nowrap>
+      <span class="headerlink"><a class="headerlink" href="index.html">Home</a></span>|
+      <span class="headerlink"><a class="headerlink" href="https://github.com/ravn/rc700-gensmedet">GitHub</a></span>|
+      <span class="headerlink"><a class="headerlink" href="https://github.com/ravn/llvm-z80">LLVM-Z80 fork</a></span>|
+      <span class="headerlink"><a class="headerlink" href="https://www.jbox.dk/rc702/index.shtm">RC702 (jbox.dk)</a></span>|
+      <span class="headerlink"><a class="headerlink" href="https://datamuseum.dk/wiki/RC700_Piccolo">Datamuseum</a></span>|
+    </td>
+  </tr>
+</table>
+
+<!-- ============================================================
+     Main content — 80 px left/right margins, matching jbox.dk.
+     ============================================================ -->
+<div style="margin-left:80px; margin-right:80px; margin-top:20px">
+
+<h1>RC700 Gensmedet</h1>
+<hr>
+<p>&nbsp;</p>
+
+<table>
+<tr>
+
+<td valign="top" style="padding-right:20px">
+
+<p><b>Gensmedet</b> (Danish: <i>reforged</i>) is an open-source project to recreate the complete
+firmware for the Danish <b>Regnecentralen RC702</b> Z80 micro-computer from scratch in C,
+and to advance the LLVM/Clang Z80 backend until it produces smaller code than SDCC.</p>
+
+<p>The RC702 ("RC Piccolo") was produced from 1980 by Regnecentralen in Copenhagen.
+It ran CP/M 2.2 on a Z80 at up to 4 MHz with 64 KB RAM, one or two 5&frac14;&Prime;
+floppy drives, a CRT terminal, and SIO/PIO serial and parallel ports.</p>
+
+<p>All four production firmware components now <b>compile cleanly with Clang</b> and
+produce smaller binaries than the reference SDCC toolchain:</p>
+
+<ul>
+  <li><a href="https://github.com/ravn/rc700-gensmedet/tree/main/autoload-in-c">autoload-in-c</a> &mdash; 2 KB boot PROM (ROA375) that decompresses the system from floppy</li>
+  <li><a href="https://github.com/ravn/rc700-gensmedet/tree/main/rcbios-in-c">rcbios-in-c</a> &mdash; full CP/M BIOS in C with SIO, PIO, FDC and CP/NET SNIOS support</li>
+  <li><a href="https://github.com/ravn/rc700-gensmedet/tree/main/cpnos-in-c">cpnos-in-c</a> &mdash; CP/NOS slave PROM1 line-program (fits in a single 2 KB EPROM)</li>
+  <li><a href="https://github.com/ravn/rc700-gensmedet/tree/main/cpnet">cpnet</a> &mdash; CP/NET SNIOS for the BIOS (dual PIO/SIO transport, self-modifying dispatch)</li>
+</ul>
+
+<p>The project also drives improvements to the
+<a href="https://github.com/ravn/llvm-z80">ravn/llvm-z80</a> GlobalISel Z80 backend,
+which is a fork of <a href="https://github.com/zlfn/llvm-z80">zlfn/llvm-z80</a>.</p>
+
+</td>
+
+<td valign="top" style="min-width:260px">
+
+<!-- Current size status — refreshed 2026-07-08 -->
+<table class="info" border="1" cellspacing="0" cellpadding="4">
+  <tr>
+    <th colspan="3">Current code sizes (clang vs SDCC)</th>
+  </tr>
+  <tr>
+    <th>Component</th>
+    <th>Clang</th>
+    <th>SDCC</th>
+  </tr>
+  <tr>
+    <td>autoload PROM (ZX0)</td>
+    <td class="status-good">1643 B / 2048 cap</td>
+    <td class="status-info">4 KB MAME-only</td>
+  </tr>
+  <tr>
+    <td>BIOS</td>
+    <td class="status-good">5462 B</td>
+    <td class="status-info">6091 B</td>
+  </tr>
+  <tr>
+    <td>cpnos PROM1 (ZX0)</td>
+    <td class="status-good">2014 B / 2048 cap</td>
+    <td class="status-info">2151 B / 4 KB</td>
+  </tr>
+  <tr>
+    <td>AES-256 corpus</td>
+    <td class="status-good">2581 B (&minus;22%)</td>
+    <td class="status-info">3323 B</td>
+  </tr>
+</table>
+
+<p>&nbsp;</p>
+
+<div class="infobar">
+  <div class="infobarheader">MAME boot status</div>
+  <div class="infobarcontent">
+    <p>autoload: PASS (<code>make floppy-boot-test</code>)</p>
+    <p>BIOS: PASS (77-track MAME sweep ERR=0)</p>
+    <p>cpnos PIO: PASS (polypascal primes to 29989)</p>
+    <p>CP/NET PIO: PASS (polypascal-pio-test 16 s)</p>
+  </div>
+</div>
+
+</td>
+</tr>
+</table>
+
+<p>&nbsp;</p>
+<h2>Project components</h2>
+<hr>
+
+<h3>autoload-in-c &mdash; boot PROM ROA375</h3>
+<p>The RC702 boot PROM decompresses the CP/M system from floppy into RAM on power-up.
+The C rewrite fits in a <b>2 KB hard-capped EPROM</b> (no A11 bridge on the hardware).
+The compressed payload is decoded by a split ZX0 decoder arranged around the 0x0066 NMI
+vector.  Build with <code>make clang</code>; the boot gate test drives a real floppy image
+through MAME and verifies the <code>A&gt;</code> prompt.</p>
+
+<h3>rcbios-in-c &mdash; CP/M BIOS</h3>
+<p>A complete reimplementation of the RC700 CP/M BIOS in C with inline assembly only
+where the Z80 architecture requires it.  Clang produces a <b>629 B smaller binary</b>
+than SDCC (5462 B vs 6091 B, &minus;10.3%).  Supports IOBYTE, SIO-B console mirroring,
+and the CP/NET SNIOS dual-transport interface.</p>
+
+<h3>cpnos-in-c &mdash; CP/NOS slave PROM1</h3>
+<p>CP/NOS is Regnecentralen's CP/NET slave operating system.  This C rewrite
+targets a <b>single 2 KB EPROM</b> in PROM socket 1 and auto-selects between PIO-B
+(IRQ-driven, 256 B ring) and SIO-A (38400 polled) based on DIP switch S03.
+The PolyPascal v3 regression test compiles and runs the PRIMES program through
+primes below 30&thinsp;000 reliably in MAME.</p>
+
+<h3>CP/NET SNIOS</h3>
+<p>The BIOS includes a self-modifying JP-trampoline SNIOS that reads SW1 bit 2 once
+at cold-boot and patches the network I/O vectors to route to either the PIO or SIO
+transport.  The PIO implementation uses Mode 1 interrupt-driven input with a 256-byte
+SPSC ring at IVT slot 17.  The end-to-end test boots to CP/M, connects to a z80pack
+MP/M-NET master, mounts drives H: and A:&ndash;D:, and verifies a native PRIMES computation.</p>
+
+<p>&nbsp;</p>
+<h2>DIP switch SW1 (port 0x14)</h2>
+<hr>
+
+<p>All firmware components read SW1 consistently.
+MAME convention: &ldquo;On&rdquo; = bit cleared (default), &ldquo;Off&rdquo; = bit set.</p>
+
+<table border="1" cellspacing="0" cellpadding="4" class="info">
+  <tr>
+    <th>Bit</th><th>Switch</th><th>Used by</th><th>Meaning</th>
+  </tr>
+  <tr>
+    <td>0</td><td>S01</td><td>rcbios, cpnos</td>
+    <td><b>Console mode.</b> On = SIO-B + keyboard input, SIO-B + CRT output. Off = local only.</td>
+  </tr>
+  <tr>
+    <td>1</td><td>S02</td><td>autoload</td>
+    <td><b>PROM1 lineprog enable.</b> On = check PROM1 signature after floppy-boot failure and jump to lineprog if found. Off = skip.</td>
+  </tr>
+  <tr>
+    <td>2</td><td>S03</td><td>cpnos, rcbios SNIOS</td>
+    <td><b>CP/NOS transport.</b> On = PIO-B IRQ-driven (recommended). Off = SIO-A 38400 polled.</td>
+  </tr>
+  <tr>
+    <td>3&ndash;6</td><td>S04&ndash;S07</td><td>&mdash;</td>
+    <td>unused / reserved</td>
+  </tr>
+  <tr>
+    <td>7</td><td>S08</td><td>rcbios, MAME FDC clock</td>
+    <td><b>Floppy size.</b> On = 5.25&Prime; mini (250 kbps). Off = 8&Prime; maxi (500 kbps).</td>
+  </tr>
+</table>
+
+<p>&nbsp;</p>
+<h2>Related resources</h2>
+<hr>
+
+<ul>
+  <li><a href="https://www.jbox.dk/rc702/index.shtm">RC702 emulator and documentation by Michael Ringg&aring;rd</a> (jbox.dk)</li>
+  <li><a href="https://datamuseum.dk/wiki/RC700_Piccolo">RC700 Piccolo at Datamuseum.dk</a></li>
+  <li><a href="https://github.com/ravn/llvm-z80">ravn/llvm-z80 &mdash; LLVM Z80 backend fork</a></li>
+  <li><a href="https://github.com/zlfn/llvm-z80">zlfn/llvm-z80 &mdash; upstream GlobalISel Z80 backend</a></li>
+  <li><a href="https://github.com/ravn/rc700-gensmedet/blob/main/docs/RC702_BIOS_SPECIFICATION.md">RC702 BIOS specification</a></li>
+  <li><a href="https://github.com/ravn/rc700-gensmedet/blob/main/docs/SW1_BIT_MAP.md">SW1 bit map (canonical)</a></li>
+  <li><a href="https://github.com/ravn/rc700-gensmedet/blob/main/autoload-in-c/BOOT_SEQUENCE.md">Autoload boot sequence and memory map</a></li>
+  <li><a href="https://github.com/ravn/rc700-gensmedet/blob/main/cpnos-in-c/tasks/PIO_INIR_PARKED.md">CP/NOS PIO INIR future work</a></li>
+</ul>
+
+<p>&nbsp;</p>
+<hr>
+<p style="font-size:9pt; color:#779ABC">
+  RC700 Gensmedet &mdash; <a href="https://github.com/ravn/rc700-gensmedet">github.com/ravn/rc700-gensmedet</a>
+</p>
+
+</div><!-- end main content div -->
+</body>
+</html>
+

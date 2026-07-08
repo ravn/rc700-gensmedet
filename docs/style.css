@@ -1,0 +1,75 @@
+/* RC700 Gensmedet site stylesheet — adapted from jbox.dk/jbox.css color scheme */
+
+html                  { font-family: Arial; font-size: 11pt }
+body                  { font-family: Arial; font-size: 11pt; margin-right: 30px }
+
+p                     { font-family: Arial; font-size: 11pt; margin-top:0pt; margin-bottom:5pt }
+pre                   { font-family: "Courier New", monospace; font-size: 10pt; color:#003366; font-weight:bold; }
+code                  { font-family: "Courier New", monospace; font-size: 11pt; color:green }
+
+a                     { color: #779ABC }
+a:link                { color: #003366 }
+a:visited             { color: #003366 }
+
+hr                    { background-color: #779ABC; border: 0; height: 2px }
+
+h1                    { font-size: 20pt; font-weight:bold; margin-top:5pt; margin-bottom:0pt; color:#003366 }
+h2                    { font-size: 18pt; font-weight:bold; margin-top:5pt; margin-bottom:0pt; color:#003366 }
+h3                    { font-size: 16pt; font-weight:bold; margin-top:5pt; margin-bottom:0pt; color:#003366 }
+h4                    { font-size: 14pt; font-weight:bold; margin-top:5pt; margin-bottom:0pt; color:#003366 }
+h5                    { font-size: 12pt; font-weight:bold; margin-top:5pt; margin-bottom:0pt; color:#003366 }
+h6                    { font-size: 12pt; font-weight:bold; margin-top:5pt; margin-bottom:0pt; color:#003366 }
+
+ul                    { list-style-type: square; margin-left:30pt; color: #CC6600 }
+ol                    { list-style-type: decimal; margin-left:30pt }
+li                    { color: black }
+
+table                 { border-color: black; font-family: Arial; font-size: 11pt }
+th                    { background-color: black; color: white; border-color: black; font-weight: bold }
+td                    { background-color: white; color: black; border-color: black }
+
+table.header          { font-family: Arial; font-size: 11pt; border-collapse: collapse }
+th.header             { background-color: white; color: black; font-weight: bold; border-collapse: collapse }
+td.header             { background-color: #779ABC; color: black; font-weight: bold }
+
+table.info            { font-family: Arial; font-size: 11pt; }
+table.info th         { background-color: #779ABC; vertical-align: text-top; }
+table.info td         { background-color: #D9D5BE; vertical-align: text-top; }
+
+div.fragment          { border: 1px solid #808080; background-color: #EEEEEE; padding-left: 10px; margin: 20px; border-radius: 9px; }
+
+div.infobar           { border-left: 1px solid #779ABC; border-top: 1px solid #779ABC }
+div.infobarheader     { background-color: #CCD8DE; padding-left: 4px; padding-right: 4px; font-family: Arial; font-size: 11pt; font-weight: bold }
+div.infobarcontent    { background-color: white; padding-left: 4px; padding-right: 4px; }
+
+td.caption {
+  background-color: #ccd8de;
+  border-left: #779ABC 1px solid;
+  border-top: #779ABC 1px solid;
+  border-right: #ccd8de 1px solid;
+  border-bottom: #ccd8de 1px solid;
+  font-family: Arial;
+  font-size: 11pt;
+  font-weight: bold
+}
+
+span.headerlink       { font-family: Arial; font-size: 11pt; font-weight: normal; color: white; padding-left: 8px; padding-right: 8px }
+a.headerlink          { color: white }
+a.headerlink:link     { color: white }
+a.headerlink:visited  { color: white }
+
+/* Site title in the top-left header cell */
+.site-title {
+  font-family: Arial;
+  font-size: 22pt;
+  font-weight: bold;
+  color: #003366;
+  padding-left: 16px;
+  letter-spacing: 1px;
+}
+
+/* Status badge colours used in the status table */
+td.status-good        { background-color: #d4edda; color: #155724; }
+td.status-warn        { background-color: #fff3cd; color: #856404; }
+td.status-info        { background-color: #D9D5BE; }
+
