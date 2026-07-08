@@ -112,7 +112,7 @@ extern uint16_t xport_recv_byte(uint16_t timeout_ticks);
 
 /* ============================================================
  * SNIOS JT entry points.  Reached from NDOS via the JT slots in
- * snios.s / sdcc/snios.asm (3-byte `jp _snios_<name>_impl`).
+ * snios_jt (clang) / sdcc/snios.asm (SDCC).
  * ============================================================ */
 
 uint8_t snios_ntwkin_impl(void) {
@@ -432,3 +432,58 @@ uint8_t snios_ntwkdn_impl(void) {
     snios_sndmsg_force(cfgtbl.msgbuf);  /* result discarded */
     return 0;
 }
+
+/* ============================================================
+ * SNIOS jump table + BC->HL bridges (clang build — replaces snios.s).
+ *
+ * Placed AFTER all function definitions so no forward declarations
+ * are needed.  The { 0xC3, target } JpEntry pattern matches bios_jt.c.
+ * _snios_jt lands at 0xEE33 (BIOS_BASE+51); payload.ld ASSERT verifies.
+ * SDCC still uses sdcc/snios.asm.
+ * ============================================================ */
+#ifndef __SDCC
+
+typedef void (*snios_fptr)(void);
+typedef struct { uint8_t op; snios_fptr target; }
+    __attribute__((packed)) SniosJpEntry;
+
+/* BC→HL bridges: NDOS calls SNDMSG/RCVMSG with msg ptr in BC;
+ * sdcccall(1) C takes it in HL.  4 bytes each, in .resident.snios. */
+__attribute__((section(".resident.snios")))
+void snios_sndmsg_jt(void) __naked {
+    ASM_VOLATILE("ld h,b\n\tld l,c\n\tjp _snios_sndmsg_c");
+}
+__attribute__((section(".resident.snios")))
+void snios_rcvmsg_jt(void) __naked {
+    ASM_VOLATILE("ld h,b\n\tld l,c\n\tjp _snios_rcvmsg_c");
+}
+
+__attribute__((section(".resident.snios_jt")))
+const struct {
+    SniosJpEntry ntwkin;    /* +00  NETWORK INITIALIZATION */
+    SniosJpEntry ntwkst;    /* +03  NETWORK STATUS */
+    SniosJpEntry cnftbl;    /* +06  RETURN CONFIG TABLE ADDRESS */
+    SniosJpEntry sndmsg;    /* +09  SEND MESSAGE — via BC->HL bridge */
+    SniosJpEntry rcvmsg;    /* +12  RECEIVE MESSAGE — via BC->HL bridge */
+    SniosJpEntry ntwker;    /* +15  NETWORK ERROR */
+    SniosJpEntry ntwkbt;    /* +18  NETWORK WARM BOOT */
+    SniosJpEntry ntwkdn;    /* +21  NETWORK SHUTDOWN */
+} snios_jt = {
+    .ntwkin = { 0xC3, (snios_fptr)snios_ntwkin_impl },
+    .ntwkst = { 0xC3, (snios_fptr)snios_ntwkst_impl },
+    .cnftbl = { 0xC3, (snios_fptr)snios_cnftbl_impl },
+    .sndmsg = { 0xC3, (snios_fptr)snios_sndmsg_jt },
+    .rcvmsg = { 0xC3, (snios_fptr)snios_rcvmsg_jt },
+    .ntwker = { 0xC3, (snios_fptr)snios_ntwker_impl },
+    .ntwkbt = { 0xC3, (snios_fptr)snios_ntwkbt_impl },
+    .ntwkdn = { 0xC3, (snios_fptr)snios_ntwkdn_impl },
+};
+
+/* Export JT-entry labels so init.c / cpnos_main.c callers find them.
+ * snios_ntwkin is the only one called directly from C; the rest are
+ * reached by NDOS via the JT offsets, not by name. */
+__asm__(".global _snios_ntwkin\n_snios_ntwkin = _snios_jt");
+__asm__(".global _snios_sndmsg\n_snios_sndmsg = _snios_jt + 9");
+__asm__(".global _snios_rcvmsg\n_snios_rcvmsg = _snios_jt + 12");
+
+#endif /* !__SDCC */
