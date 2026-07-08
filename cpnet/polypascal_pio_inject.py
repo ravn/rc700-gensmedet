@@ -37,19 +37,19 @@ STAGES = [
     # the PPAS.COM load over CP/NET stalls).  Mirrors cpnos's
     # polypascal_test.lua which also injects PPAS as a typed command.
     #
-    # Note: PRIMES.PAS uses max2=15000 (primes to 29989) but under
-    # rcbios's 56K CP/M the PolyPascal workspace is ~12K free, limiting
-    # the sieve array to ~6000 elements.  We do NOT assert a specific
-    # last prime; instead we wait for the '>>' prompt that PPAS shows
-    # when PRIMES returns (stage 3), proving the computation completed.
+    # Flow: PPAS loads, we compile PRIMES.PAS → PRIMES.COM via the PROGRAM
+    # command (abbreviated 'P'), quit PPAS, then run the native .COM from CCP.
+    # Compiling to native code avoids the interpreted workspace-size limit
+    # (~12 KB under rcbios 56 K CP/M) that prevents PRIMES from running the
+    # full sieve to 29989 interpreted.  PRIMES.COM is written to H: (master
+    # I: via CP/NET) and executed directly from the CCP prompt.
+    # PPAS PROGRAM command writes <name>.COM; no extension needed on command line.
     (120.0,          b'H>',          b'PPAS\r',         'wait H> then send PPAS'),
-    # PPAS.COM (222 × 128 B CP/NET records) loads at ~4-5x MAME speed
-    # over TCP — each record is a full frame round-trip through cpnet_bridge
-    # to z80pack (~3600 s emulated / ~750 s wall).
-    (800.0,          b'>>',          b'L PRIMES\r',     'initial PPAS prompt / L PRIMES'),
-    (120.0,          b'>>',          b'R\r',            'post-load prompt / R'),
-    (300.0,          b'>>',          b'Q\r',            'PRIMES complete: post-Run >> prompt / Q'),
-    (30.0,           None,           None,              'CCP return (any drive prompt)'),
+    (120.0,          b'>>',          b'L PRIMES\r',     'initial PPAS prompt / L PRIMES'),
+    (120.0,          b'>>',          b'P PRIMES\r',     'post-load prompt / compile PRIMES→PRIMES.COM'),
+    (120.0,          b'>>',          b'Q\r',            'post-compile prompt / Q to CCP'),
+    (30.0,           None,           b'PRIMES\r',       'CCP return / run compiled PRIMES.COM'),
+    (120.0,          None,           None,              'PRIMES.COM completes / CCP return'),
 ]
 
 
@@ -171,8 +171,8 @@ def main():
     elapsed = time.monotonic() - t0
     print(f'PASS: all {len(STAGES)} stages green (t={elapsed:.2f}s)',
           flush=True)
-    write_result(f'PASS: rcbios PIO + PolyPascal PRIMES through 29989 '
-                 f'and Q returned to CCP (t={elapsed:.2f}s)')
+    write_result(f'PASS: rcbios PIO + PolyPascal PROGRAM compiled PRIMES.COM '
+                 f'and executed natively to CCP return (t={elapsed:.2f}s)')
 
 
 if __name__ == '__main__':
