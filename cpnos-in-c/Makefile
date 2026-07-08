@@ -1862,7 +1862,8 @@ $(PROM1ONLY_PAYLOAD_ELF): $(PAYLOAD_OBJS) $(BUILDDIR)/xport_jt.o $(PROM1ONLY_LD)
 	 echo "prom1-lineprog payload.elf: __cpnos_load_end = $$NEND"; \
 	 $(LD) --gc-sections -T $(PROM1ONLY_LD) \
 	    --defsym=__cpnos_load_end=$$NEND \
-	    $(TRANSPORT_DEFSYMS) $(PAYLOAD_OBJS) $(BUILDDIR)/xport_jt.o -o $@
+	    $(TRANSPORT_DEFSYMS) $(PAYLOAD_OBJS) $(BUILDDIR)/xport_jt.o \
+	    $(CLANG_BUILD)/../lib/z80/z80_rt.a -o $@
 
 $(PROM1ONLY_INIT_BIN): $(PROM1ONLY_PAYLOAD_ELF)
 	$(OBJCOPY) -O binary --only-section=.init $< $@
