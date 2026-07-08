@@ -70,9 +70,14 @@ OBJS = boot_block.o boot_confi.o boot_entry.o bios_hw_init.o \
 .PHONY: clean
 
 # Build rules — $(RUN) is empty for native, Docker prefix for container
+# z80_rt.a: llvm-z80's compiler-rt archive (memcpy/memset/memchr/memmove/
+# __call_iy/___umodqi3 etc.).  Linked LAST as a last-resort archive so the
+# linker pulls in only the members codegen references; unused members cost 0 B.
+# Replaces the hand-rolled copies formerly in runtime.s (2026-07-08).
+Z80_RT = $(B)/../lib/z80/z80_rt.a
 bios.clang.cim: $(PARENT)/builddate.h $(OBJS) rc700_bios.ld
 	$(RUN) $(B)/ld.lld --gc-sections --defsym BIOSAD=$(BIOSAD) \
-		-T clang/rc700_bios.ld $(addprefix clang/,$(OBJS)) -o clang/bios.clang.elf
+		-T clang/rc700_bios.ld $(addprefix clang/,$(OBJS)) $(Z80_RT) -o clang/bios.clang.elf
 	$(RUN) $(B)/llvm-objcopy -O binary clang/bios.clang.elf clang/bios.clang.cim
 	# Source-annotated listing (committed to git for historical diffs).
 	# Note: add -l for file:line references (clickable in terminal, not in editor)

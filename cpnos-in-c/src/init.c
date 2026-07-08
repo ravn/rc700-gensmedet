@@ -547,9 +547,11 @@ static void print_banner(void) {
  * netboot completion; resident_handoff (RAM) does the OUT. */
 extern uint8_t console_joined;       /* resident.c -- gated by SW1 bit 0 */
 
-/* xport_jt.s trampolines: 3-byte JP NN each, NN patched at cold-init. */
-extern uint8_t xport_send_byte[];    /* xport_jt.s */
-extern uint8_t xport_recv_byte[];
+/* xport_jt.c trampolines: { 0xC3, target } each, target patched at cold-init. */
+typedef void (*xport_fptr)(void);
+typedef struct { uint8_t op; xport_fptr target; } XportEntry; /* no padding on Z80 */
+extern XportEntry xport_send_byte;    /* xport_jt.c */
+extern XportEntry xport_recv_byte;
 extern void transport_pio_send_byte(uint8_t);
 extern uint16_t transport_pio_recv_byte(uint16_t);
 /* SIO transport functions use unprefixed names -- historical artefact;
@@ -557,9 +559,9 @@ extern uint16_t transport_pio_recv_byte(uint16_t);
 extern void transport_send_byte(uint8_t);
 extern uint16_t transport_recv_byte(uint16_t);
 
-/* Patch the JP NN trampolines in xport_jt.s based on SW1 bit 2 (S03).
+/* Patch the JP NN trampolines in xport_jt.c based on SW1 bit 2 (S03).
  *   On  (bit=0, default) -> PIO (already the link-time default).
- *   Off (bit=1)          -> SIO (overwrite NN bytes at +1 / +2).
+ *   Off (bit=1)          -> SIO (overwrite target field).
  * The address references to the SIO transport functions here are what
  * keep transport_sio.o alive under --gc-sections in the dual-transport
  * build.
@@ -571,15 +573,8 @@ extern uint16_t transport_recv_byte(uint16_t);
 SECTION_RESIDENT
 static void install_transport(void) {
     if (IO_READ(SW1) & 0x04) {
-        /* Write the JP-NN target as a single 16-bit store per slot.
-         * Pointer-aliasing through uint16_t* lets clang -Oz emit
-         * Z80's `LD (nn),HL` (3 B) instead of two `LD (nn),A` (6 B).
-         * Z80 has no alignment requirements; the volatile cast keeps
-         * the optimiser from rewriting the store back to two bytes. */
-        *(volatile uint16_t *)&xport_send_byte[1] =
-            (uint16_t)&transport_send_byte;
-        *(volatile uint16_t *)&xport_recv_byte[1] =
-            (uint16_t)&transport_recv_byte;
+        xport_send_byte.target = (xport_fptr)(void *)transport_send_byte;
+        xport_recv_byte.target = (xport_fptr)(void *)transport_recv_byte;
     }
 }
 

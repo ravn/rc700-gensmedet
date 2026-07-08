@@ -324,11 +324,11 @@ CPNOS_LOCALE_TAG ?= da_US
 # PROM1-only line program (see PROM1ONLY_* rules below; build dirs
 # clang-prom1lineprog/ and sdcc-prom1lineprog/).  The two-PROM build
 # was removed 2026-06-03 (TWO_PROM_PARKED → deleted).
-PAYLOAD_OBJS = $(BUILDDIR)/runtime.o $(BUILDDIR)/bios_jt.o \
+PAYLOAD_OBJS = $(BUILDDIR)/bios_jt.o \
                $(BUILDDIR)/cpnos_main.o \
                $(BUILDDIR)/resident.o $(BUILDDIR)/init.o \
                $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o \
-               $(BUILDDIR)/snios.o $(BUILDDIR)/snios_c.o
+               $(BUILDDIR)/snios_c.o
 
 ALL_OBJS = $(PAYLOAD_OBJS) $(SDCC_C_OBJS) $(SDCC_AUDIT_S)
 
@@ -408,21 +408,22 @@ $(BUILDDIR)/toolchain_stamp: ;
 
 # ---- Compile ------------------------------------------------------
 
-$(BUILDDIR)/runtime.o: runtime.s
-	@mkdir -p $(BUILDDIR)
-	$(CC) $(ASFLAGS) -c $< -o $@
+# runtime.o removed 2026-07-08: memcpy/memset/memmove/memchr/__call_iy were
+# all dead code — compiler inlines __builtin_memcpy/__builtin_memset directly
+# and no call sites reference the external symbols.  Verified byte-identical
+# output on both clang and SDCC builds.
 
-$(BUILDDIR)/bios_jt.o: bios_jt.s
+$(BUILDDIR)/bios_jt.o: src/bios_jt.c
 	@mkdir -p $(BUILDDIR)
-	$(CC) $(ASFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/xport_jt.o: xport_jt.s
+$(BUILDDIR)/xport_jt.o: src/xport_jt.c
 	@mkdir -p $(BUILDDIR)
-	$(CC) $(ASFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/snios.o: snios.s
-	@mkdir -p $(BUILDDIR)
-	$(CC) $(ASFLAGS) -c $< -o $@
+# snios.o removed 2026-07-08: JT + BC->HL bridges moved into snios_c.c
+# (snios_jt struct + snios_sndmsg_jt/snios_rcvmsg_jt __naked).
+# SDCC still uses sdcc/snios.asm via its own build path.
 
 # Phase 2B: cpnos_main.c (nos_handoff) writes ZP[5..7] = JP BDOS
 # itself, replacing cpnos-build's deleted cpnos.asm entry stub.
@@ -1861,7 +1862,8 @@ $(PROM1ONLY_PAYLOAD_ELF): $(PAYLOAD_OBJS) $(BUILDDIR)/xport_jt.o $(PROM1ONLY_LD)
 	 echo "prom1-lineprog payload.elf: __cpnos_load_end = $$NEND"; \
 	 $(LD) --gc-sections -T $(PROM1ONLY_LD) \
 	    --defsym=__cpnos_load_end=$$NEND \
-	    $(TRANSPORT_DEFSYMS) $(PAYLOAD_OBJS) $(BUILDDIR)/xport_jt.o -o $@
+	    $(TRANSPORT_DEFSYMS) $(PAYLOAD_OBJS) $(BUILDDIR)/xport_jt.o \
+	    $(CLANG_BUILD)/../lib/z80/z80_rt.a -o $@
 
 $(PROM1ONLY_INIT_BIN): $(PROM1ONLY_PAYLOAD_ELF)
 	$(OBJCOPY) -O binary --only-section=.init $< $@
