@@ -49,7 +49,8 @@ STAGES = [
     (120.0,          b'>>',          b'P PRIMES\r',     'post-load prompt / compile PRIMES→PRIMES.COM'),
     (120.0,          b'>>',          b'Q\r',            'post-compile prompt / Q to CCP'),
     (30.0,           None,           b'PRIMES\r',       'CCP return / run compiled PRIMES.COM'),
-    (120.0,          None,           None,              'PRIMES.COM completes / CCP return'),
+    (120.0,          None,           b'TESTDONE\r',     'PRIMES.COM done / run TESTDONE.COM'),
+    (30.0,           b'RCBIOS PIO TEST DONE', None,      'TESTDONE.COM printed confirmation'),
 ]
 
 
@@ -171,8 +172,8 @@ def main():
     elapsed = time.monotonic() - t0
     print(f'PASS: all {len(STAGES)} stages green (t={elapsed:.2f}s)',
           flush=True)
-    write_result(f'PASS: rcbios PIO + PolyPascal PROGRAM compiled PRIMES.COM '
-                 f'and executed natively to CCP return (t={elapsed:.2f}s)')
+    write_result(f'PASS: rcbios PIO + PolyPascal PROGRAM compiled PRIMES.COM, '
+                 f'ran natively, TESTDONE confirmed (t={elapsed:.2f}s)')
 
 
 if __name__ == '__main__':

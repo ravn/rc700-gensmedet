@@ -110,7 +110,7 @@ screen -ls 2>/dev/null | grep -E "mpm|cpmsim" | awk '{print $1}' | while read s;
 pkill -f "cpmsim" 2>/dev/null || true
 sleep 6
 
-echo "=== staging PPAS+PRIMES+PPAS.ERM on master's drive I: (4 MB HD) ==="
+echo "=== staging PPAS+PRIMES+PPAS.ERM+TESTDONE.COM on master's drive I: (4 MB HD) ==="
 # mpm-net2 copies library/mpm-net2-drivei.dsk to drivei.dsk each start.
 # Build a fresh drive I image with PPAS files (mirrors cpnos stage-drivei-ppas).
 MPM_DIR_LOCAL="$HERE/z80pack/cpmsim"
@@ -119,7 +119,21 @@ for f in PPAS.COM PPAS.ERM PRIMES.PAS; do
     cpmrm -f z80pack-hd "$DSK" "0:$f" 2>/dev/null || true
     cpmcp -f z80pack-hd "$DSK" "$HERE/cpnos-shared/e_drive_seed/ppas/$f" "0:$f" 2>&1 || true
 done
-cpmls -f z80pack-hd "$DSK" 2>/dev/null | grep -iE "ppas|primes" | sed 's/^/  /'
+# Generate TESTDONE.COM: prints "RCBIOS PIO TEST DONE\r\n" via BDOS-9, warm-boots.
+# CP/M .COM loads at 0x0100; BDOS entry at 0x0005; string ends with '$'.
+python3 -c "
+msg = b'RCBIOS PIO TEST DONE\r\n\$'
+# LD C,9  (0x0E 0x09)  LD DE,msg_addr  (0x11 lo hi)  CALL 5  (0xCD 0x05 0x00)  RST 0 (0xC7)
+code_len = 8
+msg_addr = 0x0100 + code_len
+lo = msg_addr & 0xFF
+hi = (msg_addr >> 8) & 0xFF
+code = bytes([0x0E, 0x09, 0x11, lo, hi, 0xCD, 0x05, 0x00, 0xC7]) + msg
+open('/tmp/testdone.com', 'wb').write(code)
+"
+cpmrm -f z80pack-hd "$DSK" "0:TESTDONE.COM" 2>/dev/null || true
+cpmcp -f z80pack-hd "$DSK" /tmp/testdone.com "0:TESTDONE.COM" 2>&1 || true
+cpmls -f z80pack-hd "$DSK" 2>/dev/null | grep -iE "ppas|primes|testdone" | sed 's/^/  /'
 
 echo "=== 5/6 starting MP/M + polypascal_pio_inject ==="
 
@@ -137,8 +151,9 @@ INJECT_PID=$!
 sleep 0.5
 
 echo "=== 6/6 launching MAME (PIO=:4002 master, SIO-B=:$SIOB_PORT inject) ==="
-# PPAS.COM (28 KB, 222 CP/NET records) loads at ~4-5x MAME speed over TCP:
-# ~3600 s emulated / ~750 s wall.  seconds_to_run and alarm must cover that.
+# MAME runs in background so inject drives it and signals completion.
+# seconds_to_run is a safety cap; inject kills MAME as soon as all stages
+# pass (or the inject timeout fires).
 perl -e 'alarm 1200; exec @ARGV' "$MAME_DIR/regnecentralend" rc702 \
     -rompath "$MAME_DIR/roms" \
     -flop1 "$WORK_IMAGE" \
@@ -147,10 +162,15 @@ perl -e 'alarm 1200; exec @ARGV' "$MAME_DIR/regnecentralend" rc702 \
     -rs232a null_modem -bitb1 /tmp/cpnet_pio_sioa.raw \
     -rs232b null_modem -bitb2 "socket.127.0.0.1:$SIOB_PORT" \
     -piob cpnet_bridge \
-    -bitb3 socket.127.0.0.1:4002 2>&1 | tail -3 || true
+    -bitb3 socket.127.0.0.1:4002 >/dev/null 2>/dev/null &
+MAME_PID=$!
+
+# Wait for inject to finish (PASS or FAIL), then kill MAME.
+wait "$INJECT_PID" 2>/dev/null || true
+kill -KILL "$MAME_PID" 2>/dev/null || true
+wait "$MAME_PID" 2>/dev/null || true
 
 # Best-effort cleanup
-kill "$INJECT_PID" 2>/dev/null || true
 screen -ls 2>/dev/null | grep -E "mpm" | awk '{print $1}' | while read s; do screen -S "$s" -X quit 2>/dev/null || true; done
 
 echo
