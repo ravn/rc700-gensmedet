@@ -33,37 +33,55 @@ Applied 2026-07-08:
 
 ## Measurement
 
-| Build   | Before | After archive | Delta |
-|---------|--------|---------------|-------|
-| cpnos   | 2013 B | 2013 B        | 0 B   |
-| rcbios  | 5906 B | 5951 B        | +45 B |
+Clean side-by-side (same toolchain, MSIZE=56), after the archive-helper
+tightening below:
 
-## Why +45 B on rcbios — the follow-up
+| Build   | Hand-rolled | Archive (tightened) | Delta |
+|---------|-------------|---------------------|-------|
+| cpnos   | 2014 B      | 2011 B              | −3 B  |
+| rcbios  | 5908 B      | 5918 B              | +10 B |
 
-The z80_rt.a helpers are NOT size-tuned.  They read stack args via an IX frame
-(`push ix; ld ix,#0; add ix,sp; ld c,4(ix)`) and do explicit callee cleanup
-(`inc sp; inc sp; push bc; ret`).  The hand-rolled runtime.s versions used the
-tighter `pop iy` / `jp (iy)` idiom.  Both implement the same sdcccall(1) ABI;
-the difference is pure tuning.
+The initial archive link (with the *un-tightened* helpers) cost rcbios +45 B;
+the tightening below recovered 35 of those.
 
-Per-symbol (rcbios):
-- `_memcpy`  archive 31 B vs hand ~12 B
-- `_memset`  archive 40 B vs hand ~15 B
-- `___umodqi3` archive 15 B (restoring division) vs hand 9 B (subtraction loop)
-- `__call_iy` 2 B (same)
+## Follow-up DONE (2026-07-08): tighten the archive helpers to pop-iy
 
-**Follow-up (not yet done):** rewrite the 5-6 z80_rt.a helpers in
-`llvm-z80/compiler-rt/lib/builtins/z80/` to the `pop iy` idiom and rebuild the
-archive.  Then the archive is strictly better than any hand-rolled copy —
-correctness + minimal size + zero duplication — and `lddr_copy` could even be
-added to compiler-rt to delete rcbios's runtime.s entirely.  Requires the
-llvm-z80 fork's runtime test suite to stay green (z80-utils/test-runner).
+The z80_rt.a `memcpy`/`memset`/`memchr` used to read the stack size arg via an
+IX frame (`push ix; ld ix,#0; add ix,sp; ld c,4(ix)`) plus explicit callee
+cleanup — needlessly conservative, since **IY is caller-saved** (Z80CallingConv:
+`Z80_CSR = CalleeSavedRegs<(add IX)>`).  Rewritten to the tight `pop iy` /
+`jp (iy)` idiom (+ dropped `.globl` on internal labels so `jr` stays 2 bytes):
+
+| helper | archive before | archive after | hand-rolled |
+|--------|----------------|---------------|-------------|
+| memcpy | 31 B | 14 B | 13 B (buggy return dest+n) |
+| memset | 39 B | 23 B | 24 B |
+| memchr | ~41 B | ~26 B | (not used by rcbios) |
+
+The archive `memcpy` returns the **correct** original dest (the hand-rolled one
+returned `dest+n` — a latent bug, unused).  Committed to llvm-z80 main
+(`[Z80] runtime: tighten memcpy/memset/memchr to the pop-iy idiom`) with a
+runtime fixture (`test_runtime_mem_helpers.c`, 6/6 O0-Oz) + full clang suite
+906 pass / 0 fail + lit 182+5.
+
+**Residual rcbios +10 B is justified, not tuning debt:**
+- `___umodqi3` +4 B — archive's O(1) shift-divide vs hand-rolled O(n) subtract
+  loop; the faster one is deliberately kept (at `-Oz` the *caller* is compact:
+  `ld e,l; jp ___umodqi3`).
+- `_memcpy` +1 B — correct return value.
+- ~+5 B archive/section/relocation packaging overhead.
+
+So all hand-rolled memcpy/memset/memchr/__call_iy are deleted; rcbios keeps only
+`lddr_copy` (no compiler-rt equivalent — a project-specific end-pointer backward
+copy).
 
 ## Decision (user, 2026-07-08)
 
-- **rcbios**: keep the archive link (+45 B accepted; rcbios has headroom).
+- **rcbios**: keep the archive link.  User goal: move all helpers into the
+  compiler long-term.  After the pop-iy tightening the cost is **+10 B** (was
+  +45), well within rcbios headroom (hard cap is `__bss_end ≤ 0xF600`, KB free).
   `memcpy/memset/__call_iy/___umodqi3` come from z80_rt.a; `lddr_copy` stays
-  in runtime.s.  Verified: polypascal-pio-test PASS 14.05 s.
+  in runtime.s.  Verified: MAME mame-test boot → A>, 77-track sweep ERR=0.
 - **lddr_copy → memmove was tried and REVERTED**: the archive's general
   `memmove` (~62 B) cost +97 B vs the 7 B specialized backward-LDDR
   `lddr_copy` (rcbios 5951 → 6048 B).  Kept `lddr_copy` — a legitimate
@@ -89,9 +107,10 @@ G_PTR_ADD.  Fixed in llvm-z80 (merged to main): drop the guard on case 1/2 so
 "A > B" (overflow-unsafe) — only the relative same-base + positive-constant
 delta, which is explicit in the IR.
 
-**But rc700 insert_line still keeps lddr_copy.**  Measured with the fix:
-- archive + lddr_copy: 5951 B
-- archive + __builtin_memmove (folds to inline LDDR): **6000 B (+49)**
+**But rc700 insert_line still keeps lddr_copy.**  Measured with the fix (and
+now with the tightened archive, rcbios 5918 B baseline):
+- archive + lddr_copy: 5918 B
+- archive + __builtin_memmove (folds to inline LDDR): ~+49 B
 
 Inline LDDR with a *runtime* count needs per-site end-pointer computation
 (`add hl,bc; dec hl` for both src and dst).  lddr_copy centralizes this in a

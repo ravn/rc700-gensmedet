@@ -3,6 +3,11 @@
 `rcbios-in-c/clang/runtime.s::lddr_copy` (5-byte backward-LDDR helper) is kept
 deliberately, NOT because the compiler can't fold memmove.
 
+(As of 2026-07-08 runtime.s contains ONLY `lddr_copy` — memcpy/memset/memchr/
+__call_iy/___umodqi3 now come from the compiler's `z80_rt.a`; see
+`runtime-helpers-via-archive-2026-07-08.md`.  `lddr_copy` has no compiler-rt
+equivalent, so it stays.)
+
 The llvm-z80 compiler was improved this session so `__builtin_memmove` DOES
 fold the bios.c screen-scroll shape `memmove(base+K, base, C-i)` to inline
 LDDR with constant end pointers (three folds on llvm-z80 main: runtime-base
