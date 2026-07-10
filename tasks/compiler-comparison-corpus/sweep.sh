@@ -187,10 +187,12 @@ want() {
 #     spilled long's (ix - N) slot is stored/reloaded with the wrong base and
 #     the value reads as garbage.  Filed upstream CE-Programming/llvm-project#50
 #     (see rc700-gensmedet#124).  NOT a z88dk bug; nothing to re-run here.
-#   - sieve:ez80clang + fannkuch:ez80clang: CE's z80 sub-target miscompiles
-#     non-trivial 16-bit loops -- a codegen cliff (sieve at array size >=~450:
-#     the emitted binary SHRINKS yet the program hangs / wild-jumps).  Each
-#     hang burns the full 300 s alarm.  Symptom verified; not root-caused.
+#   - sieve:ez80clang + fannkuch:ez80clang: ROOT-CAUSED -- same upstream bug as
+#     pi (CE-Programming/llvm-project#50).  At clang -O1/-O2/-O3 (-triple z80)
+#     the IX frame-pointer register is allocated as a GPR; here the allocator
+#     assigns IX to a loop induction variable while frame slots are addressed
+#     (ix - N), so the loop wild-jumps / hangs (burns the full 300 s alarm).
+#     Correct at -O0/-Os/-Oz.  NOT a z88dk bug; blocked on the upstream fix.
 #   word_fill + licm_pessimize compile to correct code and DO contribute
 #   code-quality (size/speed) datapoints.
 EXPECTED_FAIL=" fannkuch:xcc "
