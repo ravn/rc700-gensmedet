@@ -180,10 +180,13 @@ want() {
 # is a code-quality oracle, so a cell that can't produce correct code produces
 # no useful size/speed datapoint, and two of them hang for the full 300 s ticks
 # alarm.  Tracked for fixing in rc700-gensmedet#122.  Reasons:
-#   - pi:ez80clang: ez80-clang emits CE-toolchain 32-bit libcall names
-#     (__llmulu / __ldivu / __llshru) implemented only in CEdev's libcrt.a as
-#     ADL-24-bit eZ80 code, which z88dk's z80 clib does not provide -> link
-#     failure.  A runtime-library integration gap, NOT a codegen bug.
+#   - pi:ez80clang: the 32-bit libcall names (__llmulu / __llshru / __ldivu)
+#     are now provided in z88dk's z80 clib (ravn/z88dk@a337eb0c49), so pi LINKS.
+#     Remaining blocker is an ez80-clang codegen bug: at clang -O1/-O2/-O3
+#     (-triple z80) the IX frame pointer is allocated as a scratch GPR, so a
+#     spilled long's (ix - N) slot is stored/reloaded with the wrong base and
+#     the value reads as garbage.  Filed upstream CE-Programming/llvm-project#50
+#     (see rc700-gensmedet#124).  NOT a z88dk bug; nothing to re-run here.
 #   - sieve:ez80clang + fannkuch:ez80clang: CE's z80 sub-target miscompiles
 #     non-trivial 16-bit loops -- a codegen cliff (sieve at array size >=~450:
 #     the emitted binary SHRINKS yet the program hangs / wild-jumps).  Each
