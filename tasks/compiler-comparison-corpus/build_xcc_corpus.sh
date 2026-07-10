@@ -89,6 +89,14 @@ if [ ! -s "$W/main.com" ]; then
 fi
 BIN=$(wc -c < "$W/main.com" | tr -d ' ')
 
+# NOTE on .COM size vs the z88dk clang lanes: xcc's .COM legitimately carries
+# its zero-initialised globals.  Unlike z88dk (+cpm) -- where trailing BSS can be
+# truncated off because the CRT re-zeroes it at startup -- xcc places
+# zero-initialised arrays (e.g. sieve's flags[8000]) into _DATA, not _BSS, and
+# crt0-cpm3.s only zeroes _BSS (its own comment: "cannot yet reconstruct
+# initialized _DATA values").  So those bytes MUST ship in the file; truncating
+# would leave flags[] as garbage and miscompute.  This is an xcc toolchain
+# limitation (no zero-init -> BSS split), not something the corpus can strip.
 # Wrap the .COM in a 64 KB ticks image: page-zero warm-boot + a tiny BDOS
 # stub, .COM at 0x0100.  Identical to build_dcc_corpus.sh so the tstate
 # measurement path is the same for every .COM lane.
