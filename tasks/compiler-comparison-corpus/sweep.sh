@@ -167,13 +167,16 @@ want() {
 # MachineOperand MO_MCSymbol isIdenticalTo/hash to compare the offset, so both
 # modes are now hard PASS gates.)
 #
-# xcc note: fannkuch:xcc XFAILs in BOTH modes -- xcc (beta) miscompiles
-# fannkuchredux and returns 0x0000 instead of 0x10E4 (ts collapses to ~8.7k,
-# the flip loop never runs).  Independent of the llvm-z80#247 fix; a genuine
-# xcc beta codegen bug (candidate to file upstream against retro-vault/xyz).
+# xcc note: fannkuch:xcc USED to XFAIL in BOTH modes -- xcc (beta) miscompiled
+# fannkuchredux and returned 0x0000 instead of 0x10E4 (ts collapsed to ~8.7k,
+# the flip loop never ran).  ROOT-CAUSED to the `while(x!=1)`/`x==1` truthiness
+# fold in xcc's iropt.cpp parse_wrapper (folds x==1/x!=1 to a truthiness branch
+# without checking x in {0,1}); filed ravn/xyz#3 + testcase PR #4, fixed LOCALLY
+# on branch fix/loop-only (commit 62e7c7d6).  The corpus toolchain (xcc-current)
+# now points at that fixed source build, so fannkuch:xcc PASSES -- removed from
+# EXPECTED_FAIL below.
 # NOTE: fannkuch:zsdcc + pi:zsdcc are NOT listed here -- they are SKIPPED
-# entirely (see SKIP_CELL below), so they never produce an XFAIL row.  Only
-# fannkuch:xcc remains as a genuine run-it-and-XFAIL cell.
+# entirely (see SKIP_CELL below), so they never produce an XFAIL row.
 #
 # ez80clang note (CODE-QUALITY oracle, added CEdev v15.0 2026-07-06): all three
 # failing ez80clang cells are SKIPPED (see SKIP_CELL), not XFAIL-run -- ez80clang
@@ -193,7 +196,7 @@ want() {
 #     longer in SKIP_CELL.  NOT a z88dk codegen bug.
 #   word_fill + licm_pessimize compile to correct code and DO contribute
 #   code-quality (size/speed) datapoints.
-EXPECTED_FAIL=" fannkuch:xcc "
+EXPECTED_FAIL="  "
 is_expected_fail() {
   # $1=bench $2=compiler $3=mode(size|speed)
   case "$EXPECTED_FAIL" in
@@ -452,8 +455,17 @@ run_xcc() {
 # The SIXTH friend: ez80clang (CEdev ez80-clang, CODE-QUALITY oracle only).
 # Same .COM + ticks 0xC000 sentinel path as the dcc/z88clang/xcc lanes
 # (build_ez80clang_corpus.sh); bin bundles the z88dk RTL, read as trend.
-# size=--opt-code-size (-Oz) / speed=default (-O3).  Requires ez80-clang on
-# PATH (setup_ez80clang.sh); see EZ80CLANG_ORACLE_SETUP.md.
+#
+# MEASURED ONCE (not size+speed like every other lane): zcc hardwires
+# `-cc1 ... -S -O3` for -compiler=ez80clang and IGNORES --opt-code-size
+# (zcc.c:3424), so a "size" cell (-Oz) and a "speed" cell (-O3) compile
+# IDENTICALLY -- every ez80clang row had size==speed to the byte/t-state.
+# Rather than burn a second identical build+ticks run, run_ez80clang measures
+# a single cell (nominally `speed`, since -O3 is what zcc emits) and mirrors it
+# into both the size and speed columns.  Caveat: the ez80clang "size" number is
+# therefore an -O3 figure, NOT a size-optimized one.  (pi/sieve/fannkuch are
+# additionally forced to -O0 by build_ez80clang_corpus.sh to dodge the IX
+# frame-pointer miscompile, CE-Programming/llvm-project#50.)
 measure_ez80clang() {
   local bench=$1 opt=$2
   local raw bin text ts verify rc
@@ -470,22 +482,26 @@ measure_ez80clang() {
   printf '%s\t%s\t%s\t%s' "$bin" "$text" "$ts" "$verify"
 }
 
+# ez80clang runs ONCE (see measure_ez80clang note): --opt-code-size is a no-op
+# under zcc, so size and speed are identical -- measure the single -O3 cell and
+# mirror it into both columns.
 run_ez80clang() {
   local bench=$1
-  local sres pres sbin stext sts sver pbin ptext pts pver
-  sres=$(measure_ez80clang "$bench" size)
-  pres=$(measure_ez80clang "$bench" speed)
-  IFS=$'\t' read -r sbin stext sts sver <<< "$sres"
-  IFS=$'\t' read -r pbin ptext pts pver <<< "$pres"
+  local res bin text ts ver
+  res=$(measure_ez80clang "$bench" speed)
+  IFS=$'\t' read -r bin text ts ver <<< "$res"
   printf '%s\tez80clang\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "$bench" "$sbin" "$stext" "$sts" "$sver" "$pbin" "$ptext" "$pts" "$pver" >> "$TSV"
-  printf '%-15s ez80clang size[bin=%5s ts=%10s %s]  speed[bin=%5s ts=%10s %s]\n' \
-    "$bench" "$sbin" "$sts" "$sver" "$pbin" "$pts" "$pver"
+    "$bench" "$bin" "$text" "$ts" "$ver" "$bin" "$text" "$ts" "$ver" >> "$TSV"
+  printf '%-15s ez80clang once[bin=%5s ts=%10s %s]  (size==speed: --opt-code-size no-op)\n' \
+    "$bench" "$bin" "$ts" "$ver"
 }
 
 echo "Each (bench, compiler) is measured twice: SIZE (clang -Oz / zsdcc"
 echo "--opt-code-size / dcc dccpeep-off) and SPEED (clang -O2 / zsdcc"
 echo "--opt-code-speed / dcc dccpeep-on)."
+echo "Exception: ez80clang is measured ONCE -- zcc ignores --opt-code-size for"
+echo "-compiler=ez80clang (hardwired -cc1 -O3), so its size and speed cells are"
+echo "identical; the single -O3 figure is mirrored into both columns."
 echo "bin = binary bytes, ts = z80 t-states (lower is faster)."
 echo "Note: dcc .COM bundles the CP/M RTL (bin not byte-comparable) and its"
 echo "ts includes a small fixed CRT-startup cost; read dcc as trend, not parity."
