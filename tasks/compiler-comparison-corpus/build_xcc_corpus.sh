@@ -97,7 +97,9 @@ BIN=$(wc -c < "$W/main.com" | tr -d ' ')
 # not _BSS, and crt0-cpm3.s only zeroes _BSS (its own comment: "cannot yet
 # reconstruct initialized _DATA values").  So those bytes MUST ship in the file.
 # This is an xcc toolchain limitation (no zero-init -> BSS split), not something
-# the corpus can strip.
+# the corpus can strip.  Filed: ravn/xyz#5 (root-caused: the xcc-emitted .rel
+# records only _CODE + _DATA areas, no _BSS at all).  See
+# sweep-findings-2026-07-10.md Finding 1.
 # Wrap the .COM in a 64 KB ticks image: page-zero warm-boot + a tiny BDOS
 # stub, .COM at 0x0100.  Identical to build_dcc_corpus.sh so the tstate
 # measurement path is the same for every .COM lane.
