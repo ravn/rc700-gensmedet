@@ -44,6 +44,26 @@ case "$MODE" in
   *) echo "bad mode '$MODE' (want size|speed)" >&2; exit 2 ;;
 esac
 
+# Workaround for CE-Programming/llvm-project#50 (see rc700-gensmedet#124).
+# ez80-clang miscompiles at -O1/-O2/-O3 (-triple z80): the IX frame-pointer
+# register is left allocatable, so a spilled value handed IX corrupts every
+# (ix-N) frame slot -> pi/sieve/fannkuch hang or return garbage.  Codegen is
+# correct at -O0/-Os/-Oz (IX reserved: -O0 via hasStackObjects, -Os/-Oz via
+# hasOptSize).  BUT -Os/-Oz emit `call __frameset`, a CE runtime prologue thunk
+# z88dk's clang clib does not provide (undefined-symbol link error), so the only
+# level that both LINKS and is correct here is -O0.  zcc hardwires
+# `-cc1 ... -S -O3` for ez80clang regardless of --opt-code-size (zcc.c:3424);
+# `-Cg-O0` appends a trailing -O0 that clang -cc1 honours over the earlier -O3.
+# Applied only to the affected benches so the correct-at-O3 cells (word_fill,
+# licm_pessimize) keep their optimized -O3 datapoint.
+# NOTE: for these three the datapoint is therefore UNOPTIMIZED (-O0) in both
+# modes -- valid/correct but not size- or speed-representative -- until the
+# upstream fix lands (then -O3 becomes usable) or z88dk gains __frameset (then
+# -Os/-Oz become usable).
+case "$BENCH" in
+  pi|sieve|fannkuch) OPTFLAG="$OPTFLAG -Cg-O0" ;;
+esac
+
 SRC="$HERE/bench_${BENCH}.c"
 HARNESS="$HERE/dcc_test_main.c"
 [ -f "$SRC" ]     || { echo "no such bench: $SRC" >&2; exit 2; }

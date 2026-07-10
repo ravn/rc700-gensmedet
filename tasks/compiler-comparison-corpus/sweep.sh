@@ -180,19 +180,17 @@ want() {
 # is a code-quality oracle, so a cell that can't produce correct code produces
 # no useful size/speed datapoint, and two of them hang for the full 300 s ticks
 # alarm.  Tracked for fixing in rc700-gensmedet#122.  Reasons:
-#   - pi:ez80clang: the 32-bit libcall names (__llmulu / __llshru / __ldivu)
-#     are now provided in z88dk's z80 clib (ravn/z88dk@a337eb0c49), so pi LINKS.
-#     Remaining blocker is an ez80-clang codegen bug: at clang -O1/-O2/-O3
-#     (-triple z80) the IX frame pointer is allocated as a scratch GPR, so a
-#     spilled long's (ix - N) slot is stored/reloaded with the wrong base and
-#     the value reads as garbage.  Filed upstream CE-Programming/llvm-project#50
-#     (see rc700-gensmedet#124).  NOT a z88dk bug; nothing to re-run here.
-#   - sieve:ez80clang + fannkuch:ez80clang: ROOT-CAUSED -- same upstream bug as
-#     pi (CE-Programming/llvm-project#50).  At clang -O1/-O2/-O3 (-triple z80)
-#     the IX frame-pointer register is allocated as a GPR; here the allocator
-#     assigns IX to a loop induction variable while frame slots are addressed
-#     (ix - N), so the loop wild-jumps / hangs (burns the full 300 s alarm).
-#     Correct at -O0/-Os/-Oz.  NOT a z88dk bug; blocked on the upstream fix.
+#   - pi/sieve/fannkuch:ez80clang: ROOT-CAUSED to one upstream ez80-clang bug
+#     (CE-Programming/llvm-project#50, see rc700-gensmedet#124).  At clang
+#     -O1/-O2/-O3 (-triple z80) the IX frame-pointer register is left
+#     allocatable, so a spilled value (pi: 32-bit arg high word / global
+#     pointer; sieve+fannkuch: loop induction variable) handed IX corrupts every
+#     (ix - N) frame slot -> hang or garbage result.  Correct at -O0/-Os/-Oz.
+#     WORKAROUND (build_ez80clang_corpus.sh): these three build with `-Cg-O0`
+#     (correct + links; -Os/-Oz would be better but need the __frameset runtime
+#     thunk z88dk's clang clib lacks), so they now RUN and PASS -- but as
+#     UNOPTIMIZED datapoints, flagged until the upstream fix lands.  Hence no
+#     longer in SKIP_CELL.  NOT a z88dk codegen bug.
 #   word_fill + licm_pessimize compile to correct code and DO contribute
 #   code-quality (size/speed) datapoints.
 EXPECTED_FAIL=" fannkuch:xcc "
@@ -217,7 +215,7 @@ is_expected_fail() {
 # cause CONFIRMED + red-green validated (see zsdcc-bench-divergence-2026-06-08.md
 # and zsdcc-repro/modsint_sdcccall1.c); it's a build-config/stdlib-ABI mismatch,
 # NOT a compiler bug, so there's nothing to catch by re-running -> skip.
-SKIP_CELL=" fannkuch:zsdcc pi:zsdcc sieve:ez80clang fannkuch:ez80clang pi:ez80clang "
+SKIP_CELL=" fannkuch:zsdcc pi:zsdcc "
 is_skipped() {
   # $1=bench $2=compiler
   case "$SKIP_CELL" in
