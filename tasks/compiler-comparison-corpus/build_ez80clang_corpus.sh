@@ -78,27 +78,15 @@ rm -rf "$W"; mkdir -p "$W"; cd "$W"
 cat "$SRC" "$HARNESS" > tu.c
 
 if ! "$ZCC" +cpm -compiler=ez80clang $OPTFLAG tu.c \
-        -o prog -create-app -m >zcc.log 2>&1; then
+        -o prog -create-app >zcc.log 2>&1; then
   echo -e "FAIL\tn/a\t-\tCOMPILE_ERROR"; exit 0
 fi
 COM=$(ls -1 PROG.COM prog.com prog *.COM 2>/dev/null | head -1)
 [ -n "$COM" ] || { echo -e "FAIL\tn/a\t-\tCOMPILE_ERROR"; exit 0; }
 
-# Strip trailing BSS from the .COM (see build_z88clang_corpus.sh for the full
-# rationale): z88dk's +cpm model writes the uninitialised BSS region into the
-# flat .COM, but the CRT re-zeroes BSS at startup, so everything from __BSS_head
-# up is dead weight.  code+data ends exactly at __BSS_head; truncating there is
-# byte-for-byte safe (verified via the 0xA5 sentinel).
-MAP=$(ls -1 prog.map PROG.map *.map 2>/dev/null | head -1)
-if [ -n "$MAP" ]; then
-  BSSH=$(grep -E '^__BSS_head[^A-Za-z0-9_]' "$MAP" | grep -oE '\$[0-9A-Fa-f]+' | head -1 | tr -d '$')
-  if [ -n "$BSSH" ]; then
-    LEN=$(( 0x$BSSH - 0x100 ))
-    if [ "$LEN" -gt 0 ] && [ "$LEN" -lt "$(wc -c < "$COM")" ]; then
-      head -c "$LEN" "$COM" > "$COM.trim" && mv "$COM.trim" "$COM"
-    fi
-  fi
-fi
+# Note: the .COM no longer carries the uninitialised BSS region -- this is a
+# z88dk linker-level fix (cpm_crt0.asm defaults __crt_org_bss = -1, emitting BSS
+# as a separate binary appmake leaves out of the .COM).  No post-processing here.
 BIN=$(wc -c < "$COM" | tr -d ' ')
 
 # wrap .COM in 64 KB image: JP0 warm-boot + tiny BDOS stub, run under ticks.

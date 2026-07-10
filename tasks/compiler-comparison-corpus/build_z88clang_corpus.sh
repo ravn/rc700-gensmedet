@@ -61,30 +61,17 @@ cat "$SRC" "$HARNESS" > tu.c
 cp "$RTSRC" rt_helpers.c
 
 if ! "$ZCC" +cpm -compiler=llvmz80 $OPTFLAG tu.c rt_helpers.c \
-        -o prog -create-app -m >zcc.log 2>&1; then
+        -o prog -create-app >zcc.log 2>&1; then
   echo -e "FAIL\tn/a\t-\tCOMPILE_ERROR"; exit 0
 fi
 COM=$(ls -1 PROG.COM prog.com prog *.COM 2>/dev/null | head -1)
 [ -n "$COM" ] || { echo -e "FAIL\tn/a\t-\tCOMPILE_ERROR"; exit 0; }
 
-# Strip trailing BSS from the .COM.  z88dk's +cpm model writes the uninitialised
-# BSS region into the flat .COM even though the CRT re-zeroes BSS at startup
-# (lib/crt/classic/crt_initialise_bss.inc: ld hl,__BSS_head / ldir).  That makes
-# every byte of BSS dead weight in the file -- e.g. sieve's flags[8000] bloats
-# the .COM by ~8 KB.  Since code+data end exactly at __BSS_head and everything
-# from there up is zeroed at runtime anyway, truncating the file at __BSS_head
-# is byte-for-byte safe (verified: sieve still PASSes the 0xA5 sentinel, which
-# depends on the zeroed flags[] array).  This is what a lean CP/M .COM should be.
-MAP=$(ls -1 prog.map PROG.map *.map 2>/dev/null | head -1)
-if [ -n "$MAP" ]; then
-  BSSH=$(grep -E '^__BSS_head[^A-Za-z0-9_]' "$MAP" | grep -oE '\$[0-9A-Fa-f]+' | head -1 | tr -d '$')
-  if [ -n "$BSSH" ]; then
-    LEN=$(( 0x$BSSH - 0x100 ))
-    if [ "$LEN" -gt 0 ] && [ "$LEN" -lt "$(wc -c < "$COM")" ]; then
-      head -c "$LEN" "$COM" > "$COM.trim" && mv "$COM.trim" "$COM"
-    fi
-  fi
-fi
+# Note: the .COM no longer carries the uninitialised BSS region.  This is a
+# z88dk linker-level fix (lib/target/cpm/classic/cpm_crt0.asm now defaults
+# __crt_org_bss = -1, so z80asm emits BSS as a separate binary that appmake
+# leaves out of the .COM).  The CRT still zeroes BSS at startup, so the leaner
+# .COM is byte-for-byte correct -- no post-processing needed here.
 BIN=$(wc -c < "$COM" | tr -d ' ')
 
 # wrap .COM in 64 KB image: JP0 warm-boot + tiny BDOS stub, run under ticks.
