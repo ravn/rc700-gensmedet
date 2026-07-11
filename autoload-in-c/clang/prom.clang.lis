@@ -724,7 +724,7 @@ Disassembly of section .text:
     6304: b7           	or	a
     6305: 20 09        	jr	nz,$6310
 ;         jump_to(*(word *)0x2000);
-    6307: 2a 00 20     	ld	hl,($2000)              ; 0x2000 <__text_zx0_end+0x180f>
+    6307: 2a 00 20     	ld	hl,($2000)              ; 0x2000 <__text_zx0_end+0x180e>
     630a: e5           	push	hl
     630b: fd e1        	pop	iy
     630d: c3 10 6d     	jp	$6d10
@@ -1569,6 +1569,6 @@ Disassembly of section .text:
     6d12: 20 52 43 37 30 30 20 52          RC700 R
     6d1a: 4f 41 33 37 35 20 43 4c         OA375 CL
     6d22: 20 32 30 32 36 2d 30 37          2026-07
-    6d2a: 2d 30 31 20 32 33 2e 32         -01 23.2
-    6d32: 35 20 63 38 36 33 63 35         5 c863c5
-    6d3a: 35 2f 72 61 76 6e 00            5/ravn.
+    6d2a: 2d 30 39 20 30 38 2e 30         -09 08.0
+    6d32: 31 20 35 33 39 35 64 38         1 5395d8
+    6d3a: 36 2f 72 61 76 6e 00            6/ravn.

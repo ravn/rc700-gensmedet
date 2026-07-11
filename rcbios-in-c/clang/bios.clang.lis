@@ -616,7 +616,7 @@ Disassembly of section .text:
 ; static __inline__ void intrinsic_ei(void) { __builtin_z80_ei(); }
     dbf3: fb           	ei
 ;     puts_p("\x0C"                       /* form feed = clear screen */
-    dbf4: 21 60 ec     	ld	hl,$ec60
+    dbf4: 21 44 ec     	ld	hl,$ec44
     dbf7: cd 0c dc     	call	$dc0c
 ;     if (IOBYTE_CON(iobyte) == IOB_UC1)
     dbfa: 3a 03 00     	ld	a,($3)                  ; 0x3 <_boot_header+0x3>
@@ -706,7 +706,7 @@ Disassembly of section .text:
     dc76: c3 7d da     	jp	$da7d
     dc79: f1           	pop	af
 ;             puts_p("\r\nDisk read error - reset\r\n");
-    dc7a: 21 44 ec     	ld	hl,$ec44
+    dc7a: 21 78 ec     	ld	hl,$ec78
     dc7d: cd 0c dc     	call	$dc0c
 ; static __inline__ void intrinsic_halt(void) { __builtin_z80_halt(); }
     dc80: 76           	halt
