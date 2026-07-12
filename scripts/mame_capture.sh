@@ -39,6 +39,16 @@ shift 2
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 MAME_BIN=${MAME_BIN:-/Users/ravn/z80/mame/regnecentralend}
+
+# Video capture is OFF by default (2026-07-12): the raw AVI staging files
+# (~18 MB/s) filled the disk when MAME was killed mid-run before ffmpeg could
+# transcode+delete them, which crashed the machine. Re-enable per-invocation
+# with MAME_CAPTURE=1. When disabled we still run MAME (with -sound none) so
+# every existing caller keeps working, just without the AVI/ffmpeg pipeline.
+if [ "${MAME_CAPTURE:-0}" != "1" ]; then
+    echo "[mame_capture] capture disabled (set MAME_CAPTURE=1 to record)" >&2
+    exec "$MAME_BIN" -sound none "$@"
+fi
 MAME_VIDEO_DIR=${MAME_VIDEO_DIR:-$REPO_ROOT/scratch/mame-videos}
 MAX_KEEP=${MAX_KEEP:-50}
 FFMPEG_IMAGE=${FFMPEG_IMAGE:-jrottenberg/ffmpeg:7-alpine}
