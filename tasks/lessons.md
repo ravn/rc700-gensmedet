@@ -381,3 +381,19 @@ infinite reset loop.
 
 **Fix**: Wrap `mem_read` in `pcall`: `local ok, val = pcall(function() ... end)`.
 Return 0 on failure. The next frame after reset completes will succeed normally.
+
+## 2026-07-16 — Never kill ninja mid-run
+
+Interrupting `ninja` (via SIGTERM, SIGKILL, or `stop_bash`) corrupts the build-system
+housekeeping state. The next invocation triggers a full cmake re-scan which touches
+timestamps on generated files, cascading into a rebuild of unrelated libraries
+(LLVMScalarOpts, LLVMipo, …). Even with sccache this costs 10+ minutes. Always let
+ninja finish; if a build is taking too long, investigate while it runs rather than
+killing it.
+
+## 2026-07-16 — IsSM83 scope in getInstSizeInBytes
+
+`getInstSizeInBytes` in Z80InstrInfo.cpp has an early scoped block `{ ... }` that
+queries `STI.hasSM83()` and sets `bool IsSM83`. Cases that need SM83-aware sizes
+must be added inside that switch, not in the outer switch that follows — `IsSM83`
+is out of scope there and the compiler will catch it, but only at build time.

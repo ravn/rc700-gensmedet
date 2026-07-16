@@ -8725,3 +8725,31 @@ z88dk still no-fix-PRs.
 
 References: PR https://github.com/llvm-z80/llvm-z80/pull/29, session summary
 `tasks/session-2026-07-16-elf2rel-pr29-upstream-review.md`.
+
+## Session 2026-07-16b — SM83 sizes, sync invariant, branch cleanup
+
+**Scope:** ravn/llvm-z80 + ravn/z88dk + ravn/rc700-gensmedet.
+
+**Issues closed:**
+- ravn/llvm-z80#270 / ravn/z88dk#29 — va_arg broken for clang-z80 under
+  `_DEVELOPMENT/common/stdarg.h`. Root: `__CLANG` path used `&last + sizeof(last)`;
+  clang-z80 copies named args to alloca slots so `&last = IX-2`, not stack-top.
+  Fix: `__LLVMZ80` guard + `__builtin_va_*` in both proto and common headers.
+  Committed ravn/z88dk `00d5f1b0`.
+- ravn/llvm-z80#266 — `getInstSizeInBytes` wrong on SM83 for `SUB_HL_rr_BO`
+  (6->9 B), `ADC_HL_rr_CIO` (7->11 B), `SBC_HL_rr_BIO` (7->11 B). Cases moved
+  into the `IsSM83`-aware switch block. Lit test added. Commit `1822bd0c`.
+- ravn/llvm-z80#238 — `adjCallStackUpClobbersReg` and
+  `eliminateCallFramePseudoInstr` had duplicated threshold logic. Unified via
+  `AdjCallStackUpPath` enum + `classifyACSU()` in Z80FrameLowering.h.
+  Commit `3d6ea7cb`.
+- ravn/rc700-gensmedet#117 — `make cpnos-clean` deleted tracked sources via
+  `rm -rf clang-prom1lineprog`. Fixed to targeted artifact removal.
+  Commit `3d82971`.
+
+**Branch cleanup:** deleted 20 stale/dead llvm-z80 branches (3 A-pin
+negative-result experiments + 17 merged).
+
+**Lesson:** never kill ninja mid-run — breaks housekeeping, causes full rebuild.
+
+Summary: `llvm-z80/tasks/session-2026-07-16-266-238-cleanup.md`
