@@ -8753,3 +8753,76 @@ negative-result experiments + 17 merged).
 **Lesson:** never kill ninja mid-run — breaks housekeeping, causes full rebuild.
 
 Summary: `llvm-z80/tasks/session-2026-07-16-266-238-cleanup.md`
+
+## Session 2026-07-16c — strtol/strtoul/strncmp bridge fixes + __ZPROTO3N
+
+**Scope:** ravn/z88dk (branch `rc700-gensmedet-1`).
+
+**Context:** Following maintainer comment on z88dk#3012 about using the inline
+call-order swappers (ZPROTO macros) to minimize register shuffling in ABI bridges.
+
+**Issues found and fixed:**
+
+### strtol/strtoul bridge bugs (commits 6f0b99c, 155a22a)
+
+Two bugs in the `___strtol`/`___strtoul` ZPROTO3 bridges:
+
+1. **Stack corruption** — The bridge used `pop hl; ex (sp),hl` (the bridge-cleans
+   pattern: bridge's `ret` consumes the stack arg). But the llvmz80 caller for
+   long-returning functions emits `pop af` after the call (caller-cleans). Bridge
+   was leaving SP 2 bytes too high; caller's `pop af` popped the wrong slot.
+   Root cause: the bridge-cleans vs caller-cleans distinction is determined by the
+   return type, not the arg count. `int`/`char*` returns → bridge-cleans (no pop
+   af). `long`/`unsigned long` returns → caller-cleans (pop af).
+   Fix: peek-without-consume approach using `push de; ld hl,4; add hl,sp; load; pop de`.
+
+2. **Return convention mismatch** — `asm_strtol` returns sccz80 `dehl`
+   (DE=high word, HL=low word). The llvmz80 caller does `push hl; ex de,hl; push hl`
+   expecting HL=high, DE=low. Bridge was missing `ex de,hl` before `ret`, causing
+   the high and low words to be pushed in the wrong order. Result: `strtol("99",...)`
+   returned 6488064 (0x00630000) instead of 99.
+
+New test: `test/clang/runtime_strtol.{c,sh}` (red-green validated).
+
+### strncmp: already correct
+
+The existing strncmp bridge (bridge-cleans, int return) was already correct.
+The summary note about "-205 instead of -1" predated the T3 session fix. Only
+the comment was updated.
+
+### __ZPROTO3N optimization (commit 155a22a)
+
+Applying the maintainer's hint: chose the arg order in the ZPROTO inline to
+match what the underlying asm function expects, eliminating register shuffling.
+
+For strtol(nptr, endptr, base): `asm_strtol` wants HL=nptr, DE=endptr, BC=base.
+Reversed ZPROTO3 gave HL=base, DE=endptr, stack=nptr → bridge needed a complex
+5-step "peek nptr from stack" dance (15 instructions).
+
+New `__ZPROTO3N` macro (added to `include/sys/proto.h`) passes args in natural
+order (a1,a2,a3). For strtol: `___strtol(nptr, endptr, base)` → HL=nptr ✓,
+DE=endptr ✓, stack=base. Bridge just uses IX frame pointer to read base from
+[IX+4] without touching HL/DE:
+
+```asm
+___strtol:
+   push ix / ld ix,0 / add ix,sp
+   ld c,(ix+4); ld b,(ix+5)   ; BC=base, no HL/DE disturbance
+   call asm_strtol
+   pop ix
+   ex de,hl                   ; sccz80→llvmz80 32-bit return conv
+   ret                        ; 9 instructions (was 15)
+```
+
+`stdlib.h` strtol and strtoul declarations changed from `__ZPROTO3` to `__ZPROTO3N`.
+For sccz80/sdcc, `__ZPROTO3N` is identical to `__ZPROTO3` (all args on stack).
+
+**Key lesson on bridge-cleans vs caller-cleans:**
+The distinction is the RETURN TYPE of the function:
+- `void*`/`char*`/`int` → bridge-cleans: `pop hl; ex (sp),hl` → `ret` consumes stack arg
+- `long`/`unsigned long` → caller-cleans: bridge must leave stack arg; caller does `pop af`
+
+**Commits on ravn/z88dk `rc700-gensmedet-1`:**
+- `6f0b99c` — fix strtol/strtoul stack+return-convention
+- `155a22a` — __ZPROTO3N optimization
+
