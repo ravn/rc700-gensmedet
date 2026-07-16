@@ -2100,7 +2100,9 @@ sdcc-resident-zx0-probe: sdcc/resident_a.bin sdcc/resident_b.bin
 # ---- Clean --------------------------------------------------------
 
 cpnos-clean:
-	rm -rf clang clang-prom1lineprog
+	rm -rf clang
+	rm -f clang-prom1lineprog/*.o clang-prom1lineprog/*.bin \
+	      clang-prom1lineprog/*.elf clang-prom1lineprog/*.zx0
 	rm -f sdcc/*.o sdcc/cpnos*.bin sdcc/cpnos*.map sdcc/cpnos*.lis \
 	      sdcc/cpnos*.sym sdcc/cpnos*.def sdcc/cpnos*.ihx \
 	      sdcc/prom0*.bin sdcc/prom1*.bin sdcc/cpnos.cim sdcc/cpnos \
