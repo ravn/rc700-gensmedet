@@ -1051,3 +1051,8 @@ abandoned at that JP.
       `mame_*` lua scripts and Python tests for other hard-coded
       BSS addresses that would silently rot on a future move.
 
+
+- [ ] **[llvm-z80] Post-merge cleanup: once PR #29 (llvm-z80/llvm-z80) merges**,
+      rebase out the local diverging fix commit `284afd1` from ravn/llvm-z80 main.
+      That commit applied the same .bss->_BSS fix as a local-only divergence;
+      after upstream merge it becomes redundant.  Branch: elf2rel-bss-253-repro.

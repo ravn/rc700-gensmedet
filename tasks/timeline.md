@@ -8700,3 +8700,28 @@ Phase A — sieve pointer strength reduction (make the inner loop pointer-walk
 like dcc). See plan §Phase A. Open question for user: pursue tm (allocator-bound,
 stub work) or document as not-a-codegen-metric.
 
+
+## Session: elf2rel PR #29 upstream review response (Jul 16, 2026) — Short
+
+@zlfn reviewed llvm-z80/llvm-z80#29 (regression test for .bss materialization
+bug, ravn/llvm-z80#253) and asked for: (1) no prebuilt `.o`, use `object` crate
+instead; (2) fix included with the test.
+
+**Policy update:** upstream filing rule refined in Copilot memory — fix in PR
+allowed for **llvm-z80/llvm-z80 only** when maintainer explicitly asks; mame and
+z88dk still no-fix-PRs.
+
+**Fix + test (commit 3d0a985 on elf2rel-bss-253-repro):**
+- `section_to_area()` routes `.bss/.bss.*` -> `_BSS` (was `_DATA`)
+- Added `_BSS` to `SDCC_AREAS`
+- `AreaData.logical_len` tracks area size independently of `bytes.len()`;
+  for `SHT_NOBITS`, only `logical_len` grows — no zero-byte materialization
+- Test rewritten: `object::write::Object` builds ELF32 in memory
+  (`Architecture::I386` + `e_machine` patched to `0x1F90`); `bss_repro.o` deleted
+- `cargo test bss_static`: PASS
+
+**Post-merge TODO:** once PR #29 merges upstream, rebase out local fix commit
+`284afd1` from ravn/llvm-z80 main (it applied the same fix as a local divergence).
+
+References: PR https://github.com/llvm-z80/llvm-z80/pull/29, session summary
+`tasks/session-2026-07-16-elf2rel-pr29-upstream-review.md`.
