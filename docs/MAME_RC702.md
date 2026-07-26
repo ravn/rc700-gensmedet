@@ -38,7 +38,9 @@ RC752 physical aspect (updated 2026-07-02; was a "midpoint PAR" compromise).
 - The previous layout used a midpoint between square pixels and a MIS-computed
   "4:3" (608x550 = 1.105, not 1.333 and not the real 230:165); now driven by the
   measured panel size, not a guess.
-- Background colour: rgb(0xC0, 0x60, 0x00) matching palette pen 0
+- Background colour: rgb(0x4F, 0x25, 0x09) matching palette pen 0 (jbox/RC752
+  dark warm-brown; updated 2026-07-26 from the earlier bright rgb(0xC0,0x60,0x00)
+  orange — foreground pen 1 is rgb(0xC4,0x9B,0x47) soft amber)
 - Wired via `#include "rc702.lh"` and `config.set_default_layout(layout_rc702)` in rc702.cpp
 - NOTE: `screen:snapshot()` (used by `make qr-test` / `sw1-test`) captures the
   RAW screen bitmap (square pixels, ~2:1), NOT this laid-out view; and headless
