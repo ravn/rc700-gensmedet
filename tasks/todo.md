@@ -1,5 +1,9 @@
 # Build all 13 CP/M BIOSes from source
 
+## To do later
+- [ ] Opret `rc702-8ss` diskformat i `rcbios/diskdefs` — standard IBM 8" single-sided format (jf. `ibm-3740`: 128 B × 26 sekt × 77 spor, FM single density).
+  - Bemærk: `ASSIGN.COM` skifter mellem om BIOS forventer at disketten i det pågældende drev er SS eller DD. Det er altså diskettens format, ikke drevet, der vælges — `rc702-8ss` er den SS-forventning ASSIGN kan sætte, komplement til `rc702-8dd`.
+
 ## Completed
 - [x] Step 1: Fetch jbox.dk originals → `rcbios/jbox-originals/` (16 files)
 - [x] Step 2: Trivial targets — rel14-mini, rel23-mini added to Makefile

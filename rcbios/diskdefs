@@ -1997,18 +1997,6 @@ diskdef rc702-8dd
   os 2.2
 end
 
-# RC700 5.25" DD floppy (same geometry as RC702)
-diskdef rc700-5dd
-  seclen 512
-  tracks 72
-  sectrk 9
-  blocksize 2048
-  maxdir 128
-  skewtab 0,2,4,6,8,1,3,5,7
-  boottrk 4
-  os 2.2
-end
-
 # RC703 5.25" QD floppy (DPB_QD3 from RC703 BIOS rel1.2, double-sided)
 # 80 cyl, 2 sides, 10 sectors x 512B, uniform MFM (no mixed-density boot)
 diskdef rc703-qd
