@@ -8837,3 +8837,14 @@ transition; dead cpnetsmk branch dropped. Value oracle:
 `make cpnos-polypascal-test COMPILER=clang` PASS -- slave requests RC700.NOS,
 PPAS PRIMES ran to 29989, Q returned to E> (snap/rc702/0773.png). sdcc PROM1
 slave unverified (build env broken, pre-existing).
+
+## 2026-07-28 — MP/M first-class disk build, Phase 2 (local-only, library frozen)
+cpnos-in-c/Makefile: DRIVEI_DSK -> local/; cpnos-disk-install auto-runs
+rebuild-mpm-sys.sh --install if the local boot disk is absent; -with-locale
+marked PARKED; new aggregate target `make mpm-disks` (rebuild-mpm-sys --install
++ cpnos-disk-install + stage-drivei-tools -> all tailored disks in local/).
+z80pack submodule: launcher mpm-net2 prefers disks/local/ drive i/j over the
+frozen library base; cpnos.img stripped from library/mpm-net2-1.dsk (base now
+pure MP/M+CP/NET). Docs: REBUILDING_MPM_SYS.md + memory project_mpm_disks_local_only.
+Verified: `make mpm-disks` + `make cpnos-polypascal-test COMPILER=clang` PASS
+(library untouched, netboots RC700.NOS, PPAS PRIMES 29989, Q -> E>).

@@ -636,21 +636,31 @@ cpnos-disk-install: cpnos-build/d/cpnos.sys
 	@python3 cpnos-build/gen_locale_prefix.py $(BUILDDIR)/locale_prefix.bin
 	@cat $(BUILDDIR)/locale_prefix.bin $(BUILDDIR)/cpnos_stamped.sys > $(BUILDDIR)/cpnos_with_locale.img
 	@echo "  rc700.nos = 384 B prefix + $$(wc -c < $(BUILDDIR)/cpnos_stamped.sys) B stamped cpnos.sys = $$(wc -c < $(BUILDDIR)/cpnos_with_locale.img) B"
+	@# Build the booted disk on demand if it is missing (GENSYS-rebuilt
+	@# MPM.SYS + patched SERVER.RSP).  library/ is frozen and must never be
+	@# copied here (stale SERVER.RSP -> gettod ff), so we regenerate rather
+	@# than fall back -- see feedback_cpnos_pio_netboot_no_autoboot.
+	@if [ ! -f $(MPM_DISK_LOCAL)/mpm-net2-1.dsk ]; then \
+	    echo "  local boot disk absent -- building via rebuild-mpm-sys.sh --install"; \
+	    ( cd ../cpnet/mpm-server && ./rebuild-mpm-sys.sh --install ) \
+	      || { echo "ERROR: rebuild-mpm-sys.sh --install failed" >&2; exit 1; }; \
+	 fi
 	@# Remove BOTH the legacy name (cpnos.img) and the current one
 	@# (rc700.nos) before writing: during the rename transition a
 	@# tightly-packed boot disk carrying both overflows ("device full").
-	@if [ -f $(MPM_DISK_LOCAL)/mpm-net2-1.dsk ]; then \
-	    cpmrm -f ibm-3740 $(MPM_DISK_LOCAL)/mpm-net2-1.dsk 0:cpnos.img 2>/dev/null || true; \
-	    cpmrm -f ibm-3740 $(MPM_DISK_LOCAL)/mpm-net2-1.dsk 0:rc700.nos 2>/dev/null || true; \
-	    cpmcp -f ibm-3740 $(MPM_DISK_LOCAL)/mpm-net2-1.dsk \
-	        $(BUILDDIR)/cpnos_with_locale.img 0:rc700.nos; \
-	    echo "  installed rc700.nos on local/mpm-net2-1.dsk (BOOTED disk)"; \
-	 else \
-	    echo "  ERROR: $(MPM_DISK_LOCAL)/mpm-net2-1.dsk absent --"; \
-	    echo "         run cpnet/mpm-server/rebuild-mpm-sys.sh --install first"; \
-	    exit 1; \
-	 fi
+	@cpmrm -f ibm-3740 $(MPM_DISK_LOCAL)/mpm-net2-1.dsk 0:cpnos.img 2>/dev/null || true
+	@cpmrm -f ibm-3740 $(MPM_DISK_LOCAL)/mpm-net2-1.dsk 0:rc700.nos 2>/dev/null || true
+	cpmcp -f ibm-3740 $(MPM_DISK_LOCAL)/mpm-net2-1.dsk \
+	    $(BUILDDIR)/cpnos_with_locale.img 0:rc700.nos
+	@echo "  installed rc700.nos on local/mpm-net2-1.dsk (BOOTED disk)"
 
+# PARKED (2026-07-28): two-PROM slave is PARKED (cpnos-in-c/TWO_PROM_PARKED.md);
+# the PROM1-only production slave uses plain `cpnos-disk-install` (which now
+# prepends the locale prefix itself and writes ONLY to local/).  This variant
+# is kept for the parked two-PROM path and still writes to the frozen library
+# base -- do NOT put it on any production/test path.  If two-PROM is unparked,
+# redirect it to local/ the same way cpnos-disk-install was.
+#
 # Variant: prepend 384 B locale prefix (US-ASCII outcon + Danish
 # inconv) before installing.  The PROM1-only cpnos slave (v3 layout)
 # loads this prefix-prepended cpnos.img, LDIRs the prefix to its
@@ -676,6 +686,25 @@ cpnos-disk-install-with-locale: cpnos-build/d/cpnos.sys
 	 fi
 	@echo "  refreshed (locale) cpnos.img on mpm-net2-1.dsk"
 .PHONY: cpnos-disk-install-with-locale
+
+# ---- make mpm-disks: regenerate ALL tailored MP/M disks into local/ -------
+#
+# One command to rebuild every disk the RC702 slave scenario needs, entirely in
+# disks/local/ (gitignored).  disks/library/ stays the frozen MP/M+CP/NET base
+# and is never written.  See tasks/todo-mpm-disk-build-2026-07-27.md +
+# cpnet/REBUILDING_MPM_SYS.md.
+#   1. rebuild-mpm-sys.sh --install  -> local/mpm-net2-1.dsk (GENSYS-rebuilt
+#                                       MPM.SYS + FN105/gettod-patched SERVER.RSP)
+#   2. cpnos-disk-install            -> adds RC700.NOS (the slave netboot image)
+#   3. stage-drivei-tools            -> local/mpm-net2-drivei.dsk (PPAS/COMAL/
+#                                       L80/M80/TODGET + PRIMES.PAS)
+.PHONY: mpm-disks
+mpm-disks:
+	@echo "=== mpm-disks: regenerating tailored MP/M disks into local/ ==="
+	( cd ../cpnet/mpm-server && ./rebuild-mpm-sys.sh --install )
+	$(MAKE) cpnos-disk-install
+	$(MAKE) stage-drivei-tools
+	@echo "=== mpm-disks: done (library/ untouched; all deltas in local/) ==="
 
 # Force cpnos.com to rebuild whenever any of its sources change.
 .PHONY: cpnos-disk-install
@@ -1090,7 +1119,9 @@ pio-irq-smoke: cpnos-install _check-tag-pio-irq _check-mame-irq
 # cleanup) and case normalisation.  See $(SHARED)/drive_i/README.md.
 DRIVEI_DIR  = $(SHARED)/drive_i
 DRIVEI_SYNC = $(SHARED)/drive_i_sync.sh
-DRIVEI_DSK  = $(MPM_DIR)/disks/library/mpm-net2-drivei.dsk
+# Tailored drive I: (slave E:) lives in local/ (gitignored), never the frozen
+# library base -- see tasks/todo-mpm-disk-build-2026-07-27.md Phase 2.
+DRIVEI_DSK  = $(MPM_DIR)/disks/local/mpm-net2-drivei.dsk
 
 .PHONY: stage-drivei-tools stage-drivei-ppas sync-drivei-back
 stage-drivei-ppas: stage-drivei-tools    # backward-compat alias
@@ -1099,6 +1130,7 @@ stage-drivei-tools:
 	@which cpmcp >/dev/null 2>&1 || { \
 	  echo "ERROR: cpmcp not in PATH; install cpmtools" >&2; exit 1; }
 	@# mkdskimg writes ./disks/drive<x>.dsk in its CWD -- chdir, run, move.
+	@mkdir -p $(dir $(DRIVEI_DSK))
 	@rm -f $(DRIVEI_DSK)
 	@cd $(MPM_DIR) && rm -f disks/drivei.dsk && ./srctools/mkdskimg i
 	@mv $(MPM_DIR)/disks/drivei.dsk $(DRIVEI_DSK)

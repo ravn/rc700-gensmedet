@@ -59,22 +59,31 @@ firmware + disk change, name must agree on both sides.
 ## Plan (Phase 2: disk-build refactor)
 
 - [x] Trin 0: discard library/ dirt (restore frozen base).
-- [~] A. cpnos-in-c/Makefile: redirect both leaks to `local/`.
+- [x] A. cpnos-in-c/Makefile: redirect both leaks to `local/`.
       - [x] cpnos-disk-install: writes rc700.nos ONLY to local/mpm-net2-1.dsk
         (no library write); removes BOTH legacy cpnos.img AND rc700.nos before
         writing (rename-transition device-full fix); dead cpnetsmk branch
-        dropped; errors (not warns) if local disk absent. Done 2026-07-27
-        while unblocking the Phase 1 netboot oracle.
-      - [ ] cpnos-disk-install-with-locale: still writes to library -- redirect.
-      - [ ] auto rebuild-mpm-sys.sh --install if local disk absent (currently errors).
-      - [ ] stage-drivei-tools: DRIVEI_DSK -> local/mpm-net2-drivei.dsk.
-- [ ] B. launcher: prefer local/mpm-net2-drive{i,j}.dsk over library.
-- [ ] C. z80pack: strip cpnos.img from committed library/mpm-net2-1.dsk;
-      commit (base becomes pure MP/M+CP/NET; drivei already blank).
-- [ ] D. `make mpm-disks` (cpnos-in-c): rebuild-mpm-sys --install +
+        dropped. Done 2026-07-27 while unblocking the Phase 1 netboot oracle.
+      - [x] cpnos-disk-install-with-locale: marked PARKED (two-PROM only) with
+        a banner; left writing to library (parked path, not on production/test).
+      - [x] auto rebuild-mpm-sys.sh --install if local disk absent (2026-07-28).
+      - [x] stage-drivei-tools: DRIVEI_DSK -> local/mpm-net2-drivei.dsk (+ mkdir).
+- [x] B. launcher: prefer local/mpm-net2-drive{i,j}.dsk over library (z80pack
+      cpmsim/mpm-net2), then library, then blank fallback.
+- [x] C. z80pack: stripped cpnos.img from library/mpm-net2-1.dsk (base now pure
+      MP/M+CP/NET); committed in the z80pack submodule.
+- [x] D. `make mpm-disks` (cpnos-in-c): rebuild-mpm-sys --install +
       cpnos-disk-install + stage-drivei-tools -> all tailored disks in local/.
-- [ ] E. docs: REBUILDING_MPM_SYS.md + memory note (flow = make mpm-disks;
-      library disks frozen, never written).
+- [x] E. docs: REBUILDING_MPM_SYS.md "Regenerating ALL tailored disks" section
+      + memory note project_mpm_disks_local_only + MEMORY.md index line.
+
+Phase 2 verified 2026-07-28: `make mpm-disks` + `make cpnos-polypascal-test
+COMPILER=clang` PASS -- library untouched, slave netboots RC700.NOS from local/,
+PPAS PRIMES to 29989, Q -> E> (snap/rc702/0776.png).
+
+## Remaining (out of this two-phase task)
+- [ ] sdcc PROM1 slave: build env BROKEN pre-existing (Phase 1 item); FCB is a
+      shared const array so bytes are identical once fixed.
 
 ## To do later (2026-07-27, user)
 - [ ] Opdatér kommentarer på z88dk/z88dk#3022:
