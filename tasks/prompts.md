@@ -233,3 +233,7 @@
 ## 2026-07-16 (SM83 sizes #266, sync invariant #238, branch cleanup, #117)
 - hvad ny / what now / 270 / is this how it is done in ez80clang? / file in own repo for later upstream and then fix it / 268 / are there any other hanging branches? / yes / ye / what now? (not upstream) / 117+266+238 / did you break ninja housekeeping again? / where are we? / summarize, document and raise issues and tasks, then commit
 [Fixed #270 va_arg in z88dk _DEVELOPMENT stdarg.h (committed ravn/z88dk 00d5f1b0); closed ravn/llvm-z80#270. Deleted 20 stale/dead branches. Fixed #266 SM83 pseudo sizes (SUB_HL_rr_BO 6->9, ADC/SBC_HL_rr_*IO 7->11) + lit test. Fixed #238 sync invariant via classifyACSU() helper. Fixed #117 cpnos-clean nuking tracked sources. llvm-z80 commits: 1822bd0c (#266), 3d6ea7cb (#238). rc700-gensmedet commit: 3d82971 (#117). 38/38 lit PASS. Lesson: never kill ninja mid-run.]
+
+## 2026-07-27 (session cont.)
+- continue (efter /clear -> genoptog MP/M-disk-build; valgte netboot-value-oracle)
+- to do later: opdatér kommentarer på z88dk#3022 issuecomment-5096493359

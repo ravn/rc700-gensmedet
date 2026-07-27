@@ -39,6 +39,38 @@ directory is gitignored (`*/disks/local/` in `z80pack/.gitignore`).
 Without `--install`, the script writes to `/tmp/mpm-net2-1.dsk`; pass
 `-o <path>` to write somewhere else.
 
+## Regenerating ALL tailored disks: `make mpm-disks`
+
+`rebuild-mpm-sys.sh --install` only rebuilds the **boot** disk (drive A:
+`MPM.SYS` + SERVER.RSP). The RC702 slave scenario also needs the slave
+netboot image and the drive I: tool set. One command builds the whole set,
+entirely into `z80pack/cpmsim/disks/local/` (gitignored):
+
+```bash
+cd cpnos-in-c
+make mpm-disks
+```
+
+which runs, in order:
+
+1. `rebuild-mpm-sys.sh --install` → `local/mpm-net2-1.dsk` (GENSYS `MPM.SYS`
+   + FN105/gettod-patched `SERVER.RSP`).
+2. `cpnos-disk-install` → adds **`RC700.NOS`** to the boot disk — the CP/NOS
+   slave netboot image (384 B locale prefix + stamped `cpnos.sys`) that the
+   PROM1 line program requests over CP/NET (FCB name in `cpnos-in-c/src/init.c`;
+   renamed from the old `CPNOS.IMG` 2026-07-27).
+3. `stage-drivei-tools` → `local/mpm-net2-drivei.dsk` (PPAS / COMAL80 / L80 /
+   M80 / TODGET + `PRIMES.PAS`), the slave's E: work disk.
+
+**HARD rule — `disks/library/` is FROZEN.** The library disks are the pristine
+MP/M II + CP/NET base, tracked in the z80pack submodule. No build or test step
+writes to them; every tailored delta goes into `local/`. The `mpm-net2`
+launcher prefers `disks/local/` over `disks/library/` for the boot disk **and**
+the drive I:/J: hard disks, falling back to library (then a blank image) only
+when the local copy is absent. Two former leaks into `library/`
+(`cpnos-disk-install` and `stage-drivei-tools`) were closed 2026-07-28; see
+`tasks/todo-mpm-disk-build-2026-07-27.md`.
+
 ### How the disk indirection actually works
 
 cpmsim itself opens files literally named `drivea.dsk`, `driveb.dsk`,

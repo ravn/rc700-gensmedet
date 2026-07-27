@@ -382,8 +382,8 @@ SECTION_INIT_RODATA
 static const uint8_t FCB_HEAD[13] = {
     0x00,                                /* +0  user number = 0 */
     0x01,                                /* +1  drive A (1-based) */
-    'C','P','N','O','S',' ',' ',' ',     /* +2..+9  name */
-    'I','M','G',                          /* +10..+12 ext */
+    'R','C','7','0','0',' ',' ',' ',     /* +2..+9  name (RC700-specific) */
+    'N','O','S',                          /* +10..+12 ext */
 };
 
 /* Build and send a CP/NET request, then wait for the response.
