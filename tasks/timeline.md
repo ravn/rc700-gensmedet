@@ -8826,3 +8826,14 @@ The distinction is the RETURN TYPE of the function:
 - `6f0b99c` — fix strtol/strtoul stack+return-convention
 - `155a22a` — __ZPROTO3N optimization
 
+
+## 2026-07-27 — cpnos netboot image rename cpnos.img -> RC700.NOS (Phase 1)
+MP/M first-class disk-build task, Phase 1. src/init.c FCB now requests
+RC700.NOS; clang PROM1 rebuilt (2011/2048 B). Makefile cpnos-disk-install
+rewritten to install the image ONLY to the booted disks/local/mpm-net2-1.dsk
+(frozen git-tracked library base stays image-free), removing both the legacy
+cpnos.img and rc700.nos first to avoid a device-full during the rename
+transition; dead cpnetsmk branch dropped. Value oracle:
+`make cpnos-polypascal-test COMPILER=clang` PASS -- slave requests RC700.NOS,
+PPAS PRIMES ran to 29989, Q returned to E> (snap/rc702/0773.png). sdcc PROM1
+slave unverified (build env broken, pre-existing).

@@ -614,11 +614,19 @@ cpnos-disasm: prom1-lineprog
 # MAME, MAME_PROM0, MAME_PROM1 defaults provided by $(SHARED)/common.mk.
 
 # Disk-image install: rebuild cpnos.com from cpnos-build/ and inject the
-# fresh blob into both MP/M library disks.  Prevents the "PROM updated
-# but disk still has stale cpnos.com" trap (2026-04-25 incident — see
-# memory: project_cpnos_address_coupling_brittle).  The launcher prefers
-# cpnetsmk-1.dsk if present, so updating only mpm-net2-1.dsk silently
-# fails to take effect — both must be refreshed.
+# fresh RC700.NOS slave image into the BOOTED MP/M disk ONLY.
+# Prevents the "PROM updated but disk still has stale cpnos.com" trap
+# (2026-04-25 incident — see memory: project_cpnos_address_coupling_brittle).
+#
+# The mpm-net2 launcher BOOTS disks/local/mpm-net2-1.dsk (the GENSYS-rebuilt
+# MPM.SYS carrying the FN 105/gettod-patched SERVER.RSP -- see
+# cpnet/REBUILDING_MPM_SYS.md + timeline 2026-06-11), NOT disks/library/.
+# disks/library/ is the FROZEN MP/M+CP/NET base and must stay image-free so it
+# can be committed pure (Phase 2, tasks/todo-mpm-disk-build-2026-07-27.md);
+# writing the image there was the recurring library-dirt bug.  Writing only
+# library/ also silently served a STALE image to the slave (2026-06-28
+# incident: slave booted an image weeks old, reaching E> with the wrong build).
+# So: write ONLY to local/.  The dead cpnetsmk-1.dsk branch is dropped.
 MPM_DISK_LIB = ../z80pack/cpmsim/disks/library
 MPM_DISK_LOCAL = ../z80pack/cpmsim/disks/local
 cpnos-disk-install: cpnos-build/d/cpnos.sys
@@ -627,32 +635,20 @@ cpnos-disk-install: cpnos-build/d/cpnos.sys
 	    --locale $(CPNOS_LOCALE_TAG)
 	@python3 cpnos-build/gen_locale_prefix.py $(BUILDDIR)/locale_prefix.bin
 	@cat $(BUILDDIR)/locale_prefix.bin $(BUILDDIR)/cpnos_stamped.sys > $(BUILDDIR)/cpnos_with_locale.img
-	@echo "  cpnos.img = 384 B prefix + $$(wc -c < $(BUILDDIR)/cpnos_stamped.sys) B stamped cpnos.sys = $$(wc -c < $(BUILDDIR)/cpnos_with_locale.img) B"
-	@cpmrm -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk 0:cpnos.img 2>/dev/null || true
-	cpmcp -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk \
-	    $(BUILDDIR)/cpnos_with_locale.img 0:cpnos.img
-	@if [ -f $(MPM_DISK_LIB)/cpnetsmk-1.dsk ]; then \
-	    cpmrm -f ibm-3740 $(MPM_DISK_LIB)/cpnetsmk-1.dsk 0:cpnos.img 2>/dev/null || true; \
-	    cpmcp -f ibm-3740 $(MPM_DISK_LIB)/cpnetsmk-1.dsk \
-	        $(BUILDDIR)/cpnos_with_locale.img 0:cpnos.img; \
-	    echo "  refreshed (locale) cpnos.img on cpnetsmk-1.dsk"; \
-	 fi
-	@echo "  refreshed (locale) cpnos.img on mpm-net2-1.dsk"
-	@# CRITICAL: the mpm-net2 launcher BOOTS disks/local/mpm-net2-1.dsk
-	@# (the GENSYS-rebuilt MPM.SYS carrying the FN 105/gettod-patched
-	@# SERVER.RSP -- see cpnet/REBUILDING_MPM_SYS.md + timeline 2026-06-11),
-	@# NOT disks/library/.  Refreshing only library/ silently serves a
-	@# STALE cpnos.img to the slave (2026-06-28 incident: slave booted an
-	@# image weeks old; symptomatically the netboot oracle reaches E> with
-	@# the wrong build).  Refresh the BOOTED disk too whenever it exists.
+	@echo "  rc700.nos = 384 B prefix + $$(wc -c < $(BUILDDIR)/cpnos_stamped.sys) B stamped cpnos.sys = $$(wc -c < $(BUILDDIR)/cpnos_with_locale.img) B"
+	@# Remove BOTH the legacy name (cpnos.img) and the current one
+	@# (rc700.nos) before writing: during the rename transition a
+	@# tightly-packed boot disk carrying both overflows ("device full").
 	@if [ -f $(MPM_DISK_LOCAL)/mpm-net2-1.dsk ]; then \
 	    cpmrm -f ibm-3740 $(MPM_DISK_LOCAL)/mpm-net2-1.dsk 0:cpnos.img 2>/dev/null || true; \
+	    cpmrm -f ibm-3740 $(MPM_DISK_LOCAL)/mpm-net2-1.dsk 0:rc700.nos 2>/dev/null || true; \
 	    cpmcp -f ibm-3740 $(MPM_DISK_LOCAL)/mpm-net2-1.dsk \
-	        $(BUILDDIR)/cpnos_with_locale.img 0:cpnos.img; \
-	    echo "  refreshed (locale) cpnos.img on local/mpm-net2-1.dsk (BOOTED disk)"; \
+	        $(BUILDDIR)/cpnos_with_locale.img 0:rc700.nos; \
+	    echo "  installed rc700.nos on local/mpm-net2-1.dsk (BOOTED disk)"; \
 	 else \
-	    echo "  WARNING: $(MPM_DISK_LOCAL)/mpm-net2-1.dsk absent --"; \
-	    echo "           run cpnet/mpm-server/rebuild-mpm-sys.sh --install first"; \
+	    echo "  ERROR: $(MPM_DISK_LOCAL)/mpm-net2-1.dsk absent --"; \
+	    echo "         run cpnet/mpm-server/rebuild-mpm-sys.sh --install first"; \
+	    exit 1; \
 	 fi
 
 # Variant: prepend 384 B locale prefix (US-ASCII outcon + Danish
@@ -669,13 +665,13 @@ cpnos-disk-install-with-locale: cpnos-build/d/cpnos.sys
 	@python3 cpnos-build/gen_locale_prefix.py $(BUILDDIR)/locale_prefix.bin
 	@cat $(BUILDDIR)/locale_prefix.bin $(BUILDDIR)/cpnos_stamped.sys > $(BUILDDIR)/cpnos_with_locale.img
 	@echo "  cpnos.img = 384 B prefix + $$(wc -c < $(BUILDDIR)/cpnos_stamped.sys) B stamped cpnos.sys = $$(wc -c < $(BUILDDIR)/cpnos_with_locale.img) B"
-	@cpmrm -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk 0:cpnos.img 2>/dev/null || true
+	@cpmrm -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk 0:rc700.nos 2>/dev/null || true
 	cpmcp -f ibm-3740 $(MPM_DISK_LIB)/mpm-net2-1.dsk \
-	    $(BUILDDIR)/cpnos_with_locale.img 0:cpnos.img
+	    $(BUILDDIR)/cpnos_with_locale.img 0:rc700.nos
 	@if [ -f $(MPM_DISK_LIB)/cpnetsmk-1.dsk ]; then \
-	    cpmrm -f ibm-3740 $(MPM_DISK_LIB)/cpnetsmk-1.dsk 0:cpnos.img 2>/dev/null || true; \
+	    cpmrm -f ibm-3740 $(MPM_DISK_LIB)/cpnetsmk-1.dsk 0:rc700.nos 2>/dev/null || true; \
 	    cpmcp -f ibm-3740 $(MPM_DISK_LIB)/cpnetsmk-1.dsk \
-	        $(BUILDDIR)/cpnos_with_locale.img 0:cpnos.img; \
+	        $(BUILDDIR)/cpnos_with_locale.img 0:rc700.nos; \
 	    echo "  refreshed (locale) cpnos.img on cpnetsmk-1.dsk"; \
 	 fi
 	@echo "  refreshed (locale) cpnos.img on mpm-net2-1.dsk"
