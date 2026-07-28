@@ -108,7 +108,8 @@ PPAS PRIMES to 29989, Q -> E> (snap/rc702/0776.png).
         margin) from the SDCC resident (RESIDENT_CODE / z88dk library pull-ins)
         so its top clears 0xF60E, then re-run `make cpnos-polypascal-test
         COMPILER=sdcc` to E>. Secondary target (sdcc is MAME-only; clang is
-        production). See [[project_sdcc_slave_stack_room]].
+        production). Tracked: ravn/rc700-gensmedet#125 (+ #119 clang-half
+        resolved, commented). See [[project_sdcc_slave_stack_room]].
 
 ## To do later (2026-07-27, user)
 - [ ] Opdatér kommentarer på z88dk/z88dk#3022:
