@@ -2054,6 +2054,12 @@ prom1-lineprog: $(SDCC_LP_C_OBJS) $(BUILDDIR)/cpnos_layout.asm $(BUILDDIR)/xport
 	    $(notdir $(SDCC_LP_C_OBJS)) \
 	    -o cpnos_lp > /tmp/sdcc_lp_pass2.log 2>&1 || { \
 	      tail -30 /tmp/sdcc_lp_pass2.log; exit 1; }
+	@echo "=== sdcc-prom1lineprog stack-room guard (resident vs SP 0xF680) ==="
+	@# HARD build check: fail loudly if the resident overruns the stack zone.
+	@# A too-large resident leaves too little stack below 0xF680; a deep
+	@# netboot call chain then corrupts resident SNIOS data and the slave
+	@# hangs at the cpnos.sys handoff (no E>).  Known SDCC gap 2026-07-28.
+	python3 cpnos-build/check_sdcc_stack_room.py $(BUILDDIR)/cpnos_lp.map
 	@cp $(BUILDDIR)/cpnos_lp_LINEPROG_HEADER.bin $(SDCC_LP_DIR)/prom1-lineprog.bin
 	@SZ=$$(wc -c < $(SDCC_LP_DIR)/prom1-lineprog.bin | tr -d ' '); \
 	 echo "  raw: $$SZ B"; \
