@@ -137,21 +137,34 @@ emu.register_periodic(function()
         return
     end
 
-    -- Stage 2: TODGET prints multi-line output starting "TODGET: ...".
-    -- Wait for at least one such line to appear after the E> prompt.
+    -- Stage 2: TODGET prints the master's time as
+    --   "TODGET: master  : YYYY-MM-DD HH:MM:SS".
+    -- We don't just check that TODGET *ran* -- we CHECK THE CLOCK IS CORRECT:
+    -- mpm-net2's FN-105 handler reads cpmsim's host RTC, so the master date
+    -- must equal the host's today. A stale/broken gettod (e.g. un-GENSYS'd
+    -- SERVER.RSP -> "gettod ff") yields garbage or no parseable time -> FAIL.
     if stage == 2 then
-        local raw = read_siob()
-        local tail = raw:sub(e_prompt_siob_len + 1)
-        if tail:find("TODGET:", 1, true) then
-            -- Give it a couple more seconds to print the full payload.
-            if t - stage_at > 8.0 then
-                pass(string.format("TODGET ran; %d bytes after E> (see siob.raw)",
-                    #tail))
+        local tail = read_siob():sub(e_prompt_siob_len + 1)
+        local d, tm = tail:match("master.-(%d%d%d%d%-%d%d%-%d%d)%s+(%d%d:%d%d:%d%d)")
+        if d then
+            local today = os.date("%Y-%m-%d")
+            if d == today then
+                pass(string.format("clock correct: master %s %s == host date %s",
+                    d, tm, today))
+            else
+                fail(string.format("clock WRONG: master date %s != host %s (time %s)",
+                    d, today, tm))
             end
             return
         end
+        -- TODGET printed but no valid master time within a grace window = garbage.
+        if tail:find("TODGET:", 1, true) and t - stage_at > 10.0 then
+            fail("TODGET ran but no valid 'master YYYY-MM-DD HH:MM:SS' (gettod " ..
+                "garbage?); tail=" .. string.format("%q", tail:sub(-160)))
+            return
+        end
         if t - stage_at > timeout_s then
-            fail(string.format("no TODGET: output in %d s after E>; tail=%q",
+            fail(string.format("no TODGET master time in %d s after E>; tail=%q",
                 timeout_s, tail:sub(1, 200)))
         end
         return

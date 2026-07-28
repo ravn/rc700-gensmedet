@@ -1704,6 +1704,13 @@ cpnos-todget-test:
 	    TEST_RESULT=/tmp/cpnos_todget_result.txt \
 	    TEST_LOG=/tmp/cpnos_todget_log.txt
 
+# cpnos-check: the FAST "does clang cpnos work?" smoke -- one boot + netboot +
+# TODGET, with the lua VERIFYING THE CLOCK IS CORRECT (master date == host
+# today, catching a stale/garbage gettod). Self-exits ~20-30 s emulated (~2 min
+# wall incl. build + MP/M). The thorough version is `make cpnos-accept`.
+.PHONY: cpnos-check
+cpnos-check: cpnos-todget-test
+
 # SUMTEST file test: the slave assembles (M80) + links (L80) + runs an unrolled
 # sum(1..1000), all from its E: drive (= master I:, the drive_i tool set + the
 # generated sumtest.asm), verifying "CPNET OK A314". Every stage exercises
@@ -1743,25 +1750,25 @@ cpnos-filecopy-test:
 #   2. gettod         (cpnos-todget-test)      -- FN-105 time-from-master
 #   3. file: SUMTEST  (pio-irq-smoke sumtest)  -- M80+L80+run "CPNET OK A314"
 #   4. file: FILECOPY (pio-irq-smoke filecopy) -- record R+W of SUMTEST.ASM over CP/NET
-ACCEPT_SUMMARY = /tmp/cpnos_accept_summary.txt
+# cpnos-accept: the full clang PIO acceptance in a SINGLE MAME run. Boots the
+# slave ONCE (one netboot, one MP/M restart) and drives all four workloads in
+# sequence at the E: prompt via accept_test.lua -- gettod, PPAS primes, SUMTEST
+# (M80+L80+run), FILECOPY -- fault-tolerantly, writing a per-step + overall
+# PASS/FAIL to /tmp/cpnos_accept_result.txt. Reuses the cpnos-polypascal-test
+# machinery (build/install/disk/MP-M/addrs/launch + the ^PASS gate) with the
+# combined driver lua and a longer run cap -- ~4x fewer boots than the four
+# checks separately. The individual cpnos-{todget,sumtest,filecopy}-test and
+# cpnos-polypascal-test targets remain for isolated debugging.
 .PHONY: cpnos-accept
 cpnos-accept:
-	@echo "############################################################"
-	@echo "# cpnos-accept: clang PIO acceptance (PPAS + gettod + files)"
-	@echo "############################################################"
-	@rm -f $(ACCEPT_SUMMARY)
-	-@$(MAKE) cpnos-polypascal-test COMPILER=clang; rc=$$?; \
-	  printf '%-22s %s\n' "PPAS-primes" "$$([ $$rc = 0 ] && echo PASS || echo FAIL)" >> $(ACCEPT_SUMMARY)
-	-@$(MAKE) cpnos-todget-test COMPILER=clang; rc=$$?; \
-	  printf '%-22s %s\n' "gettod (FN-105)" "$$([ $$rc = 0 ] && echo PASS || echo FAIL)" >> $(ACCEPT_SUMMARY)
-	-@$(MAKE) cpnos-sumtest-test COMPILER=clang; rc=$$?; \
-	  printf '%-22s %s\n' "file: SUMTEST (M80+L80)" "$$([ $$rc = 0 ] && echo PASS || echo FAIL)" >> $(ACCEPT_SUMMARY)
-	-@$(MAKE) cpnos-filecopy-test COMPILER=clang; rc=$$?; \
-	  printf '%-22s %s\n' "file: FILECOPY (R+W)" "$$([ $$rc = 0 ] && echo PASS || echo FAIL)" >> $(ACCEPT_SUMMARY)
-	@echo ""
-	@echo "=== cpnos-accept summary (clang, PIO) ==="
-	@cat $(ACCEPT_SUMMARY)
-	@if grep -q FAIL $(ACCEPT_SUMMARY); then echo "cpnos-accept: FAIL"; exit 1; else echo "cpnos-accept: ALL PASS"; fi
+	@echo "=== generating sumtest.asm into drive_i (SUMTEST/FILECOPY source) ==="
+	python3 $(SHARED)/testutil/mksmokeasm.py
+	cp $(SHARED)/testutil/sumtest.asm $(SHARED)/drive_i/sumtest.asm
+	$(MAKE) cpnos-polypascal-test \
+	    TEST_LUA=accept_test.lua \
+	    TEST_RESULT=/tmp/cpnos_accept_result.txt \
+	    TEST_LOG=/tmp/cpnos_accept_log.txt \
+	    SECONDS_TO_RUN_POLYPASCAL=540
 
 # Same as cpnos-polypascal-test, but with debugger trace.  See
 # cpnos-dir-test-trace.  Estimated runtime ~90 s wall-clock; produces
