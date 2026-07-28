@@ -86,7 +86,8 @@ PPAS PRIMES to 29989, Q -> E> (snap/rc702/0776.png).
       now prefers the prebuilt ../z88dk (has z80.lib); SDCC_C_OBJS defined before
       the prom1-lineprog rule (read-time prereq expansion). Builds exit 0; FCB
       `RC700   NOS` present in the binary.
-- [~] sdcc PROM1 slave RUNTIME = KNOWN GAP (2026-07-28). The freshly-built sdcc
+- [~] sdcc PROM1 slave RUNTIME = KNOWN GAP, **PARKED 2026-07-28** (user; tracked
+      ravn/rc700-gensmedet#125, label `parked`; build guard stays ON). The freshly-built sdcc
       slave netboots RC700.NOS fully (dots + locale line) but HANGS at the
       cpnos.sys handoff -- no E>. Root cause: the SDCC resident is too large and
       overruns the stack zone. SP inits to 0xF680 (locale tables 0xF680..0xF7FF
