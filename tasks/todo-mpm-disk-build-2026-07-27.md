@@ -115,3 +115,11 @@ PPAS PRIMES to 29989, Q -> E> (snap/rc702/0776.png).
 ## To do later (2026-07-27, user)
 - [ ] Opdatér kommentarer på z88dk/z88dk#3022:
       https://github.com/z88dk/z88dk/issues/3022#issuecomment-5096493359
+
+## To do later (2026-07-28, user) — cpnos clock support
+- [ ] Investigate whether cpnos can support a clock for running programs, either
+      (a) always forwarding the time request to the CP/NET server (query-on-demand,
+      like TODGET/FN-105), or (b) a locally-set clock that is periodically synced
+      from the server and then ticks locally — in a format the z88dk clock demo
+      (scratch/clock-demo/) can read. Relates to the gettod/FN-105 path already
+      proven (cpnos-check) and rcbios CLOCK (0xDA56).
