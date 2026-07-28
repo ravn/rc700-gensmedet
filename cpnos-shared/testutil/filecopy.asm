@@ -1,16 +1,19 @@
 ; filecopy.asm — CP/NOS file-I/O bench (read + write over CP/NET).
 ;
-; Reads SUMTEST.ASM (staged on master drive A:) record-by-record via
-; BDOS F_READ, writes each record back to SUMTEST.CPY via BDOS F_WRITE.
-; Wire shape: ~360 CP/NET read RTTs followed by ~360 write RTTs for a
-; ~46 KB sumtest source.  Pure file-I/O, no m80/l80 in the timed window.
+; Reads SUMTEST.ASM (on the slave's DEFAULT drive, = E: in the cpnos-accept
+; harness) record-by-record via BDOS F_READ, writes each record back to
+; SUMTEST.CPY via BDOS F_WRITE.  Wire shape: ~360 CP/NET read RTTs followed by
+; ~360 write RTTs for a ~46 KB sumtest source.  Pure file-I/O, no m80/l80.
 ;
 ; Pass criterion (host-side, post-run):
 ;   1. slave printed "FILECOPY OK <hex_count>" before warm-boot
 ;   2. cpmcp-extracted SUMTEST.CPY is byte-identical to SUMTEST.ASM
 ;
-; Pre-assembled on the host with `zmac --dri filecopy.asm` and staged
-; as 0:FILECOPY.COM in cpnetsmk-1.dsk by mksmokedisk.sh.
+; The FCBs use drive 0 (default) so this works from whatever drive the slave
+; cold-boots into (E: under cpnos-accept); it used to hardcode drive A: for the
+; old A:-crammed mksmokedisk.sh smoke disk (2026-07-28: retargeted to E:).
+; Pre-assembled on the host with `zmac --dri filecopy.asm`, staged as
+; FILECOPY.COM in cpnos-shared/drive_i/ (= slave E:).
 
 BDOS    equ     0005h
 CONOUT  equ     2
@@ -191,12 +194,12 @@ REC_COUNT:  dw      0
 FRM_START:  ds      4
 FRM_END:    ds      4
 
-SRC_FCB:    db      1                       ; drive A:
+SRC_FCB:    db      0                       ; drive 0 = default (slave E:)
             db      'SUMTEST '               ; 8 chars padded
             db      'ASM'                    ; 3-char ext
             ds      24                       ; rest of FCB zeroed at load
 
-DST_FCB:    db      1
+DST_FCB:    db      0                       ; drive 0 = default (slave E:)
             db      'SUMTEST '
             db      'CPY'
             ds      24

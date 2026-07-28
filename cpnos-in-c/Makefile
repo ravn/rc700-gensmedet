@@ -1582,6 +1582,12 @@ endif
 	@wc -l /tmp/cpnos_inir_trace.log 2>/dev/null || echo '(no trace file)'
 	@grep -q '^PASS' /tmp/cpnos_polypascal_result.txt 2>/dev/null
 
+# Parameterized so cpnos-todget-test (and any future MAME-driver test) can reuse
+# this whole build/install/MP-M-restart/addrs machinery with a different driver
+# lua + result/log files.  Defaults reproduce the PPAS-primes run byte-for-byte.
+TEST_LUA    ?= polypascal_test.lua
+TEST_RESULT ?= /tmp/cpnos_polypascal_result.txt
+TEST_LOG    ?= /tmp/cpnos_polypascal_log.txt
 cpnos-polypascal-test:
 	@# PROM1-only topology (session 73j-end onwards): autoload-in-c
 	@# ROA375 in PROM0 + cpnos-in-c PROM1 line program in PROM1.  The
@@ -1625,7 +1631,7 @@ cpnos-polypascal-test:
 	@i=0; until nc -z 127.0.0.1 4002 2>/dev/null; do i=$$((i+1)); if [ $$i -ge 40 ]; then echo "ERROR: mpm-net2 restart-after-ping did not reopen :4002 within 20s"; exit 1; fi; sleep 0.5; done
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
-	       /tmp/cpnos_polypascal_log.txt /tmp/cpnos_polypascal_result.txt
+	       $(TEST_LOG) $(TEST_RESULT)
 	@echo "=== 5/5 generating $(BUILDDIR)/cpnos_polypascal_addrs.lua ==="
 ifeq ($(COMPILER),sdcc)
 	@# z88dk's prom1-lineprog map `sdcc/cpnos_lp.map` lines look like:
@@ -1662,7 +1668,7 @@ ifeq ($(TRANSPORT),sio)
 	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
 	    $(TRACE_ARGS) \
-	    -autoboot_script $(SHARED)/mame/polypascal_test.lua
+	    -autoboot_script $(SHARED)/mame/$(TEST_LUA)
 else
 	-COMPILER=$(COMPILER) \
 	MAME_BIN=$(MAME)/regnecentralend \
@@ -1676,15 +1682,86 @@ else
 	    -bitb3 socket.127.0.0.1:4002 \
 	    -log \
 	    $(TRACE_ARGS) \
-	    -autoboot_script $(SHARED)/mame/polypascal_test.lua
+	    -autoboot_script $(SHARED)/mame/$(TEST_LUA)
 	-cp -f error.log /tmp/cpnos_dir_bridge.log 2>/dev/null
 endif
 	-$(MAKE) _kill-mpm  # exit-side reap; best-effort
-	@echo "--- polypascal-test log tail ---"
-	@tail -30 /tmp/cpnos_polypascal_log.txt 2>/dev/null
+	@echo "--- $(TEST_LUA) log tail ---"
+	@tail -30 $(TEST_LOG) 2>/dev/null
 	@echo "--- result ---"
-	@cat /tmp/cpnos_polypascal_result.txt 2>/dev/null || echo '(no result file)'
-	@grep -q '^PASS' /tmp/cpnos_polypascal_result.txt 2>/dev/null
+	@cat $(TEST_RESULT) 2>/dev/null || echo '(no result file)'
+	@grep -q '^PASS' $(TEST_RESULT) 2>/dev/null
+
+# gettod (FN-105 time-from-master) regression. Reuses the entire
+# cpnos-polypascal-test machinery (build/install/MP-M-restart/addrs) with the
+# TODGET driver lua -- todget_test.lua was written for a `make cpnos-todget-test`
+# target that was never wired; this is it. At E> the lua types TODGET<CR>; PASS
+# when the FN-105 round-trip prints the master's time on SIO-B.
+.PHONY: cpnos-todget-test
+cpnos-todget-test:
+	$(MAKE) cpnos-polypascal-test \
+	    TEST_LUA=todget_test.lua \
+	    TEST_RESULT=/tmp/cpnos_todget_result.txt \
+	    TEST_LOG=/tmp/cpnos_todget_log.txt
+
+# SUMTEST file test: the slave assembles (M80) + links (L80) + runs an unrolled
+# sum(1..1000), all from its E: drive (= master I:, the drive_i tool set + the
+# generated sumtest.asm), verifying "CPNET OK A314". Every stage exercises
+# CP/NET OPEN/READ/WRITE. Reuses the cpnos-polypascal-test machinery with the
+# sumtest driver lua. sumtest.asm is generated into drive_i/ (gitignored) so
+# stage-drivei-tools stages it onto I: alongside M80.COM/L80.COM -- no A: disk
+# cramming, no cpnos-rom dependency (the old mksmokedisk.sh path).
+.PHONY: cpnos-sumtest-test
+cpnos-sumtest-test:
+	@echo "=== generating sumtest.asm into drive_i (staged onto slave E:) ==="
+	python3 $(SHARED)/testutil/mksmokeasm.py
+	cp $(SHARED)/testutil/sumtest.asm $(SHARED)/drive_i/sumtest.asm
+	$(MAKE) cpnos-polypascal-test \
+	    TEST_LUA=sumtest_test.lua \
+	    TEST_RESULT=/tmp/cpnos_sumtest_result.txt \
+	    TEST_LOG=/tmp/cpnos_sumtest_log.txt
+
+# FILECOPY file test: pure CP/NET file I/O. FILECOPY.COM (on drive_i, = slave
+# E:) reads SUMTEST.ASM record-by-record via BDOS F_READ and writes SUMTEST.CPY
+# via BDOS F_WRITE, printing "FILECOPY OK <count>". No assembler -- the leanest
+# read+write exerciser. Same E:-driven pattern as cpnos-sumtest-test.
+.PHONY: cpnos-filecopy-test
+cpnos-filecopy-test:
+	@echo "=== generating SUMTEST.ASM source into drive_i (staged onto slave E:) ==="
+	python3 $(SHARED)/testutil/mksmokeasm.py
+	cp $(SHARED)/testutil/sumtest.asm $(SHARED)/drive_i/sumtest.asm
+	$(MAKE) cpnos-polypascal-test \
+	    TEST_LUA=filecopy_test.lua \
+	    TEST_RESULT=/tmp/cpnos_filecopy_result.txt \
+	    TEST_LOG=/tmp/cpnos_filecopy_log.txt
+
+# cpnos-accept: the full clang PIO acceptance -- the "does clang cpnos work?"
+# answer, no longer just PPAS primes. Runs all four checks FAULT-TOLERANTLY
+# (each restarts MP/M + a ~4 min MAME session, ~16-20 min total) and prints a
+# PASS/FAIL summary; exits non-zero if any failed.
+#   1. PPAS primes    (cpnos-polypascal-test)  -- interpreter + compute to 29989
+#   2. gettod         (cpnos-todget-test)      -- FN-105 time-from-master
+#   3. file: SUMTEST  (pio-irq-smoke sumtest)  -- M80+L80+run "CPNET OK A314"
+#   4. file: FILECOPY (pio-irq-smoke filecopy) -- record R+W of SUMTEST.ASM over CP/NET
+ACCEPT_SUMMARY = /tmp/cpnos_accept_summary.txt
+.PHONY: cpnos-accept
+cpnos-accept:
+	@echo "############################################################"
+	@echo "# cpnos-accept: clang PIO acceptance (PPAS + gettod + files)"
+	@echo "############################################################"
+	@rm -f $(ACCEPT_SUMMARY)
+	-@$(MAKE) cpnos-polypascal-test COMPILER=clang; rc=$$?; \
+	  printf '%-22s %s\n' "PPAS-primes" "$$([ $$rc = 0 ] && echo PASS || echo FAIL)" >> $(ACCEPT_SUMMARY)
+	-@$(MAKE) cpnos-todget-test COMPILER=clang; rc=$$?; \
+	  printf '%-22s %s\n' "gettod (FN-105)" "$$([ $$rc = 0 ] && echo PASS || echo FAIL)" >> $(ACCEPT_SUMMARY)
+	-@$(MAKE) cpnos-sumtest-test COMPILER=clang; rc=$$?; \
+	  printf '%-22s %s\n' "file: SUMTEST (M80+L80)" "$$([ $$rc = 0 ] && echo PASS || echo FAIL)" >> $(ACCEPT_SUMMARY)
+	-@$(MAKE) cpnos-filecopy-test COMPILER=clang; rc=$$?; \
+	  printf '%-22s %s\n' "file: FILECOPY (R+W)" "$$([ $$rc = 0 ] && echo PASS || echo FAIL)" >> $(ACCEPT_SUMMARY)
+	@echo ""
+	@echo "=== cpnos-accept summary (clang, PIO) ==="
+	@cat $(ACCEPT_SUMMARY)
+	@if grep -q FAIL $(ACCEPT_SUMMARY); then echo "cpnos-accept: FAIL"; exit 1; else echo "cpnos-accept: ALL PASS"; fi
 
 # Same as cpnos-polypascal-test, but with debugger trace.  See
 # cpnos-dir-test-trace.  Estimated runtime ~90 s wall-clock; produces
