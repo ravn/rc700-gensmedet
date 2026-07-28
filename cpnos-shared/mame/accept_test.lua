@@ -108,9 +108,10 @@ emu.register_periodic(function()
         inject(pending:byte(1)); pending = pending:sub(2); pace_at = t + 0.10
     end
 
-    -- 0: settle, wait first E>.
+    -- 0: brief guard past reset, then poll for E> (was a fixed 12 s wait that
+    -- idled ~8 s after E> already appeared at ~4 s; stage 1 gates on real E>).
     if stage == 0 then
-        if t < 12.0 then return end
+        if t < 2.0 then return end
         goto_stage(1, 60, "wait for first E> boot prompt")
         return
     end

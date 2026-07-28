@@ -113,7 +113,9 @@ emu.register_periodic(function()
     end
 
     if stage == 0 then
-        if t < 12.0 then return end
+        -- 2 s guard past reset, then poll for E> (E> appears ~4 s; the old 12 s
+        -- fixed wait idled ~8 s). Stage 1 still gates on the real E> prompt.
+        if t < 2.0 then return end
         start_stage(1, 60, "wait for first E> boot prompt")
         return
     end

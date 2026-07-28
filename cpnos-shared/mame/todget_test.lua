@@ -112,9 +112,11 @@ emu.register_periodic(function()
         pace_at = t + 0.10
     end
 
-    -- Stage 0: wait for the boot to settle.
+    -- Stage 0: brief guard past the reset, then poll for E> immediately.
+    -- (Was a fixed 12 s "boot-settle" wait, which left a visible 2-3 s idle
+    -- gap after E> appeared; stage 1 already gates on the real E> prompt.)
     if stage == 0 then
-        if t < 12.0 then return end
+        if t < 2.0 then return end
         start_stage(1, 60, "wait for E> on SIO-B")
         return
     end

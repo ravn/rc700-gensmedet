@@ -239,9 +239,10 @@ emu.register_periodic(function()
 
     -- (dot_watch disabled: tap callback overhead slowed MAME below
     -- realtime and stalled the test.)
-    -- Stage 0: wait for E> boot prompt.
+    -- Stage 0: brief guard past reset, then poll for E> (E> appears ~4 s; the
+    -- old fixed 12 s wait idled ~8 s after it). Stage 1 gates on the real E>.
     if stage == 0 then
-        if t < 12.0 then return end
+        if t < 2.0 then return end
         start_stage(1, 30, "wait for E> on SIO-B; type WS launch")
         return
     end
