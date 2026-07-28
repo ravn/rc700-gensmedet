@@ -145,7 +145,13 @@ ifeq ($(COMPILER),clang)
 
 else ifeq ($(COMPILER),sdcc)
   # ---- z88dk-zsdcc toolchain (Phase 2 in progress) -----------------
-  Z88DK_HOME ?= $(firstword $(wildcard $(CURDIR)/../../z88dk))
+  # Prefer the PINNED PREBUILT toolchain at rc700-gensmedet/z88dk (../z88dk) --
+  # the stable stock zcc/zsdcc/z80asm + sdcc z80.lib that rc700 builds target
+  # (CLAUDE.md workspace layout).  Fall back to the workspace-root development
+  # fork (../../z88dk) only if the prebuilt is absent; that fork is for z88dk
+  # dev work and does NOT ship the classic sdcc z80.lib, so linking there fails
+  # with "file not found: z80.lib".
+  Z88DK_HOME ?= $(firstword $(wildcard $(CURDIR)/../z88dk) $(wildcard $(CURDIR)/../../z88dk))
   ifneq ($(wildcard $(Z88DK_HOME)/bin/zcc),)
     # Native z88dk on the host.  Set ZCCCFG via exported var; export
     # PATH with z88dk's bin so zcc's internal `z88dk-z80asm` /
@@ -1981,6 +1987,16 @@ SDCC_LP_ASM_SRCS = $(SDCC_LP_DIR)/sections.asm \
 # two-PROM SDCC build — bootstrap.asm replaces what relocator.o used
 # to do, and relocator.o was dropped from SDCC_C_OBJS in the 2026-06-03
 # two-PROM cleanup.
+#
+# SDCC_C_OBJS MUST be defined BEFORE the prom1-lineprog rule below: make
+# expands a rule's prerequisites when the makefile is READ, so defining it
+# later (as it used to be) left `prom1-lineprog: $(SDCC_LP_C_OBJS)` with EMPTY
+# prereqs -> the C objects were never built -> link "file not found:
+# cpnos_main.o" (the deferred recipe still expands the names). Fixed 2026-07-28.
+SDCC_C_OBJS = $(BUILDDIR)/cpnos_main.o \
+              $(BUILDDIR)/resident.o $(BUILDDIR)/init.o \
+              $(BUILDDIR)/snios_c.o \
+              $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o
 SDCC_LP_C_OBJS = $(SDCC_C_OBJS)
 
 # prom1-lineprog binding for COMPILER=sdcc: same target name as the
@@ -2038,6 +2054,12 @@ prom1-lineprog: $(SDCC_LP_C_OBJS) $(BUILDDIR)/cpnos_layout.asm $(BUILDDIR)/xport
 	    $(notdir $(SDCC_LP_C_OBJS)) \
 	    -o cpnos_lp > /tmp/sdcc_lp_pass2.log 2>&1 || { \
 	      tail -30 /tmp/sdcc_lp_pass2.log; exit 1; }
+	@echo "=== sdcc-prom1lineprog stack-room guard (resident vs SP 0xF680) ==="
+	@# HARD build check: fail loudly if the resident overruns the stack zone.
+	@# A too-large resident leaves too little stack below 0xF680; a deep
+	@# netboot call chain then corrupts resident SNIOS data and the slave
+	@# hangs at the cpnos.sys handoff (no E>).  Known SDCC gap 2026-07-28.
+	python3 cpnos-build/check_sdcc_stack_room.py $(BUILDDIR)/cpnos_lp.map
 	@cp $(BUILDDIR)/cpnos_lp_LINEPROG_HEADER.bin $(SDCC_LP_DIR)/prom1-lineprog.bin
 	@SZ=$$(wc -c < $(SDCC_LP_DIR)/prom1-lineprog.bin | tr -d ' '); \
 	 echo "  raw: $$SZ B"; \
@@ -2195,10 +2217,8 @@ $(BUILDDIR)/transport_pio.o:  CFLAGS := $(SDCC_PRE_CFLAGS)
 
 # Per-compiler PAYLOAD_OBJS list.  No relocator.o in the SDCC list now
 # — the PROM1-lineprog build uses bootstrap.asm + dzx0_standard.asm.
-SDCC_C_OBJS = $(BUILDDIR)/cpnos_main.o \
-              $(BUILDDIR)/resident.o $(BUILDDIR)/init.o \
-              $(BUILDDIR)/snios_c.o \
-              $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o
+# (SDCC_C_OBJS is defined earlier, before the prom1-lineprog rule, so its
+# objects register as prerequisites -- see the note there.)
 
 # Hand-written z88dk asm files (live in sdcc/ as tracked source).
 SDCC_ASM_SRCS = sdcc/sections.asm \

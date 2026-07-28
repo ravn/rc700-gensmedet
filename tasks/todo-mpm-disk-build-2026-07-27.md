@@ -82,8 +82,33 @@ COMPILER=clang` PASS -- library untouched, slave netboots RC700.NOS from local/,
 PPAS PRIMES to 29989, Q -> E> (snap/rc702/0776.png).
 
 ## Remaining (out of this two-phase task)
-- [ ] sdcc PROM1 slave: build env BROKEN pre-existing (Phase 1 item); FCB is a
-      shared const array so bytes are identical once fixed.
+- [x] sdcc PROM1 slave BUILD env fixed 2026-07-28 (commit 0ad582d): Z88DK_HOME
+      now prefers the prebuilt ../z88dk (has z80.lib); SDCC_C_OBJS defined before
+      the prom1-lineprog rule (read-time prereq expansion). Builds exit 0; FCB
+      `RC700   NOS` present in the binary.
+- [~] sdcc PROM1 slave RUNTIME = KNOWN GAP (2026-07-28). The freshly-built sdcc
+      slave netboots RC700.NOS fully (dots + locale line) but HANGS at the
+      cpnos.sys handoff -- no E>. Root cause: the SDCC resident is too large and
+      overruns the stack zone. SP inits to 0xF680 (locale tables 0xF680..0xF7FF
+      above, display 0xF800 -- stack cannot move higher). clang keeps the
+      resident below __stack_low=0xF60E (>=114 B stack, actual end 0xF5C2 = 190 B)
+      and boots to E>; sdcc's resident ends at 0xF62A (only 86 B stack), so a
+      deep netboot call chain overruns into resident SNIOS RODATA/DATA/CHECKSUM
+      (0xF61D..0xF62A), corrupting it -> cpnos.sys's first SNIOS CP/NET frame is
+      malformed -> master never ACKs -> hang. NOT IOBYTE (console works on CRT +
+      SIO-B post-netboot), NOT address-coupling (clang==sdcc: bios_jt=0xEE00,
+      snios_jt=0xEE33 == cpnos.sys NIOS=0xEE33). Confirmed by the user's "too big
+      for the space before the stack" hypothesis.
+      - [x] BUILD GUARD added: cpnos-build/check_sdcc_stack_room.py (wired into
+        the sdcc prom1-lineprog recipe after pass 2) FAILS the build loudly when
+        the resident top (__RESIDENT_CHECKSUM_tail) exceeds 0xF60E, instead of
+        shipping a silently-broken binary. Currently reports "overruns by 28 B,
+        shave >= 28 B".
+      - [ ] FIX (deferred): shave >= 28 B (ideally ~100 B to match clang's
+        margin) from the SDCC resident (RESIDENT_CODE / z88dk library pull-ins)
+        so its top clears 0xF60E, then re-run `make cpnos-polypascal-test
+        COMPILER=sdcc` to E>. Secondary target (sdcc is MAME-only; clang is
+        production). See [[project_sdcc_slave_stack_room]].
 
 ## To do later (2026-07-27, user)
 - [ ] Opdatér kommentarer på z88dk/z88dk#3022:

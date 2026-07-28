@@ -8848,3 +8848,16 @@ frozen library base; cpnos.img stripped from library/mpm-net2-1.dsk (base now
 pure MP/M+CP/NET). Docs: REBUILDING_MPM_SYS.md + memory project_mpm_disks_local_only.
 Verified: `make mpm-disks` + `make cpnos-polypascal-test COMPILER=clang` PASS
 (library untouched, netboots RC700.NOS, PPAS PRIMES 29989, Q -> E>).
+
+## 2026-07-28 — sdcc PROM1 slave: build fixed; runtime stack-overrun guard added
+Build env fixed (commit 0ad582d): Z88DK_HOME prefers prebuilt ../z88dk (z80.lib);
+SDCC_C_OBJS moved before the prom1-lineprog rule (read-time prereq expansion).
+Runtime: sdcc slave netboots RC700.NOS but HANGS at cpnos.sys handoff -- root
+cause is the SDCC resident overrunning the stack (SP=0xF680; resident top 0xF62A
+vs clang floor 0xF60E, only 86 B stack), corrupting resident SNIOS data. Ruled
+out IOBYTE (console works on CRT+SIO-B post-netboot) and address-coupling
+(clang==sdcc handoff addrs, match cpnos.sys NIOS=0xEE33). Added build guard
+cpnos-build/check_sdcc_stack_room.py (wired after sdcc pass-2 link) that FAILS
+loudly when resident top > 0xF60E, instead of shipping a silently-broken binary.
+Documented as a known SDCC-slave gap (todo + memory project_sdcc_slave_stack_room);
+sdcc is MAME-only secondary, clang is production. Fix (shave >= 28 B) deferred.
