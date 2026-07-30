@@ -343,7 +343,7 @@ clang/banner.h: FORCE
 
 FORCE:
 
-clang/boot.o: boot_rom.c rom.h clang/banner.h $(CLANG_COMPILER)
+clang/boot.o: boot_rom.c rom.h clang/banner.h $(CLANG_COMPILER) Makefile
 	$(RUN) $(CLANG_CC) $(CLANG_CFLAGS) -c $< -o $@
 
 clang/runtime.o: clang/runtime.s $(CLANG_COMPILER)
@@ -362,10 +362,10 @@ clang/text_compressed.zx0:
 clang/text_compressed.o: clang/text_compressed.s clang/text_compressed.zx0 $(CLANG_COMPILER)
 	$(RUN) $(CLANG_CC) --target=z80 -c $< -o $@
 
-clang/intvec.o: intvec.c rom.h $(CLANG_COMPILER)
+clang/intvec.o: intvec.c rom.h $(CLANG_COMPILER) Makefile
 	$(RUN) $(CLANG_CC) $(CLANG_CFLAGS) -c intvec.c -o $@
 
-clang/rom.o: rom.c rom.h $(CLANG_COMPILER)
+clang/rom.o: rom.c rom.h $(CLANG_COMPILER) Makefile
 	$(RUN) $(CLANG_CC) $(CLANG_CFLAGS) -c rom.c -o $@
 
 clang_asm: rom.c rom.h
