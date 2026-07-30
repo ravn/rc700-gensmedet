@@ -1004,10 +1004,12 @@ void main_relocated(void) __naked
     init_ctc();
     init_dma();
     init_crt();
-    /* Always program the full ROA327 font into the SEM702 RAM.  Real
-     * ROA327 ROM silently ignores writes to ports 0xD1/0xD2/0xD3, so the
-     * call is a safe no-op on baseline hardware. */
+    /* Program the full ROA327 font into the SEM702 RAM.
+     * On a ROA327-ROM machine the OUT writes go nowhere (safe no-op).
+     * Omit by building with -DINIT_SEM702=0 to free ~377 B ZX0-compressed. */
+#if !defined(INIT_SEM702) || INIT_SEM702
     load_chargen_font();
+#endif
     init_fdc();
     memset(dspstr, ' ', 80 * 25);   /* clear screen */
     display_banner_and_start_crt();

@@ -280,6 +280,10 @@ CLANG_CFLAGS = --target=z80 -Oz -g -nostdlib \
 # `make CLANG_EXTRA="-mllvm -z80-enable-licm -mllvm -z80-enable-cse"`.
 CLANG_CFLAGS += $(CLANG_EXTRA)
 CLANG_CFLAGS += -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT)
+# SEM702 character generator init (default ON).  Override with make INIT_SEM702=0
+# to free ~377 B ZX0-compressed for debug payloads.
+INIT_SEM702 ?= 1
+CLANG_CFLAGS += -DINIT_SEM702=$(INIT_SEM702)
 # -g enables DWARF debug info; binary unchanged because objcopy -O binary
 # only emits ALLOC sections and .debug_* are non-ALLOC.  The DWARF info
 # is what makes the source-annotated listing (clang/prom.clang.lis)
