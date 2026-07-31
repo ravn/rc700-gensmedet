@@ -4,9 +4,11 @@
  * 2. Switch the console to semigraphics mode (BIOS control code 0x84) so the
  *    following characters are rendered from the SEM702 (GPA0=1), print A-Z /
  *    a-z / 0-9, switch back (0x80).  -> screenshot A: upright letters.
- * 3. Reprogram the SEM702 with the same font flipped top-to-bottom.  The
- *    already-printed characters re-render each frame from m_sem702_ram, so
- *    they flip in place.  -> screenshot B: upside-down letters.
+ * 3. Reprogram the SEM702 one glyph at a time, top-to-bottom flipped, with a
+ *    short pause between glyphs.  Because each character re-renders from
+ *    m_sem702_ram every frame, the on-screen characters flip progressively
+ *    (roughly in character-code order) instead of all at once.
+ *    -> screenshot B: upside-down letters.
  *
  * marker at 0xBF00: 1 = phase A ready, 2 = phase B ready (for the MAME lua).
  */
@@ -22,35 +24,50 @@
 
 static void conout(unsigned char ch) { bdos(2, ch); }
 
-/* Program the SEM702 with font296; when flip != 0, mirror lines 0..CELL_LINES-1. */
-static void load_sem702(int flip)
+/* Program one SEM702 glyph; when flip != 0, mirror lines 0..CELL_LINES-1. */
+static void load_glyph(int ch, int flip)
 {
-    int ch, line, src;
-    for (ch = 0; ch < 128; ch++) {
-        z80_outp(SEM_CHAR, (unsigned char)ch);
-        for (line = 0; line < 16; line++) {
-            z80_outp(SEM_LINE, (unsigned char)line);
-            if (flip && line < CELL_LINES)
-                src = ch * 16 + (CELL_LINES - 1 - line);
-            else
-                src = ch * 16 + line;
-            z80_outp(SEM_DATA, font296[src]);
-        }
+    int line, src;
+    z80_outp(SEM_CHAR, (unsigned char)ch);
+    for (line = 0; line < 16; line++) {
+        z80_outp(SEM_LINE, (unsigned char)line);
+        if (flip && line < CELL_LINES)
+            src = ch * 16 + (CELL_LINES - 1 - line);
+        else
+            src = ch * 16 + line;
+        z80_outp(SEM_DATA, font296[src]);
     }
 }
 
+static void load_all(int flip)
+{
+    int ch;
+    for (ch = 0; ch < 128; ch++)
+        load_glyph(ch, flip);
+}
+
+/* short pause (a couple of seconds) -- long enough to see a phase and for the
+ * MAME lua to snapshot, but not so long the flip seems slow to start */
 static void hold(void)
 {
     unsigned int i, j;
-    for (i = 0; i < 20; i++)
+    for (i = 0; i < 4; i++)
         for (j = 0; j < 60000u; j++) { }
+}
+
+/* ~short pause between glyphs (progressive flip) */
+static void tick(void)
+{
+    unsigned int j;
+    for (j = 0; j < 12000u; j++) { }
 }
 
 int main(void)
 {
     const char *s;
+    int ch;
 
-    load_sem702(0);                 /* SEM702 = ROA296 (upright) */
+    load_all(0);                    /* SEM702 = ROA296 (upright) */
 
     conout(0x84);                   /* -> semigraphics (SEM702) */
     for (s = "SEM702 FLIP TEST\r\n"; *s; s++) conout(*s);
@@ -62,7 +79,14 @@ int main(void)
     MARKER = 1;
     hold();                         /* screenshot A */
 
-    load_sem702(1);                 /* SEM702 = ROA296 flipped */
+    /* Flip one glyph at a time so the on-screen characters flip in sequence
+     * (each screen cell re-renders live, so cells sharing a code flip as that
+     * code's glyph is reprogrammed). */
+    for (ch = 0; ch < 128; ch++) {
+        load_glyph(ch, 1);
+        if (ch == 64) MARKER = 3;   /* midway: ~half the glyphs flipped */
+        tick();
+    }
 
     MARKER = 2;
     hold();                         /* screenshot B */

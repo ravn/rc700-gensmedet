@@ -43,9 +43,11 @@ emu.register_frame_done(function()
     if stage==0 and frame>150 and screen_find("A>") then
         stage=1; pending="FLIP\r"
     elseif stage==1 and marker==1 then
-        stage=2; snap("sem702_A_normal.png")
-    elseif stage==2 and marker==2 then
-        stage=3; snap("sem702_B_flipped.png"); done=true; manager.machine:exit()
+        stage=2; snap("sem702_A_normal.png")       -- all upright
+    elseif stage==2 and marker==3 then
+        stage=3; snap("sem702_B_midflip.png")      -- ~half flipped (progressive)
+    elseif stage==3 and marker==2 then
+        stage=4; snap("sem702_C_flipped.png"); done=true; manager.machine:exit()
     end
-    if frame>8000 then done=true; manager.machine:exit() end
+    if frame>12000 then done=true; manager.machine:exit() end
 end)
