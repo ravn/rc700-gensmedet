@@ -397,3 +397,28 @@ killing it.
 queries `STI.hasSM83()` and sets `bool IsSM83`. Cases that need SM83-aware sizes
 must be added inside that switch, not in the outer switch that follows — `IsSM83`
 is out of scope there and the compiler will catch it, but only at build time.
+
+## 2026-08-02 — Control variables before debugging the emulator
+
+Chasing a SEM702 "glyph compression" symptom, I bisected into MAME's i8275
+rendering internals instead of first building the minimal, decoupled test.
+The failing program (flip_test.c) mixed three uncontrolled variables at once:
+font baked into the binary (font296.h), an upright path, and a "content-box"
+flip -- so I could not isolate which part misbehaved. Compounding it, the
+MARKER-gated snapshots were unreliable because clang optimises away empty
+hold()/tick() busy-loops, so some "compressed" screenshots were likely caught
+mid-flip (unconfirmed).
+
+What actually resolved it was the user's prescription: DECOUPLE DATA FROM PATH.
+A new chk_test.c ran one clean variable per phase -- (A) a constant 1px
+checkerboard (no font data at all -> proves the sem702_loadglyph write path and
+the 11-line 8275 cell), then (B) the real ROA296 read FROM A FILE at runtime and
+loaded per glyph. Both rendered perfectly; the compression did not reproduce.
+
+Lesson: when a symptom looks weird, STOP and build the smallest test that varies
+ONE thing, rather than debugging deeper into the most complex layer (the
+emulator). Reset the experiment; don't follow the symptom. And never trust a
+snapshot gated on a marker whose preceding delay is an empty loop -- use a
+volatile sink or a fixed late frame. Root cause of the original compression
+remains UNVERIFIED (user said leave it); do not claim a mechanism I did not
+confirm.
