@@ -3,6 +3,7 @@
 local frame,stage,done=0,0,false
 local prog,installed=nil,false
 local inject_at,pending=0,""
+local neg_at=0
 local dma={base=nil,msb=false,lo=0}
 local taps={}
 
@@ -44,17 +45,22 @@ emu.register_frame_done(function()
     local progress = prog:read_u8(0xBF01)
     if stage==0 and frame>150 and screen_find("A>") then
         stage=1; pending="CHK\r"
-    elseif stage==1 and marker==1 then
-        stage=2; snap("sem702_A_checkerboard.png")
+    elseif stage==1 and marker==9 then
+        stage=2; neg_at=frame+45                 -- let the char-by-char line finish printing
+    elseif stage==2 and frame>=neg_at then
+        stage=3; snap("sem702_0_negfopen.png")
+        print(string.format("PHASE 0 (neg fopen) snapped, progress=%02x (0E=NULL ok) frame=%d", progress, frame))
+    elseif stage==3 and marker==1 then
+        stage=4; snap("sem702_A_checkerboard.png")
         print(string.format("PHASE A snapped, progress=%02x frame=%d", progress, frame))
-    elseif stage==2 and marker==2 then
-        stage=3; snap("sem702_B_roa296.png")
+    elseif stage==4 and marker==2 then
+        stage=5; snap("sem702_B_roa296.png")
         print(string.format("PHASE B snapped, progress=%02x frame=%d", progress, frame))
-    elseif stage==3 and marker==3 then
-        stage=4; snap("sem702_C_flipped.png")
+    elseif stage==5 and marker==3 then
+        stage=6; snap("sem702_C_flipped.png")
         print(string.format("PHASE C snapped, progress=%02x frame=%d", progress, frame))
-    elseif stage==4 and marker==4 then
-        stage=5; snap("sem702_D_roa327.png")
+    elseif stage==6 and marker==4 then
+        stage=7; snap("sem702_D_roa327.png")
         print(string.format("PHASE D snapped, progress=%02x frame=%d", progress, frame))
         done=true; manager.machine:exit()
     end

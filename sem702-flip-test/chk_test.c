@@ -25,7 +25,7 @@
  *            board replaces) and loading the SEM702 with its contents.
  *            -> screenshot D.
  *
- * marker at 0xBF00: 1=A ready, 2=B ready, 3=C ready, 4=D ready (MAME lua).
+ * marker at 0xBF00: 9=phase0 ready, 1=A ready, 2=B ready, 3=C ready, 4=D ready.
  * progress at 0xBF01: coarse trace of where main() has got to.
  */
 #include <cpm.h>
@@ -139,6 +139,26 @@ static void hold(void)
 int main(void)
 {
     int rc;
+
+    PROGRESS = 0x00;
+
+    /* ---- Phase 0: negative fopen -- a missing file must return NULL and NOT
+     * hang.  Printed in NORMAL mode (main chargen), before any glyph is loaded,
+     * so the result line is readable.  Reaching MARKER 1 (Phase A) afterwards is
+     * itself the proof that fopen() on a missing file returned rather than
+     * hanging. */
+    {
+        FILE *fp0 = fopen("NOSUCH.BIN", "rb");
+        const char *s = (fp0 == NULL)
+            ? "FOPEN MISSING FILE -> NULL OK\r\n"
+            : "FOPEN MISSING FILE -> NON-NULL (FAIL)\r\n";
+        for (; *s; s++) conout(*s);
+        if (fp0)
+            fclose(fp0);
+        PROGRESS = (fp0 == NULL) ? 0x0E : 0x0F;   /* 0E = pass, 0F = fail */
+    }
+    MARKER = 9;                                  /* phase 0 done */
+    hold();                                       /* screenshot 0 (neg fopen) */
 
     PROGRESS = 0xA0;
 

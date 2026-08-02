@@ -61,8 +61,8 @@ $(CHKDISK): $(CHKCOM) $(ROMS)/rc702/roa296.rom $(ROMS)/rc702/roa327.rom
 	cpmcp -f rc702-8dd $(CHKDISK) $(ROMBIN2) 0:ROA327.BIN
 
 chk: $(CHKDISK)
-	cd $(MAME) && rm -f snap/sem702_A_checkerboard.png snap/sem702_B_roa296.png \
-	  snap/sem702_C_flipped.png snap/sem702_D_roa327.png && \
+	cd $(MAME) && rm -f snap/sem702_0_negfopen.png snap/sem702_A_checkerboard.png \
+	  snap/sem702_B_roa296.png snap/sem702_C_flipped.png snap/sem702_D_roa327.png && \
 	./mame rc702sem702 -rompath roms -flop1 $(CHKDISK) \
 	  -window -nothrottle -skip_gameinfo -seconds_to_run 120 \
 	  -autoboot_script $(abspath chk_test.lua)
