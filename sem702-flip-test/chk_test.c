@@ -17,7 +17,15 @@
  *            letters upright.  This validates the file->RAM->screen data path.
  *            -> screenshot B.
  *
- * marker at 0xBF00: 1 = phase A ready, 2 = phase B ready (for the MAME lua).
+ *   Phase C  Flip the ROA296 glyphs upside down over the 11-line 8275 cell
+ *            (buf[line] = font[10 - line]).  Same text, now inverted.
+ *            -> screenshot C.
+ *
+ *   Phase D  Finish by reading ROA327.BIN (the semigraphics ROM the SEM702
+ *            board replaces) and loading the SEM702 with its contents.
+ *            -> screenshot D.
+ *
+ * marker at 0xBF00: 1=A ready, 2=B ready, 3=C ready, 4=D ready (MAME lua).
  * progress at 0xBF01: coarse trace of where main() has got to.
  */
 #include <cpm.h>
@@ -63,13 +71,36 @@ static void load_from_font(void)
     }
 }
 
-/* Read ROA296.BIN (2048 bytes) into font[].  Returns 0 on success. */
-static int read_font_file(void)
+/* The 8275 renders an 11-dot-line cell (dot-lines 0..10) per character row on
+ * this machine; ROA296 stores 16 lines per glyph but only 0..10 are ever
+ * displayed.  Flip each glyph upside down over that 11-line cell:
+ * buf[line] = font[10 - line] for line 0..10 (so line0<->10, 1<->9, 5 fixed),
+ * lines 11..15 stay blank (never displayed anyway). */
+static void load_flipped(void)
+{
+    unsigned char buf[GLYPH_LINES];
+    const unsigned char *g;
+    int ch, line;
+
+    for (ch = 0; ch < NGLYPH; ch++) {
+        g = &font[ch * GLYPH_LINES];
+        for (line = 0; line <= 10; line++)
+            buf[line] = g[10 - line];
+        for (line = 11; line < GLYPH_LINES; line++)
+            buf[line] = 0;
+        sem702_loadglyph((unsigned char)ch, buf, GLYPH_LINES);
+        PROGRESS = (unsigned char)ch;
+    }
+}
+
+/* Read a 2048-byte SEM702 font image (ROA296.BIN / ROA327.BIN) into font[].
+ * Returns 0 on success. */
+static int read_font_file(const char *name)
 {
     FILE *fp;
     int got;
 
-    fp = fopen("ROA296.BIN", "rb");
+    fp = fopen(name, "rb");
     if (!fp)
         return 1;
     got = fread(font, 1, FONT_BYTES, fp);
@@ -124,7 +155,7 @@ int main(void)
     hold();                                      /* screenshot A */
 
     /* ---- Phase B: load real ROA296 from file, reprogram per glyph ---- */
-    rc = read_font_file();
+    rc = read_font_file("ROA296.BIN");
     PROGRESS = (unsigned char)(0xB0 | (rc & 0x0f));
     if (rc == 0)
         load_from_font();
@@ -137,6 +168,33 @@ int main(void)
 
     MARKER = 2;
     hold();                                      /* screenshot B */
+
+    /* ---- Phase C: flip the ROA296 glyphs upside down (11-line cell) ---- */
+    load_flipped();                              /* font[] still holds ROA296 */
+    PROGRESS = 0xC8;
+
+    conout(0x84);                                /* -> semigraphics (SEM702) */
+    for (const char *s = "SEM702 ROA296 FLIPPED\r\n"; *s; s++) conout(*s);
+    print_redefinable();
+    conout(0x80);                                /* -> normal */
+
+    MARKER = 3;
+    hold();                                      /* screenshot C */
+
+    /* ---- Phase D: finish by loading ROA327 and showing its contents ---- */
+    rc = read_font_file("ROA327.BIN");
+    PROGRESS = (unsigned char)(0xD0 | (rc & 0x0f));
+    if (rc == 0)
+        load_from_font();
+    PROGRESS = 0xD8;
+
+    conout(0x84);                                /* -> semigraphics (SEM702) */
+    for (const char *s = "SEM702 ROA327 FROM FILE\r\n"; *s; s++) conout(*s);
+    print_redefinable();
+    conout(0x80);                                /* -> normal */
+
+    MARKER = 4;
+    hold();                                      /* screenshot D */
 
     PROGRESS = 0xFF;
     for (;;) { }

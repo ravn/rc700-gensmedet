@@ -50,6 +50,12 @@ emu.register_frame_done(function()
     elseif stage==2 and marker==2 then
         stage=3; snap("sem702_B_roa296.png")
         print(string.format("PHASE B snapped, progress=%02x frame=%d", progress, frame))
+    elseif stage==3 and marker==3 then
+        stage=4; snap("sem702_C_flipped.png")
+        print(string.format("PHASE C snapped, progress=%02x frame=%d", progress, frame))
+    elseif stage==4 and marker==4 then
+        stage=5; snap("sem702_D_roa327.png")
+        print(string.format("PHASE D snapped, progress=%02x frame=%d", progress, frame))
         done=true; manager.machine:exit()
     end
     if frame>12000 then
