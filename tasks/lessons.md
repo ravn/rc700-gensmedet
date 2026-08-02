@@ -422,3 +422,25 @@ snapshot gated on a marker whose preceding delay is an empty loop -- use a
 volatile sink or a fixed late frame. Root cause of the original compression
 remains UNVERIFIED (user said leave it); do not claim a mechanism I did not
 confirm.
+
+## 2026-08-02 — Surprise tripwire: self-detect "weird" objectively
+
+"Stop when it looks weird" failed because weirdness is a feeling I didn't act on.
+Replace the feeling with objective tripwires. STOP and reset the experiment when
+ANY of these is true:
+
+1. A result depends on something that should not affect it (no causal path in my
+   model). E.g. "loading glyph N changes glyph N's rendered HEIGHT" -- height has
+   no causal link to load count. This is the sharpest alarm.
+2. I am about to debug a mature/external layer (emulator, compiler, OS) to explain
+   my OWN program's behaviour. Prove my own setup with a minimal repro first.
+3. Two or more diagnostic probes have not shrunk the candidate-cause set -- I am
+   sweeping, not bisecting.
+4. My explanation REQUIRES the complex layer to be buggy. Resemblance/familiarity
+   is a guess; demand a decoupled repro before believing it.
+5. I am judging by loose impression ("looks cut") instead of a measured oracle.
+
+When a tripwire fires: (a) state explicitly what surprises me and why it
+contradicts my model, (b) build the smallest decoupled repro that varies ONE
+thing, (c) only then proceed. This operationalises the earlier "control variables
+before debugging the emulator" lesson so it fires without the user prompting.
