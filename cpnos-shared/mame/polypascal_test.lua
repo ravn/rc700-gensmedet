@@ -42,7 +42,11 @@ local function select_transport_dip()
     local ok, err = pcall(function()
         local dsw = manager.machine.ioport.ports[":DSW"]
         if not dsw then error(":DSW port not found") end
-        local f = dsw.fields["S03 cpnos transport (On=PIO, Off=SIO)"]
+        -- Upstream #15805 labels this field plainly "S03" (the fork's
+        -- descriptive "S03 cpnos transport (On=PIO, Off=SIO)" label did
+        -- not go upstream).  Try the plain name first, fall back to the
+        -- old descriptive one for older fork binaries.
+        local f = dsw.fields["S03"] or dsw.fields["S03 cpnos transport (On=PIO, Off=SIO)"]
         if not f then error("S03 field not found") end
         -- S03: On=0x00=PIO, Off=0x04=SIO (rc702.cpp DSW port).
         local want = (transport == "sio") and 0x04 or 0x00
