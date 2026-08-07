@@ -17,8 +17,12 @@
  * strictly ascending AND that each record's 128 bytes still match its key --
  * catching torn / mis-addressed random writes, not just wrong order.
  *
- * Initial on-disk order is the permutation key[i] = (i*5 + 13) mod NREC
- * (5 is coprime to 32, so keys 0..NREC-1 each appear once, well mixed).
+ * Initial on-disk order (seed_keys[]) is chosen to MAXIMISE the number of
+ * record swaps this exact quicksort performs, so the random-WRITE path
+ * (F_WRITERAND) is stressed as hard as possible.  It is the worst-case
+ * permutation of 0..31 found by a host search over this algorithm (Lomuto,
+ * last-element pivot, self-swap-guarded): 147 swaps, vs 47 for the old
+ * (i*5+13)%32 formula and 16 for plain reverse order.
  *
  * Output (console; mirrored to SIO-B under cpnos MIRROR_SIOB):
  *     "QSORT OK <NREC>"      on success
@@ -59,6 +63,13 @@ static unsigned char eb[RECSZ];   /* element / swap B     */
 
 static int lo_stk[NREC + 2];
 static int hi_stk[NREC + 2];
+
+/* Worst-case initial key order for this quicksort (see header): 147 swaps.
+ * A permutation of 0..NREC-1; keep in sync with NREC if it changes. */
+static const unsigned char seed_keys[NREC] = {
+    29,31,10,26,15,24,21,20,11, 3,14, 6, 5, 7,18, 9,
+    17, 1, 8,22,28, 4,13,19, 0,12,16, 2,23,25,27,30
+};
 
 static void make_rec(unsigned char *r, unsigned char k)
 {
@@ -110,7 +121,7 @@ int main(void)
 
     /* 1. seed NREC records in permuted key order (random write) */
     for (i = 0; i < NREC; i++) {
-        make_rec(ea, (unsigned char)((i * 5 + 13) % NREC));
+        make_rec(ea, seed_keys[i]);
         if (!put_rec(i, ea)) { printf("QSORT FAIL seed %d\r\n", i); return 1; }
     }
 

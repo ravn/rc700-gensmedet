@@ -1748,17 +1748,30 @@ cpnos-filecopy-test:
 # BDOS F_READRAND/F_WRITERAND, i.e. random CP/NET read+write to the master's
 # disk (~500 record round-trips) -- then verifies ascending keys + intact
 # record bytes and prints "QSORT OK 32". PASS gate = that marker on SIO-B.
-# Rebuild QSORT.COM from source (both toolchains) with `make qsort-build`.
+# Rebuild QSORT.COM from source with `make qsort-build` (classic, default) or
+# `make qsort-build-clang` (llvmz80). Both stage to drive_i/QSORT.COM; run
+# cpnos-qsort-test after either to exercise that toolchain's output over CP/NET.
 QSORT_SRC = $(SHARED)/testutil/qsort_disk.c
 Z88DK_PREBUILT = $(CURDIR)/../z88dk
+Z88DK_DEV      = $(CURDIR)/../../z88dk
+LLVMZ80_CLANG  = $(CURDIR)/../../llvm-z80/build-macos/bin/clang
 .PHONY: qsort-build
 qsort-build:
-	@echo "=== building QSORT.COM (z88dk classic) -> drive_i ==="
+	@echo "=== building QSORT.COM (z88dk classic / sccz80) -> drive_i ==="
 	cd $(SHARED)/testutil && \
 	  PATH="$(Z88DK_PREBUILT)/bin:$$PATH" ZCCCFG="$(Z88DK_PREBUILT)/lib/config" \
 	  zcc +cpm -compiler=sccz80 -create-app -o qsort_z88 qsort_disk.c
 	cp $(SHARED)/testutil/QSORT_Z88.COM $(SHARED)/drive_i/QSORT.COM
-	@echo "  installed drive_i/QSORT.COM"
+	@echo "  installed drive_i/QSORT.COM (classic)"
+
+.PHONY: qsort-build-clang
+qsort-build-clang:
+	@echo "=== building QSORT.COM (clang / llvmz80) -> drive_i ==="
+	cd $(SHARED)/testutil && \
+	  LLVMZ80EXE="$(LLVMZ80_CLANG)" PATH="$(Z88DK_DEV)/bin:$$PATH" ZCCCFG="$(Z88DK_DEV)/lib/config" \
+	  zcc +cpm -compiler=llvmz80 --opt-code-size -create-app -o qsort_clang qsort_disk.c
+	cp $(SHARED)/testutil/QSORT_CLANG.COM $(SHARED)/drive_i/QSORT.COM
+	@echo "  installed drive_i/QSORT.COM (clang/llvmz80)"
 
 .PHONY: cpnos-qsort-test
 cpnos-qsort-test:
