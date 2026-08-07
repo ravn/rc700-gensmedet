@@ -1742,6 +1742,31 @@ cpnos-filecopy-test:
 	    TEST_RESULT=/tmp/cpnos_filecopy_result.txt \
 	    TEST_LOG=/tmp/cpnos_filecopy_log.txt
 
+# cpnos-qsort-test: the RANDOM-access file regression (counterpart to the
+# sequential filecopy). QSORT.COM (drive_i, staged onto slave E:) creates a
+# 32x128B file and quicksorts it IN PLACE ON DISK -- every compare + swap is a
+# BDOS F_READRAND/F_WRITERAND, i.e. random CP/NET read+write to the master's
+# disk (~500 record round-trips) -- then verifies ascending keys + intact
+# record bytes and prints "QSORT OK 32". PASS gate = that marker on SIO-B.
+# Rebuild QSORT.COM from source (both toolchains) with `make qsort-build`.
+QSORT_SRC = $(SHARED)/testutil/qsort_disk.c
+Z88DK_PREBUILT = $(CURDIR)/../z88dk
+.PHONY: qsort-build
+qsort-build:
+	@echo "=== building QSORT.COM (z88dk classic) -> drive_i ==="
+	cd $(SHARED)/testutil && \
+	  PATH="$(Z88DK_PREBUILT)/bin:$$PATH" ZCCCFG="$(Z88DK_PREBUILT)/lib/config" \
+	  zcc +cpm -compiler=sccz80 -create-app -o qsort_z88 qsort_disk.c
+	cp $(SHARED)/testutil/QSORT_Z88.COM $(SHARED)/drive_i/QSORT.COM
+	@echo "  installed drive_i/QSORT.COM"
+
+.PHONY: cpnos-qsort-test
+cpnos-qsort-test:
+	$(MAKE) cpnos-polypascal-test \
+	    TEST_LUA=qsort_test.lua \
+	    TEST_RESULT=/tmp/cpnos_qsort_result.txt \
+	    TEST_LOG=/tmp/cpnos_qsort_log.txt
+
 # cpnos-accept: the full clang PIO acceptance -- the "does clang cpnos work?"
 # answer, no longer just PPAS primes. Runs all four checks FAULT-TOLERANTLY
 # (each restarts MP/M + a ~4 min MAME session, ~16-20 min total) and prints a
