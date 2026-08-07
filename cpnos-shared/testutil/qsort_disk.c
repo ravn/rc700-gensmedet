@@ -101,12 +101,16 @@ static int put_rec(int i, unsigned char *buf)
     return bdos(F_WRITERAND, (int)fcb) == 0;
 }
 
+static long g_swaps = 0;   /* progress counter: total record swaps performed */
+
 static int swap_recs(int a, int b)
 {
     if (!get_rec(a, ea)) return 0;
     if (!get_rec(b, eb)) return 0;
     if (!put_rec(a, eb)) return 0;
     if (!put_rec(b, ea)) return 0;
+    g_swaps++;
+    bdos(2, '.');   /* progress: one dot per on-disk swap (2 rand rd + 2 rand wr) */
     return 1;
 }
 
@@ -120,12 +124,15 @@ int main(void)
     if (bdos(F_MAKE, (int)fcb) == 0xFF) { printf("QSORT FAIL make\r\n"); return 1; }
 
     /* 1. seed NREC records in permuted key order (random write) */
+    printf("QSORT seeding %d recs\r\n", NREC);
     for (i = 0; i < NREC; i++) {
         make_rec(ea, seed_keys[i]);
         if (!put_rec(i, ea)) { printf("QSORT FAIL seed %d\r\n", i); return 1; }
     }
 
-    /* 2. in-place quicksort on disk (iterative, Lomuto, last-elem pivot) */
+    /* 2. in-place quicksort on disk (iterative, Lomuto, last-elem pivot).
+     *    Prints one '.' per swap as a live progress bar (see swap_recs). */
+    printf("QSORT sorting ");
     sp = 0;
     lo_stk[sp] = 0; hi_stk[sp] = NREC - 1; sp++;
     while (sp > 0) {
@@ -153,6 +160,7 @@ int main(void)
     }
 
     /* 3. verify: strictly ascending keys AND intact record bytes */
+    printf("\r\nQSORT verifying\r\n");
     prevkey = 0;
     for (i = 0; i < NREC; i++) {
         unsigned char k;
@@ -170,6 +178,6 @@ int main(void)
 
     bdos(F_CLOSE, (int)fcb);
     bdos(F_DELETE, (int)fcb);
-    printf("QSORT OK %d\r\n", NREC);
+    printf("QSORT OK %d swaps=%ld\r\n", NREC, g_swaps);
     return 0;
 }
