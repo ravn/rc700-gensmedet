@@ -75,3 +75,6 @@ RMW with A+HL only, so the row/mask registers survive across the whole band.
 
 ## Larger-sprite test (16×16 chess pawn)
 See `LARGER_SPRITE_RESULT.md`. Key finding: the cell-batched blit is **1.33× slower than generic** on the sparse 18%-dense pawn — cell-batching is a **dense-sprite** optimization (density crossover ≈ 1 set pixel/cell), not a general putsprite replacement.
+
+## Precompiled-sprite blit (spr_or_precomp) — the general win
+See `PRECOMPILED_SPRITE_RESULT.md`. Compile the sprite ONCE to a list of only the non-empty cells (each with a precomputed vram-offset + mask); per-frame draw does no bit-testing and skips empty cells. On the sparse 16×16 pawn: **7.66× vs generic** (net of overhead), **10.3× faster than the naive cell-batch** — reverses the density-crossover loss.

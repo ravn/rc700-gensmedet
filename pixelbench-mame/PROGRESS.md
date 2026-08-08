@@ -570,3 +570,6 @@ none scales per-sprite.
 
 ### Larger-sprite test (16×16 chess pawn) — density crossover
 Extended the cell-batched C blit to multi-byte rows + partial last band (`sprite-c-variants/spr_or_big.c`), verified byte-identical to generic on a real 16×16 pawn. Throughput: generic 66,156 T/spr vs cell-batch 88,061 T/spr → **0.75× (slower)**. Cause: pawn is only 18% dense; generic plots only the 46 set pixels, the cell-blit scans all 48 covered cells. Cell-batching wins on dense sprites (ball up to 6.26×) but loses on sparse large ones. Details: `sprite-c-variants/LARGER_SPRITE_RESULT.md`.
+
+### Precompiled-sprite blit — reverses the sparse-sprite loss
+Answering "exploit empty=one value / set=another before the heavy work": do that heavy work ONCE. `spr_compile` emits only the 18 non-empty cells (of 48) with precomputed (offset,mask); per-frame `spr_draw` is a tight offset-add + two-LUT RMW, no bit-tests, no empty cells. 16×16 pawn, net of a measured 8.46M-T fixed overhead (clg+compile+position-modulo loop): generic 64,040 vs precomp 8,360 T/spr → **7.66×**, and **10.3× over the naive cell-batch**. Verified byte-identical (MAME oracle). Source `sprite-c-variants/spr_or_precomp.c`, details `.../PRECOMPILED_SPRITE_RESULT.md`.
