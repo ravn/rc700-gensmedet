@@ -462,3 +462,62 @@ runtime result with a pixel-identical oracle, not a code-inspection estimate.
 full `putsprite` target override (odd-x / misaligned-y sub-offsets, edge
 clipping, AND/XOR modes) is a genuine fork of `__generic_putsprite` — scope to
 confirm with user before landing behind the public `putsprite` symbol.
+
+### Lever D — squeezing further by giving up assumptions (2026-08-09)
+
+Question: can the batched blit go faster by relaxing correctness assumptions?
+Each candidate was measured with the SAME VRAM-diff oracle (not estimated).
+
+**(1) Give up "gfx page must be re-asserted per cell" — SHIPPED (safe).**
+The per-pixel primitive re-asserts the gfx page (`setgfx`, writes GFXMODE to
+`RC700_DISPLAY`=0xF800) after *every* write because it inherited that from
+`printc`. Whether the i8275 actually needs it after each *cell* write was an
+open hardware question. Tested empirically: hoist `setgfx` to ONCE per blit and
+diff VRAM. **Result: byte-for-byte IDENTICAL (incl. the OR-overlap)** → the
+per-cell re-assert was pure overhead. Folded into `sprite_or` unconditionally
+(no runtime flag, so no per-cell branch cost either).
+
+| routine                         | total T (4000×) | T / sprite | vs generic |
+|---------------------------------|-----------------|-----------:|-----------:|
+| generic `putsprite`             | 227,425,204     | 56,856     | 1.00×      |
+| batched (per-cell setgfx)       |  49,525,264     | 12,381     | 4.59×      |
+| **batched + setgfx hoisted**    |  **46,372,548** | **11,593** | **4.90× (−79.6%)** |
+
+**(2) Give up "target cell may already hold pixels" (overlap / OR-accumulate)
+— MEASURED, NOT shipped.** The RMW reads the current glyph and reverse-maps it
+so the sprite ORs into existing content. If we assume cells are blank ("draw on
+a cleared screen"), we skip the read + reverse-map and just forward-map the
+fresh mask. Measured ceiling (temp patch, then reverted):
+
+| routine                              | total T (4000×) | T / sprite | vs generic |
+|--------------------------------------|-----------------|-----------:|-----------:|
+| batched + setgfx hoisted (shipped)   |  46,372,548     | 11,593     | 4.90×      |
+| + empty-target (skip read+revmap)    |  42,847,194     | 10,712     | 5.31×      |
+
+Extra −7.6%, but **NOT pixel-identical when sprites overlap** (loses OR-accumulate)
+— so it is only correct for the "sprite on blank cell" case. Left as a possible
+opt-in `sprite_or_blank` symbol; not made the default because the shipped
+`sprite_or` must stay a faithful drop-in for the OR semantics.
+
+**(3) Not an assumption, but the biggest remaining chunk: register-resident mask
+build.** The 6-bit mask is built with load-`sla`-store round-trips to BSS
+(`sb_r0/r1/r2`) — ~270 T/cell of the ~1,030 T/cell. Keeping the 3 row bytes and
+the accumulating mask in registers across the cell loop would cut most of that.
+This is refactoring (no correctness assumption traded), estimated the largest
+single win, but requires careful register allocation around the RMW's use of
+HL/DE/A. Deferred — flagged as the next optimization if lever D is productionized.
+
+**Bottom line:** the one assumption safe to drop (per-cell `setgfx`) is dropped
+and shipped → **4.90× vs generic**. Dropping overlap support buys another 7.6%
+but changes semantics; the real remaining headroom is implementation (registers),
+not assumptions.
+
+**Measurement integrity (no wait loop counted).** The bench brackets `_main` →
+*first* `_getk`, so the trailing `while(getk()!=' ')` spin is excluded; the timed
+window is main-setup + one `clg()` + the 4000 draws. The draw path itself is
+wait-free (blit / `rc700_pixel6.inc` / `setgfx` have no status/retrace/`djnz`
+spin; the console `printc` djnz is never entered — we `ld (hl),a` directly).
+Confirmed empirically by a linearity check: 2000 sprites = 23,199,061 T,
+4000 = 46,372,548 T (≈ exactly 2×). Marginal cost 11,587 T/sprite; fixed overhead
+(clg + setup) only ~25.7k T (~0.05%). So a fixed wait would have to be tiny, and
+none scales per-sprite.
