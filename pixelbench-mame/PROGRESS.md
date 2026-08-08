@@ -499,18 +499,31 @@ Extra −7.6%, but **NOT pixel-identical when sprites overlap** (loses OR-accumu
 opt-in `sprite_or_blank` symbol; not made the default because the shipped
 `sprite_or` must stay a faithful drop-in for the OR semantics.
 
-**(3) Not an assumption, but the biggest remaining chunk: register-resident mask
-build.** The 6-bit mask is built with load-`sla`-store round-trips to BSS
-(`sb_r0/r1/r2`) — ~270 T/cell of the ~1,030 T/cell. Keeping the 3 row bytes and
-the accumulating mask in registers across the cell loop would cut most of that.
-This is refactoring (no correctness assumption traded), estimated the largest
-single win, but requires careful register allocation around the RMW's use of
-HL/DE/A. Deferred — flagged as the next optimization if lever D is productionized.
+**(3) Register-resident mask build — SHIPPED (refactor, no assumption traded).**
+The 6-bit mask was built with load-`sla`-store round-trips to BSS
+(`sb_r0/r1/r2`), ~156 T/cell of pure RAM traffic (6× load+store). Reworked to
+hold the 3 row bytes in **B,C,D** and the accumulating mask in **E**, shifting
+in-register (`sla b/c/d`). To free D and E for that, the RMW was rewritten to
+use only A+HL: reverse-map is now A-only (range compare, no saved-char temp),
+forward-map and the band base-address compute add the offset to L with carry
+(no DE). Correctness is unchanged — same mask, same output — verified
+byte-for-byte identical to generic via the MAME VRAM-diff (incl. OR-overlap).
 
-**Bottom line:** the one assumption safe to drop (per-cell `setgfx`) is dropped
-and shipped → **4.90× vs generic**. Dropping overlap support buys another 7.6%
-but changes semantics; the real remaining headroom is implementation (registers),
-not assumptions.
+| routine                              | total T (4000×) | T / sprite | vs generic |
+|--------------------------------------|-----------------|-----------:|-----------:|
+| batched + setgfx hoisted             |  46,372,548     | 11,593     | 4.90×      |
+| **+ register-resident mask (shipped)** | **36,832,155** | **9,208** | **6.17× (−83.8%)** |
+
+−20.6% on top of the hoist (more than the ~15% estimate, because it also
+removed the DE-based forward-map and the reverse-map temp). No stack, no EXX
+(so no clash with the target's +shadow-regs ISR use); ccol/ccnt/base stay in
+BSS but are touched once per cell, not 6× per cell.
+
+**Bottom line:** two levers shipped — per-cell `setgfx` hoist (the one safe
+assumption to drop) + register-resident mask build (pure refactor) — take the
+batched blit from 4.59× to **6.17× vs generic putsprite**, all byte-identical.
+Dropping overlap support (empty-target) would buy a further ~7%, but changes
+semantics and is left as a possible opt-in `sprite_or_blank`.
 
 **Measurement integrity (no wait loop counted).** The bench brackets `_main` →
 *first* `_getk`, so the trailing `while(getk()!=' ')` spin is excluded; the timed
