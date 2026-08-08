@@ -100,6 +100,30 @@ that lane.
 | 2026-08-09 | Fastcall entry (packed HL=(x<<8)\|y)         |   C   | sdcc     |     927,200,392 | **−15.6 %** |
 | 2026-08-09 | Fastcall entry (packed HL=(x<<8)\|y)         |   C   | sccz80   |   1,529,267,880 | **−3.3 %**  |
 
+### Per-call T-state distribution (llvmz80, ~880 T/call, pre-lever-C)
+
+Where the ~880 T/call went **before** lever C, on the llvmz80 rowaddr-table
+build. The 880 total is **measured** (697,387,629 ÷ 792,000); the per-component
+split is a **static estimate** from instruction counts (reverse-map is
+data-dependent), so the parts are approximate and sum to ~880 within rounding.
+
+| Component            | ~T/call | What it is |
+|----------------------|--------:|------------|
+| Caller CC glue       |   ~260  | `push x; push y; call _plot; pop; pop` + `_plot` stack adapter (`ld hl,sp+N` … `ex de,hl`) |
+| Address compute      |   ~117  | `rc700_rowaddr[row]` load + `+col` + pointer form |
+| Bit computation      |   ~110  | sub-pixel index → bit mask within the cell |
+| Forward-map + write  |    ~89  | mask → glyph via `textpixl`, raw VRAM store |
+| Bounds check         |    ~68  | reject x ≥ 2·w / y ≥ 3·h |
+| Reduce-to-cell       |    ~66  | `row = y/3`, `col = x/2` |
+| Reverse-map          | ~34–80  | arithmetic glyph → 6-bit mask (data-dependent) |
+| `setgfx`             |    ~52  | GFXMODE-write guard on the console driver |
+| **Total (measured)** | **880** | 697,387,629 ÷ 792,000 calls |
+
+Takeaway: after the primitive was tuned (levers B), **no single primitive step
+dominates** — the largest remaining line is the ~260 T *calling-convention
+glue*, which is exactly what lever C (the fastcall entry) removes (≈117 T/call
+realised on llvmz80: 880 → 763).
+
 ### Lever C measured (PoC) — z80_fastcall plot entry, 2026-08-09
 
 The remaining large cost after the primitive was tuned is the **calling
