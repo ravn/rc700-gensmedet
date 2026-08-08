@@ -387,3 +387,43 @@ RAM cost. A safe incremental win and a natural first commit toward B-shadow.
 After each step, add a row to the progress log above with the new measured
 T-state number (never mark a win from reasoning alone — building is not
 behaving; run the harness).
+
+## Lever D — cell-batched sprite blit (measured baseline + design), 2026-08-09
+
+**Insight (user):** sprites set *many* pixels at once, so on the sextant display
+up to **6 sprite pixels share one character cell** — a cell-batched blit can
+build the 6-bit cell mask once and do a single read-modify-write, instead of the
+generic `__generic_putsprite` which calls `plotpixel`/`respixel`/`xorpixel`
+**once per set pixel** (full ~763 T primitive each time + its own per-pixel
+bit-loop overhead).
+
+**Measured baseline** (full-speed MAME, llvmz80, `sprbench.c`): 4000 `putsprite`
+calls of an 8×8 ball (44 set pixels of 64) = **198,860,261 T** →
+**49,715 T/sprite = ~1,130 T per set-pixel**. Confirms the per-pixel model pays
+the whole primitive 44 times per sprite.
+
+**Sprite format** (`<games.h>`, verified from `__generic_putsprite.asm`):
+`[width_px, height_px, rows…]`, `ceil(w/8)` bytes/row, MSB-first; per set bit it
+plots at `H=x+col, L=y+row`. Cell mapping (from `rc700_pixel6.inc`): cell
+`(crow,ccol)` covers x∈[2·ccol,+1], y∈[3·crow,+2]; bit = `(y%3)*2 + (x%2)`.
+
+**Design (rc700 target override of `putsprite`, API-preserving):** iterate the
+sprite in **cell-row bands of 3 sprite rows**; keep a small per-band buffer of
+one 6-bit mask per cell-column (≈ ceil(w/2)+1 entries); OR each set pixel's bit
+into `buf[ccol]`; at band end, **flush**: for each non-empty cell do ONE RMW
+(address + VRAM read + reverse-map + apply OR/AND/XOR + forward-map + write +
+`setgfx`). Handles x0-odd / y0-not-mult-of-3 via the first band's sub-offsets.
+Result: ~1 RMW per covered cell (an 8×8 sprite ≈ 13–15 cells) instead of 44
+pixel RMWs, and address+`setgfx` paid once per cell.
+
+**Projected win:** ~4–6× for dense sprites (fewer *and* cheaper ops), less for
+sparse, more for large solid fills. **Must be measured, not assumed** (building
+≠ behaving) and **verified pixel-identical** to the generic version in MAME
+before landing — there is no lit harness for rc700 gfx, so correctness proof is
+a MAME screen comparison against `__generic_putsprite` output.
+
+**Cost/risk:** a substantial, correctness-sensitive asm routine (edge cells,
+odd-x / misaligned-y offsets, three ORTYPE variants OR/AND/XOR). Bigger blast
+radius than levers B/C. Recommend landing behind the existing `putsprite` symbol
+as a target override (same mechanism as the `plotpixel` override) so every
+sprite caller benefits unchanged.
