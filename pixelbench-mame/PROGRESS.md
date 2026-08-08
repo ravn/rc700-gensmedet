@@ -96,6 +96,48 @@ that lane.
 | 2026-08-09 | Row-base address table (drop row*80 mul)    |   B   | llvmz80  |     697,387,629 | **−5.3 %**  |
 | 2026-08-09 | Row-base address table (drop row*80 mul)    |   B   | sdcc     |   1,097,923,926 | **−3.5 %**  |
 | 2026-08-09 | Row-base address table (drop row*80 mul)    |   B   | sccz80   |   1,581,519,968 | **−2.4 %**  |
+| 2026-08-09 | Fastcall entry (packed HL=(x<<8)\|y)         |   C   | llvmz80  |     604,398,239 | **−13.3 %** |
+| 2026-08-09 | Fastcall entry (packed HL=(x<<8)\|y)         |   C   | sdcc     |     927,200,392 | **−15.6 %** |
+| 2026-08-09 | Fastcall entry (packed HL=(x<<8)\|y)         |   C   | sccz80   |   1,529,267,880 | **−3.3 %**  |
+
+### Lever C measured (PoC) — z80_fastcall plot entry, 2026-08-09
+
+The remaining large cost after the primitive was tuned is the **calling
+convention** itself. `plot(int x,int y)` is `__smallc __z88dk_callee` (stack
+args): llvmz80 pushes both ints and calls `_plot`, whose adapter re-reads the
+stack (`ld hl,sp+N` ... `ex de,hl`) before `jp plotpixel` — ~155 T/call of pure
+glue. But `plotpixel`'s entry contract is already **H=x, L=y**, i.e. one 16-bit
+register. So a single `__z88dk_fastcall` argument `(x<<8)|y` maps **directly**
+onto `plotpixel` with a **zero-instruction adapter**.
+
+Enabled by adding zero-cost alias labels at the existing rc700 entries
+(`plot_fc`/`_plot_fc` at `plotpixel`, `unplot_fc`/`_unplot_fc` at `respixel` —
+same address, no `jp`), so the fastcall entry *is* the primitive. Callers do
+`plot_fc(((unsigned)x<<8)|y)` → `call _plot_fc` with HL already loaded: no push,
+no stack adapter.
+
+Measured (full-speed MAME, all three lanes, `pixelbench_fc.c`):
+
+| Lane | rowaddr-table best | fastcall | Δ | T/call |
+|---|---|---|---|---|
+| llvmz80 | 697,387,629 | **604,398,239** | −92,989,390 (−13.3 %) | 880 → 763 |
+| sdcc    | 1,097,923,926 | **927,200,392** | −170,723,534 (−15.6 %) | 1386 → 1171 |
+| sccz80  | 1,581,519,968 | **1,529,267,880** | −52,252,088 (−3.3 %) | 1997 → 1931 |
+
+Unlike the primitive levers (near-constant per-lane Δ), this saving **varies by
+lane** because it removes each compiler's *own* call glue: sdcc's `__smallc`
+callee path was heaviest so it gains most (−215 T/call), sccz80 least
+(−66 T/call). All three benefit since `plot_fc`/`unplot_fc` are shared asm
+entries.
+
+**Scope note (genuine API fork — not yet productionized):** the packed macro
+assumes `0 <= x,y < 256` and truncates to bytes, so it is **not** semantically
+equivalent to `plot(int,int)` for out-of-byte-range coordinates (a large
+positive x that `plot()` would clip off-screen would instead wrap). Wiring the
+public `plot()`/`unplot()` API to fastcall for llvmz80 would diverge the API for
+one compiler and lose the int-range clip contract. Left as a measured PoC
+pending a decision on scope; the alias labels are harmless zero-cost additions
+that keep the fast entry available.
 
 ### Lever B landed — arithmetic reverse-map, 2026-08-09
 
