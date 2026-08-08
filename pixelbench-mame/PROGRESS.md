@@ -87,6 +87,40 @@ that lane.
 | 2026-08-08 | Baseline (shared classic rc700.lib)      |   —   | llvmz80  |   2,177,590,702 |     —     |
 | 2026-08-08 | Baseline (shared classic rc700.lib)      |   —   | sdcc     |   2,578,386,272 |     —     |
 | 2026-08-08 | Baseline (shared classic rc700.lib)      |   —   | sccz80   |   3,061,777,994 |     —     |
+| 2026-08-09 | Arithmetic reverse-map (rc700.lib override) |   B   | llvmz80  |   1,271,565,612 | **−41.6 %** |
+| 2026-08-09 | Arithmetic reverse-map (rc700.lib override) |   B   | sdcc     |   1,672,188,728 | **−35.1 %** |
+| 2026-08-09 | Arithmetic reverse-map (rc700.lib override) |   B   | sccz80   |   2,155,604,725 | **−29.6 %** |
+
+### Lever B landed — arithmetic reverse-map, 2026-08-09
+
+Replaced the gencon `ckmap` up-to-64-iteration linear reverse-scan (on-screen
+char → 6-bit sextant mask, step 3 above) with a ~5-instruction **arithmetic**
+reverse-map, delivered as rc700-specific override routines that live in
+`rc700.lib` and are pulled ahead of the shared gencon body by `rc700.lst` link
+order (rc700 target objects globbed before the gencon manifest, so the
+librarian resolves `plotpixel`/`respixel`/`pointxy`/`xorpixel` from the rc700
+objects — no duplicate-symbol error, gencon's bodies never linked).
+
+The reverse-map exploits that `textpixl` is two contiguous char runs
+(`$20–$3F` → mask 0–31, `$60–$7F` → mask 32–63), so char→mask is pure
+arithmetic (`sub $20` / range-check / `add 32`) with no table and no scan.
+Proven equivalent to gencon `ckmap` for **all 256 char values** (exhaustive
+Python check, 0 mismatches); screen output visually confirmed correct in MAME.
+
+**The absolute saving is ~906 M T-states in every lane** (llvmz80 906,025,360;
+sdcc 906,197,544; sccz80 906,173,269) — a near-constant delta that corroborates
+the fix lives entirely in the shared primitive and is compiler-independent, as
+expected for a lever-B change. Files:
+`z88dk/libsrc/target/rc700/graphics/rc700_pixel6.inc` + the four
+`rc700_{plotpixl,unplotpixl,pointpixl,xorpixl}.asm` wrappers.
+
+New `_main` / `_getk` addresses (rebuilt against the fast lib):
+
+| Compiler | `_main` | `_getk` |
+|----------|:-------:|:-------:|
+| sccz80   | `04F6`  | `17A4`  |
+| sdcc     | `04D3`  | `172E`  |
+| llvmz80  | `0423`  | `1808`  |
 
 ## Optimization opportunities — lever B (the primitive), 2026-08-08
 
