@@ -90,6 +90,9 @@ that lane.
 | 2026-08-09 | Arithmetic reverse-map (rc700.lib override) |   B   | llvmz80  |   1,271,565,612 | **−41.6 %** |
 | 2026-08-09 | Arithmetic reverse-map (rc700.lib override) |   B   | sdcc     |   1,672,188,728 | **−35.1 %** |
 | 2026-08-09 | Arithmetic reverse-map (rc700.lib override) |   B   | sccz80   |   2,155,604,725 | **−29.6 %** |
+| 2026-08-09 | Address-once (kill both xypos djnz loops)   |   B   | llvmz80  |     736,699,802 | **−42.1 %** |
+| 2026-08-09 | Address-once (kill both xypos djnz loops)   |   B   | sdcc     |   1,137,425,643 | **−32.0 %** |
+| 2026-08-09 | Address-once (kill both xypos djnz loops)   |   B   | sccz80   |   1,620,841,773 | **−24.8 %** |
 
 ### Lever B landed — arithmetic reverse-map, 2026-08-09
 
@@ -121,6 +124,38 @@ New `_main` / `_getk` addresses (rebuilt against the fast lib):
 | sccz80   | `04F6`  | `17A4`  |
 | sdcc     | `04D3`  | `172E`  |
 | llvmz80  | `0423`  | `1808`  |
+
+### Lever B extended — address-once (both xypos loops removed), 2026-08-09
+
+With the reverse-scan gone, the dominant remaining per-plot cost was the
+`xypos` cell-address routine — an **O(row) `add hl,de` djnz loop** (up to 25
+iterations) that gencon runs **twice** per plot: once inside `vpeek` (the
+read-back) and again inside `printc` (the write). Because the RC700 VRAM is a
+contiguous 80×25 grid, cell `(row,col)` lives at a fixed offset `row*80+col`
+from the base, and the read and write hit the **same cell**.
+
+So the rc700 override now computes the VRAM address **once**, with a
+constant-time `row*80 = (row<<4)*5` shift sequence (no loop, no division), and
+does a raw `ld a,(hl)` read + raw `ld (hl),a` write to that address, followed
+by the same `setgfx` page re-assert `printc` did. This removes **both** O(row)
+loops and the two `vpeek`/`printc` call/return round-trips. `setgfx` was made
+PUBLIC in `libsrc/target/rc700/generic_console.asm` so the override can re-use
+the exact page-flip; the read needs none (gencon `vpeek` reads raw too).
+
+The absolute saving is again **~535 M T-states in every lane** (llvmz80
+534,865,810; sdcc 534,763,085; sccz80 534,762,952) — the same compiler-
+independent signature, confirming the win is entirely in the shared primitive.
+Screen output visually confirmed correct in MAME. Combined with the reverse-map
+step, lever B has now removed **~1.44 G T-states per lane** vs the baseline:
+llvmz80 **−66.2 %**, sdcc **−55.9 %**, sccz80 **−47.1 %**.
+
+New `_main` / `_getk` addresses (rebuilt against the address-once lib):
+
+| Compiler | `_main` | `_getk` |
+|----------|:-------:|:-------:|
+| sccz80   | `04F6`  | `17CC`  |
+| sdcc     | `04D3`  | `1756`  |
+| llvmz80  | `0423`  | `1830`  |
 
 ## Optimization opportunities — lever B (the primitive), 2026-08-08
 
