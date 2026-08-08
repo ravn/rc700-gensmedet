@@ -93,6 +93,9 @@ that lane.
 | 2026-08-09 | Address-once (kill both xypos djnz loops)   |   B   | llvmz80  |     736,699,802 | **−42.1 %** |
 | 2026-08-09 | Address-once (kill both xypos djnz loops)   |   B   | sdcc     |   1,137,425,643 | **−32.0 %** |
 | 2026-08-09 | Address-once (kill both xypos djnz loops)   |   B   | sccz80   |   1,620,841,773 | **−24.8 %** |
+| 2026-08-09 | Row-base address table (drop row*80 mul)    |   B   | llvmz80  |     697,387,629 | **−5.3 %**  |
+| 2026-08-09 | Row-base address table (drop row*80 mul)    |   B   | sdcc     |   1,097,923,926 | **−3.5 %**  |
+| 2026-08-09 | Row-base address table (drop row*80 mul)    |   B   | sccz80   |   1,581,519,968 | **−2.4 %**  |
 
 ### Lever B landed — arithmetic reverse-map, 2026-08-09
 
@@ -156,6 +159,45 @@ New `_main` / `_getk` addresses (rebuilt against the address-once lib):
 | sccz80   | `04F6`  | `17CC`  |
 | sdcc     | `04D3`  | `1756`  |
 | llvmz80  | `0423`  | `1830`  |
+
+### Lever B refined — row-base address table, 2026-08-09
+
+The address-once step still computed `row*80` at runtime (a constant-time but
+~145 T shift chain: `(row<<4)*5`). Since `row` is only 0..24, that multiply is
+replaced by a **25-entry lookup table** `rc700_rowaddr[row] = RC700_DISPLAY +
+row*80` (in `generic_console.asm`, 50 bytes): one word load (`ld a,(hl); inc
+hl; ld h,(hl); ld l,a`, ~24 T) plus an 8-bit `+col`. The stored VRAM address is
+**identical by construction** to the multiply version (table entries are
+literally `DISPLAY+row*80`), so the writes are byte-for-byte the same — only
+the computation is cheaper.
+
+Saving is again **~39.4 M T-states in every lane** (llvmz80 39,312,173; sdcc
+39,501,717; sccz80 39,321,805) — the same compiler-independent signature. This
+is a smaller, diminishing-returns step (~5 % on the fastest lane) but genuine,
+no API change, and helps every caller. Running totals vs baseline: llvmz80
+**−68.0 %**, sdcc **−57.4 %**, sccz80 **−48.3 %**.
+
+New `_main` / `_getk` addresses (rebuilt against the row-base-table lib):
+
+| Compiler | `_main` | `_getk` |
+|----------|:-------:|:-------:|
+| sccz80   | `04F6`  | `17FA`  |
+| sdcc     | `04D3`  | `1784`  |
+| llvmz80  | `0423`  | `185E`  |
+
+### What is left (diminishing returns without an API change)
+
+Per-plot cost is now ~880 T (llvmz80), down from ~2,750 T at baseline. The
+remaining primitive cost is spread thinly across bounds check, `div3`, the
+reverse/forward map, the bit computation, and the `setgfx` page re-assert —
+no single dominant item is left to remove. The only remaining *large* lever is
+**B-cell**: a batch `plotcell(cx,cy,mask)` API that writes a whole 2×3 cell in
+one call. pixelbench Phase 1 sets whole cells (64 patterns × 2000 cells × 6
+sub-pixels = 768,000 plots), which such an API collapses ~6×. **But that
+changes the public API and mostly benefits cell-oriented callers like this
+benchmark — real per-pixel drawing (lines, circles) would see little gain**, so
+it is deliberately left as a separate, opt-in step rather than a drop-in
+primitive win.
 
 ## Optimization opportunities — lever B (the primitive), 2026-08-08
 
