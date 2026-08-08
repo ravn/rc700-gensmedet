@@ -124,6 +124,39 @@ dominates** — the largest remaining line is the ~260 T *calling-convention
 glue*, which is exactly what lever C (the fastcall entry) removes (≈117 T/call
 realised on llvmz80: 880 → 763).
 
+### Per-component shortenability assessment, 2026-08-09
+
+Each line of the distribution assessed against the **actual** `rc700_pixel6.inc`
+instructions (mechanisms **known** from reading the code; the T-savings are
+**estimates**, to be measured before claiming). "Assumption to relax" = the
+invariant we would have to give up to take the win.
+
+| # | Component | Shorter? | How | Assumption we must relax | Est. T |
+|---|-----------|----------|-----|--------------------------|-------:|
+| 1 | Caller CC glue | **Yes — done** (lever C) | packed-`HL` fastcall entry, no stack adapter | `plot(int,int)` int-range clip; API forks for one compiler; coords must be `0..255` | ~117 realised |
+| 2 | Bounds check | **Yes — clean** | hardcode `ld a,159 / cp h / ret c` + `ld a,74 / cp l / ret c`; drop the two `(__console_w/h)` loads + `add/dec` | console is a **fixed** 80×25 (no runtime resize) — already true for this target-specific file | ~30–40 |
+| 3 | `setgfx` per pixel | **Maybe — biggest, but HW-gated** | hoist the GFXMODE page-assert out of the primitive; assert once per plot batch/frame | (a) no console text pages VRAM out mid-batch; **(b) HW: `setgfx` writes GFXMODE→`RC700_DISPLAY`=0xF800, the SAME base the char write targets — whether the char write needs a following re-assert is an i8275/display-control question, NOT verified.** Must prove in MAME before removal | ~40–52 |
+| 4 | Reverse-map | **Yes** | 256-byte char→mask LUT (`ld h,0/ld l,a/add hl,de/ld e,(hl)`), branchless & constant ~26 T — OR eliminate entirely via a RAM **shadow** (B-shadow) holding the 6-bit mask (no VRAM read, no reverse-map) | +256 B ROM for the LUT; **or** +~2000 B RAM for the shadow (B-shadow) | ~10–50 |
+| 5 | Fwd-map + write | **Partly** | the `textpixl[mask]` load + `ld (hl),a` are already minimal; the removable part is the `call setgfx` inside it → see #3 | (see #3) | folds into #3 |
+| 6 | Bit computation | **Marginal** | replace the `rrca`/`add a` shift chain with a 6-entry `bit[(y%3)*2 + (x&1)]` LUT | none (LUT is pure) — but the index still needs y%3 and x&1, so the win is small | ~10–20 |
+| 7 | Address compute | **Marginal alone** | already computed **once** via `rc700_rowaddr[row]` (word load, no multiply); only a caller-side **cursor/span** API (B-cell) removes the per-pixel recompute | API change (batch/span entry) — a genuine fork, not a primitive tweak | ~0 (needs B-cell) |
+| 8 | Reduce-to-cell | **No** | `row=y/3` is already a `div3` table lookup and `col=x/2` a single `rra` — both O(1) and near-minimal | — | ~0 |
+
+**Ranked next levers (primitive-local, API-preserving):**
+1. **#2 bounds hardcode** — safe, no storage cost, ~30–40 T; the RC700 console
+   dims are already fixed. Cleanest immediate win; measure next.
+2. **#4 reverse-map LUT** (256 B ROM), constant-time and branchless; or defer in
+   favour of **B-shadow**, which subsumes #4 *and* the VRAM read (the documented
+   headline lever, ~2000 B RAM).
+3. **#3 setgfx hoist** — potentially the largest single win, but **must first be
+   proven safe in MAME** because of the 0xF800 shared-address hardware coupling.
+   Do not remove on reasoning alone (building ≠ behaving).
+4. **#6 bit LUT** / **#7 span API (B-cell)** — smaller / bigger blast radius,
+   lower priority.
+
+Not worth pursuing: **#8** (already minimal) and **#5**'s write itself (only its
+embedded `setgfx` is removable, tracked under #3).
+
 ### Lever C measured (PoC) — z80_fastcall plot entry, 2026-08-09
 
 The remaining large cost after the primitive was tuned is the **calling
