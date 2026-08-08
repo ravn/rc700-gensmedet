@@ -512,18 +512,36 @@ byte-for-byte identical to generic via the MAME VRAM-diff (incl. OR-overlap).
 | routine                              | total T (4000×) | T / sprite | vs generic |
 |--------------------------------------|-----------------|-----------:|-----------:|
 | batched + setgfx hoisted             |  46,372,548     | 11,593     | 4.90×      |
-| **+ register-resident mask (shipped)** | **36,832,155** | **9,208** | **6.17× (−83.8%)** |
+| + register-resident mask             |  36,832,155     |  9,208     | 6.17×      |
+| **+ running base pointer (shipped)** |  **36,342,675** |  **9,086** | **6.26× (−84.0%)** |
 
 −20.6% on top of the hoist (more than the ~15% estimate, because it also
 removed the DE-based forward-map and the reverse-map temp). No stack, no EXX
 (so no clash with the target's +shadow-regs ISR use); ccol/ccnt/base stay in
 BSS but are touched once per cell, not 6× per cell.
 
-**Bottom line:** two levers shipped — per-cell `setgfx` hoist (the one safe
-assumption to drop) + register-resident mask build (pure refactor) — take the
-batched blit from 4.59× to **6.17× vs generic putsprite**, all byte-identical.
-Dropping overlap support (empty-target) would buy a further ~7%, but changes
-semantics and is left as a possible opt-in `sprite_or_blank`.
+**Running base pointer** (final +1.3%): `rc700_rowaddr[crow]` is a 50-byte
+word table (each entry a full 16-bit VRAM address `0xF800+row*80`, so it can't
+shrink to 25 bytes). But the blit doesn't need a table at all in the loop —
+`crow` advances by exactly 1 per band, so the band base is kept as a running
+pointer advanced by **+80 per band** (one lookup for the top band only). Removes
+the per-band table lookup and the row*80 arithmetic, and frees the `sb_crow`
+BSS byte. Byte-identical.
+
+**Bottom line:** three levers shipped — per-cell `setgfx` hoist (the one safe
+assumption to drop) + register-resident mask build + running base pointer (both
+pure refactors) — take the batched blit from 4.59× to **6.26× vs generic
+putsprite**, all byte-identical. Dropping overlap support (empty-target) would
+buy a further ~7%, but changes semantics and is left as a possible opt-in
+`sprite_or_blank`.
+
+**Pure-C port (measured).** A self-contained C blit (same algorithm: batching,
+setgfx-hoist, running base pointer; own `textpixl`, direct GFXMODE write) is
+**byte-identical** and measures **48,926,750 T = 12,232 T/sprite = 4.65×**. So C
+captures the whole *structural* win (≈ the naive asm's 12,381), and the shipped
+asm's extra ~26% (6.26× vs 4.65×) is the register-resident mask + A+HL-only RMW
+the compiler spills. Guidance: C outer + tiny asm inner leaf → full 6.26× with
+clear code. Full write-up in `SPRITE_BLIT_DESIGN.md`.
 
 **Measurement integrity (no wait loop counted).** The bench brackets `_main` →
 *first* `_getk`, so the trailing `while(getk()!=' ')` spin is excluded; the timed
