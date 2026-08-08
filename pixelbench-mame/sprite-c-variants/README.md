@@ -72,3 +72,6 @@ with no underscore.
 `{r0, r1, r2, wcells, addr_lo, addr_hi}` where `addr = band base + ccol0`. The C
 outer fills it per band. The leaf keeps rows in B,C,D, mask in E, and does the
 RMW with A+HL only, so the row/mask registers survive across the whole band.
+
+## Larger-sprite test (16×16 chess pawn)
+See `LARGER_SPRITE_RESULT.md`. Key finding: the cell-batched blit is **1.33× slower than generic** on the sparse 18%-dense pawn — cell-batching is a **dense-sprite** optimization (density crossover ≈ 1 set pixel/cell), not a general putsprite replacement.

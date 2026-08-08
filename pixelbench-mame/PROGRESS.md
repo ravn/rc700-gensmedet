@@ -567,3 +567,6 @@ Confirmed empirically by a linearity check: 2000 sprites = 23,199,061 T,
 4000 = 46,372,548 T (≈ exactly 2×). Marginal cost 11,587 T/sprite; fixed overhead
 (clg + setup) only ~25.7k T (~0.05%). So a fixed wait would have to be tiny, and
 none scales per-sprite.
+
+### Larger-sprite test (16×16 chess pawn) — density crossover
+Extended the cell-batched C blit to multi-byte rows + partial last band (`sprite-c-variants/spr_or_big.c`), verified byte-identical to generic on a real 16×16 pawn. Throughput: generic 66,156 T/spr vs cell-batch 88,061 T/spr → **0.75× (slower)**. Cause: pawn is only 18% dense; generic plots only the 46 set pixels, the cell-blit scans all 48 covered cells. Cell-batching wins on dense sprites (ball up to 6.26×) but loses on sparse large ones. Details: `sprite-c-variants/LARGER_SPRITE_RESULT.md`.
