@@ -181,7 +181,9 @@ multi-byte rows, AND/XOR modes, and clipping (see §8).
 | B | + `setgfx` hoisted out of the loop        |  46,372,548     | 11,593   | 4.90×      |
 | C | + register-resident mask build            |  36,832,155     |  9,208   | 6.17×      |
 | D | + running base pointer  **(SHIPPED)**     |  36,342,675     |  9,086   | **6.26×**  |
-|   | pure-C port (all of A+B+D structurally)   |  48,926,750     | 12,232   | 4.65×      |
+|   | C outer + asm inner leaf                  |  39,295,491     |  9,824   | 5.79×      |
+|   | pure C, llvmz80-tuned                     |  44,632,980     | 11,158   | 5.10×      |
+|   | pure C, naive (all of A+B+D structurally) |  48,925,596     | 12,231   | 4.65×      |
 |   | empty-target ceiling (drops overlap)      |  42,847,194     | 10,712   | 5.31×      |
 
 **Lever A — cell batching** (the algorithm). One RMW per *cell* (12) instead of
@@ -235,49 +237,63 @@ is fine and reuses the table the console/plotpixel already ship, so the blit add
 
 ## 7. Rewriting in C — measured, with guidance
 
-A self-contained **pure-C** port (`/tmp/pxbench/spr_or_c.c` in this session;
-same algorithm, its own `textpixl` const, running base pointer, direct
-`*(volatile uint8_t*)0xF800 = 132` for the gfx assert) was built and measured:
+A self-contained **pure-C** port (`sprite-c-variants/spr_or_baseline.c`; same
+algorithm, its own `textpixl` const, running base pointer, direct
+`*(volatile uint8_t*)0xF800 = 132` for the gfx assert) was built and measured,
+then two further variants — a **tuned pure C** and a **C outer + tiny asm inner
+leaf** — completing the ladder. All are byte-for-byte identical to generic (incl.
+the OR-overlap; so writing GFXMODE directly once matches `setgfx` in gfx mode).
+Sources + rebuild recipe: `sprite-c-variants/` (see its README).
 
-- **Correctness: byte-for-byte identical** to generic (incl. the OR-overlap).
-  (So writing GFXMODE directly, once, is fine — matches `setgfx` in gfx mode.)
-- **Throughput: 48,926,750 T = 12,232 T/sprite = 4.65× vs generic.**
+| variant                       | file(s)                           | total T (4000×) | T/sprite | vs generic |
+|-------------------------------|-----------------------------------|----------------:|---------:|-----------:|
+| pure C, naive/branchy         | `spr_or_baseline.c`               |  48,925,596     | 12,231   | 4.65×      |
+| pure C, llvmz80-tuned         | `spr_or_tuned.c`                  |  44,632,980     | 11,158   | 5.10×      |
+| C outer + asm inner leaf      | `spr_or_leaf.c` + `blit_band.asm` |  39,295,491     |  9,824   | 5.79×      |
+| full hand asm (shipped)       | `rc700_spriteblit.asm`            |  36,342,675     |  9,086   | 6.26×      |
 
-Interpretation:
+Interpretation (all **measured**, 2026-08-08):
 
-- **Pure C captures essentially the entire *structural* win.** Batching,
-  `setgfx`-hoist and the running base pointer are all algorithm-level and the
-  compiler expresses them fine: 56,856 → 12,232 T/sprite (**4.65×**). Notably
-  12,232 ≈ the *naive* asm (lever A, 12,381) — **C matches hand-written naive
-  asm** for the inner loop.
-- **The hand-asm's extra ~26% is register control.** 36,342,675 (asm) vs
-  48,926,750 (C) → asm is **1.346× faster**. That gap is exactly levers C/D's
-  register-resident mask build + A+HL-only RMW, which llvmz80 does **not**
-  reproduce — it spills the row bytes / mask to memory across the RMW, recreating
-  the BSS round-trips lever C removed by hand.
+- **Pure C captures the whole *structural* win.** Batching, `setgfx`-hoist and
+  the running base pointer are algorithm-level and the compiler expresses them
+  fine: 56,856 → 12,231 T/sprite (**4.65×**). Notably ≈ the *naive* asm (lever A,
+  12,381) — **C matches hand-written naive asm** for the inner loop.
+- **"Best chance for llvmz80" ≠ textbook branchless.** Tuning the pure C is a
+  mixed bag on Z80 — verified by measuring each lever, not guessing:
+  - walking cell pointer + **down-counting** loop (`for(n=wcells;n;n--)`):
+    **helped** (→4.97×, dec+jnz beats cp+jr up-count);
+  - **256-byte `rev[]` LUT** replacing the glyph→mask compare chain: **helped**
+    (→5.10×);
+  - **"branchless" mask** (`swap2[r>>6]`): **backfired** to 54.7M, *worse than
+    naive* — `r>>6` (rlca/rlca/and) + LUT index costs more than six plain
+    bit-test branches. Keep the branchy mask. Net best pure C = **5.10×**
+    (`spr_or_tuned.c`).
+- **A tiny asm inner leaf recovers most of the rest.** Keeping only the
+  register-pressure-critical inner cell loop in asm (B,C,D = rows, E = mask,
+  A+HL-only RMW so nothing spills) — `spr_or_leaf.c` calling `blit_band.asm` per
+  band — reaches **5.79×** with all structure still in clear C: ~76% of the way
+  from 4.65× to the full hand-asm 6.26×.
+- **The final ~13% (5.79×→6.26×) is per-band C overhead** — filling the 6-byte
+  block + the fastcall per band — that the fully-fused hand asm avoids. The
+  shipped library routine stays the full asm; the leaf split is the recommended
+  shape whenever the source should read as C.
 
 **Recommended structure — C outer, tiny asm inner leaf (clarity first).**
-The design intent is **maximum clarity**: express everything possible in C and
-drop to assembly only for the one small kernel the compiler cannot match. This
-keeps essentially all the code readable/maintainable while recovering the full
-6.26×.
+Express everything possible in C; drop to assembly only for the one small kernel
+the compiler cannot match. Measured **5.79×** (vs full-asm 6.26×), all readable.
 
 - **C (the whole readable body):** parameter unpack, the band / cell loop
   structure, cell→address arithmetic (running base pointer), the reverse/forward
-  map (`textpixl[]` index + a 3-branch `revmap`), the `setgfx` hoist, **and the
-  future edge/alignment/clipping + AND/XOR mode dispatch** (§8) — control-flow-
-  heavy code where C is as good as asm and far clearer. Pure C here already gives
-  **~4.65×** over generic.
-- **One small asm leaf helper = the innermost mask-build + RMW** (the endorsed
-  "assembler stump"): a per-cell routine that keeps B,C,D = the 3 row bytes,
-  E = mask, A/HL = work, does the 6 `sla`+`set`, the A-only revmap, `or e`, the
-  forward map, and the write — then returns. The C outer loop shifts nothing and
-  touches no VRAM directly; it just feeds this leaf per cell. This recovers the
-  ~26% that C spills (levers C/D) and gets back to **6.26×**, while all the
-  structure, edge cases and modes stay in clear C.
-- A **100% C** blit at 4.65× is also a fine, even simpler default if the last
-  ~26% ever stops mattering — but the leaf-helper split above is the recommended
-  target: clearest code that still keeps the full speed.
+  map (`textpixl[]` + `rev[]` LUT), the `setgfx` hoist, **and the future
+  edge/alignment/clipping + AND/XOR mode dispatch** (§8) — control-flow-heavy
+  code where C is as good as asm and far clearer.
+- **One small asm leaf (`blit_band`) = the innermost mask-build + RMW** (the
+  endorsed "assembler stump"): keeps B,C,D = the 3 row bytes, E = mask, A/HL =
+  work, does the 6 `sla`+`set`, the A-only revmap, `or e`, the forward map, and
+  the write across a whole band — so the row/mask registers survive. This is what
+  the compiler cannot reproduce (it spills across the volatile VRAM RMW).
+- **100% C** at 4.65–5.10× is a fine, simpler default if the last ~13–26% ever
+  stops mattering; `spr_or_tuned.c` is the fastest 100%-C option.
 
 **C-linkage gotchas found while porting (save yourself the debugging):**
 
@@ -286,8 +302,9 @@ keeps essentially all the code readable/maintainable while recovering the full
    link them directly (you get `undefined symbol: _textpixl`). Either add
    `PUBLIC _textpixl` aliases in asm, or (cleaner for a self-contained C blit)
    define the 64-byte `textpixl` as a `static const` in C and write GFXMODE /
-   compute the base directly in C — the self-contained port does the latter and
-   is byte-identical.
+   compute the base directly in C — the self-contained ports do the latter and
+   are byte-identical. The asm leaf `blit_band` exports both `blit_band` and
+   `_blit_band` so C links the `_`-prefixed name.
 2. **Don't drop the loop decrement.** An early C draft advanced `base += 80` but
    dropped `hrem -= 3`, giving an **infinite loop** — the program hangs in the
    blit, never reaches `getk`, and the harness produces **no VRAM dump and no

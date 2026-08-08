@@ -537,11 +537,26 @@ buy a further ~7%, but changes semantics and is left as a possible opt-in
 
 **Pure-C port (measured).** A self-contained C blit (same algorithm: batching,
 setgfx-hoist, running base pointer; own `textpixl`, direct GFXMODE write) is
-**byte-identical** and measures **48,926,750 T = 12,232 T/sprite = 4.65×**. So C
+**byte-identical** and measures **48,925,596 T = 12,231 T/sprite = 4.65×**. So C
 captures the whole *structural* win (≈ the naive asm's 12,381), and the shipped
 asm's extra ~26% (6.26× vs 4.65×) is the register-resident mask + A+HL-only RMW
-the compiler spills. Guidance: C outer + tiny asm inner leaf → full 6.26× with
-clear code. Full write-up in `SPRITE_BLIT_DESIGN.md`.
+the compiler spills. Full write-up in `SPRITE_BLIT_DESIGN.md`.
+
+**C-rewrite experiment (2026-08-08, measured; sources in
+`sprite-c-variants/`).** Two rewrites completed the ladder, both byte-identical:
+- **C outer + tiny asm inner leaf** (`spr_or_leaf.c` + `blit_band.asm`): keeps
+  only the register-critical inner cell loop in asm (B,C,D=rows, E=mask, A+HL
+  RMW). **39,295,491 T = 9,824/sprite = 5.79×** — ~76% of the way from pure C
+  (4.65×) to full asm (6.26×) with all structure still in clear C. Recommended
+  shape when the source should read as C.
+- **llvmz80-tuned pure C** (`spr_or_tuned.c`): **44,632,980 T = 11,158/sprite =
+  5.10×**. Tuning was empirical, not textbook — pointer-walk + down-count loop
+  helped (→4.97×), 256-byte `rev[]` LUT helped (→5.10×), but a "branchless" mask
+  (`swap2[r>>6]`) **backfired** to 54.7M (worse than naive: `r>>6` costs more
+  than 6 bit-test branches on Z80). Keep the branchy mask.
+
+Ladder: generic 1.00× · pure C naive 4.65× · pure C tuned 5.10× · C+asm-leaf
+5.79× · full asm (shipped) 6.26×.
 
 **Measurement integrity (no wait loop counted).** The bench brackets `_main` →
 *first* `_getk`, so the trailing `while(getk()!=' ')` spin is excluded; the timed
