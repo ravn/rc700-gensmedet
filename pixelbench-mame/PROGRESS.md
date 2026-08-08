@@ -427,3 +427,38 @@ odd-x / misaligned-y offsets, three ORTYPE variants OR/AND/XOR). Bigger blast
 radius than levers B/C. Recommend landing behind the existing `putsprite` symbol
 as a target override (same mechanism as the `plotpixel` override) so every
 sprite caller benefits unchanged.
+
+### Lever D — PoC MEASURED (2026-08-09)
+
+Wrote a contained PoC: `rc700_spriteblit.asm` exposing `sprite_or`/`_sprite_or`
+(z80_fastcall, HL→param block `{x0,y0,spr_lo,spr_hi}`). Restrictions for the PoC
+(the batching is what we want to prove, not the full edge handling): **spr_or
+only, x0 even, y0 mult-of-3, w≤8, h mult-of-3, no bounds clipping**. It walks the
+sprite in 3-row cell bands, builds each cell's 6-bit mask with `sla`/`set`, then
+does **one RMW per cell** (rc700 address compute + VRAM read + reverse-map + OR +
+forward-map + write + `setgfx`), reusing the exact `rc700_pixel6.inc` logic.
+
+**Correctness — objectively verified (not visual):** a lua harness dumps the full
+cell region `0xF800..+2000` from MAME after drawing 8 cell-aligned sprites (incl.
+an OR-overlap where two sprites share cells) with each routine.
+`cmp` on the two 2000-byte dumps → **byte-for-byte IDENTICAL** (54 populated
+cells, 14 distinct sextant glyphs — not a trivially blank match). **The optimized
+routine produces exactly the same screen image as the generic one.**
+
+**Throughput — same sprite, same positions, both routines** (full-speed MAME,
+llvmz80, 4000 calls, 8×9 ball = 60 set px over 12 cells):
+
+| routine                | total T (4000×) | T / sprite | vs generic |
+|------------------------|-----------------|-----------:|-----------:|
+| generic `putsprite`    | 227,425,204     | 56,856     | 1.00×      |
+| batched `sprite_or`    |  49,525,264     | **12,381** | **4.59× faster (−78.2%)** |
+
+The win is one RMW per *cell* (12) vs one primitive call per *set-pixel* (60), so
+it scales with pixel-density per cell — denser sprites win more, sparse less.
+Confirms the projected ~4–6×. **Building ≠ behaving:** this is the measured
+runtime result with a pixel-identical oracle, not a code-inspection estimate.
+
+**Status:** PoC only (single mode, aligned, no clipping). Productionizing as a
+full `putsprite` target override (odd-x / misaligned-y sub-offsets, edge
+clipping, AND/XOR modes) is a genuine fork of `__generic_putsprite` — scope to
+confirm with user before landing behind the public `putsprite` symbol.
