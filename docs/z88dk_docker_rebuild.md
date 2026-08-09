@@ -16,7 +16,13 @@ docker pull z88dk/z88dk:2.4
 docker tag  z88dk/z88dk:2.4 z88dk:2.4
 ```
 Stay pinned to `2.4`: newer official images (`latest`, weekly nightlies) do
-**not** ship `sdcc_iy/z80.lib`, so `-clib=sdcc_iy` links fail there.
+**not** ship the linkable `sdcc_iy` target library, so `-clib=sdcc_iy`
+silently produces nothing there. Decisive test on `latest`
+(v1-5ba9edb1-20260809, verified 2026-08-10) — `zcc +cpm -clib=sdcc_iy` exits
+0 **but emits a 0-byte binary**: only `lib/clibs/sdcc_iy/lib/` per-target
+source-object dirs exist, no `sdcc_iy/cpm.lib` (contrast `sdcc_ix`, which
+ships full `cpm.lib`/`math32.lib`/...). So a green EXIT 0 from `latest` is a
+false pass; must use `z88dk/z88dk:2.4`.
 
 **b) Build from the local fork (below)** — needed when zsdcc has a fix in the
 local `ravn/z88dk` fork that isn't in the Hub image.
