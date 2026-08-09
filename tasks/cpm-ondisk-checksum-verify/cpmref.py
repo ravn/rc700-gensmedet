@@ -10,9 +10,14 @@ pointers when byte_size_extents=0 (rc700 5"/8" DD), 8-bit (byte) pointers
 otherwise. The extracted stream is record-padded (multiple of 128 bytes) with
 the 0xE5 filler, matching exactly what a CP/M sequential read returns to EOF.
 
-Skew is applied ONLY on the data area (track 2 and forward, i.e. cylinders
->= boottracks//sides). Tracks 0 and 1 are the boot region -- no skew there;
-they are concatenated raw and are not used for file-data reconstruction.
+Skew is applied by inverting appmake's write-side skew on the data area
+(track 2 and forward). appmake itself handles skew automatically when it builds
+the IMD (has_skew=1 -> skew_sector() in cpmdisk.c); on real hardware CP/M's BIOS
+sectran undoes it. cpmref re-derives the inverse INDEPENDENTLY (it does not call
+appmake or run CP/M) so it can catch a skew/layout bug rather than agree with
+appmake by construction. The rc700 specs leave skew_track_start=0 (skew from
+track 0), but the boot tracks 0/1 are zero-filled (boot_zero_tracks=2), so their
+sector order is immaterial and cpmref simply concatenates them raw.
 
 The geometry for every non-jbox RC700/RC703 format is in FORMATS below, mirrored
 from z88dk src/appmake/cpm2.c so the SAME checksum program (PROG) can validate

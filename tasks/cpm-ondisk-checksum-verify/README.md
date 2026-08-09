@@ -86,8 +86,12 @@ overridable via env (`WS`, `Z88DK`, `REF_IMD`, `MAME_BIN`, `FORMAT`, ...).
 | `rc703-qd`   | 5.25" DS/QD    | 10×512   | 2     | byte     | 2:1  |
 
 `rc700-jbox` is intentionally excluded (0-based emulator sector IDs; not real
-HW). Skew is applied only on the data area (track 2 and forward); tracks 0/1
-(the boot region) carry no skew.
+HW). appmake applies skew automatically on the write side (`has_skew=1` ->
+`skew_sector()`), and CP/M's BIOS `sectran` undoes it on real hardware;
+`cpmref.py` re-derives the inverse independently as a cross-check. The rc700
+specs leave `skew_track_start=0`, so skew nominally starts at track 0, but the
+boot tracks 0/1 are zero-filled (`boot_zero_tracks=2`) so their sector order is
+immaterial — only the data area (track 2+) carries observable skew.
 
 ## The build pipeline
 
