@@ -118,6 +118,41 @@ Without `-s` the disk is a non-bootable **data diskette** (tracks 0/1
 zero-filled) — the intended default so a payload disk is not mistaken for a
 bootable one.
 
+## Are the disk definitions correct? (checked against MAME + real media)
+
+MAME's rc702/rc702mini/rc703 machines don't hardcode a per-machine disk format;
+they mount a floppy *drive* (`FLOPPY_8_DSDD` @8 MHz FDC, `FLOPPY_525_DD` /
+`FLOPPY_525_QD` @4 MHz) and read the geometry from the IMD header. So an appmake
+disc_spec is "correct" when its IMD (a) fits the drive envelope and (b) matches
+genuine media where we have it.
+
+- **`rc700-8dd` — CONFIRMED correct (byte-for-byte vs a genuine RC702 disk).**
+  Track-for-track identical to the licensed `SW1711-I8.imd` system disk:
+  154 tracks (77 cyl × 2), cyl0 h0 = FM500 26×128, cyl0 h1 = MFM500 26×256,
+  all data tracks = MFM500 15×512, sector IDs 1..N identical. Fits
+  FLOPPY_8_DSDD (77 trk, 2 sides, 360 rpm; MFM500 track budget ~10.4 KB vs
+  15×512 = 7680 B + gaps).
+- **`rc700-8sd` — standard IBM 3740.** 77 cyl × 1, FM500 26×128 = the universal
+  8" SS/SD interchange format. Fits FLOPPY_8_SSSD (77 trk, 1 side, 360 rpm).
+  High confidence (it's a well-known standard), though not checked against a
+  specific RC702 SSSD disk.
+- **`rc700-5dd` — fits the envelope, NOT verified against real media.**
+  36 cyl × 2, MFM250 9×512, mixed T0 (FM250 16×128 / MFM250 16×256). Fits
+  FLOPPY_525_DD (42 trk, 2 sides, 300 rpm; MFM250 budget ~6.25 KB/track vs
+  9×512 = 4608 B + gaps). The exact track count (36) and the mixed-T0 sector
+  counts pattern-match the 8dd layout scaled to 250 kbps but are **not**
+  confirmed against a genuine RC702-mini disk (we have none).
+- **`rc703-qd` — fits the envelope, NOT verified against real media.**
+  80 cyl × 2, MFM250 10×512. Fits FLOPPY_525_QD (84 trk, 2 sides, 300 rpm;
+  10×512 = 5120 B + gaps within the ~6.25 KB budget). Not confirmed against a
+  genuine RC703 disk.
+- **`rc700-jbox` — intentionally excluded** (0-based emulator sector IDs; not
+  real hardware).
+
+Summary: **8dd is proven; 8sd is a standard; 5dd and 703-qd are physically
+plausible and MAME-mountable but await a genuine disk to confirm the exact
+track/sector-count choices.**
+
 ## Files
 
 | File                 | Role |
