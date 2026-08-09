@@ -108,3 +108,42 @@ The `z88dk:2.4` local Docker tag must exist. Obtain via
 `docker pull z88dk/z88dk:2.4 && docker tag z88dk/z88dk:2.4 z88dk:2.4`, or build
 from the fork (`docs/z88dk_docker_rebuild.md`). The image is amd64-only ->
 runs under QEMU emulation on Apple Silicon (slower, but output is identical).
+
+---
+
+## FUTURE WORK (på sigt) — migrate off sdcc_iy to the newer-image lib variant
+
+User request 2026-08-10: investigate whether the lib variant shipped in a
+*current* Docker image can replace the `sdcc_iy` libs we depend on today, so we
+are no longer pinned to `z88dk/z88dk:2.4`.
+
+Background (verified this session):
+- Production firmware links `-clib=sdcc_iy` (cpnos-in-c/Makefile, rcbios-in-c/
+  sdcc/Makefile). `sdcc_iy` == SDCC with **IY reserved / IX as frame pointer**.
+- Only `z88dk/z88dk:2.4` (commit 4d530b6e) ships a linkable `sdcc_iy` target
+  library. `latest` (v1-5ba9edb1-20260809) and the weekly nightlies ship
+  `sccz80` + **`sdcc_ix`** only; their `sdcc_iy` tree has just per-target
+  source-object dirs, no `cpm.lib` -> `-clib=sdcc_iy` there exits 0 but emits a
+  **0-byte binary** (false pass; see docs/z88dk_docker_rebuild.md).
+
+The investigation (do NOT start until scheduled):
+1. Determine WHY newer official images dropped the built `sdcc_iy` target lib
+   (upstream build-matrix change? deliberate? ask on z88dk, or diff the image
+   build scripts). If it's an image-packaging omission we could get it restored
+   upstream, that may be the cheapest fix (keeps `-clib=sdcc_iy`).
+2. Else evaluate switching production to **`-clib=sdcc_ix`** (IX reserved /
+   IY as frame pointer), which newer images DO ship:
+   - Rebuild cpnos-in-c + rcbios-in-c SDCC lanes with `sdcc_ix`; compare code
+     size vs the current sdcc_iy baselines (cpnos 2151 B SDCC; BIOS 6103 B).
+   - Re-verify correctness: full runtime oracle + **MAME boot gate** (both
+     PROMs) — ABI/frame-pointer register change is behaviour-affecting, so a
+     clean compile is NOT proof (building != behaving).
+   - Check the rc700 asm glue / any hand-written asm that assumes IY-free vs
+     IX-free conventions.
+3. Decision criteria: only migrate if sdcc_ix is size/behaviour-neutral (or
+   better) AND unblocks tracking newer z88dk images. Otherwise stay pinned to
+   z88dk/z88dk:2.4 (current, verified-good state).
+
+Note: production firmware is CLANG, not SDCC — the SDCC lanes are the
+comparison oracle. So this migration affects the oracle toolchain, not the
+shipped binaries; lower urgency, hence "på sigt".
