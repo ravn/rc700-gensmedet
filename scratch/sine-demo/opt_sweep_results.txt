@@ -1,0 +1,6 @@
+opt    clang-opt          size    frame     draw_s      onpix match
+o0     -O0                6860    16727      307,2      32296 IDENTICAL
+o1     -O1                6836    16487      302,4      32296 IDENTICAL
+o2     -O2                6753    16127      295,2      32296 IDENTICAL
+o3     -O3                6788     9947      171,6      32296 IDENTICAL
+os     -Os                6744    16187      296,4      32296 IDENTICAL
