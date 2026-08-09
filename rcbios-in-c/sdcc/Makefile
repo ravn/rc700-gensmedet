@@ -13,15 +13,20 @@ KBLANG ?= DANISH
 KBDPORT ?= A
 SW1_CONSOLE_BIT ?= 0x01
 
-# z88dk: use native install if available, otherwise Docker
+# z88dk: the SDCC BIOS build needs the classic newlib z80.lib (-clib=sdcc_iy),
+# which ships ONLY in a full z88dk install -- the pinned z88dk:2.4 Docker image
+# (built from ravn/z88dk; byte-identical SDCC codegen to the retired 2.4
+# filesystem prebuilt).  The workspace dev fork (../../../z88dk) has zcc but NOT
+# that lib, so detect a usable native install by the presence of sdcc_iy/z80.lib
+# -- not merely bin/zcc -- and otherwise build through Docker.
 Z88DK_HOME ?= $(firstword $(wildcard $(CURDIR)/../../../z88dk))
-ifneq ($(wildcard $(Z88DK_HOME)/bin/zcc),)
-  # Native z88dk
+ifneq ($(wildcard $(Z88DK_HOME)/libsrc/_DEVELOPMENT/lib/sdcc_iy/z80.lib),)
+  # Native z88dk WITH the classic sdcc lib
   export ZCCCFG = $(Z88DK_HOME)/lib/config
   export PATH := $(Z88DK_HOME)/bin:$(PATH)
   RUN =
 else
-  # Docker fallback
+  # Pinned Docker image (mounts rcbios-in-c so parent sources resolve)
   RUN = docker run --rm \
 	-v $(CURDIR)/..:/src \
 	-w /src/sdcc \

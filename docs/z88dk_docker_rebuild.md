@@ -1,11 +1,27 @@
 # Rebuilding the z88dk Docker image from local source
 
-The `z88dk:2.4` image pulled from Docker Hub is a prebuilt release. When
-zsdcc (the SDCC backend bundled with z88dk) has a fix in the local
-`ravn/z88dk` fork that isn't in the Hub image, rebuild from the local
-checkout.
+All SDCC builds in this project run through a local Docker image tagged
+`z88dk:2.4` (the filesystem prebuilt at `rc700-gensmedet/z88dk/` was
+**retired 2026-08-10** — see workspace CLAUDE.md). The Makefiles auto-select
+Docker whenever no native z88dk with the classic `sdcc_iy/z80.lib` is on disk.
 
-## Command
+## Obtaining the `z88dk:2.4` image
+
+Two routes produce the `z88dk:2.4` tag the Makefiles expect:
+
+**a) Official Hub image (stock).** Verified byte-identical SDCC codegen to the
+retired filesystem prebuilt (same z88dk commit `4d530b6e`):
+```bash
+docker pull z88dk/z88dk:2.4
+docker tag  z88dk/z88dk:2.4 z88dk:2.4
+```
+Stay pinned to `2.4`: newer official images (`latest`, weekly nightlies) do
+**not** ship `sdcc_iy/z80.lib`, so `-clib=sdcc_iy` links fail there.
+
+**b) Build from the local fork (below)** — needed when zsdcc has a fix in the
+local `ravn/z88dk` fork that isn't in the Hub image.
+
+## Command (build from fork)
 
 ```bash
 cd /Users/ravn/z80/z88dk

@@ -145,30 +145,47 @@ ifeq ($(COMPILER),clang)
 
 else ifeq ($(COMPILER),sdcc)
   # ---- z88dk-zsdcc toolchain (Phase 2 in progress) -----------------
-  # Prefer the PINNED PREBUILT toolchain at rc700-gensmedet/z88dk (../z88dk) --
-  # the stable stock zcc/zsdcc/z80asm + sdcc z80.lib that rc700 builds target
-  # (CLAUDE.md workspace layout).  Fall back to the workspace-root development
-  # fork (../../z88dk) only if the prebuilt is absent; that fork is for z88dk
-  # dev work and does NOT ship the classic sdcc z80.lib, so linking there fails
-  # with "file not found: z80.lib".
+  # The SDCC lane needs the classic newlib z80.lib (-clib=sdcc_iy), which
+  # ships ONLY in a FULL z88dk install: the pinned Docker image z88dk:2.4
+  # (built from ravn/z88dk -- see rc700-gensmedet/docs/z88dk_docker_rebuild.md;
+  # verified byte-identical SDCC codegen to the retired filesystem prebuilt,
+  # same z88dk commit 4d530b6e).  The workspace dev fork (../../z88dk) does
+  # NOT ship that lib, so we detect a usable NATIVE install by the presence of
+  # sdcc_iy/z80.lib -- NOT merely bin/zcc (the dev fork has zcc but no lib and
+  # would fail linking with "file not found: z80.lib").  With no native lib,
+  # build through Docker.  Docker mounts the PARENT dir (rc700-gensmedet)
+  # because the build pulls shared sources from ../cpnos-shared, outside
+  # $(CURDIR); -w re-enters the cpnos-in-c subdir so relative paths resolve.
+  # Override with `make ... SDCC_LIB=` to force the Docker lane for testing.
   Z88DK_HOME ?= $(firstword $(wildcard $(CURDIR)/../z88dk) $(wildcard $(CURDIR)/../../z88dk))
-  ifneq ($(wildcard $(Z88DK_HOME)/bin/zcc),)
-    # Native z88dk on the host.  Set ZCCCFG via exported var; export
-    # PATH with z88dk's bin so zcc's internal `z88dk-z80asm` /
+  SDCC_LIB := $(wildcard $(Z88DK_HOME)/libsrc/_DEVELOPMENT/lib/sdcc_iy/z80.lib)
+  ifneq ($(SDCC_LIB),)
+    # Native z88dk WITH the classic sdcc lib.  Set ZCCCFG via exported var;
+    # export PATH with z88dk's bin so zcc's internal `z88dk-z80asm` /
     # `z88dk-appmake` lookup succeeds.
     export ZCCCFG = $(Z88DK_HOME)/lib/config
     export PATH := $(Z88DK_HOME)/bin:$(PATH)
     ZCC = $(Z88DK_HOME)/bin/zcc
     RUN =
+    APPMAKE = $(Z88DK_HOME)/bin/z88dk-appmake
   else
-    RUN = docker run --rm -v $(CURDIR):/src -w /src z88dk:2.4
+    # Build through the pinned Docker image (no native sdcc lib present).
+    # Mount the repo ROOT (rc700-gensmedet) so shared sources (../cpnos-shared)
+    # and sibling dirs resolve, and make the container's working dir TRACK the
+    # recipe's shell $PWD at runtime -- several link recipes `cd $(BUILDDIR)`
+    # (or ../cpnos-shared/testutil) before invoking $(CC), and a fixed -w would
+    # break their relative paths.  $${PWD#$(REPO_ROOT)} strips the host prefix
+    # to yield the in-container path under /src.
+    REPO_ROOT := $(abspath $(CURDIR)/..)
+    RUN = docker run --rm -v $(REPO_ROOT):/src -w /src$${PWD\#$(REPO_ROOT)} z88dk:2.4
     ZCC = zcc
+    APPMAKE = z88dk-appmake
   endif
 
   CC = $(RUN) $(ZCC)
   # SDCC link/asm tools wrapped via zcc — single front-end.
   LD      = $(CC)
-  OBJCOPY = $(RUN) $(Z88DK_HOME)/bin/z88dk-appmake
+  OBJCOPY = $(RUN) $(APPMAKE)
   OBJDUMP = echo "(no llvm-objdump under sdcc)"
   NM      = echo "(no llvm-nm under sdcc)"
 
@@ -1752,7 +1769,10 @@ cpnos-filecopy-test:
 # `make qsort-build-clang` (llvmz80). Both stage to drive_i/QSORT.COM; run
 # cpnos-qsort-test after either to exercise that toolchain's output over CP/NET.
 QSORT_SRC = $(SHARED)/testutil/qsort_disk.c
-Z88DK_PREBUILT = $(CURDIR)/../z88dk
+# Classic sccz80 builds fine on the dev fork; the 2.4 filesystem prebuilt
+# (../z88dk) has been retired (SDCC now runs via the z88dk:2.4 Docker image),
+# so fall back to the dev fork (../../z88dk) when the prebuilt is absent.
+Z88DK_PREBUILT = $(firstword $(wildcard $(CURDIR)/../z88dk) $(CURDIR)/../../z88dk)
 Z88DK_DEV      = $(CURDIR)/../../z88dk
 LLVMZ80_CLANG  = $(CURDIR)/../../llvm-z80/build-macos/bin/clang
 .PHONY: qsort-build
