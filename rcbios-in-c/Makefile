@@ -71,7 +71,7 @@ PATCH = python3 ../rcbios/patch_bios.py
 IMDINFO = python3 ../rcbios/imdinfo.py
 
 # MAME — default to the submodule inside the workspace so the path
-# works on any machine that has `z80-compiler-suite-workspace` checked
+# works on any machine that has `rc7xx-work` checked
 # out with submodules initialised.  Override with `make MAME=/path/to/mame`
 # if you keep MAME somewhere else.
 MAME ?= $(CURDIR)/../../mame
