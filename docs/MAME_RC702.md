@@ -21,26 +21,27 @@ ROMs directory: `~/git/mame/roms/rc702/`
 
 ## Run commands
 ```sh
-./regnecentralend rc702 -bios 0 -window -nomaximize -skip_gameinfo -resolution0 1100x720 -flop1 ~/Downloads/SW1711-I8.imd        # 8" maxi
-./regnecentralend rc702mini -bios 0 -window -nomaximize -skip_gameinfo -resolution0 1100x720 -flop1 ~/Downloads/CPM_med_COMAL80.imd  # 5.25" mini
-./regnecentralend rc703 -bios 1 -window -nomaximize -skip_gameinfo -resolution0 1100x720 -flop1 ~/Downloads/RC703_CPM_v2.2_r1.2.imd  # RC703
+./regnecentralend rc702 -bios 0 -window -nomaximize -skip_gameinfo -resolution0 1100x805 -flop1 ~/Downloads/SW1711-I8.imd        # 8" maxi
+./regnecentralend rc702mini -bios 0 -window -nomaximize -skip_gameinfo -resolution0 1100x805 -flop1 ~/Downloads/CPM_med_COMAL80.imd  # 5.25" mini
+./regnecentralend rc703 -bios 1 -window -nomaximize -skip_gameinfo -resolution0 1100x805 -flop1 ~/Downloads/RC703_CPM_v2.2_r1.2.imd  # RC703
 ```
-`-resolution0 1100x720` gives a good ~1.5x window size on M4 Air 24GB.
+`-resolution0 1100x805` matches the view AR (776/568 = 1.366; 1100/1.366 = 805) so
+no black bars.  The CRTC_BORDER=8 pixel amber margin is baked into the bitmap.
 
 ## Display layout
-`src/mame/layout/rc702.lay` — custom layout with amber border, at the TRUE
-RC752 physical aspect (updated 2026-07-02; was a "midpoint PAR" compromise).
+`src/mame/layout/rc702.lay` — custom layout at TRUE RC752 physical aspect.
 - The RC752 (NEC JB-1201M(A)) active display area is **230 x 165 mm** (RCSL
   44-RT1981) for the 8275's 560x275 visible raster -> physical aspect
   **230:165 = 46:33 = 1.3939**, pixel aspect ratio **0.685** (pixels ~1.46x
   taller than wide).  See `RC702_HARDWARE_TECHNICAL_REFERENCE.md` "Video Monitor".
-- Screen content bounds **736x528** (= 46:33 exactly), border 20 -> view 776x568.
-- The previous layout used a midpoint between square pixels and a MIS-computed
-  "4:3" (608x550 = 1.105, not 1.333 and not the real 230:165); now driven by the
-  measured panel size, not a guess.
+- View: **776x568**, screen fills full view (no separate bg artwork element).
+- **Amber margin (CRTC_BORDER=8 px)** is baked into the screen bitmap in
+  `rc702.cpp` (`screen_update_with_border` fills with palette[0] = dark amber,
+  then i8275 renders at +CRTC_BORDER offset).  Renderer-independent: SDL and
+  BGFX both show the correct colour.  Note: BGFX crt-geom shaders interact
+  badly with the offset bitmap (pixel artefacts); use SDL/auto renderer.
 - Background colour: rgb(0x4F, 0x25, 0x09) matching palette pen 0 (jbox/RC752
-  dark warm-brown; updated 2026-07-26 from the earlier bright rgb(0xC0,0x60,0x00)
-  orange — foreground pen 1 is rgb(0xC4,0x9B,0x47) soft amber)
+  dark warm-brown; foreground pen 1 is rgb(0xC4,0x9B,0x47) soft amber)
 - Wired via `#include "rc702.lh"` and `config.set_default_layout(layout_rc702)` in rc702.cpp
 - NOTE: `screen:snapshot()` (used by `make qr-test` / `sw1-test`) captures the
   RAW screen bitmap (square pixels, ~2:1), NOT this laid-out view; and headless

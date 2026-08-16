@@ -1,4 +1,4 @@
-# DDHF / Datamuseum RC759 Piccoline artifact catalogue
+# Datamuseum RC759 Piccoline artifact catalogue
 
 Complete inventory of every **RC759 Piccoline** artifact preserved by Dansk
 Datahistorisk Forening (DDHF / datamuseum.dk), keyword
