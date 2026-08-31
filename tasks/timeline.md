@@ -8861,3 +8861,27 @@ cpnos-build/check_sdcc_stack_room.py (wired after sdcc pass-2 link) that FAILS
 loudly when resident top > 0xF60E, instead of shipping a silently-broken binary.
 Documented as a known SDCC-slave gap (todo + memory project_sdcc_slave_stack_room);
 sdcc is MAME-only secondary, clang is production. Fix (shave >= 28 B) deferred.
+
+## 2026-08-31 — RC759 MAME: screensaver fix + 82730 dead-code cleanup
+
+Branch `rc759-82730-graphics` merged to ravn/mame master (`d96b498`). Four
+commits: (1) correct char-gen-framebuffer graphics rendering (Myresnak △ oracle
+PASS); (2) frame-interrupt clamp fix (Myresnak BB/HENT/HUSK freeze, #31 CLOSED);
+(3) dead `m_gfx_mode`/`set_gfx_mode` removed (#30 CLOSED); (4) EOF + BLK_ROW
+screensaver blank implemented (#28 CLOSED).
+
+Root cause of #28 (15-min screensaver garbage): two unimplemented 82730 features.
+EOF cmd (0x81) at top of list-1 top-row string was ignored — load_row() continued
+into uninitialised memory (0xcccc pattern). BLK_ROW=1 in status-row FULROWDESCRPT
+was ignored — old pixels bled through. Fix: m_eof_hit flag suppresses render +
+load_row for all subsequent rows; blk_row check suppresses render; both fill bitmap
+at y-vsyncstp (not y — coordinate pitfall). Boot screen verified clean after fix.
+
+New issues filed: #32 (NVRAM L-param mapping), #33 (rvv_row), #34 (CA bits +
+Intensify correction), #35 (field_attribute_mask), #36 (Intensify/palette).
+Attribute survey from PICCOLINE/PARTNER guides: Underline, Non-Displayed, Reverse,
+Blink (all CA bits), Intensify (palette IRGB bit 3 — NOT a CA bit).
+
+Open for next session: ravn/mame#29 (GSX interactive drawing pages), #33-#36
+(remaining unimplemented 82730 attributes), #32 (NVRAM mapping), #28-adjacent
+(blød rulning #23).
