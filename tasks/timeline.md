@@ -8885,3 +8885,21 @@ Blink (all CA bits), Intensify (palette IRGB bit 3 — NOT a CA bit).
 Open for next session: ravn/mame#29 (GSX interactive drawing pages), #33-#36
 (remaining unimplemented 82730 attributes), #32 (NVRAM mapping), #28-adjacent
 (blød rulning #23).
+
+## 2026-09-01 — Open Watcom Docker multi-arch (alle modeller inkl. LARGE)
+
+**Baggrund:** LARGE model (clibl.lib) manglede i Docker-imaget — scripts/build_open_watcom_docker.sh var opdateret til alle 4 modeller (commit 5dfb86e 2026-08-27), men imaget var aldrig blevet genbygget.
+
+**Implementeret:**
+- `scripts/open-watcom.Dockerfile`: ARG BINDIR= i stedet for hardkodet binl64
+- `scripts/build_open_watcom_docker.sh`: --arch amd64|arm64, auto-detect host, native clib-build med macOS-tools (8086 OMF er host-uafhængigt)
+- `ravn/open-watcom-v2-ccpm86`: `.github/docker/Dockerfile` + `.github/workflows/docker-cpm86.yml` — matrix ubuntu-latest + ubuntu-24.04-arm, bygger og pusher til ghcr.io
+
+**Lokalt testet:**
+- arm64: OW bygget nativt i linux/arm64 container (~5 min), alle 4 modeller PASS
+- amd64: OW bygget via Rosetta i linux/amd64 container (~3-4 timer inkl. slumring), alle 4 modeller PASS
+- Multi-arch manifest kræver registry; lokalt kun to separate tags
+
+**Læring:** `bld/` cross-arch kontaminering — stale host-binaries (Mach-O / ELF aarch64) i delte bld/-mapper bryder build for anden arch. Python-cleanup: matcher ELF e_machine-felt. CI undgår problemet via fresh checkout.
+
+**Issues:** #43 image-størrelse (500-624 MB → mål ~50-80 MB), #44 bld/ cross-arch
