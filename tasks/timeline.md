@@ -8903,3 +8903,21 @@ Open for next session: ravn/mame#29 (GSX interactive drawing pages), #33-#36
 **Læring:** `bld/` cross-arch kontaminering — stale host-binaries (Mach-O / ELF aarch64) i delte bld/-mapper bryder build for anden arch. Python-cleanup: matcher ELF e_machine-felt. CI undgår problemet via fresh checkout.
 
 **Issues:** #43 image-størrelse (500-624 MB → mål ~50-80 MB), #44 bld/ cross-arch
+
+## 2026-09-02 — RC750 Partner: læsbar tekst på skærmen (MAME)
+
+Løste den åbne "font"-blocker. Partneren loader ikke soft-font i 82730 pixel-RAM (m_vram)
+som rc759 — **fonten ligger i boot-ROM'en**. Fundet via fuld 1 MB RAM/ROM-dump + scan:
+tagget tabel @ BIOS-ROM offset 0x7f, 47 poster à 17 bytes, koder 0x2a..0x5a (kun store),
+format [ASCII-tag][15 rækker 7px bit6=venstre][pad], huller ved ';'/'@'.
+Implementeret i mame/src/mame/regnecentralen: rc75x `init_rom_font()` bygger tag-nøglet
+`m_font_glyph[128]` LUT + `m_use_rom_font`-gren i `txt_update_row` (før gfx-heuristikken der
+ellers fejl-router 15-scanline-teksten); `rc750_state::machine_start` kalder den. Tekst
+renderer pixel-nøjagtigt ("*** TEST, V.4.3 ***"); selvtest når "ERROR 00035" (ingen floppy —
+forventet). mame-diff ikke committet. Detaljer: tasks/memory/project_rc750_partner_boot_bringup.md.
+
+**Opfølgning samme dag:** tegn-afstand + CPU-klok. (1) Tekst var klemt (7 px glyf i 7 px
+celle). 82730 mode-block: aktivt felt (hfldstp-hfldstrt)*16 = 720 px / 80 kol = **9 px pitch**;
+7 px glyf venstre-stillet -> 2 px mellemrum. Konfig via rc75x `m_text_hpitch` (rc750=9, rc759
+urørt). (2) CPU rettet 6 -> **8 MHz** 80186 (user-korrektion). Begge verificeret; snapshot
+`mame/snap/rc750_pitch9.png`.
