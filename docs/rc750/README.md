@@ -42,6 +42,7 @@ boot-ROM'en ved POST. Detaljer: `[[project_rc750_partner_boot_bringup]]`.
 ## Partner systemarkitektur & konfigurationer (Bits:30005001)
 
 `RC750_Partner_systemarkitektur_30005001.pdf` (+ `.txt`) — RC's system-arkitektur-ark.
+Kilde: <https://datamuseum.dk/bits/30005001>
 De fire **centralenheds-modeller** (alle 80186 @ 8 MHz, samme ROM, 512 KB base-RAM):
 
 | Model | Konfiguration |
