@@ -30,3 +30,11 @@ Kilde: datamuseum.dk **Bits:30002753** (PN 99109961, A/S Regnecentralen 1984).
 walking-bit-mønstre til printer-data (0x250) og -kontrol (0x260) og læser tilbage — uden
 printer/loopback fejler den (forventet). Bootstien er selvtest → PARTNER BOOTLOADER →
 "Styresystem indlæses fra" (konfig-enhed, normalt A: floppy). Se `[[project_rc750_partner_boot_bringup]]`.
+
+## Demo-video: rc750_boot_realfont.mp4
+
+MAME-optagelse (ravn/mame) af RC750 Partner der booter SW1500-disken: selvtest →
+banner → installations-menu (med box-ramme + den ægte 9×14-font fra pixel-hukommelsen
+@0xF0000) → ESC + "j" for at forlade menuen → CP/M `A>` → `DIR` viser filerne. Fonten
+renderes direkte fra Partnerens tegngenerator (Programmer's Guide §4.1.2), loadet af
+boot-ROM'en ved POST. Detaljer: `[[project_rc750_partner_boot_bringup]]`.
