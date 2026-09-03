@@ -1,0 +1,312 @@
+Partner systemarkitektur 
+RC Partner er et moderne og 
+ukompliceret, men fleksibelt 
+mikrodatamatsystem inden 
+for rammerne af hvilket, såvel: 
+e Personlige datamater (en- 
+keltarbejdspladser) 
+aar 
+a 
+å 
+NA 
+å 
+NESS 
+É 
+e Mindre flerarbejdspladssy- 
+N 
+NESA 
+NØ 
+stemer 
+SATTE 
+ARR 
+e Lokalnetsystemer med et 
+stort antal arbejdspladser 
+kan tilbydes til konkurrence- 
+dygtige priser.   
+Regnecentralen
+
+Partner systemarkitektur 
+Systemkomponenter (udvalgte) 
+Systemet er modulært opbygget, 
+d.v.s. det består af nogle få sy- 
+Centralenheder 
+stemkomponenter, der kan kombi- 
+RC750/21 
+Centralenhed u. diske, 512 KB RAM 
+neres på utallige måder og dermed 
+RC750/22 
+Centralenhed m. 1X1200 KB FD, 512 KB RAM 
+tilfredsstille individuelle krav. 
+RC750/23 
+Centralenhed m. 2X1200 KB FD, 512 KB RAM 
+RC750/20 
+Centralenhed m. 1X1200 KB FD, 1X20 MB WD, 512 
+Modulariteten betyder også, at bru- 
+KB RAM 
+geren med tiden kan udbygge sit sy- 
+stem i takt med behovet uden at 
+Dataskærme 
+skulle udskifte allerede anskaffede 
+RC740 
+Monokrom dataskærm, 12” 
+enheder. 
+RC741 
+Dataskærm 16 farver, 14” 
+Et Partner-system kan udbygges 
+Tastatur 
+»trinløst« fra en enkelt arbejdsplads 
+| RC730 
+Tastatur 
+til et integreret system med op til 
+100 arbejdspladser. 
+Disksystemer 
+RC771/20 
+Eksternt disksystem, 20 MB 
+RC772 
+Eksternt disk/streamersystem, 42/45 MB 
+Eksternt streamersystem 
+RC77B5/ 
+Eksternt streamersystem 20 MB 
+RC773/2 
+Eksternt disk/streamersystem 20/20 MB 
+Skrivere 
+RC610P 
+Typehjulsskriver, 20 tegn/sek. 
+RC611P 
+Typehjulsskriver, 40 tegn/sek. 
+RC602P 
+Matrix skriver, 80 kol, 120 tegn/sek. 
+RC605P 
+Matrix skriver, 136 kol, 160 tegn/sek. 
+RC606P 
+Matrix skriver, 136 kol, 240 tegn/sek. 
+RC630P 
+Laserskriver, A4, 8 sider/min. 
+Grafik enheder 
+RC621 
+Plotter, A3/A4, 6 penne 
+RC735 
+Digitizer, A4 
+MF105 
+Optisk mus 
+Andre enheder 
+RC755 
+Satellit kontrolenhed 
+MF140 
+Satellit adaptor, dobbelt 
+MF106 
+RcMikronet adaptor 
+MF116 
+Ethernet adaptor 
+MF101 
+Lagerudvidelsesmodul, 512 KB 
+MF114 
+Matamatikprocessor 
+MF143 
+IEEE 488 kort 
+MF141 
+Ekstra skrivertilslutning 
+ 
+
+Partner systemarkitektur 
+  
+Fig. 
+I. 
+ 
+  
+  
+  
+  
+ 
+  
+Fig. 3. 
+ 
+ 
+   
+  
+  
+ 
+  
+Fig. 
+1: Enkeltarbejdspladssystem: 
+Skærm, centralenhed, tastatur og skriver. 
+Fig. 2: Satellitsytem: 
+Enkeltarbejdspladssystem udvidet med to 
+satellitarbejdspladser. 
+Fig. 3: Lokalnetsystem: 
+De enkelte arbejdspladser eller satellitsy- 
+stemer deler diske og skrivere via lokal- 
+nettel. 
+Partner enkeltarbejdsplads- 
+system (personlig datamu0) 
+Et Partner enkeltarbejdspladssystem 
+består som minimum af: en central- 
+enhed, en skærm og et tastatur. 
+Normalt vil der desuden være tilkob- 
+let en skriver. 
+Afhængig af brugerens behov væl- 
+ges centralenhedsmodel, skærmtype 
+og evt. lagerudvidelsesmodul. 
+Til arbejdspladsen kan tilkobles et 
+eksternt disk-system og/eller flere 
+grafiske enheder (plotter, digitizer, 
+mus). 
+  
+ 
+Partner satellitsystem 
+Et Partner enkeltarbejdspladssystem 
+kan udbygges til et flerarbejdsplads- 
+system gennem tilkobling af en eller 
+to satellitarbejdspladser (ekstraar- 
+bejdspladser). 
+Forudsætningen for at koble ek- 
+straarbejdspladser til en centralen- 
+hed er, at denne er forsynet med en 
+satellit adaptor (MF140). En satellit 
+arbejdsplads består af en satellitkon- 
+trolenhed, et tastatur samt en 
+skærm. Satellitarbejdspladserne de- 
+ler hovedlager, diske og skrivere 
+samt evt. andre ydre enheder med 
+hovedarbejdspladsen. De tre ar- 
+bejdspladser kan arbejde på samme 
+data, man kan f.eks. samtidig opda- 
+tere eet ordreregister fra de tre ar- 
+bejdspladser. Satellitarbejdspladsen 
+kan forsynes med en skriver til ud- 
+skrift af skærmbilleder, de kan des- 
+uden anvende skriveren tilkoblet 
+centralenheden. 
+ 
+Partner lokalnetsystem 
+Partner arbejdspladser kan sam- 
+menkobles 
+i lokalnet; man får der- 
+ved fra de enkelte arbejdspladser 
+adgang til at arbejde med fælles 
+data og dele forholdsvis dyre enhe- 
+der som hurtige baggrundslagre og 
+kvalitetsskrivere. V.h.a. et lokalnet 
+kan op til 100 partner arbejds- 
+pladser således integreres. 
+En forudsætning for at et Partner 
+system kan kobles til et lokalnet er, 
+at den pågældende centralenhed er 
+forsynet med en lokalnetsadaptor til 
+RcMikronet eller Ethernet. 
+Såvel centralenheder med satellitar- 
+bejdspladser som centralenheder, 
+der udelukkende anvendes af en ho- 
+vedarbejdsplads, kan tilkobles et lo- 
+kalnet. Samtlige diske og skrivere i 
+systemet er i princippet fælles for 
+alle arbejdspladser, diske og prin- 
+tere kan dog være private d.v.s. være 
+forbeholdt en enkelt arbejdsplads.
+
+  
+Regnecentralen 
+ 
+TEKNISKE 
+SPECIFIKATIONER 
+Centralenhed 
+Processor: 
+iAPX 186, 
+8 MHz 
+Internt lager: 
+512 KB RAM 
+32 KB PIXEL lager 
+32 KB ROM 
+128b CMOS RAM 
+(med batteri backup) 
+UE 
+Med batteri backup 
+Lydgiver: 
+Trestemmig 
+Tilslutninger: 
+Tastatur 
+Skærm 
+Eksternt disksystem 
+RS 232 C 
+(til f.eks. plotter) 
+Kommunikationsport (asynk/synk., 
+V.24/X.24) 
+Skriver 
+220V udtag 
+Optioner: 
+Lagerudvidelse 512 KB 
+LAN-Adapter (Mikronet eller Et- 
+hernet) 
+8087 Matamatik processor 
+Satellit adapter 
+m.v. 
+Skærm 
+Skærmstørrelse: 
+12” monokrom (ravgul baggrund), 
+14” farveskærm 
+Billedfrekvens: 
+60 Hz 
+Antal tegn: 
+80X 25 
+'Tegnmatrix: 
+9X18 punkter 
+'Tegnsæt: 
+2X56 tegn 
+Attributter: 
+Understregning, blink, invers, lav 
+lysstyrke, høj lysstyrke, usynlig 
+Farver: 
+16 farver (farveskærm 
+i tegnmode) 
+ 
+Grafik: 
+720X350 PIXEL (2 farver eller lys/ 
+mørk) 
+360X 350 PIXEL (4 farver eller 4 ly- 
+stoner) 
+Rulning: 
+Linie rulning (normal scroll) 
+Blød rulning (soft scroll) 
+Tastatur 
+Antal taster: 
+98 
+Special taster: 
+18 funktionstaster 
+3 editeringstaster 
+6 positioneringstaster 
+3 kontroltaster 
+2 lokale taster 
+Auto repeat: 
+Trinløs hastighedsforøgelse 
+Indstillinger: 
+2 højdeindstillinger 
+Option: 
+Mus 
+Tastaturet overholder DIN nor- 
+merne for C-rækkens højde (30 
+mm). 
+Basisprogrammel 
+Operativsystem: 
+Concurrent Dos 
+Grafik: 
+GEM (Graphichs Environment) 
+Partner menusystem: 
+Dansksproget 
+Lokalnetprogrammel: 
+Tillader RC Partner at kommuni- 
+kere over et lokalnet/mikronet 
+Programmeringssprog: 
+COMAL, BASIC, FORTRAN, 
+PASCAL, COBOL, C, PL/I og AS- 
+SEMBLER 
+Lokalnet 
+RcMikronet: 
+1 mbit/sek. CSMA/CD, 1000 pr. 
+segment 
+Ethernet: 
+IEEE 802/3 
+Ret 
+til ændringer forbeholdes 
+861-1-6 
+Tryk: Johnny Herrmann A/S 
++ Herlev

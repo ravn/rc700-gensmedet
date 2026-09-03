@@ -38,3 +38,28 @@ banner → installations-menu (med box-ramme + den ægte 9×14-font fra pixel-hu
 @0xF0000) → ESC + "j" for at forlade menuen → CP/M `A>` → `DIR` viser filerne. Fonten
 renderes direkte fra Partnerens tegngenerator (Programmer's Guide §4.1.2), loadet af
 boot-ROM'en ved POST. Detaljer: `[[project_rc750_partner_boot_bringup]]`.
+
+## Partner systemarkitektur & konfigurationer (Bits:30005001)
+
+`RC750_Partner_systemarkitektur_30005001.pdf` (+ `.txt`) — RC's system-arkitektur-ark.
+De fire **centralenheds-modeller** (alle 80186 @ 8 MHz, samme ROM, 512 KB base-RAM):
+
+| Model | Konfiguration |
+|---|---|
+| **RC750/21** | Centralenhed **uden diske** |
+| **RC750/22** | 1× 1200 KB floppy |
+| **RC750/23** | **2× 1200 KB floppy** (ingen harddisk) — *dette er hvad MAME-driveren modellerer* |
+| **RC750/20** | 1× 1200 KB floppy + 1× 20 MB Winchester |
+
+**Tekniske specs (centralenhed):** iAPX 186 @ 8 MHz · **512 KB RAM** (+512 KB via MF101) ·
+**32 KB PIXEL-lager** (tegngenerator) · 32 KB ROM · 128 byte CMOS m. batteri · trestemmig lyd ·
+tilslutninger: tastatur, skærm, eksternt disk, RS-232-C, kommunikationsport (V.24/X.24), skriver ·
+optioner: 8087, LAN (Mikronet/Ethernet), satellit-adaptor.
+
+**Skærm:** 12" monokrom (ravgul) eller 14" farve · 60 Hz · **80×25 tegn** · tegnmatrix 9×18 (marketing;
+firmwaren programmerer 9×14-celle → 25×14 = 350 aktive linjer) · **2×56 tegn** (standard + alternativt
+tegnsæt) · attributter: understregning, blink, invers, lav/høj lysstyrke, usynlig · 16 farver ·
+grafik 720×350 (2 farver) / 360×350 (4 farver) · linje- + blød rulning.
+
+**OS:** Concurrent DOS + GEM + dansk Partner-menusystem. Understøtter satellit- (op til 2 ekstra
+arbejdspladser via MF140) og lokalnet-systemer (op til 100 arbejdspladser via Mikronet/Ethernet).
