@@ -1,0 +1,7592 @@
+Brugervejledning
+Installation og vedligeholdelse
+
+NS
+
+Brugervejledning LJ ”
+Installation og vedligeholdelse Se |
+Partner
+Brugervejledning
+Installation og
+vedligeholdelse
+
+PN: 99109961
+
+DEL |
+
+Opstilling
+og
+
+klargøring
+
+DEL Ii
+Indstilling og
+vedligeholdelse
+
+DEL Hi
+Systemopbygning og
+fejlfinding
+
+DELIV
+Bilag
+
+Diverse
+ydre
+enheder
+Nøgleord:
+
+Resumé:
+
+Partner, installation, vedligeholdelse, pro-
+grammel, maskinel.
+
+Denne vejledning beskriver opstilling og
+klargøring af systemet til daglig brug, her-
+under installation af styresystem, konfigure-
+ring af systemparametre og klargøring af bru-
+gerprogrammel.
+
+Endvidere beskrives modulmontage med henblik
+pa indbygning af ekstrakort og skift af modu-
+ler, samt fejlfinding og lokalisering af
+fejlbeheftede moduler.
+
+Daglige betjeningsrutiner er beskrevet i en
+særskilt vejledning.
+
+CCP/M er et registreret varemærke fra Digital
+Research.
+
+Copyright © 1984, A/S Regnecentralen af 1979
+RC Computer A/S
+Udgivet af A/S Regnecentralen af 1979, København
+
+Brugere af denne manual gøres opmærksom pa, at specifikationer-
+ne heri uden forudgående varsel kan ændres af RC. RC er ikke an-
+svarlig for typografiske fejl eller regnefejl, som kan forekomme i
+denne manual, og er ikke ansvarlig for skader forarsaget af benyt-
+
+telsen af dette dokument.
+Indhold
+
+Læsevejledning we cece cece weer REESE ERE NEEDED SEERE REED REDER 6
+
+DEL I: Opstilling og klargøring
+
+1. Opstilling og start af udstyret 00000000 esee0ere… ll
+1.1 Valg af opstillingssted og -måde .......eeeeeee- 11
+1.2 Montering af kabler mellen enhederne....seeeeeees 13
+1.2.1 Grundudstyr .cccccceccccccccccccccesesess 13
+1.2.2 Ekstraudstyr occesecceveccevcccsccesesees 15
+1.3 Tilslutning til lysnet 00000000: 16
+1.4 Opstart cocesecrcrceccrccccccrseccsvcsvcesvevese 17
+2. Installation af systemprogrammel 00000000. 19
+2.1 Installation af CCP/M-86 på diskette ..........: 19
+2.2 Installation af CCP/M-86 på winchester disk .... 21
+3. Installation af brugerprogrammel .….0000000000……… 25
+3.1 Overførsel fra diskette 00000000 eseeree 0. 25
+3.2 Overførsel af filer via kommunikationslinie .... 26
+' 3.2.1 Opstilling af udstyr 00000000 27
+3.2.2 Betjening ecvcececccccccvevsecvcecscccscsese 27
+
+DEL II: Indstilling og vedligeholdelse
+4. Indstilling af systemprogrammel (konfigurering) ..... 31
+4.1 Indstilling v.h.a. KONFIG hjalpeprogrammet...... 31
+4.1.1. Indstilling af kommunikationsport ....... 32
+4.1.2 Indstilling af V.24 port... 000… 33
+4.1.3 Indstilling af dataskærm 00000002 000…… 35
+4.1.4 Indstilling af ur .cccccccccessvcvescsoes 36
+4.1.5 Indstilling af disksystem ..seseseseeeess 37
+"4.1.6 Indstilling til lokalnet ....….……….…+ 38
+4.1.7 . Valg af skrivers tegnsæt for skermkopi .. 40
+4.2 Anden indstilling ……… 0000 eee eee re eee 40
+4.2.1 Automatisk kommandoudførelse v. opstart.. 41
+4.2.2 . Indstilling af CCP/M styresystemet ...... 42
+4.2.2.1 System parameter. menu .........… 45
+4.2.2.2 Lager allokerings menu ......... 47
+4.2.2.3 Diskbuffer menu ......:0:...… 48
+4.2.2.4 Styresystem etiket ....ceceesses 48
+4.2.2.5 Resident system processes ...... 48
+- 3 =
+
+A/S Regnecentralen _
+Indhold
+
+Partner
+
+DEL
+
+Menuvedligeholdelse seeren eee eee e0…e
+Hent menu og gem menu s…e0cee0eeeeeee eee eee eee eee
+Indholå af menu ceoceseccevvcccccssvesccccsevsseee
+Rediger menulinie sers00eeeeeeeeeeseeeeeeeeeeeee
+Tilføj menulinie vsere es oe eee.
+Slet menulinie
+Skærmformat for menu wccccveccccccccccccrccccccee
+Reorganiser menu sec0000ee00eeeeeeeeeeeeeeereee0…e
+
+5.1
+
+Vedligeholdelse generelt 00000000 eeeee
+Nedlukning for transport cccccscscrvesccccscvece
+Filter
+
+Batteri
+
+Sikring ee@eeet@enee@eesensneeesvseeveeeeeseonvnoeoweee neve BSIL OL nee
+
+III:
+
+Systemopbygning -ccccercccscvecvccecervccccscsceccces
+7.1 Oversigt over systemenheder
+7.2 Modulplacering i centralenheden. .....cceccccccecs
+7.3 MOdulmontage seere eee see eee
+
+49
+50
+51
+56
+56
+57
+59
+
+Indstilling af lokalnetprogrammel .......
+4.2.3.1 Ngédvendige forudsætninger ......
+4.2.3.2 NETVEDL 2c ce cere ccccrccncccsencecs
+4.2.3.3 Specielle netvertsindstillinger
+Installation af navneservice 00000000.
+4.2.4.1 Programmet NAMESMOD ....ce.rccvee
+Installation af grafik .cccccevecccccceve
+
+63
+64
+65
+65
+66
+67
+67
+69
+
+eeeseee2ne1ee*ees8seeseeeeseseneeeeeeeseseeteteevwteeeee se
+
+73
+74
+74
+75
+76
+
+@eeeeeteeeeeeeeereenvseee eevee eweenaeevnnvn eevee ow eecee eee
+
+ee@eseeneneeneeeeereeoeeneeteee ene eee eoveeoeeeeeeoeeveeewe
+
+Systemopbygning og fejlfinding
+
+7.3.1
+7.3.2
+
+79
+79
+81
+82
+84
+86
+88
+90
+92
+
+@®eeeoeeenreeeeveeeeeseeoeea
+
+Yderkappe coos eeevecescevsvvcsseseccseces
+Winchester controller c.cccccccccccccvece
+7.3.2.1 WDC702
+7.3.2.2 WDC703 seet eee
+Dækplade seere eee eee eee
+Winchester disk seseeeeereeeeesseeeees00… 94
+7.3.4.1 WDD703 96
+7.3.4.2 WDD706 secco 100
+Diskettestation cccccccccccccccecoecessee 104
+Bundplade ..cccccseccvccsescccsscsesesees 106
+Ekstraudstyr seere see eee 108
+7.3.7.1 Generelt 108
+7.3.7.2 Lagerkortudvidelse ....….……—….…. 108
+7.3.7.3 Lokalnet controllerkort (MF106) 110
+Lagerkort cocccccevccvcesevsevsesseccveeee 112
+Hovedkort 114
+
+@eoeeeeoeeseeeneeeoeeer#ee#ee#ee#rteeeee
+
+@e@eeeve#+#etoeeeeeeeeeeeeeeee
+
+eeseeoeevs8e8ceeeeeeseseeseeeseseeoespeseeeoe#s#ees
+
+-~4-
+
+A/S Regnecentralen
+Partner Indhold
+
+8. Fejlfinding 0.000000000000. 119
+8.1 Selvtest under opstart 000000 eeeseeeeseee…. 120
+
+8.2 Opstart ikke mulig oeceeeeeeeeeeeeeseereesseee. 121
+
+8.3 Fejlkoder under opstart 00000000 000000000… 122
+8.3.1 Fejlkoden under opstart via lokalnet ... 128
+
+8.4 Funktionstestning ..ccceccccccccecccccccccseveee 132
+8.4.1 Skriver test ..cccccccccresccceresccceee 134
+Diskettestation test w.ccccccccceccvccee 136
+Winchester disk test ccccccccesccsececee 139
+Lokalnet test 00000060 00 ål
+Serial port test ..cccecccescvescccesses 146
+
+4.
+4.
+4.
+
+4.
+
+OO WO Oo
+Ui & Ww bd
+
+DEL IV: Bilag
+A. Initialisering af winchester disk ...ccccccseevveees 151
+
+B. Styretegn til skærm .ececcesecccccccccvcecescesseeee 153
+B.1 Rulning af vindue ..cececcccccccecccvescecscees 154
+B.2 Flytning af markør .cccccccccccccvcccccccsseces 154
+B.3 Forgrunds=- og baggrundsfarve ..000000000… 155
+B.4 Ændring af mark¢grens udseende ..cscccccsccceccee-1L57
+
+Cc. Funktionstaster eee cece cece ec cececcccccccecccceeces 159
+C.1 Programmering af funktionstaster .........:...…. 159
+C.2 Standard tegnsekvenser for funktionstaster .... 161
+
+D. Avanceret lokalnet indstilling svereree0o0s0e000000…… 163
+D.1 Nødvendige forudsætninger 00000000 00000000…… 163
+D.2 GENNET cc ccccccccccccvesscecceccessccccsesecses 163
+D.3 Interaktiv brug af GENNET ....cccrceccscssesesere 164
+D.4 ADDNET sees 171
+
+E. Specifikationer ...cccccccc ccc ccccvcccccecesescccess 173
+Bel Mål og vægt coccccrccceccccvccccccececssceveses 173
+E.2 Elektriske data sececcocecsecececcsvseveesecses 174
+E.3 Stikfunktioner secco eeeeseees0eeeeere00e… 175
+
+Stikordsregister dd 179
+
+A/S Regnecentralen -5-
+Læsevejledning
+
+Brugervejledningen til Partner er delt i to: "Betjening" og
+"Installation og vedligeholdelse".
+
+Vejledningen her beskriver "Installation og vedligeholdel-
+se". Herunder medtages alle aktiviteter, der ligger udover
+den daglige betjening, såsom opstilling af system, klargør -
+ing af programmel og fejlfinding. Adskillelse af centralen-
+hed, f.eks. for at indbygge/afmontere moduler, forudsættes
+udført af en tekniker.
+
+Selve vejledningen er inddelt i tre dele, og herefter følg-
+er en fjerde del med bilag.
+DEL I: Opstilling og klargøring
+
+Kapitel 1
+
+Orienteret mod opstilling af det maskinelle udstyr; hensyn
+ved lokalevalg; ledningsforbindelser; opstartforløb.
+
+Kapitel 2
+
+Fremgangsmåde ved kopiering af systemdiskette og installa-
+tion af systemprogrammel, er beskrevet under afsnittet for
+installation enten på arbejdsdiskette, eller på winchester
+disk.
+
+Kapitel 3
+
+Fremgangsmåde ved installation af brugerprogrammel.
+DEL II: Indstilling og vedligeholdelse
+
+Kapitel 4
+
+Beskrivelse af systemparametre og fræmgangsmåde ved ændring
+af standardværdier for disse (tilpasning, konfigurering).
+
+Kapitel 5
+
+Menuvedligeholdelse; hjælpeprogram til oprettelse af og
+ændring i eksisterende menuer.
+
+-6- A/S Regnecentralen
+Partner Læsevejledning
+
+Kapitel 6
+
+Vedligeholdelse i øvrigt: disketteanskaffelse; ekstraud-
+styr; nedlukning for transport; luftfilter; batteri; sik-
+ring.
+
+DEL III: Systemopbygning og fejlfinding
+
+Kapitel 7
+
+Introduktion til systemopbygning, funktionelt og med hensyn
+til modulplacering i centralenhed. Generelle forholdsregler
+ved modulmontage og forsendelse af moduler. Montagevejled-
+ninger til de enkelte moduler.
+
+Kapitel 8
+
+Generelle forholdsregler ved fejlfinding. Selvtest under
+opstart. Fejlfinding på opstilling af systemet, når opstart
+ikke er mulig. Fejlfinding efter delvis fuldført opstart,
+hvor systemet har givet en fejlmeddelelse. Fejlkoder. Funk-
+tionstestning ved. brug af testprogrammer.
+
+DEL IV: Bilag
+
+Bilag A
+
+Initialisering (formattering) af winchester disk.
+
+Bilag B
+
+Styretegn til skærm.
+
+Bilag C
+
+Funktionstaster: Programmering og standardværdier.
+
+Bilag D
+
+Avanceret lokalnet indstilling.
+
+Bilag E
+
+Specifikationer: Mål og vægt, strømforbrug, stikdefinition-
+er.
+
+A/S Regnecentralen —7-
+Læsevejledning Partner
+
+-8- A/S Regnecentralen ~
+Installation og vedligeholdelse
+DEL I:
+
+Opstilling og klargøring
+— 10 - A/S Regnecentralen
+l. Opstilling og start af udstyret
+
+Før opstilling af Partner mikrodatamatsystemet skal man
+sikre sig, at der ikke er sket skade på udstyret under
+transporten - er dette tilfældet, kontakt da straks leve-
+randør (forhandler eller RC).
+
+Systemet omfatter i grundversionen følgende enheder + til-
+behør - ialt 4 kolli:
+
+RC730 Tastatur
+
+RC740 Dataskerm RC741 Farveskerm
++ multikabel eller
+
+Partner Centralenhed
++ netledning.
+
+Systemprogrammel (= 2 stk. 5 1/4" disketter)
++ dokumentation (= 2 stk. ringbind m/indhold).
+
+De enkelte enheder opstilles og forbindes med kablerne, og
+systemet tilsluttes lysnettet. Systemet kan omfatte yder-
+ligere enheder; opstillingen af disse er beskrevet i med-
+følgende vejledninger.
+
+Partner centralenheden er opbygget af moduler. Indbygning
+af ekstra moduler eller udskiftning af bestående moduler er
+nærmere beskrevet i denne vejlednings del III. Dette gælder
+således lokalnetadapter MF106, og lagerudvidelse MF100/101.
+
+Den originale emballage gemmes, og senere transport af sy-
+stemenheder bør altid foregå i originalemballagen.
+1.1 Valg af opstillingssted og -made
+
+Før systemet stilles op, bør man overveje følgende vedrør-
+ende lokaleforhold og placering:
+
+GULVBELÆGNING Der bør være en gulvbelægning, der ikke ska-
+ber problemer med statisk elektricitet.
+
+A/S Regnecentralen - ll -
+1 Opstilling og start Partner
+
+LUFTFUGTIGHED Luftfugtigheden bør ikke komme under 40% re-
+lativ fugtighed, da der ellers kan opstå pro-
+blemer med statisk elektricitet.
+
+Af hensyn til fugtproblemer bør luftfugtighe-
+den ikke overstige 80% relativ fugtighed.
+
+LYSFORHOLD Udstyret bør placeres således, at direkte
+sollys på billedskærmen samt reflektioner fra
+den øvrige belysning undgås, da læseligheden
+ellers forringes.
+
+STIKKONTAKTER Systemet tilsluttes det almindelige lysnet.
+Man bør dog sørge for, at der ikke til samme
+gruppe er tilsluttet udstyr som kopimaskiner,
+køleanlæg og lign., da disse maskiner kan
+frembringe generende støjimpulser på lysnet-
+tet.
+
+TEMPERATUR Rumtemperaturen bør under drift holdes mellem
+5 C og 30 C.
+
+Direkte sollys på systemet bør undgås, da
+dette kan føre til meget kraftige lokale op-
+varmninger.
+
+Nar systemet er slukket, tillades rumtempera-
+turer mellem 0 C og 50 C.
+
+Partner systemet er udformet således, at man frit kan pla-
+cere de enkelte enheder i forhold til hinanden, specielt
+kan man vælge mellem de følgende to tilslutningsmuligheder
+for tastaturet:
+
+- En opstilling med dataskærmen ovenpå centralenheden og
+tastaturet foran giver nem adgang til diskettestationerne
+og gør samtidig opstillingen meget kompakt. I den situa-
+tion er det mest praktisk at tilslutte tastaturet til
+centralenheden.
+
+- Man kan også vælge at stille dataskærmen direkte på bord-
+pladen med tastaturet foran og centralenheden enten til
+højre eller venstre for dataskærmen. I denne situation
+kan tastaturet tilsluttes dataskærmen.
+
+Skal man kun skifte diskette forholdsvis sjældent, kan man
+vælge at placere centralenheden på en hylde under bordet.
+På denne måde er det kun dataskærm og tastatur, der optager
+bordplads.
+
+-1i2- | A/S Regnecentralen
+Partner 1. Opstilling og start
+
+Man skal sikre sig, at centralenheden efter opstillingen
+står vanåret og ikke er stillet for tæt op mod en væg eller
+lignende, da man derved forhindrer den nødvendige ventila-
+tion. Der bør være en åbning på mindst 5 cm bag og mindst
+2-3 cm over centralenheden.
+
+Dataskærmen kan monteres med en MF110/112 Fod, der letter
+indretningen af arbejdspladsen med henblik på ergonomisk
+korrekte arbejdsstillinger.
+
+Tastaturet har en indbyg-
+get støttefod. Hældningen
+på tastaturet kan ændres
+ved at bruge stgttefoden.
+Tryk indad pa støttefo-
+dens ben i begge sider,
+mens den slås ud/ind.
+
+Omfatter opstillingen også en skriver, bør denne stilles
+længst muligt væk fra centralenheden, således at disketter
+og indbyggede diskettestationer udsættes mindst muligt for
+papirstøv og -fnug, der nemt dannes under udskrivning.
+
+1.2 Montering af kabler mellem enhederne
+
+Kabler monteres på bagsiden af de forskellige enheder. De
+fleste stikforbindelser er forsynet med to skruer til fast-
+spænding af stikket efter montering - disse skruer skal al-
+tid spændes fast.
+
+HUSK! Sluk for stikkontakten og træk netledningen ud af
+kontakten før kabelforbindelser monteres eller af-
+monteres. Dette gælder alle enheder, der har egen
+netledning.
+
+1.2.1 Grundudstyr
+
+Dataskerm (RC740): \ Å PA
+
+Tilslutning for
+centralenhed
+
+O CC |
+a Na, eso 6 O
+
+Lo I
+
+A/S Regnecentralen — 277933 -
+l. "Opstilling og start Partner
+
+Dataskærmen leveres med et løst kabel (1.5 m multikabel,
+KBL 593), som tilsluttes dataskærm og centralenhed.
+
+Kablets stik monteres i fatningen mærket MONITOR på cen-
+tralenheden, og i den aflange fatning på dataskærmen. Stik-
+ket kan ikke monteres forkert; skal evt. drejes en halv om-
+gang for at kunne indpasses. Begge stik spændes fast med
+skruerne.
+
+Farvedataskærm (RC741):
+
+BN |__| Free
+
+Farveskærmen leveres med et fastmonteret kabel (1.5 m mul-
+tikabel), som tilsluttes centralenheden. Derudover har far-
+veskærmen en fastmonteret netledning.
+
+Multikablets stik monteres i fatningen mærket MONITOR på
+centralenheden. Stikket kan ikke monteres forkert; skal
+evt. drejes en halv omgang for at kunne indpasses. Begge
+stik spændes fast med skruerne.
+
+Tastatur:
+
+| |
+
+Spiralsnoet kabel |
+
+— 14 - A/S Regnecentralen
+Partner 1. Opstilling og start
+
+Tastaturet leveres med et fast kabel (spiralsnoet kabel) og
+kan efter behov tilsluttes enten centralenhed eller data=
+skærm. Hvilken mulighed, der benyttes, vil afhænge af den
+måde, hvorpå systemet ønskes opstillet (jvf. afsnit 1.1).
+
+Tastatur tilsluttet centralenhed: Kablet monteres i fat-
+ningen mærket KEYBOARD.
+
+Tastatur tilsluttet dataskærm: Kablet monteres i den runde
+fatning. Stikket kan ikke monteres forkert; skal eventuelt
+drejes for at kunne indpasses.
+
+1.2.2 Ekstraudstyr
+
+Tilslutning af ekstraudstyr er beskrevet i separate vejled-
+ninger, der leveres med de pågældende enheder (kan omfatte
+ekstra moduler til indbygning i centralenheden).
+
+Centralenheden er forberedt for indbygning af ekstramoduler
+som følger:
+
+Lokalnet - adapter
+
+Netkontrollerkortet er et modul, der skal monteres internt
+i centralenheden. Dette er beskrevet i afsnit 7.3.7.3.
+
+Partner systemet tilsluttes en transceiver. på lokalnettet
+via et kabel, der monteres i den 15-polede fatning mærket
+LAN på centralenhedens bagside. Begge stik, d.v.s. såvel
+ved centralenhed som ved transceiver, spændes fast med
+skruerne. Se vejledningen, der medfølger transceiveren.
+
+og
+
+Jt J
+
+|____ SCSI BUS
+
+V.24 COMM (hommunikationsport) .
+p.t. ikke benyttet
+
+RS 232 C / V.24 (V.24 port)
+PRINTER
+
+LAN (lokainet)
+
+POWER OUTLET (ekstra netudtag)
+
+A/S Regnecentralen - 15 -
+1. Opstilling og start Partner
+
+1.3 Tilslutning til lysnet
+
+I den grundversion, der indholder RC740 dataskærmen, er det
+kun centralenheden, der skal tilsluttes lysnettet; både da-
+taskærm og tastatur forsynes med strøm fra centralenheden.
+
+Indeholder grundversionen en RC741 farvedataskærm, skal bå-
+de centralenheden og farveskermen tilsluttes lysnettet.
+Farveskermen kan tilsluttes lysnettet, eller netudtaget pa
+centralenhedens bagside. Velger man den sidste lgsning, op-
+nar man, at farvedataskermen automatisk tændes, nar cen-
+tralenheden tændes. Dette er under forudsætning af, at far-
+vedataskermens netafbryder er tendt.
+
+- Centralenhed:
+
+Jt J
+
+if J
+
+Centralenheden leveres med en løs netledning (2,5 m; 2-po-
+let stik).
+
+s
+
+Ledningens stik monteres i fatningen pa centralenheden med
+mærket POWER IN og til en almindelig elkontakt. Ledningen
+kan ikke monteres forkert. °
+
+- 16 - | — A/S Regnecentralen
+Partner 1. Opstilling og start
+
+1.4 Opstart
+
+Efter tilslutning til lysnettet er systemet klar til op-
+start, dog skal man først sikre sig, at tastaturet er stil-
+let på den rigtige nationalitetskode.
+
+Identifikationskoden indstilles på bagsiden af tastaturet.
+Omskifteren skal stå i position 0.
+
+—m
+O
+
+Systemet startes ved at tænde for stikkontakten, hvor sy-
+stemet er tilsluttet og/eller med vippeafbryderen foran på
+centralenheden. Kontrollamper i vippeafbryder og på tasta-
+tur lyser (rødt), når der er tændt for anlægget.
+
+Herefter udfører systemet en selvtest og søger automatisk
+at indlæse styreprogrammet. Indlesning af styreprogram sø-
+ges udført fra diskettestation A, og på dataskærmen ses ud-
+” skriften INSERT DISKETTE (nederste linie i skærmbilledet).
+
+Fortsæt med installation af systemprogrammel som beskrevet
+i kapitel 2 . (Hvis systemet er under opstilling efter en
+intern flytning og således tidligere har været i brug, fo-
+regår opstarten som beskrevet i betjeningsvejledningen).
+
+Hvis der i stedet ses en udskrift af typen ERROR: xx (hvor
+xx er et tal), så er der konstateret fejl under selvtesten.
+I så fald fortsættes som beskrevet i afsnit 8.1 under fejl-
+finding.
+
+Under selvtesten og når indlæsning påbegyndes, ses udskrif-
+ter på dataskærmens øverste linier; de indledes henholdsvis
+med teksterne:
+
+*** PARTNER TEST ***
+
+A/S Regnecentralen — 17 -
+1. Opstilling og start Partner
+
+og
+PARTNER BOOTLOADER ...
+
+Hvis disse udskrifter (eller udskrifterne INSERT DISKETTE
+eller ERROR: xx) ikke ses i skermbilledet, kan det skyldes
+en uhensigtsmessig indstilling af lys- og kontrastforhold.
+Prøv at dreje reguleringsknapperne pa dataskermens frontpa-
+nel helt mod højre (med uret rundt) og derefter tilbage mod
+normal indstilling (finindstilling kan foretages senere un-
+der drift).
+
+Ses herefter stadig ingen udskrifter i skermbilledet, sa se
+efter, om der er lys i kontrollamperne på centralenhed og
+tastatur. Er der ikke lys (rødt) i kontrollamperne, er det
+nærliggende at formode, at noget er gået galt under opstil-
+lingen og man bør skridt for skridt gå denne igennem forfra
+- sluk for elkontakten inden ledningsforbindelserne ses ef-
+ter! En systematisk gennemgang af opstillingen er beskrevet
+i afsnit 8.2 under fejlfinding.
+
+- 18 - A/S Regnecentralen
+2. Installation af systemprogrammel
+
+Installationen af systemprogrammellet (CCP/M-86) på Partner
+foretages på en centralenhed forsynet med to diskettestatio-
+ner eller på en centralenhed forsynet med en diskettestation
+og en winchesterdisk. i |
+
+I de følgende to afsnit gennemgås installationen for begge
+tilfælde.
+
+Sammen med Partner leveres to disketter mærket henholdsvis:
+
+SW1500 CCP/M 3.1 SYSTEMDISKETTE, DISK 1
+SW1500 CCP/M 3.1 SYSTEMDISKETTE, DISK 2
+
+DISK 1 indeholder alt nødvendigt materiale til at generere
+en systemdisk med standard tilpasset styresystem.
+
+DISK 2 indeholder materiale, der kun skal anvendes i forbin-
+delse med tilpasning af styresystem og lokalnet.
+
+De 2 systemdisketter bør ikke benyttes i det daglige, men
+opbevares på en sikker og betryggende måde, således at man
+altid kan vende tilbage til dette udgangspunkt efter behov.
+I stedet tages en kopi af diskene, der anvendes til det
+videre brug. E
+
+Før man kan komme igang med at bruge Partner; skal man under
+alle omstændigheder danne en arbejdsdiskette, som beskrevet
+i dette kapitel.
+
+2.1 Installation af CCP/M-86 på diskette
+For installation af CCP/M-86 på diskette kræves:
+
+1 stk. systemdiskette, SW1500 DISK 1
+2 stk. nye, blanke disketter.
+
+Det forudsettes, at Partner systemet er korrekt opstillet og
+tilsluttet, og at systemet er tændt (se kapitel 1).
+
+Installationen foregår pa følgende made:
+
+- Indsæt systemdisketten SW1500 DISK 1 med CCP/M-86 i
+diskettestation A (i venstre side af centralenhe-
+den), og tryk på RESET-knappen bag på maskinen.
+Styresystemet bliver herefter indlæst, og følgende
+
+"menu (installations-menuen) fremkommer på skærmen:
+
+A/S "Regnecentralen -19-
+2. Installation af systemprogrammel Partner
+
+Partner Installations menu Versim 2.0
+D Diskette vedligeholdelse .
+I Installation af system
+K = Konfigurering af systemparametre
+M Mem vedligeholdelse
+
+Tryk Al for special furktioner
+Tryk ESC for at returnere
+
+Vælg "Diskette vedligeholdelse" i installationsme-
+nuen ved at trykke D pa tastaturet. Herefter frem-
+kommer menuen for diskette vedligeholdelse. Der
+henvises til betjeningsvejledningen for en mere
+detaljeret forklaring til denne.
+
+Vælg "Kopiering af diskette" i den nye menu (tryk
+pa K-tasten).
+
+På spørgsmålet "Kopiering fra diskettestation"
+svares A.
+
+På spørgsmålet "Kopiering til diskettestation"
+svares B. .
+
+Indsæt den ene af de nye, blanke disketter i dis-
+kettestation B (diskettestaionen i højre side af
+centralenheden).
+
+Tryk herefter <RETUR> og J (for Ja) for at begynde.
+kopieringen.
+
+Når kopieringen er slut, svares N (for Nej) på
+spørgsmålet om kopiering af flere disketter.
+
+Fjern den originale systemdiskette fra diskette-
+station A og gem den et sikkert sted, den skal
+ikke anvendes i det følgende - den netop fremstil-
+lede kopi anvendes i stedet.
+
+-20-
+
+A/S Regnecentralen:
+Partner 2. Installation af systemprogrammel
+
+- Fjern kopien af den originale systemdiskette fra
+diskettestation B og mærk den "Systemdiskette,
+Partner CCP/M-86, arbejdskopi". Indsæt herefter
+
+. denne i diskettestation A.
+
+- Indsæt den anden blanke diskette i diskettestation
+
+Be
+
+- Vælg "Initialisering af diskette" i menuen.
+- Besvar spørgsmålet "Vælg diskettestation" med B.
+
+- På spørgsmålet "Diskette navn" angives et frit
+valgt navn på maksimalt 1l tegn til identifikation
+af disketten. Herefter initialiseres disketten i
+B.
+
+- Når initialiseringen er slut, trykkes to gange på
+ESC-tasten, hvorefter "Partner Installations Men-
+uen" kommer frem igen.
+
+- Vælg "Installation af system" i installationsmenu-
+en.
+
+- Vælg ”Installation af systemprogrammer" i instal-
+lationsmenuen.
+
+- På spørgsmålet "OK at installere nye system pro-
+
+grammer" svares J (for Ja).
+
+- . Når kopieringen er slut, fjernes disketten fra B
+og merkes "Partner Arbejdsdiskette”.
+
+- Den nye arbejdsdiskette afprøves ved at. fjerne
+Gisketten fra A, indsætte arbejdsdisketten i
+stedet, holde tasterne CTRL og ALT nede og
+derefter trykke pa SLET-tasten (4 ). Herefter skal
+systemet starte op fra den nye arbejdsdiskette.
+Når opstarten er afsluttet, vises Partner
+Hovedmenuen på dataskærmen.
+
+2.2 Installation af CCP/M-86 på winchester disk
+
+For installation af CCP/M-86 på winchester disk kræves:
+
+1 stk. systemdiskette, SW1500 DISK 1
+1 stk. ny, blank diskette.
+
+A/S Regnecentralen -21-
+2. Installation af systemprogrammel Partner
+
+Det forudsættes, at Partner systemet er korrekt opstillet
+og tilsluttet, og at systemet er tændt (se kapitel 1). (Ef-
+ter eventuel afmontering og indlevering til § ef-
+tersyn/reparation skal winchester disken initialiseres
+forud for installation af styresystem - jvf. bilag A; HUSK:
+Ved initialisering slettes hele indholdet på disken!).
+
+Installationen foregar pa fglgende made:
+
+- Indsæt systemdisketten SW1500 DISK 1 med CCP/M-86
+i diskettestationen, og tryk på RESET-knappen bag
+pa maskinen. Styresystemet bliver herefter ind-
+læst, og følgende menu (installationsmenu)
+fremkommer pa skærmen:
+
+Partner Installatims-men Versio 2.0
+D Diskette vedligeholdelse
+I Installation af system
+K Kenfigurering af systemparametre
+M Menu vedligeholdelse
+
+Tryk Al for special funktimer
+Tryk ESC for at returnere
+
+- Velg "Diskette vedligeholdelse” i
+installationsmenuen ved at trykke D pa
+tastaturet. Herefter fremkommer  Smenuen for
+diskette vedligeholdelse. Der henvises til
+betjeningsvejledningen for en mere detaljeret
+forklaring til dette.
+
+- Vælg "Kopiering af diskette" i den nye menu (tryk
+pa K-tasten).
+
+- Pa spgrgsmalet "“Arbejdsfil spå winchester:
+B:DISKKOPI.$$$" trykkes blot <RETUR> ( ).
+
+- Nar der spørges "Indsæt disketten der skal
+kopieres i A, Tryk RETUR" trykkes <RETUR>, idet
+systemdisketten allerede befinder sig i A.
+
+—22— A/S. Regnecentralen .
+Partner 2. Installation af systemprogrammel
+
+- Nar der spgrges “Indset den nye diskette i A. Tryk
+RETUR", fjernes systemdisketten fra A og gemmes et
+sikkert sted, og den nye blanke diskette indsættes
+i stedet. Tryk <RETUR> når den nye diskette er
+indsat, derefter J (for Ja).
+
+- Nar kopieringen er slut, svares N (for Nej) pa
+spgrgsmalet om kopiering af flere disketter.
+
+- Returner til installations menuen ved at trykke
+<ESC>.
+- Tag disketten ud af diskettestationen og mærk den
+
+"Systemdiskette, Partner CCP/M-86, arbejdskopi".
+Indsæt den igen i diskettestationen.
+
+- Vælg "Installation af system" i installationsmenu-
+en.
+
+- Vælg ”Valg af disk" og udpeg den diskstation (B,C
+eller D) hvorpå systemet skal installeres. Vend
+tilbage til installationsmenuen ved at trykke på
+ESC-tasten.
+
+- Vælg "Installation af systemprogrammer" i
+installationsmenuen. *
+
+- På spørgsmålet "OK at installere nye
+systemprogrammer" svares J (for Ja).
+
+- Når kopieringen er slut, fremkommer installations-
+menuen igen. .
+
+- Vælg "Konfigurering af systemparametre”.
+
+- Vælg "Konfigurering af disksystem" i den nye menu.
+
+- Angiv B,C eller D (winchesterdisken) som system-
+disk.
+
+- Returner til konfigurations menu (tryk <ESC>) og
+
+gem den nye konfiguration (tryk A).
+
+- Returner til installations menuen (tryk <ESC>). -
+
+A/S Regnecentralen | | ~23—
+2. Installation af systemprogrammel Partner
+
+- Installationen afprøves ved at fjerne disketten
+fra A, holde tasterne CTRL og ALT nede og derefter
+trykke på SLET-tasten (4 ). Herefter skal systemet
+starte op fra winchesterdisken. Når opstarten er
+afsluttet, vises Partner Hovedmenuen på dataskærm-
+
+en.
+
+-24- " AfS Regnecentralen .
+3. Installation af bruger-programmel
+
+3.1 Overførsel af filer fra diskette
+
+Programpakker leveres på disketter på samme måde som system—
+programmellet.
+
+Man bør aldrig anvende den originale diskette til daglig
+heller ikke til installationen - men i stedet tage en ar-
+bejdskopi og anvende denne ved installationen.
+
+Programmel leveret fra A/S Regnecentralen installeres nor-
+malt på følgende måde:
+
+1)
+
+2)
+
+3)
+
+4a)
+
+4b)
+
+5)
+
+6)
+
+Start Partneren op normalt. Herved fremkommer hovedmen-
+uen på skærmen.
+
+Tryk <ESC>
+Partner spørger: OK at vende tilbage til TMP? (j/n).
+
+Tast J
+Partner svarer enten A> eller B>.
+
+Hvis Partneren har to diskettestationer indsættes pro-
+
+grammeldisketten i den højre diskettestation og der tas-
+
+tes Bs <RETUR>.
+Partner svarer: B>
+skriv: SUBMIT INSTJOB A: <RETUR>
+
+Hvis Partneren har een diskettestation og een winchest-
+erdisk, indsættes programmeldisketten i diskettestation-
+en og der tastes A: <RETUR> Partner svarer: A>
+
+Skriv: SUBMIT INSTJOB B: <RETUR>
+
+Herefter . overføres de nødvendige programmelfiler auto-
+matisk til arbejdsdisken.
+
+Sammen med de enkelte programmelpakker medfølger en vej-
+
+. ledning der beskriver om yderligere installation er ngd-
+
+vendig.
+
+: A/S. Regnecentralen _ a El -25-
+3.. Installation af bruger-programmel Partner
+
+For programmel fra andre leverandører kan der ikke gives no-
+gen entydig beskrivelse. De efterfølgende retningslinier vil
+dog i langt de fleste tilfælde være dækkende.
+
+- Tag en kopi af distributionsdisketten for det pågæld-
+ende programmel. Anvend denne kopi. i det følgende.
+
+- Sæt det aktuelle brugernummer til 0 (se Betjeningsvej-
+ledningen).
+
+- Kopier de filer, der er nødvendige for at anvende det
+pågældende programmel, over på Partner arbejdsdisken.
+
+- Mærk filerne som systemfiler med SET-kommandoen (se
+Betjeningsvejledningen).
+
+Ofte vil man ønske at indlægge det nyinstallerede programmel
+i en menu, således at det kan aktiveres herfra.
+
+Til endring af en eksisterende menu eller oprettelse af en
+ny, findes programmet MENUVEDL, der kan køres enten direkte
+som en CCP/M-86 kommando eller vælges i installationsmenuen
+("Menu vedligeholdelse"). Brugen af dette program gennemgås
+i afsnit 5, hvor et af eksemplerne viser, hvorledes RcCo-
+
+mal80 kan indlægges i den eksisterende menu.
+
+Til overførsel af filer mellem Partner og andre mikrodatama-
+ter, enten med styresystemet CP/M eller CCP/M-86, findes
+programmet FILEX. Betjeningen af FILEX er beskrevet i følg-
+ende afsnit. .
+
+3.2 Overførsel af filer via kommunikationslinie
+
+Programmet FILEX er beregnet til filoverførsel mellem to mi-
+krodatamater. Udover til Partner, findes FILEX til Piccolo -
+således at filoverførsel mellem en Partner og en Piccolo kan
+foretages.
+
+Da kildeteksten til FILEX findes på systemdisketten (filen
+FILEX.A86), er det muligt at tilpasse FILEX til andre mikro-
+datamater end Partner og de ovenfor anførte andre RC-produk-
+ter. Eneste forudsætning er, at den pågældende datamat er
+udstyret med en seriel kommunikationslinie (V24/RS232C) og
+at der anvendes enten styresystemet CP/M-86 eller CCP/M-86.
+For en teknisk beskrivelse af FILEX, henvises til "Partner
+Programmer's Guide".
+
+-26- A/S Regnecentralen
+Partner 3. Installation af bruger-programmel
+
+3.2.1 Opstilling af udstyr
+
+De serielle kommunikations-porte pa de to mikrodatamater
+forbindes indbyrdes med et passende kabel (enten CBL912,
+CBL913, CBL914 eller KBL636). Pa Partner er porten merket
+"COMM/V24"; på Piccolo "TERMINAL - PORT1".
+
+Derefter sikres, at transmissionsparametrene for de to mas-
+kiner er ens. Dette omfatter transmissionshastigheden (baud
+rate), antal stopbit, antal bit pr. tegn og pariteten. F¢lg-
+ende standardverdier anbefales:
+
+Hastighed (baud rate) 9600
+Antal stopbit 1
+Antal bit pr. tegn 7
+Paritet lige
+Initial verdi af RTS høj
+
+På Partner sættes disse parametre med programmet KONFIG
+("Konfigurering af systemparametre - kommunikationsporten" i
+installationsmenuen) - på Piccolo anvendes CONFI-programmet .
+
+3.2.2 Betjening
+
+Nar FILEX anvendes, benævnes den ene mikrodatamat "LOCAL",
+den anden "REMOTE". Det kan frit vælges, hvilken der skal
+være LOCAL, henholdsvis REMOTE. =
+
+Inden filtransporten begyndes, startes FILEX på den mikroda-
+tamat, der skal vere REMOTE. Dette sker med kommandolinien:
+
+A>FILEX REMOTE <RETUR>
+
+Herefter skal der ikke foretages yderligere for denne mikro-
+Gatamats vedkommende, idet filtransporten kontrolleres fra
+den mikrodatamat, der er LOCAL.
+
+På den anden mikrodatamat (LOCAL), startes FILEX med komman-
+dolinien:
+
+A>PILEX <RETUR>
+
+FILEX svarer med en stjerne (*), der angiver, at der kan
+indtastes en kommando. |
+
+Nar der refereres til diskene på den mikrodatamat, der er
+LOCAL, anvendes de normale diskbetegnelser, dvs. A og B. Pa
+den mikrodatamat, der er REMOTE, refereres til diskene ved
+at sætte bogstavet R foran deres normale diskbetegnelse,
+dvs. RA er disk A på REMOTE mikrodatamaten, o.s.v.
+
+A/S Regnecentralen -27-
+Partner
+
+3.. Installation af bruger-programmel
+
+Kommandoer til FILEX kan have følgende 2 former:
+
+* disk,
+* disk, :=disk,:filnavn
+
+. I det første tilfælde overføres filen med filnavn, på disk
+til disk, med filnavnet filnavn. .
+
+1
+
+sfilnavn. =disk
+
+1
+
+2
+
+1
+
+2?filnavn
+
+<RETUR>
+
+<RETUR>
+
+2’
+
+I det andet tilfælde overføres filen med filnavn, pa disk,,
+
+til disk,
+
+med det oprindelige filnavn (filnavn,).
+
+Bemærk: Det er ikke muligt at anvende filmasker i forbindel-
+se med FILEX.
+
+Eksempler:
+
+RA:pop.cmd=A:pip.cmd <RETUR> Filen PIP.CMD pa
+
+B:=RB:eks.wp <RETUR>
+
+disk A pa LOCAL-
+systemet, flyttes
+til filen POP.CMD
+pa disk A på REMO-
+TE-systemet.
+
+Filen EKS.WP på
+disk B på REMOTE-
+systemet, flyttes
+til filen EKS.WP på
+disk B på LOCAL-sy-
+stemet.
+
+-28-
+
+A/S Regnecentralen
+Installation og vedligeholdelse
+DEL II:
+
+Indstilling og vedligeholdelse
+- 30 - A/S Regnecentralen
+4. Indstilling af system-programmel (konfigurering)
+
+Partner systemets fleksibilitet afspejles blandt andet i,
+at systemprogrammellet giver mulighed for nemt at ændre
+nogle af systemets egenskaber, såsom markgrens udseende,
+måden skærmbilledet ruller, hvilken disk, der anvendes ved
+automatisk opstart, hvilken skriver, der anvendes, etc. Når
+Partner systemet leveres, er disse såkaldte systemparametre
+på forhånd sat til nogle standardværdier, der imidlertid
+efter behov nemt kan ændres til andre værdier. Hovedparten
+af de tilpasninger, der kan komme på tale, foretages med
+hjælpeprogrammet KONFIG, der er beskrevet i afsnit 4.1 (an-
+dre muligheder for tilpasninger er beskrevet i afsnit 4.2).
+
+Andre situationer, hvor man har behov for at kunne fastsæt-
+te systemparametrene, er hvis batteriet har været fjernet
+med maskinen slukket, eller efter udskiftning af centralen-
+hedens hovedkort. Det samme gælder indstilling af Partner-
+ens ur.
+
+4.1 Indstilling via KONPIG hjælpeprogrammet
+
+Til brug for tilpasning (konfigurering) af Partnerens sys-
+temparametre findes på SW1500 DISK 1 et hjælpeprogram, KON-
+FIG, der kan startes herfra enten direkte ved CCP/M-komman-
+doen KONFIG eller vælges i installations-menuen på disket-
+ten (se afsnit 2.1 - 2.2).
+
+Når hjælpeprogrammet KONFIG køres, vises følgende menu:
+
+Partner Konfigurering af systemparametre Version 2.0
+A Gem kc=nfigqurering
+B  Konfigurering af kommnikatims port»
+C  Kenfigurering af V24 port
+D  Konfigurering af dataskarm
+E Indstilling af ur
+F  Konfigurering af disksystem
+G - Konfigurering af lokalnet
+H  Skørnkopitegnsæt
+Tryk ESC for at returnere
+
+A/S Regnecentralen -31-
+4. Indstilling af system-programmel Partner
+
+Punkt A i menuen ("Gem konfigurering") anvendes til at gem-
+me de nye systemparametre i Partner's permanente lager
+d.v.s., den del af det indbyggede lager, der ikke slettes,
+nar strømmens afbrydes. Vælges A, skrives:
+
+Ok at ænåre konfiguration (j/n) ?
+Svares der nej, opdateres det permanente lager ikke. For-
+søger man at returnere uden at have gemt konfigureringen,
+udskrives følgende advarsel:
+
+Ny konfigurering er ikke gemt, OK? (j/n)
+De resterende punkter i menuen beskrives i de følgende af-
+snit. Standardværdierne for de enkelte systemparametre er
+de værdier, der er vist i eksemplerne.
+4.1.1 Indstilling af kommunikationsport
+Partners kommunikationsport (mærket COMM/V24) anvendes til
+
+kommunikation via modem eller lignende serielle kommunika-
+tionslinier til andre datamater.
+
+Konfigurering af kanmmikationsport Version 2.0
+A Modttage-hastighed (baud) 1200
+
+B  Sende-hastighed (band) 1200
+
+C Antal stop-bit 1
+
+D Modtage-bit pr. tegn 7
+
+E  Sende-bit pr. tegn 7
+
+F  Paritet lige
+
+G Initial vardi af RIS høj
+
+Tryk ESC for at returnere
+
+Hvis man ønsker at ændre værdien af en af de ovenstående
+parametre, indtastes det bogstav, der er vist udfor den øn-
+skede parameter. Ønskes f.eks. senderens hastighed ændret,
+
+—32- A/S Regnecentralen
+Partner 4. Indstilling af system-programmel
+
+tastes B, hvorefter (som vist i billedet ovenfor) den valg-
+te linie vises i fremhævet skrift på skærmbilledet. Ved at
+trykke på højre- og venstre-pil tasterne kan værdien æn-
+dres. Når den ønskede værdi er fundet, trykkes <RETUR> for
+at acceptere valget. Trykkes <ESC>, bibeholdes den oprinde-
+lige værdi.
+Følgende værdier kan vælges for de enkelte parametre:
+Sende- og modtage-hastighed (baud):
+
+50 75 110 300 600
+
+1200 2400 4800 9600
+
+Antal stopbit:
+
+1 1.5 2
+
+Sende- og modtage-bit pr. tegn:
+
+5 6 7 8
+Paritet:
+lige ulige ingen
+
+Initial verdi af RTS (engelsk: Request To Send):
+
+høj lav (normal høj)
+
+4.1.2 Indstilling af V24 port
+
+På Partnerens V24 port (mærket RS232C/V24) kan f.eks. til-
+sluttes en plotter.
+
+A/S Regnecentralen — HEE —33-
+4. Indstilling af system-programmel Partner
+
+Konfigurering af V24 port Version 2.0
+A iLiinie-hastighed (bax) 1200
+
+B  Stop-bit 1
+
+C  Mddtage-bit pr. tegn 7
+
+D Sende-bit pr. tegn 7
+
+E  Paritet lige
+
+F CP/M erhed skriver 1
+G Initial verdi af RIS høj
+
+Tryk ESC for at returnere
+
+Følgende værdier kan vælges for de enkelte parametre:
+Hastighed (baud):
+50 75 110 300 600
+1200 2400 4800 9600
+Antal stopbit:
+1 1.5 2
+
+Antal bit pr. tegn (modtage og/eller sende):
+
+5 6 7 8
+Paritet:
+lige ulige ingen
+
+CCP/M-enhed:
+skriver 1 konsol 5
+
+Ved tilslutning af en skriver til denne port skal "CCP/M >
+enhed" sættes til "skriver 1".
+
+—34— A/S Regnecentralen
+Partner 4. Indstilling af system-programmel
+
+Initial værdi af RTS (engelsk: Request To Send):
+
+høj lav (normal høj)
+
+4.1.3 Indstilling af dataskærm
+
+Systemparametrene for dataskærmen bestemmer markørpræsenta-
+tionen, og måden hvorpå skærmbilledet ruller ved indsætning
+af nye linier. De ændrede værdier vil først være gældende
+efter en ny systemopstart. Ønsker man at ændre de aktuelle
+værdier, benyttes skærmtrimningen beskrevet i betjenings-
+vejledningen. Betydningen af de enkelte parametre er lige-
+
+ledes beskrevet i betjeningsvejledningen.
+
+Konfigurering af dataskarm Version 2.0
+A Ruining blød
+
+B Markør-størrelse 14
+
+C  Markør-blirk nej
+
+D  Forgrunds-farve gal
+
+Tryk ESC for at returnere
+
+Følgende værdier kan vælges for de enkelte parametre:
+
+Rulning:
+blød linie
+Markør-størrelse:
+
+1 2 3 4 5 6 7
+
+8 9 10 11 12 13 14
+
+A/S Regnecentralen
+
+-35-
+4. Indstilling af system-programmel Partner
+
+Markør-blink:
+nej ja
+Forgrundsfarve:
+
+Blå Grøn Cyan Rød Magenta Gul Hvid
+
+4.1.4 Indstilling af ur
+
+Denne funktion anvendes ved indstilling af Partner's ind-
+byggede ur.
+
+Partner indstilling af ur Versim 2.0
+Dag 02
+Maned novenber
+Ar 84
+Time 16
+| 13
+Sekund 23
+
+Set ny dato
+Set ny tid
+Sæt sommertid
+Sæt normaltid
+
+GORE Oo HH BP VU Aw PY
+
+Tryk ESC for at returnere
+
+2
+
+Nar uret skal indstilles, sættes de enkelte punkter et ad
+gangen. Herefter velges punkt G, sat ny tid og dato, hvor-
+efter følgende tekst vises:
+
+Ok at andre tid og dato (j/n) ?
+"Uret startes først i det øjeblik der svares ja pa dette
+
+spørgsmål. Svares nej, ændres den oprindelige indstilling
+ikke.
+
+-36- A/S Regnecentralen
+Partner 4. Indstilling af system-programmel
+
+4.1.5 Indstilling af disksystem
+
+Partner Konfigurering af disksystem "… Version 2.0
+A Systemdisk A
+
+B Antal disk buffere 2
+
+C Stoptid for mtor i diskettestatm 1
+
+D M<disk størrelse (K bytes) 0
+
+E Styresystem filnavn (typen er .SYS) COCPM
+
+F Styresystem indlæses fra A
+
+Tryk ESC for at returnere
+
+Systemdisken er den disk, hvorpa systemprogrammer, som
+f.eks. MENU.CMD anbringes.
+
+Diskbufferantallet kan med fordel øges når .den involverede
+Partner anvendes som vert i et netsystem. _
+
+Hvis systemet indeholder to diskettestationer, velges A
+normalt som systemdisk.
+
+Stoptiden (i minutter) for motoren i diskettestationen set-
+tes normalt til 1 minut, dvs. motoren stoppes, nar der er
+gået 1 minut siden sidste lesning/skrivning pa disketten.
+
+Hvis M-disken (eng. Memory disk, diskbetegnelse M) anven-
+des, reserveres en del af lageret til dette formal. M-
+disken kan anvendes til lesning/skrivning som en normal
+disk i systemet, blot vil tilgangen vere vesentligt hurti-
+gere end for de fysiske diske i systemet. M-disken slettes
+efter en systemopstart; den anvendes således kun til mid-
+lertidig opbevaring af filer. Anvendes M-disken ikke, set-
+tes størrelsen til 0.
+
+M-disken kan have følgende størrelser (i K bytes):
+
+0 64 128 192 256
+Styresystemfilnavn angiver navnet pa den fil, der skal
+indleses nar styresystemet indleses via lokalnettet (se
+
+nedenfor). Den angivne fil skal eksistere pa værtens
+systemdisk.
+
+A/S Regnecentralen —37-
+4. Indstilling af system-programmel Partner
+
+"Styresystem indlæses fra" anvendes til at udpege den enhed
+hvorfra styresystemet indlæses. Mulige værdier er:
+
+A B Cc D N (N=Net )
+
+Net angiver at styresystemet findes på den givne netverts
+systemdisk eller M-disk.
+
+4.1.6 Indstilling til lokalnet
+
+Når en Partner indgår i et lokalnetsystem, skal den
+konfigureres.
+
+Partner Konfigurering af lckalinet Version 2.0
+A  Typebetegnelse KBN709
+B  Serienumer 3
+
+Cc Eget net-rummer 0
+
+D Vert net-numer 0
+
+E  Adgangskode PASSWORD
+F  Automatisk forbindelse til vert, kmsolO nej
+
+G  Avtomatisk forbindelse til vart, kmsoll  nej
+
+H  Autamtisk forbindelse til vart, konsol 2 nej
+
+I Automatisk forbindelse til vart, konsol 3 nej
+Tryk ESC for at returnere
+
+A, B: Typebetegnelse og serienummer fremgår af skiltet på
+centralenhedens bundplade (se eksemplet nedenfor).
+Hvis maskinens permanente lager er blevet slettet,
+SKAL disse værdier sættes, da centralenheden benytter
+dem som fysisk lokalnetadresse.
+
+JECOMPUTIER
+
+A/S REGNECENTRALEN af 1979
+
+“= KBN709 TF 90003 |
+
+OPTIONS:
+
+—38- A/S Regnecentralen
+Partner 4. Indstilling af system-programmel
+
+C :
+D :
+E :
+P=-J] :
+
+Eget netnummer specificerer centralenhedens identifi-
+
+kation . Når andre brugere på lokalnettet ønsker at
+benytte skrivere og diske, der er tilsluttet den cen-
+tralenhed, der her er tale om, må de referere til
+dette nummer for at få forbindelse. Disse forhold er
+nærmere beskrevet i betjeningsvejledningens afsnit om
+lokalnettet. os
+
+Vert netnummer angiver navnet pa den maskine, man
+kommer i forbindelse med, nar man ikke specificerer
+andet.
+
+Adgangskode (= Lgsen) angiver sammen med "eget net-
+nummer" centralenhedens entydige navn. Som standard
+benyttes "PASSWORD", og adgangskoden ma i øvrigt max.
+fylde 8 bogstaver. Sålænge "PASSWORD" benyttes som
+adgangskode, er det for andre brugere nok at angive
+netnummeret på maskinen, når de vil benytte dens dis-
+ke og skrivere. Anvendes i stedet f.eks. "BOGHOLD"
+som adgangskode for en centralenhed, skal andre brug-
+ere på nettet angive både netnummer og "BOGHOLD" for
+at komme i forbindelse med denne centralenhed og dens
+tilknyttede diske og skrivere.
+
+Automatisk forbindelse til vært har betydning ved op-
+start af Partneren. Har man f.eks. svaret "ja" pa
+spørgsmål I, betyder dette, at ved opstart vil man
+automatisk i konsol 3 få forbindelse med den maskine,
+der er angivet i punkt D.
+
+A/S Regnecentralen . —39—
+4. Indstilling af system-programmel Partner
+
+4.1.7 Valg af skrivers tegnsæt for skærmkopi
+
+Partner skemkopitegnset Versim 2.0
+
+A Udvidet tegnsæt ved skemkopi ja
+
+Tryk ESC for at returnere
+
+Ved hjælp af denne systemparameter angiver man, om skærmens
+udvidede tegnsæt skal anvendes i forbindelse med udskriv-
+ning af skermkopi (ved <CTRL+P>, se Betjeningsvejledning-
+en).
+
+"Ja" velges, hvis den anvendte skriver har samme udvidede
+tegnsæt som skærmen. Dette gælder f.eks. RC603 og RC604.
+
+4.2 Anden indstilling
+
+Ud over de muligheder, der er beskrevet i afsnit 4.1 for
+tilpasning af Partner systemet ved hjælp af hjzlpeprogranm-
+met KONFIG, findes der forskellige andre muligheder for ju-
+stering af systemets parametre (egenskaber).
+
+I betjeningsvejledningen er vist, hvorledes man med
+<CTRLtAl> har mulighed for at ændre parametrene "aktuel
+bruger", "aktuel disk", "aktuel printer" og aktuel lager-
+grense.
+
+I afsnit 4.2.1 herunder er beskrevet, hvorledes man far
+Partner til automatisk ved opstart at udføre en ønsket kom-
+mando, f.eks. starte udførelsen af et program.
+
+Afsnit 4.2.2 omhandler tilpasning af selve CCP/M-styresy-
+stemet, og afsnit 4.2.3 beskriver en yderligere tilpasning
+af lokalnetfunktionerne end den tilpasning, der kan fore-
+tages under KONFIG programmet (se herom i afsnit 4.1.6).
+
+—40- A/S Regnecentralen
+Partner 4. Indstilling af system-programmel
+
+4.2.1 Automatisk udførelse af kommando ved opstart
+
+Hvis der pa systemdisken findes en fil med navnet
+STARTUP.n, hvor n er betegnelsen for en konsol (et tal fra
+O til 3), henter styresystemet ved opstart af Partneren den
+første linie i den pågældende fil og anvender den som
+startkommando for konsollen, d.v.s. virkningen er, som om
+man havde givet denne kommando fra tastaturet.
+
+Efter installation af CCP/M-86 som beskrevet i afsnit 2.1
+eller 2.2, vil menusystemet automatisk blive startet op i
+logisk konsol 0 og 1 efter en systemopstart, idet der pa
+systemdisken findes 2 filer, STARTUP.O og STARTUP.1. Begge
+disse filer indeholder som første (og eneste) linie
+følgende kommandolinie:
+
+MENU MENU
+
+hvor kommandoen MENU aktiverer menuprogrammet, der derefter
+viser Partner hovedmenuen (med navnet MENU).
+
+Er man ikke interesseret i automatisk opstart i en konsol,
+sletter man blot STARTUP-filen for den pågældende konsol.
+
+Hvis man selv ønsker at oprette en STARTUP-fil for en kon-
+sol, kan dette som vist i nedenstående eksempel gøres ved,
+at man ved hjælp af TMP-kommandoen PIP opretter en fil på
+en made, så man direkte kan skrive i den‘ fra tastaturet
+(ved at angive konsollens navn CON: for den enhed, hvorfra
+data skal hentes), og derefter skriver kommandolinien.
+
+Eksempel:
+
+Hvis man Ønsker automatisk opstart i konsol 3, system-
+disken er B, og det ønskede opstartsprogram er RcTekst,
+kan STARTUP-filen laves med følgende kommandoer:
+
+PIP B:STARTUP.3=CON: <RETUR>
+rctekst <RETUR> <CTRItJ> <CTRL+Z>
+
+hvor man i første linie v.hj.a. PIP-kommandoen angiver,
+at inddata fra tastaturet (CON= engelsk forkortelse for
+CONSOLE), skal skrives i filen STARTUP.3 pa disk B -
+(hvis filen ikke allerede eksisterer, oprettes den au-
+tomatisk). I den anden linie indtastes kommandolinien,
+der består af ordet RCTEKST samt <RETUR>, hvorefter man
+med <CTRL+tJ> og <CTRL+Z> angiver, at man ønsker at ven-
+de tilbage til normalt brug af tastaturet og afslutte
+PIP-kommandoen.
+
+A/S Regnecentralen. _ -4l-
+4. Indstilling af system—programmel Partner
+
+Ved at lade den kommando, der automatisk udføres ved op-
+start, være en SUBMIT-kommando (se Betjeningsvejledning-
+en),kan man automatisk få udført en i praksis ubegrænset
+række af kommandoer, idet disse anbringes i den til SUBMIT-
+kommandoen hørende SUBMIT-fil.
+
+4.2.2 Indstilling af CCP/M styresystemet
+
+På systemdisketten mærket "SW1500 CCP/M 3.1 DISK 1" findes
+en fil med navnet CCPM.SYS. Denne fil indeholder Partner's
+styresystem, der ved leveringen er tilpasset, således at
+det kan anvendes direkte i de fleste tilfælde. Undtagelser
+herfra kan f.eks. opstå, når en Partner skal tilsluttes lo-
+kalnet, eller når der stilles specielle krav til styre-
+systemet. Specielle krav kan være antallet af filer, der
+kan være åbne samtidig, antallet af køer, etc. I dette
+kapitel beskrives, hvorledes brugeren i disse tilfælde selv
+kan tilpasse styresystemet til sit aktuelle behov.
+
+Nødvendige forudsætninger
+
+På systemdisketten mærket "“SW1500 CCP/M 3.1 DISK 2" findes
+alle de filer, der er nødvendige for at tilpasse styresy-
+stemet, nemlig:
+
+GENCCPM . CMD
+STDKONF
+SYSDAT.CON
+SUP.CON
+BDOS. CON.
+MEM. CON
+CIO. CON
+RTM. CON
+XIOS.CON
+TMP750.RSP
+PIN.RSP
+VOUT.RSP
+CLOCK.RSP
+SCROLL.RSP
+NETDRV.RSP
+
+GENCCPM
+
+GENCCPM er et program, der under anvendelse af ovennævnte
+filer genererer et styresystem og samtidig tilpasser det ud
+fra brugerens anvisninger. GENCCPM kan anvendes på følgende
+tre måder: .
+
+~42- A/S Regnecentralen
+Partner 4. Indstilling af system-programnel
+
+- brugeren endrer interaktivt de systemparametre, som GEN-
+CCPM presenterer i forskellige menuer.
+
+- GENCCPM læser de nødvendige oplysninger i en datafil.
+
+- ved en kombination af ovenstående to metoder.
+
+Det standardtilpassede styresystem, der ved leveringen fin-
+des pa system-disketten "SW1500 CCP/M 3.1 DISK 1", er gene-
+reret ved hjælp af datafilen STDKONF og den interaktive
+kommando GENSYS (altså, ifølge ovenstående, ved "kombinati-
+
+onsmetoden"). Se følgende beskrivelse.
+
+Generering af standardtilpasset styresystez
+
+Dette eksempel viser, hvorledes et standardtilpasset styre-
+system genereres.
+
+En arbejdskopi af disketten “SW1500 CCP/M 3.1 DISK 2" an-
+bringes i diskettestation A.
+
+Programmet GENCCPM kaldes med datafilen STDKONF som parame-
+ter:
+
+A>GENCCPM <STDKONF <RETUR>
+
+Vinklen (<) foran STDKONF betyder, at programmet GENCCPM
+skal læse indholdet af STDKONF. STDKONF indeholder et sæt
+standardverdier af de systemparametre, som GENCCPM skal
+bruge under systemgenereringen.
+
+GENCCPM er et engelsksproget program som forventer et in-
+ternationalt tegnsæt pa skærmen. Når programmet udføres pa
+en Partner med dansk tegnsæt vises kantede paranteser som
+henholdsvis Æ og Å. Programmet er beskrevet detaljeret i
+dokumentationspakken SW1699D.
+
+GENCCPM virker pa følgende made:
+
+- først indleses/behandles data fra en eventuel data-
+fil (her STDKONF) .
+
+- herefter viser GENCCPM sin menu, hvortil man kan gi-
+ve kommandoer.
+
+- programmet afsluttes med GENSYS-kommandoen.
+
+A/S Regnecentralen | i -43-
+4. Indstilling af system-programmel Partner
+
+I dette eksempel ønsker vi ikke at endre på standardtilpas-
+ningen og giver derfor kommandoen GENSYS. Denne kommando
+vil omdøbe en eventuelt eksisterende styresystemfil (CCPM.-
+SYS) på diskettestation A til CCPM.OLD og derefter generere
+den nye CCPM.SYS fil ud fra de (her via STDKONF) indgivne
+oplysninger.
+
+Tilpasning af styresystem
+
+Fremgangsmåden ved generering af et tilpasset styresystem
+er den samme som ovenfor ved generering af et standard-
+tilpasset styresystem, dog med den tilføjelse, at de ønske-
+de ændringer (tilpasninger) af systemparametrene udføres,
+inden kommandoen GENSYS gives.
+
+I dette afsnit forklares, hvad parametrene i GENCCPM pro-
+grammets menuer betyder, og hvilke det er relevant at ændre
+
+på.
+
+Efter at GENCCPM programmet har behandlet de data, der lig-
+ger i STDKONF filen, vises følgende hovedmenu:
+
+*** Concurrent CP/M-86 3.1 GENCCPM Main Menu ***
+help GENCCPM Help
+verbose &YA More Verbose GENCCPM Messages
+Gestdrive &B:A CCPM.SYS Output To (Destination) Drive
+deletesys ANA Delete (instead of rename) old CCPM.SYS
+
+file
+sysparams Display/Change System Parameters
+memory Display/Change Memory Allocation
+Partitions
+diskbuffers Display/Change Disk Buffer Allocation
+oslabel Display/Change Operating System Label
+rsps Display/Change RSP list
+gensys I'm finished changing things, go GEN a
+SYStem
+
+Styresystemet tilpasses ved at velge en (eller flere efter
+hinanden) af undermenuerne "sysparams", "memory", "diskbuf-
+fers", "oslabel" og "rsps" og ændre de ønskede parametre i
+disse. Parameterverdier skal altid angives i hexadecimal
+notation. D.v.s. alle tal angives i talsystemet med grund-
+tal 16. Dette talsystem har cifrene 0,1,2,...,8,9,A,B,C,-
+D,E,F. De enkelte undermenuer velges ved at taste deres
+navn.
+
+Nar man har foretaget de ønskede ænåringer af parametrene,
+genererer man styresystemet ved at taste kommandoen GENSYS.
+
+—44— A/S Regnecentralen
+Partner 4. Indstilling af system-programmel
+
+4.2.2.1 System Parameter menu
+Vælges “sysparams"-menuen, udskrives følgende:
+
+Display/Change System Parameters
+sysdrive ÆA:Å System Drive
+tmpdrive ÆA:Å Temporary File Drive
+emdlogging ANA Command Day/File Logging at Console
+compatmode ÆYÅ CP/M FCB Compatibility Mode
+memmax &£3000A Maximum Memory per Process (paragraphs)
+openmax Æ20Å Open Files per Process Maximum
+lockmax E20A Locked Records per Process Maximum
+
+osstart Æ 48A Starting Paragraph of Operating System
+nopenfiles Æ 40A Number of Open File and Locked Record
+Entries i
+npdescs Æl4Å Number of Process Descriptors
+nqcbs Æ30Å Number of Queue Control Blocks
+qbufsize & 800A Queue Buffer Total Size in bytes
+nflags EFFA Number of System Flags :
+Changes?
+
+De enkelte parametre har følgende betydning:
+
+sysdrive og tmpdrive
+
+Andring af disse parametre har ingen effekt, idet de aktu-
+elle værdier initialiseres når Partneren startes. System-
+disken velges ved hjelp af KONFIG programmet (se afsnit
+4.1.5). TMP-disken (den disk der anvendes til midlertidige
+hjelpefiler) initialiseres til samme værdi som systen-
+disken eller til M-disken, hvis en sådan findes.
+
+cemdlogging
+
+"“cemdlogging" bestemmer, om styresystemet, hver gang et pro-
+gram startes, skal udskrive en linie, der indeholder pro-
+gramnavn og tid på den konsol, hvorfra programmet startes.
+
+compat mode
+
+@
+
+"compatmode" bestemmer, om styresystemet genkender kompati-
+bilitets-attributterne på filer.
+
+memmax
+"memmax" bestemmer, hvor meget lager et enkelt program kan
+
+reservere. Værdien kan endres dynamisk ved hjælp af TMP
+kommandoen SIZE.
+
+A/S Regnecentralen i . -45—
+4. Indstilling af system-programmel Partner
+
+openmax
+
+"openmax" bestemmer, hvor mange åbne filer en enkelt proces
+kan have på samme tid.
+
+lockmax
+
+"lockmax" bestemmer, hvor mange låste poster ialt en enkelt
+proces kan have på samme tid.
+
+osstart
+
+"osstart" bestemmer, hvor i lageret styresystemet anbrin-
+ges, når Partneren startes. Parameteren skal have værdien
+48.
+
+nopenfiles
+
+"nopenfiles" bestemmer det totale antal af åbne filer og
+låste poster, der kan være på samme tid.
+
+npdescs
+
+"npdescs" bestemmer hvor mange processer, der kan eksistere
+på samme tid.
+
+ngcbs
+
+"nqcbs" bestemmer hvor mange køer, der kan eksistere pa
+samme tid.
+
+qbufsize
+
+"qbufsize" bestemmer den samlede størrelse af køer, der kan
+eksistere samtidigt.
+
+nflags
+
+"nflags" bestemmer hvor mange flag, der skal vere i styre-
+"systemet. "nflags" skal have værdien FF.
+
+—46- A/S Regnecentralen
+Partner 4. Indstilling af system-programmel
+
+4.2.2.2 Lager allokerings menu
+
+Vælges undermenuen "memory" udskrives følgende:
+
+Addresses Partitions (in paragraphs)
+§ Start Last Size Qty
+l. 1800h 4000h 200h 1Ah
+2. 4000h 8000h 400h 0Ch
+3. 8000h Ccooonh 1000h 4h
+
+Display/Change Memory Allocation Partitions
+add ADD Memory Partition(s)
+delete DELETE Memory Partition(s)
+Changes?
+
+Udskriften viser, at standard styresystemets brugerlager er
+opdelt i et antal partitioner pa 400h paragraffer (16 K by-
+te), samt et antal partitioner på 1000h paragraffer (64 K
+byte). Nar et program reserverer lager, vil det altid fa
+tildelt en eller flere af disse partitioner. Hvis et pro-
+gram ikke har brug for en hel partition, vil resten af par-
+titionen g& til spilde. Man kan derfor, hvis man har brug
+for at udføre mange små programmer pa samme tid, definere
+flere mindre lagerpartitioner; f.eks. kan lageret fra 1800h
+til 8000h inddeles i 8 K byte partitioner ved hjælp af kom-
+mandoerne: ,
+
+delete=l
+add=1800, 8000, 200
+
+Brugerlagerets startadresse (1800h) er kun en omtrentlig
+værdi, idet styresytemets størrelse varierer. GENCCPM pro-
+grammet justerer selv denne addresse, så den passer med den
+aktuelle startaddresse. Brugerlagerets slutaddresse afhæn-
+ger af, om Partneren er udstyret med lagerudvidelse eller
+ej. Slutaddressen justeres derfor automatisk når Partneren
+startes, således at man ved styresystemtilpasningen altid
+kan regne med fuldt lager d.v.s. med slutaddresse COOOh.
+
+A/S Regnecentralen ~47—
+4. Indstilling af system-progranmel Partner
+
+4.2.2.3 Diskbuffer menu
+
+Vælges undermenuen "diskbuffer" udskrives følgende:
+
+*** Disk Buffering Information ***
+Dir Max/Proc Data Max/Proc Hash Specified
+
+Drv Bufs Dir Bufs Bufs Dat Bufs -ing Buf Pgphs
+A: fixed fixed fixed fixed
+Bs fixed fixed fixed fixed
+C: fixed fixed fixed fixed
+D: fixed fixed fixed fixed
+M: fixed fixed fixed fixed
+
+Total paragraphs allocated to buffers: 0
+Drive (<CR> to exit) ?
+
+En Partners diskkonfigurering kan ikke andres ved hjelp af
+GENCCPM programmet. Antallet af databuffere kan imidlertid
+endres ved hjzlp af KONFIG programmet (se afsnit 4.1.5).
+4.2.2.4 Styresystem etiket
+
+Velges undermenuen "oslabel" vises følgende:
+
+Current message is:
+
+<null>
+
+Add lines to message. Terminate by entering only RETURN:
+Den tekst, der skrives her, vil blive udskrevet på alle
+virtuelle konsoller, nar Partneren startes, og kan således
+bruges til at identificere det styresystem, der er startet.
+
+4.2.2.5 Resident system processes
+
+Vælges undermenuen "rsps" udskrives følgende:
+
+-48- A/S Regnecentralen
+Partner 4. Indstilling af system-programmel
+
+RSPs to be included are:
+PIN.RSP TMP750.RSP SCROLL.RSP
+VOUT.RSP CLOCK. RSP
+
+Display/Change RSP list
+
+include Include RSPs
+exclude Exclude RSPs
+Changes?
+
+Bemærk! Hvis styresystemet skal anvendes i forbindelse med’
+lokalnet tilslutning, inkluderes RSP‘'en "NETDRV.-~
+RSP" ved hjælp af kommandoen:
+
+include=netdrv.rsp
+
+4.2.3 Indstilling af lokalnetprogrammel
+
+Enhver Partner i et lokalnet må have et netstyresystem, der
+varetager kommunikationen med de andre Partnere i nettet.
+
+Et netstyresystem kan optrade i tre forskellige varianter:
+
+En Partner, der gnsker tilgang til ressourcer (diske, skri-
+vere eller kger) pa en anden Partner i nettet, kaldes en
+netbruger. For at en Partner kan fungere som netbruger, ma
+den afvikle et netbruger-styresysten. |
+
+Hvis en Partner stiller ressourcer til rådighed for andre
+Partnere (d.v.s. netbrugere), kaldes den en netvert. For at
+en Partner kan fungere som netvert, ma den afvikle et net-
+vart-styresystem.
+
+En Partner kan endvidere fungere som bade netbruger og net-
+vert pa samme tid. For at realisere en sådan funktionalitet
+må Partneren afvikle et netvert-/netbruger-styresystem.
+
+For at et Partner lokalnet skal have nogen mening, ma der i
+nettet i det mindste vere een Partner, der fungerer som
+netvert. En variant af Partner lokalnet kan saledes besta
+af en Partner, der afvikler et netvart-styresystem, og et
+antal Partnere, der afvikler et netbruger-styresystem. En
+anden variant af Partner lokalnet kan bestå af et antal
+Partnere, der alle afvikler et netvert-/netbruger-styresy-
+stem. Mellem disse to varianter af lokalnet kan der selv-
+følgelig tænkes utallige kombinationsformer.
+
+a
+
+A/S Regnecentralen —49—
+
+4. Indstilling af system-progrannel] Partner
+
+Et netbruger-styresystem fylder ca. 26 Kbyte + dynamiske
+data; et netværtstyresystem fylder ca. 19 Kbyte + dynamiske
+data, og et netvært-/netbruger-styresystem fylder ca. 30k +
+dynamiske data. Størrelsen af de dynamiske data afhænger af
+forskellige parametre. Hvordan disse parametre påvirker
+størrelsen af de dynamiske data er beskrevet i bilag D. For
+at beregne størrelsen af det endelige netstyresystem skal
+man til de ovenfor nævnte tal lægge størrelsen af CCP/M-
+styresystemet.
+
+Hvilken af de ovenfor nævnte typer af styresystem, man øn-
+sker at bruge i den enkelte Partner, afhænger dels af,
+hvilken funktionalitet man ønsker, og dels af, hvormeget
+lager man vil bruge.
+
+En netbruger må navngive diske, skrivere eller køer, der
+tilhører en anden Partner i lokalnettet, før disse kan bru-
+ges. Ved navngivning "døbes" en ressource, der tilhører en
+netvært i lokalnettet, således at denne får et navn, hvor-
+under den kendes hos netbrugeren. Alle navngivninger opteg-
+nes hos netbrugeren i en såkaldt navngivningstabel. Denne
+tabel indeholder oplysninger om, hvad ressourcens lokale
+navn er, hvad ressourcens navn er hos netværten, samt net-
+værtens netnummer. Navngivning af ressourcer kan ske på
+kørselstidspunktet ved hjælp af NET-kommandoen eller på
+tilpasningstidspunktet. Alle netbruger-styresystemer vil
+efter opstarten have en given navngivningstabel, der inde-
+holder et sæt forud givne navngivninger. Hvis man pa til-
+pasningstidspunktet ikke gnsker at navngive nogle ressourc-
+er, vil den givne navngivningstabel være ton.
+
+4.2.3.1 Ngdvendige forudsætninger.
+
+På disketten mærket "SW1500 CCP/M 3.1 DISK 2" findes alle
+de filer, der er nødvendige for at tilpasse netprogrammel-
+let og generere et netstyresystem, nemlig:
+
+NETVEDL.CMD
+GENNET. CMD
+CPGENNET.CMD
+R. CMD
+NIOS.CMD
+RNET.CMD
+SNET.CMD
+RSNET.CMD
+ADDNET. CMD
+CPADDNET.CMD
+
+Endvidere skal man bruge filen CCPM.SYS, der skal vere ge-
+nereret med systemprocessen NETDRV.RSP (se afsnit 4.2.2).
+
+-50- A/S Regnecentralen
+Partner 4. Indstilling af system-programmel
+
+4.2.3.2 NETVEDL
+
+Ved hjælp af programmet NETVEDL kan man på enkel vis gene—
+rere de(n) type(r) af netstyresystem(er) man har brug for.
+Alle Partnere, der skal have identisk funktionalitet, kan
+anvende det samme netstyresystem. De individuelle forskelle
+sættes pa kørselstidspunktet. Det er således ikke ngdven-
+digt at genere et netstyresystem til hver enkelt Partner i
+nettet.
+
+Netstyresystemer der er genereret ved hjælp af NETVEDL,
+har en given navngivningstabel med følgende indhold:
+
+Diske:
+navn hos navn hos
+netbruger given netvært
+E: A:
+Fs: Bs:
+G: Cs:
+H: D:
+Skrivere:
+navn hos navn hos
+netbruger given netvert
+skriver 2 skriver 0
+skriver 3 skriver 1
+
+Køer: Indeholder ingen navngivning af køer.
+
+Hvis man Ønsker at generere netstyresystemer med et andet
+indhold af den givne navngivningstabel, kan det lade sig
+gøre ved hjælp af GENNET og ADDNET (se app. D).
+
+Inden man. kalder NEDVEDL bør man sikre sig at alle de i af-
+
+snit 4.2.3.1 omtalte programmer ligger på den samme disk og
+at denne disk endvidere er den aktuelle.
+
+Eksempel: |
+
+A>NETVEDL <RETUR>
+
+A/S Regnecentralen. —51-
+4. Indstilling af system-programmel
+
+Partner
+
+Herefter vises følgende skærmbillede:
+
+Partner Indstilling af netprogramel
+
+Version 2.0
+
+A Indstilling af nethrugersystem
+
+Indstilling af netvartssystem
+
+C Indstilling af nethruger-/netvart-system
+
+Tryk ESC for at returnere
+
+Indstilling af et netbrugersystem
+
+Hvis man ønsker at generere et netbrugersystem vælges Ai
+NETVEDL's hoved menu. Herefter vises følgende skærmbillede:
+
+Partner Indstilling af netbrugersystem
+
+Version 2.0
+
+A Antal netbruger processer tilsluttet net
+B Antal buffere i mellemlager
+Cc Generer netstyresystem
+
+Tryk ESC for at returnere
+
+CCEM.SYS
+
+-52-
+
+A/S Regnecentralen
+Partner 4. Indstilling af system-programmel
+
+Antallet af netbruger processer beregnes ud fra fglgen-
+de retningslinier: Som minimum skal man bruge 2 til-
+sluttede processer for hver konsol, man ønsker at til-
+slutte til nettet samtidigt. Nemlig. en proces til TMP
+og en proces til afvikling af et bruger program. Hvis
+man f.eks. vil afvikle SUBMIT-programmet over nettet
+kræves 3 tilsluttede processer. Hvis man på sine net-
+bruger-partnere ønsker at kunne tilslutte alle konsol-
+ler til nettet samtidigt og være sikker på at kunne af-
+vikle SUBMIT i alle fire konsoller, vil svaret altså
+blive 4*3 = 12.
+
+Den mindste størrelse mellemlageret kan have er to buf-—
+fere. Den maksimale stgrrelse er (2 + antal netbruger
+processer tilsluttet nettet).
+
+Hvorvidt man skal vælge et stort eller lille mellemlag-
+er, afhænger af trafikken pa de(n) Partner(e), hvor
+netstyresystemet skal afvikles. Systemet kan altid fun-
+gere med den mindste bufferstgrrelse; men hvis trafik-
+ken bliver for stor, vil effektiviteten blive nedsat.
+Som en hovedregel kan anføres, at rene netbruger syste-
+mer kan klare sig med et lille mellemlager, medens der
+pa systemer, der fungerer som netvarter, bør ofres nog-
+et mere af hensyn til effektiviteten. |
+
+Netstyresystemet dannes ved at sammenkede netprogram-
+mellet med en CCP/M-86 styresystemsfil. Denne fil skal
+vere genereret med filen NETDRV.RSP (se 4.2.2).
+
+Det færdige netstyresystem vil blive lagt i filen
+CCPM.SYS. Hvis man således ønsker, at den samme CCP/M-
+86 styresystemsfil skal danne grundlag for generering
+af flere netstyresystemer, må man omdøbe filen CCPM.SYS
+til f.eks. CCPM.NET efter den er dannet af GENCCPM (se
+4.2.2).
+
+Nar man har angivet navnet på. en CCP/M-86 styresystems-
+fil tastes <RETUR>. Herefter vil NETVEDL kalde progran-
+met GENNET. GENNET vil, hvis alt gar godt, afslutte med
+følgende udskrift pa skærmen:
+
+Network System Generation Complete
+Herefter vil NETVEDL komme med følgende udskrift på
+skærmen:
+
+A/S Regnecentralen 253-
+4. Indstilling af system-programmel
+
+Partner
+
+Tryk RETUR for at fortsætte,
+Hvis der tastes <RETUR> kalder NETVEDL programmet ADD-
+
+NET og hvis der tastes
+
+ESC for at afbryde.
+
+<ESC> vender man tilbage til
+
+NETVEDL's menu. Når ADDNET afslutter med følgende ud-
+skrift på skærmen:
+Addition of network system image is complete
+
+er genereringsprocessen
+
+findes nu i filen CCPM.SYS.
+
+Indstilling af netværtsystem.
+
+færdig og et netstyresystem
+
+Hvis man ønsker at generere et netvært styresystem vælges B
+i NETVEDL's hovedmenu. Herefter vises følende skærmbillede:
+
+Partner Indstilling af netværtssystem Version 2.0
+A Antal tilsluttede netbrugere 12
+B Antal buffere i mellemlageret 14
+Cc Generer netstyresystem CCEM. SYS
+
+Tryk ESC for at returnere
+
+A: Antallet af tilsluttede netbrugere findes efter følgende
+retningslinier:
+
+En netbruger bidrager med en tilsluttet netbruger for
+hver process, der samtidigt har en forbindelse til
+netverten. a
+Det samlede antal netbrugere en netvert skal have
+plads til udregnes altså ved at summere antallet af
+processer på hver enkelt netbruger Partner i nettet,
+der samtidigt skal have en forbindelse til netværten.
+
+-54—
+
+A/S Regnecentralen.
+Partner 4. Indstilling af system-programmel
+
+B: Se punkt B for netbrugersystem.
+
+C: Se punkt C for netbrugersysten.
+
+Indstilling af netbruger-/netvert-systen.
+
+Hvis man ønsker at generere et netbruger-/netvert-styre-
+system, vælges C i NETVEDL's hovedmenu. Herefter vises f¢l-
+gende skermbillede:
+
+Partner Indstilling af netbruger-/netvert-system  S Versicm 2.0
+
+A Antal netbrugerprocesser tilsluttet nettet 12
+B Antal tilsluttede netbrugere 6
+C Antal boffere i mellemlageret 20
+D Generer netstyresystem CCPM.SYS
+
+Tryk ESC for at returnere
+
+A: Se punkt A for netbrugersystem
+Bs Se punkt A for netbrugersystem
+C: Se punkt B for netbrugersystem
+
+D: Se punkt C for netbrugersysten.
+
+A/S Regnecentralen —55-
+4. Indstilling af system-programnmel Partner
+
+4.2.3.3 Specielle netværtsindstillinger
+
+I forbindelse med Partnere der optræder som netværter i et
+lokalnet, skal følgende to punkter overvejes:
+
+1) Hvis andre Partnere indlæser deres styresystem fra net-
+værtens disksystem, kan styresystemfilen med fordel an-
+bringes på netværtens M-disk.
+
+Ved stor diskbelastning vil dette bevirke en væsentlig
+hurtigere indlæsning af styresystemet.
+
+Partnere, der indlæser deres styresystem fra en netvært,
+finder selv ud af om deres styresystemfil er anbragt på
+netværtens M-disk eller på netværtens systemdisk.
+Kopieringen af styresystemfilen til M-disken foretages
+bekvemt i et automatisk opstartsjob.
+
+2) Hvis en Partner med winchesterdisk(e) optræder som net-
+vært og Partneren ikke er udstyret med skærm og tasta-
+tur, skal RSP'en REMTMP.RSP inkluderes ved genereringen
+af netvertens styresystem (se afsnit 4.2.2.5). Dette er
+nødvendigt for at nedlukning af netvarten kan foretages
+fra en anden Partner tilsluttet lokalnettet (se Betje-
+ningsvejledningen).
+
+4.2.4 Installation af navneservice
+
+I de fleste lokalnet kommandoer indgår en betegnelse for en
+netvert som parameter. Hvis man ikke har installeret navne-
+service er denne betegnelse et hexadecimalt nummer efter-
+fulgt af tegnsekvensen “::". Ved installation af navneser-
+vice opnar man at kunne bruge logiske navne som betegnelse
+for en netvert.
+
+Navneservice realiseres ved at opbygge en fil med navnet
+NAMSVR.DAT, der angiver sammenhængen mellem et netvert-
+eller netbrugernavn og deres netnummer. Filen NAMSVR.DAT
+opbygges ved hjelp af programmet NAMESMOD.
+
+Der er et par ting, der er vigtige at tænke pa, nar man vil
+installere navneservice:
+
+- Man kan have så mange NAMSVR.DAT filer som man gns-
+ker. Men en netbruger kan kun fa fat i den NAMSVR.DAT
+der ligger pa systemdisken under bruger 0 pa den giv-
+ne netvert. Således ma netbrugere, der deler given
+netvert også dele filen NAMSVR.DAT.
+
+-56- A/S Regnecentralen
+Partner 4. Indstilling af system-programmel
+
+- Enhver netvært eller netbruger kan have flere for-
+
+skellige navne. En netvært der både stiller disk- og
+skriverressourcer til rådighed kan f.eks. både have
+navnet "SKRIVER" og navnet "NETDISK".
+
+Netbrugere der har forskellige givne netværter kan
+have NAMSVR.DAT filer med forskelligt indhold. Enå-
+videre er det ikke nødvendigt at alle netvært og
+netbrugere optegnes i en navnetabel. Disse forhold
+giver mulighed for at "skjule" dele af nettet for
+nogle netbrugere, medens det vil være tilgængeligt
+fra andre netbrugere.
+
+4.2.4.1 Programmet NAMESMOD
+
+Programmet NAMESMOD anvendes til at opbygge og vedligeholde
+navnetabellen.
+
+Inden NAMESMOD udføres skal konsollen være tilmeldt lokal-
+nettet og der skal eksistere en forbindelse til den givne
+netvært (se Betjeningsvejledningen).
+
+Hvis filen NAMESMOD.CMD eksempelvis findes på disk A tastes
+
+A>NAMESMOD <RETUR>
+
+Herefter stiller NAMESMOD en række spørgsmål:
+
+(1)
+
+(2)
+
+On what node is the name server you wish to modify?
+Det hexadecimale netnummer for den netvært, hvor NAM-
+SVR.DAT ønskes oprettet/modificeret, indtastes efter-
+fulgt af <RETUR>.
+
+Herefter beder NAMESMOD om indtastning af en operati-
+on man ønsker at udføre på NAMSVR.DAT:.
+
+Enter option: ADD, DElete, DISplay or SETup>
+
+NAMESMOD giver mulighed for fire forskellige operationer:
+
+l.
+
+ADD tilføjer nye navne til en allerede eksisterende
+navnetabel.
+
+A/S Regnecentralen -57-—
+4. Indstilling af system-programmel Partner
+
+2.
+
+DEL sletter et navn i en allerede eksisterende navne-
+tabel.
+
+DIS viser indholdet af navnetabellen.
+
+SET opretter en ny navnetabel d.v.s. filen NAMSVR.DAT
+på netvertens systemdisk under bruger 0.
+
+Hvis der blot svares <RETUR> til spørgsmål (2) ovenfor af-
+brydes NAMESMOD.
+
+Eksempel 1 oprettelse af NAMSVR.DAT:
+
+(2)
+(3)
+(4)
+
+Enter Option: ADD, DELete, DISplay, or SETup > SET
+<RETUR>
+
+Password protection for update privileges? Y/N Y
+<RETUR>
+
+Enter Password>
+
+Name server file "NAMSVR.DAT" has been created
+
+Bemærk der skal kun svares "Y" til spørgsmål 3, hvis man
+ønsker at beskytte NAMSVR.DAT mod skrivning v.h.a. Løsen.
+
+Eksempel 2 tilføjelse af navn til NAMSVR.DAT:
+
+(5)
+
+(6)
+(7)
+(8)
+(9)
+
+Enter option: ADD, DELete, DISplay or SETup > ADD
+<RETUR>
+
+ADD: Name . > NETVÆRT <RETUR>
+Node ID > IA <RETUR>
+Type (User/Server) > S <RETUR>
+Really add the entry (Y/N) > Y <RETUR>
+
+Entry added to name server
+
+Bemerk netnummeret (7) skal angives i hexadecimal notation.
+
+Eksempel 3 sletning af navn i NAMSVR.DAT:
+
+(10)
+
+(11)
+(12)
+(13)
+
+Enter Option: ADD, DELete, DISplay or SETup > DEL
+<RETUR>
+
+DELETE: Name > JOE <RETUR>
+Type (User/Server) > U <RETUR>
+Really delete the entry (Y/N) > Y <RETUR>
+
+Enter deleted from name server
+
+-58-
+
+A/S Regnecentralen.
+Partner 4. Indstilling af system-programmel
+
+Når man har valgt en operation fortsættes der med denne op-
+eration til der tastes <RETUR> til første spørgsmål. Hvis
+man f.eks. har valgt ADD svares <RETUR> til spørgsmålet:
+
+(6) ADD: Name >
+når man er færdig med at tilføje navne.
+Herefter vises spørgsmålet:
+Enter Option: ADD, DELete, DISplay or SETup >
+
+Man kan således vælge en ny operation eller afbryde NAMES-
+MOD ved at taste <RETUR>.
+
+4.2.5 Installation af grafik
+
+Partner understøtter grafik gennem en udvidelse til styre-
+systemet kaldet GSX-86.
+
+GSX-86 giver en ensartet grænseflade til styresystemet, som
+er uafhængig af maskinfabrikat og hvilken grafisk ydre
+enhed der benyttes. Dette betyder, at man kan anvende mange
+forskellige grafikprogrammer, blot de kører. under GSX-86.
+
+Tillige kan de samme programmer uden ændringer lave grafik
+på mange forskellige ydre enheder (skærme, skrivere og
+plottere) både monokromt og i farve.
+
+Til hver ydre enhed hører et specielt grafik drivprogran,
+der ligger som en fil. Når man ønsker at anvende en bestemt
+ydre enhed, indlæser GSX~86 det pågældende drivprogram i
+lageret. .
+
+Ydre enheder refereres ved hjælp af logiske enhedsnunre.
+Sammenhængen mellem disse numre og de tilhørende drivpro-
+grammer er beskrevet i en grafik konfigurationsfil, AS-
+SIGN.SYS. Denne fil kan dannes ved hjælp af et tekstbe-
+handlingsprogram eller ved hjælp af grafik konfigurations-
+programmet GKONFIG. GKONFIG kaldes enten direkte fra TMP
+eller ved at vælge ”Konfigurering af grafik" i installati-
+onsmenuen.
+
+A/S Regnecentralen —59-
+4. Indstilling af system-programmel Partner
+
+Når GKONFIG udføres, vises følgende menu:
+
+Partner Konfigurering af grafik Version 2.0
+A Skærm 1
+B Skærm 2
+Cc Plotter
+D Skriver
+E Start grafik
+F Vis grafik-konfiguration
+G Gem grafik-komfiguration
+Tryk ESC for at returnere
+
+Ved hjælp af hjezlpeprogrammet GKONFIG kan man udvælge driv-
+programmer for de ydre enheder, man benytter.
+
+Nar A vælges i menuen, vises en liste over de drivprogram-
+mer, der findes til skermen. Det gnskede drivprogram velges
+ved at indtaste navnet og trykke <RETUR>.
+
+Tilsvarende for skærm 2, skriver og plotter. Skærm 2 kan
+f.eks. udnytte grafik i medium opløsning og fire farver,
+mens skærm 1 udnytter grafik i høj opløsning og to farver.
+
+Den aktuelle grafikkonfiguration kan ses ved at vælge Fi
+menuen.
+
+Når konfigurationen er som ønsket vælges G, hvorved konfigu-
+rationen bliver gemt i filen ASSIGN.SYS.
+
+Eksempel på indhold af grafikkonfigurationsfil:
+Ol DD750H
+
+11 DD621
+21 DD604V
+
+—60—- A/S Regnecentralen >
+Partner 4. Indstilling af system-programmel
+
+GKONFIG benytter sig af filen ASSIGN.DIR, der indeholder et
+katalog over alle drivprogrammer, som findes pa distri-
+butionsdisketten.
+
+Indhold af ASSIGN.DIR:
+
+1 DD750H Monokrom skerm
+
+1 DD750HM Monokrom skerm og mus
+
+1 DD750HD Monokrom skærm og digitizer
+
+1 DD750M Farveskerm (el. gråtoner)
+
+1 DD750MM Farveskarm (el. gråtoner) og mus
+
+1 DD750MD Farveskarm (el. gråtoner) og digitizer
+11 DD621 Plotter RC621
+
+21 DD604V Skriver RC603/RC604 A4-h¢j
+
+21 DD604H Skriver RC604 A4-tvers
+
+21 DD604VC Skriver RC604 farve A4-h¢j
+21 DD604HC Skriver RC604 farve A4-tvers
+
+Numrene angiver hvilke type enhed der er tale om:
+1: skærm
+ll: plotter
+
+21: skriver
+
+Nye enheder kan tilføjes ved at andre ASSIGN.DIR med et
+tekstbehandlingsprogranm.
+
+A/S Regnecentralen —61-
+4. Indstilling af system-programmel Partner
+
+~62- A/S Regnecentralen
+5 Menu vedligeholdelse
+
+Til anvendelse for opbygning af nye skærmmenuer eller for
+ændringer i eller tilføjelser til eksisterende menuer find-
+es der et hjælpeprogram, MENUVEDL, der tilbyder en række
+faciliteter for dette arbejde.
+
+Menuvedligeholdelses programmet MENUVEDL findes på SW1500
+DISK 1 og kan startes herfra på to måder: enten direkte ved
+CCP/M-kommandoen MENUVEDL, eller ved at vælge menuvedlige-
+holdelse i installationsmenuen på SW1500 DISK 1 (ang. ins-
+tallationsmenu, se afsnit 2.1 og/eller 2.2.).
+
+En menu ligger som en fil på en disk, hvorfra den kan kal-
+des frem ved at angive dens navn. Der er den sammenhæng
+mellem menuens navn og navnet på den disk-fil, hvor den er
+opbevaret, at filnavnet er lig med menu-navnet med tilføj-
+else af filtype-betegnelsen .MDF (engelsk for Menu Defini-
+tion File). F.eks. er navnet på Partners hovedmenu MENU, og
+den ligger pa arbejdsdisken under fil-navnet MENU.MDF .
+
+Når programmet MENUVEDL køres, vises følgende menu på skær-
+men: |
+
+Partner Menu-vedligeholdelse — Versim 2.0
+H Hent menu
+
+G Gem menu
+
+I Indhold af menu
+
+R  Rediger menulinie
+
+T  Tilfsj menulinie
+
+S  Slet menulinie
+
+F  Skemnformat for menu
+
+QO Fe-organiser menu
+
+Tryk ESC for at returnere
+
+Menu-vedligeholdelse
+
+Hvis der skal rettes i en eksisterende menu, skal den til-
+hørende menufil først hentes fra disken (Hent menu). Her-
+efter kan menuen ændres (Rediger, Tilføj, Slet, Skærmformat
+og Re-organiser). Når alle ændringer er foretaget, gemmes
+den andrede menu på disken (Gem menu).
+
+Af/S. Regnecentralen | |  =63—
+5.. Menu-vedligeholdelse Partner
+
+Hvis der skal oprettes en ny menu, anvendes samme frem-
+gangsmåde som ovenfor, blot skal man ikke starte med at
+hente en menu fra disken, men med "Tilføj" eller "Skærmfor-
+mat".
+
+En linie i menuen består af følgende felter:
+
+"== Et valgtegn, der anvendes ved valg i menuen. Et
+valgtegn skal være enten et tal (0 - 9) eller et
+bogstav (A - A). Der skelnes ikke mellem store og
+sma bogstaver. Et valgtegn kan kun optræde et sted i
+menuen dvs. ved tilføjelse til menuen må det angivne
+tegn ikke findes i menuen i forvejen. Hvis et valg-
+tegn skal genbruges i en ny menulinie, skal den tid-
+ligere menulinie derfor slettes, før den nye linie
+oprettes.
+
+- Et tekstfelt, der kort beskriver det tilhørende pro-
+gram. Tekstfeltet vises på skærmen udfor valgtegnet;
+det er kun til vejledning for brugeren, og anvendes
+ikke ved selve programudførelsen. Alle tegn kan an-
+vendes i et tekstfelt. Tekstfeltet kan maksimalt
+rumme 58 tegn.
+
+- En kommandolinie, der består af et eller flere pro-
+gram-navne (evt. med parameterlister), adskilt af
+//. Kommandolinien opbygges som en normal CCP/M kom-
+mandolinie (se betjeningsvejledningen). Kommandoli-
+nien vil ikke blive vist, nar menuen udføres. Kom-
+mandolinien kan maksimalt rumme 58 tegn.
+
+5.1 Hent menu og gem menu
+
+Skal en eksisterende menu ændres, hentes den med funktionen
+"Hent menu". Ved valget af denne funktion skrives:
+
+Angiv navn på menu
+
+Hvis det er hovedmenuen, der skal hentes, trykkes blot <RE-
+TUR> uden at angive noget navn. I dette tifælde vil automa-
+tisk navnet MENU på hovedmenuen blive anvendt.
+
+Hvis det ikke er hovedmenuen, man vil anvende, angives nav-
+net på den ønskede menu, efterfulgt af <RETUR>.
+
+Bemærk: Kun menuens navn angives; filtypen MDF er under for-
+stået, og angives IKKE (samtlige menufiler får automatisk
+af menuvedligeholdelses programmet tillagt filtypen MDF).
+
+—64- A/S Regnecentralen
+Partner 5. Menu-vedligeholdelse
+
+Nar ved hjelp af de i det følgende beskrevne menuvedlige-
+holdelsesfunktioner alle rettelser er foretaget, gemmes den
+nye menu med funktionen "Gem menu".
+
+5.2 Indhold af menu
+
+Denne funktion anvendes for at se indholdet af en menu. Nar
+funktionen udføres, vises menuen som den vil fremtræde pa
+skærmen.
+
+Bemærk: Funktionen anvendes udelukkende til at vise indhol-
+det af en menu. Det er derfor ikke muligt i denne situation
+at anvende den viste menu som en menu (altså at vælge og få
+udført en funktion fra menuen).
+
+5.3 Rediger menulinie
+
+Denne funktion anvendes ved redigering af en eksisterende
+linie i menuen.
+
+Når funktionen udføres, bliver man bedt om at angive valg-
+tegnet for den linie, der ønskes ændret, hvorefter følgende
+menu vises (eksempel):
+
+Partner Menu-vedligeholdelse Versim 2.0
+1 Gem menulinie oj returner
+
+2 Valgtegn 5
+
+3 Tekst Skatteberegning for 1985
+
+4. Kommando linie SKAT1965
+
+Tryk ESC for at returnere
+
+Redigering af menulinie
+
+Ved at vælge en af mulighederne (2-4) i menuen, kan de en-
+kelte felter i menulinien redigeres.
+
+A/S Regnecentralen -65-
+5.. Menu-vedligeholdelse Partner
+
+Vælges 3 (Tekst), flyttes markøren til det første tegn i
+tekstfeltet (i ovenstående eksempel tallet 5). Markgren kan
+herefter flyttes frit i feltet med markgrpilene (-) og (+
+), og der kan indsættes og slettes tegn med tasterne TEGN
+IND og SLET TEGN. Nar alle endringer i tekstfeltet er fore-
+taget, trykkes <RETUR>. Hvis man fortryder undervejs, tryk-
+kes <ESC>, hvorved de netop foretagne ændringer annulleres
+og det oprindelige indhold i feltet kommer tilbage.
+
+Når alle ændringer i menulinien er foretaget, gemmes den
+ved at vælge (1), hvorefter der returneres til foregående
+
+menu.
+
+5.4 Tilføj menulinie
+
+Denne funktion anvendes ved tilføjelse af linier i en eksi-
+sterende menu eller ved oprettelse af en ny menu.
+
+Partner Menu-vedligeholdelse Versim 2.0
+Valgtegn Cc
+
+Tekst FRoCosn 80 - Programering
+
+Konmandol inie COMALEO
+
+Ok at tilføje menulinie (j/n) Ja
+
+Tryk ESC for at returnere
+
+Tilføjelse af menulinie
+I ovenstående eksempel er vist hvorledes COMAL80-programmet
+kan indsættes i menuen. De 3 felter i menulinien udfyldes
+et ad gangen.
+
+Indtastningen i de enkelte felter afsluttes med <RETUR>.
+
+Nar alle felter er udfyldt, spørges:
+
+—66- A/S Regnecentralen
+Partner 5. Menu-vedligeholdelse
+
+Ok at tilføje menulinie (j/n)
+
+Svar Ja for at tilføje den nye menulinie. Herefter kan der
+indsættes yderligere menuliner.
+
+Når de ønskede linier er indsat, returneres med <ESC>.
+
+BEMÆRK, at man ikke ved "tilføj"-funktionen kan vælge, hvor
+i menuen, menulinien bliver placeret (den bliver sat ne-
+derst). Hvis en anden placering ønskes, må man senere an-
+vende "reorganiser"-funktionen (se afsnit 5.7).
+
+5.5 Slet menulinie
+
+Denne funktion anvendes ved sletning af menulinier.
+
+Når funktionen udføres, bliver man bedt om at angive valg-
+tegnet for den menulinie, der ønskes slettet. Herefter vi-
+
+ses indholdet af menulinien, og funktionen beder om bekræf-
+telse på, at den pågældende linie skal slettes.
+
+Partner Menu-vedligeholdelse Versim 2.0
+Valgtegn R
+
+Tekst Renteberegning
+
+Konmandol inie RENTEPRG
+
+Ok at slette menulinie (j/n) &
+
+Tryk ESC for at returnere
+
+Sletning af menulinie
+
+5.6 Skzermformat for menu
+
+Denne funktion anvendes ved endring af menuens format pa
+skermen.
+
+A/S Regnecentralen —67-
+5.. Menu-vedligeholdelse Partner
+
+Partner Menu-vedligeholdelse Versim 2.0
+1 Gem skemmformat oj returner
+
+2  #Overskriftfelt, linieantal 3
+
+3 Konmentarfelt, linieantal 3
+
+4 Menofelt, linieafstand 1
+
+5 Valgtegn, positim 5
+
+6  Tekstfelt, startpositim 10
+
+7 Tekstfelt, tegnantal 58
+
+8 Overskrift
+
+Tryk ESC for at returnere
+
+Ændring af skærmformat
+
+De enkelte værdier, der kan ændres i skærmformatet, har
+følgende betydning (standardværdi er angivet i parantes):
+
+"Overskriftfelt,  linieantal" (standardværdi: 3).
+Tallet angiver overskriftsfeltets højde i antal li-
+nier.
+
+Bemærk: Selve overskriften star på een linie og de-
+fineres ved at vælge "overskrift" (- se herunder).
+Den bliver i lodret retning placeret midt i over-
+skriftsfeltet, med de overskydende (tomme) linier
+fordelt ligeligt over og under sig i feltet.
+
+"Kommentarfelt, linieantal” (standardverdi: 3). An-
+giver højden i antal linier af det nederste felt i
+menuen (indeholder oftest teksten "Tryk ESC for at
+returnere").
+
+"Menufelt, linieafstand" (standardværdi: 1). Angiver
+antallet af tomme linier mellem de enkelte linier i
+menuen.
+
+"Valgtegn, position” (standardværdi: 5). Angiver
+hvor på linien valgtegnet i menulinierne er place-.
+ret. Første position er 1, sidste position 78.
+
+"Tekstfelt, startposition" (standardverdi: 10). An-
+giver hvor på menulinien tekstfeltet starter. Tekst-
+
+—68-—
+
+A/S Regnecentralen
+Partner
+
+5. Menu-vedligeholdelse
+
+feltet skal være til højre for valgtegnet, d.v.s.
+første mulige position er valgtegnposition + l.
+
+"Tekstfelt, tegnantal" (standardværdi: 60). Angiver
+det maksimale antal tegn, der er plads til i menu-
+liniens tekstfelt. Antallet af tegn + tekstfeltets
+startposition må ikke overstige 79.
+
+"Overskrift". Her defineres overskriften på menuen.
+Antallet af tegn i overskriften må ikke overstige
+78.
+
+5.7 Reorganiser menu
+
+Denne funktion anvendes til ændring af menuliniernes rekke-
+følge i menuen.
+
+Når funktionen udføres, vises den pågældende menu på skærm
+(som ved "Indhold af menu"-funktionen). De enkelte linier i
+menuen kan herefter flyttes en ad gangen efter nedenstående
+fremgangsmåde:
+
+Når
+re.
+
+Placer markgren udfor den linie der skal flyttes.
+Tryk <RETUR> for at acceptere valget.
+
+Flyt markøren hen til den linie, den netop udvalgte
+linie skal indsættes foran.
+
+Tryk <RETUR> for at flytte linien, <ESC> for at for-
+tryde.
+
+alle ændringer er foretaget, trykkes <ESC> for returne-
+
+Eksempel :
+
+I det følgende eksempel flyttes menulinien "RcComal80 - |
+Programmering" til første linie i menuen.
+
+A/S Regnecentralen . -69—
+5.-Menu-vedligeholdelse Partner
+
+Partner Menu Versim 2.0
+
+Fil vedligeholdelse
+Diskette vedligeholdelse
+Menu vedligeholdelse
+RoComalS0 - Programmering
+ReTekst - Tekstbehandling
+
+Wa = 9 ty
+
+Flyt markøren til menulinien der skal flyttes a
+tryk RETUR
+
+Tryk ESC for at returnere
+
+Markering af linie der skal flyttes
+
+Partner Menu Versim 2.0
+F Fil vedligeholdelse
+
+D Diskette vedligeholdelse
+
+M Menu vedligeholdelse
+
+T  ReTekst - Tekstbehandling
+
+Flyt markøren til liniens nye placering gj
+tryk RETUR
+
+Tryk ESC for at returnere
+
+Markering af liniens nye placering
+
+-70-— A/S Regnecentralen
+Partner 5. Menu-vedligeholdelse
+
+_—
+
+Flyt markøren til menulinien der skal flyttes oj
+tryk RETUR
+
+Tryk ESC for at returnere
+
+Partner Menu Versim 2.0
+C ReoComald0 — Programmering
+
+F Fil vedligeholdelse
+
+D Diskette vedligeholdelse
+
+M Menu vedligeholdelse
+
+T  ReTekst - Tekstbehandling
+
+Menu efter flytning af linie
+
+A/S Regnecentralen
+
+-71l—-
+5. .Menu-vedligeholdelse
+
+Partner
+
+~72—-
+
+A/S Regnecentralen
+6. Vedligeholdelse generelt
+
+Efter opstilling og klargøring som beskrevet i de forudga-
+ende kapitler vil den fortsatte vedligeholdelse af systemet
+for en stor del være en del af de løbende betjeningsruti-
+ner, herunder f.eks. sikkerhedskopiering af data og pro-
+grammateriale samt almindelig renggring af systemets ydre
+dele.
+
+I afsnit 6.1 er beskrevet forholdsregler i forbindelse med
+transport/flytning af systemet, og i afsnittene 6.2 til 6.4
+er behandlet renggring af luftfilter samt udskiftning af
+batteri og sikring.
+
+Forefaldende opgaver herudover vil vere:
+
+Disketteanskaffelse
+
+Partner systemet anvender disketter med følgende kendetegn:
+
+5 1/4" diameter
+
+96 tpi spor-tæthed (tracks per inch = spor pr. tomme)
+dobbelt sidet (double sided)
+
+høj informationstæthed (high density).
+
+Benyt kun diskettefabrikater, der er anerkendte til brug på
+
+Partner - nærmere oplysninger kan fås hos forhandler eller
+RC.
+
+Opstilling og klargøring af ekstraudstyr
+
+Foruden yderligere programmelsystemer, kan der være tale om
+installation af ekstraudstyr (f.eks. lagerudvidelse), hvil-
+ket kan indebære montering af ekstra moduler i centralen-
+heden (dette er beskrevet i afsnit 7.3: Modulmontage).
+
+Fejlfinding
+
+De almindelige betjeningsrutiner omfatter diskette verifi-
+cering og håndtering af situationer i forbindelse med med-
+delelser fra programmel og under opstart, hvorimod svigten-
+de opstart, fejlkoder og brug af testprogrammer er samlet
+beskrevet i kapitel 8: Fejlfinding.
+
+A/S Regnecentralen -73-
+6.- Vedligeholdelse (generelt) Partner
+
+6.1 Nedlukning for transport
+
+I forbindelse med flytning eller transport skal systemer
+med winchester disk altid nedlukkes med nedlukningsprogram-
+met (fra hovedmenu - jf. betjeningsvejledningen). Hvis
+nedlukningen ikke kan foretages, eller der hersker tvivl
+herom, skal der tilkaldes teknisk assistance, før cen-
+tralenheden udsættes for påvirkninger fra transport, f.eks.
+under flytning, idet A/S Regnecentralens garantiforpligtel-
+ser ellers vil bortfalde.
+
+Det anbefales i øvrigt at nedlukning foretages hver gang
+systemet slukkes.
+
+Flytning eller forsendelse af systemenheder skal altid fo-
+regå i den originale emballage.
+
+6.2 Filter
+På centralenhedens bagside er monteret et skumplastfilter i
+
+ventilationsindsugningen. Filteret skal jevnligt tages ud
+og renses.
+
+Afmontering Filteret gribes med fingrene og trækkes ud.
+
+Rensning Filteret bankes mod et hardt underlag, evt.
+støvsuges.
+
+Montering Filteret krummes sammen med fingrene og den
+
+set ovenfra ene sidekant stikkes ind bag den ombukkede
+
+r kant i ventilationsåbningen. Tilsvarende med
+= ZF den anden, hvorefter filteret evt. trykkes og
+skubbes på plads.
+
+—74- A/S Regnecentralen
+Partner
+
+6. Vedligeholdelse (generelt)
+
+6.3 Batteri
+
+Centralenheden er forsynet med et batteri, der tjener som
+spændingskilde til enkelte komponenter på hovedkortet, når
+systemet er slukket. Batteriholderen er indbygget i cen-
+tralenhedens bagside.
+
+Batteriholder
+
+| |
+SE og
+|
+
+SÅ
+SA
+
+mo O! IC
+
+, — | IC 7
+La (lo 1 :
+
+Afmontering
+
+Mod 12
++
+
+Montering
+
+Re-konfigu-
+rering
+
+Anbefalet
+batteritype
+
+Skruelåg
+
+Centralenheden skal være tændt, mens batteri-
+et skiftes (ellers skal systemparametrene
+konfigureres påny efter batteriskift).
+
+Når låget skrues af, skubbes batteriet del-
+vist ud af åbningen (fjederbelastet). Fjern
+batteriet.
+
+Batteriet sættes i med minuspol først. Med
+skruelåget presses batteriet ind i holderen
+og låget skrues på.
+
+Hvis spændingen på noget tidspunkt har været
+afbrudt, skal systemparametrene konfigureres
+påny (se afsnit 4.1). I givet fald vil en pa-
+følgende opstart af systemet medføre fejlkode
+19.
+
+SANYO CR-2N eller
+DURACELL DL 2N
+
+Begge typer er lithiumbatterier; de kan be-
+stilles hos forhandler eller RC.
+
+A/S Regnecentralen -—75—
+6.. Vedligeholdelse (generelt) Partner
+
+6.4 Sikring
+
+Centralenheden er forsynet med en sikring, der tjener som
+beskyttelse for interne elektriske kredsløb. Sikringsholde-
+ren er indbygget på centralenhedens bagside.
+
+Sikringsholder
+
+|
+
+|
+
+@ 682
+X O Cwm!
+IS J
+
+NNN
+Yan
+
+Us :
+
+| NG
+
+JL.
+L J
+
+af
+Indsats
+
+Afmontering Centralenhedens netafbryder skal vere af-
+brudt, nar sikringen skiftes. Sikringen sid-
+
+| der i en indsats i holderen. Indsatsen løsnes
+ved at dreje ca. en halv omgang mod uret og
+Sikring trekkes herefter ud.
+Sikringen trækkes herefter ud af indsatsen.
+Montering Modsat afmontering - det har ingen betydning,
+
+hvilken af sikringens ender, der presses ind
+i indsatsen.
+
+Sikringstype 1,6 Amp. TRÆG (SB - slow blow), ¢5x20 mm
+Kan bestilles hos forhandler eller RC.
+BEMÆRK ! En afbrændt sikring bør kun forsøges skiftet
+
+een gang. Hvis næste sikring også brænder af,
+skal der foretages et eftersyn.
+
+—76- A/S Regnecentralen
+Installation og vedligeholdelse
+
+DEL III:
+
+Systemopbygning og fejlfinding
+- 78 -
+
+A/S regnecentralen
+7. Systemopbygning
+
+I det daglige optræder Partner systemet som en helhed og
+kan betjenes uden særlig tanke på, hvilke enheder der udfø-
+rer hvilke funktioner.
+
+Partner er imidlertid modulært opbygget, hvilket i forbind-
+else med serviceringen af systemet er en stor fordel.
+
+I dette kapitel beskrives Partner's opbygning, samt hvorle-
+des man skifter moduler i centralenheden. Afsnittene hen-
+vender sig til servicepersonale autoriseret af A/S Regne-
+centralen.
+
+[ Ethvert indgreb i centralenheden |
+og skermen ma kun foretages
+af en tekniker.
+
+A/S Regnecentralens garantiforpligtelser bortfalder, hvis
+brugeren selv har foretaget indgreb i apparatet.
+
+A/S Regnecentralen -79—
+7.: Systemopbygning Partner
+
+7.1 Oversigt over systemenheder
+
+Systemopbygningen kan anskues pa følgende made:
+
+| Acs |
+
+| Programme! | Programmel i | Maskinet |
+L | | | | |
+Bruger- Systern- Central- Data- Tasta- Andre
+prog. prog. enhed skærm tur enheder
+| |
+Hjælpe- Styre- | | Hoved- Lager- . Ekstra-
+
+Selvtest,
+
+bootioader,
+
+m.m. hate
+|
+|
+
+| |
+Fexbie | | Gok oun.
+disk nogle mod.)
+|
+| |
+mr || om
+
+—80- A/S Regnecentralen
+Partner 7. Systemopbygning
+
+7-2 Modulplacering i centralenheden
+
+Modulerne er placeret i centralenheden som følger:
+
+Winchester controller
+(kun RC750-4)
+
+mm <>
+DiskB_
+
+RC750-4: Winchester
+
+RC750-3: diskettestation
+
+Disk A
+
+Sikringsholder
+
+Fitter
+
+Hovedkort
+
+Omrade til
+ekstrakort
+
+Lagerudvidelse
+
+Bundplade
+
+A/S Regnecentralen -8l-
+7.° Systemopbygning Partner
+
+7.3 Modulmontage
+
+Systemer med winchester disk skal nedlukkes (se afsnit 6.1)
+før håndtering (f.eks. før adskillelse af centralenheden).
+Er nedlukning ikke mulig (eller i tvivlstilfælde) kan cen-
+tralenhed/winchesterdisk HÅNDTERES FORSIGTIGT for at af-
+montere andre moduler; centralenhed/winchesterdisk MÅ IKKE
+TRANSPORTERES med henblik på flytning, indlevering til ef-
+tersyn/reparation eller lignende, hvis ikke nedlukning med
+sikkerhed er blevet udført. Tilkald assistance. HUSK: Om
+muligt tages kopi af filer på winchester disken før afmon-
+tering, da disken efter montering (specielt efter reparati-
+on) skal påregnes initialiseret - jvf. bilag A - hvorved
+alle data slettes.
+
+Moduler, der afmonteres med henblik på indlevering til ef-
+tersyn/reparation, skal være FORSVARLIGT EMBALLERET og det-
+te er AFSENDERENS ANSVAR. Specielt skal printkort vere sa-
+ledes emballeret, at de ikke kan bøjes - spørg evt. hos le-
+verandgr (forhandler eller RC) om speciel emballage til
+formalet.
+
+Før centralenhed skilles ad, skal netledning og øvrige kab-
+elforbindelser afmonteres.
+
+ADVARSEL! Centralenheden må ikke vere tilsluttet elnet-
+tet, mens yderkappen er afmonteret!
+
+Til montagearbejde kræves:
+
+- en skruetrækker til krydskerv (Pozidriv-skruetrekker);
+størrelse: lille til mellem
+- en topnggle; størrelse: NV5.
+
+De enkelte moduler afmonteres som beskrevet i de følgende
+afsnit. Afmontering af et givet modul kan kreve, at andre
+moduler ogsa afmonteres - omfang og rekkefglge vil sa fren-
+gå af beskrivelserne. Montagevejledninger til ekstraudstyr
+følger de enkelte moduler ved levering, dog er lagerkortud-
+videlse samt installation af lokalnet controllerkort medta-
+get i denne vejledning.
+
+Modulerne monteres i omvendt rækkefølge, i forhold til da
+de blev afmonteret; se igvrigt beskrivelserne i de enkelte
+afsnit.
+
+—82- A/S Regnecentralen
+Partner 7. Systemopbygning
+
+Efter samling af centralenheden, skal systemet stilles op
+og gøres klar til drift. Hvis hovedkortet har været afmon-
+teret (eller batterispændingen afbrudt mens systemet har
+været slukket), skal systemparametrene konfigureres påny
+(se afsnit 4.1). Under opstart stoppes med fejlkode 19,
+hvis systemparametrene er blevet slettet.
+
+A/S Regnecentralen -33-
+7... Systemopbygning Partner
+
+7.3.1 Yder kappe
+
+(Ledsagende tekst: se højresiden).
+
+7
+
+@ we
+> | soe oa
+Ce .
+
+—84- A/S Regnecentralen
+Partner 7. Systemopbygning
+
+Afmontering - yder kappe
+
+ADVARSEL ! Centralenheden må ikke tilsluttes elnettet,
+mens yder kappen er afmonteret I
+
+1) Netledning og øvrige ledningsforbindelser afmonteres.
+
+2) Centralenheden vippes om på siden. Skruer løsnes og
+fjernes - 2 stk.
+
+3) Centralenheden vippes tilbage i normal stilling. Yder -
+kappen trækkes bagud.
+
+Herefter er der adgang til:
+- Winchester Controller (kun RC750-4) eller dekplade
+(øvrige Partner modeller), samt kabelforbindelser til
+
+hovedkort.
+
+Montering - yderkappe
+
+4) Centralenhed stilles i normal stilling.
+
+Yderkappen vendes med "hak" ind mod centralenhedens
+bagside og "huller" længst fra.
+
+Skub yder kappen ind over centralenheden.
+
+5) Skruer monteres og spændes - 2 stk.
+
+Fortsæt med opstilling og klargøring (del 1)
+
+A/S Regnecentralen -85-
+7... Systemopbygning Partner
+
+7.3.2 Winchester Controller
+
+(Ledsagende tekst: se højresiden).
+
+| ®
+
+KBL xxx
+
+Yderste »ledning« i kablet
+er altid mærket med en ka-
+rakteristisk anderledes far-
+ve end kablets farve iøvrigt
+
+| |
+luna annanngd! Ved montering af kabelfor-
+bindelser, påse, at der ik-
+
+ke sker forskydning i side-
+retning
+
+786- A/S Regnecentralen
+Partner 7. Systemopbygning
+
+Generelle bemærkninger
+
+A)
+
+B)
+
+Kabler er forsynet med et teknisk nr.: KBLxxx, CBLxxx,
+eller lignende.
+
+Flade kabler er desuden mærkede pa en anden made, idet
+den "yderste ledning" i kablet altid har en karakteris-
+tisk anderledes farve end kablets farve iøvrigt. (Kan
+også forekomme f.eks. for hver 10. "ledning" i kablet).
+Denne mærkning forekommer altid kun i den ene af de y-
+derste "ledninger".
+
+Nogle kabelstik kan forskydes i sideretningen og alli-
+gevel monteres i fatningen. Sørg for, at kabelstik sæt-
+tes præcis ned over stikbenene i fatningen, således at
+alle stikben er dækket af stikket. Forskydninger i si-
+deretning må ikke forekomme.
+
+På winchester controllere findes et typeskilt. I vejlednin-
+gen her skelnes mellem typerne WDC702 og WDC703.
+
+Der skelnes ligeledes mellem winchester diskene WDD703 og
+WDD7 06.
+
+A/S Regnecentralen -87—-
+7.. Systemopbygning Partner
+
+7.3.2.1 WDC702
+
+(Ledsagende tekst: Se højresiden).
+
+@a) Qo) BEMÆRK
+
+KBL KBL KBL MÆRKET LED-
+570 STS 572 NING MOD
+614 HØJRE
+PAS PÅ IKKE
+AT FORSKYDE
+I SIDERET-
+RS NING
+
+2 ~hejre
+front
+
+—88- A/S Regnecentralen
+Partner 7. Systemopbygning
+
+Afmontering - WDC702
+
+1) Yderkappen afmonteres (se afsnit 7.3.1).
+
+2) Kabler afmonteres:
+a) KBL570 .
+b) KBL573 for WDD703, KBL614 for WDD706
+c) KBL572.
+
+3) Skruer lgsnes og afmonteres - 4 stk.
+
+4) Stikforbindelserne afmonteres og controlleren fjernes.
+Herefter er der adgang til dzekpladen.
+
+Montering ~ WDC702
+
+5) Controlleren sættes på plads og spændes fast - 4 skru-
+er.
+
+6) Kabelforbindelser monteres. Kablerne skal have specielt
+farvemerket ledning i hgjre side (set fra maskinens
+front). Kabelstik skal pasettes præcist, de ma ikke
+forskydes i sideretningen.
+
+a) KBL572 monteres - jf. 2c)
+b) KBL573/614 monteres - jf. 2b)
+
+OBS! Der findes to sæt stikben af samme slags; benyt
+dem der er placeret lengst mod maskinens bagkant.
+
+c) KBL570 monteres - jf. 2a).
+
+7. Yderkappen monteres (se afsnit 7.3.1).
+
+A/S Regnecentralen -89-
+7.. Systemopbygning Partner
+
+7.3.2.2 WDC703
+
+(Ledsagende tekst: Se højresiden).
+
+7 BEMÆRK
+& MÆRKET
+benyttes ikke  573/ 607 MOD
+KBL HØJRE
+
+PAS PÅ IKKE
+AT FORSKYDE
+| SIDERET-
+NING
+
+front +“ ~~ højre
+
+—90- _ A/S Regnecentralen
+Partner 7. Systemopbygning
+
+Afmontering - WDC703
+
+1) Yderkappen afmonteres (se afsnit 7.3.1).
+
+2) Kabler afmonteres:
+a) KBL606
+b) KBL573 for WDD703, KBL614 for WDD706
+c) KBL607.
+
+3) Skruer løsnes og afmonteres - 4 stk.
+
+4) Stikforbindelse afmonteres og controlleren fjernes.
+
+Herefter er der adgang til dækpladen.
+
+Montering - WDC703
+
+5) Controlleren sættes på plads og spændes fast - 4 skru-
+er.
+
+6) Kabelforbindelser monteres. Kabler skal have specielt
+farvemærket ledning i højre side (set fra maskinens
+front). Kabelstik skal påsættes præcist, de må ikke
+forskydes i sideretningen.
+
+a) KBL607 monteres - jf. 2c)
+b) KBL573/614 monteres - jf. 2b)
+
+OBS! Der findes to sæt stikben; benyt dem, der er pla-
+ceret ind mod KBL607.
+
+c) KBL606 monteres - jf. 2a).
+
+7) Yderkappen monteres (se afsnit 7.3.1).
+
+A/S Regnecentralen -91-
+7. Systemopbygning Partner
+
+7.3.3 Dekplade
+
+(Ledsagende tekst: Se hgjresiden).
+
+ombukket
+endekanit
+
+Kabel tii SCS!-bus (alle mod.)
+og til Winchester controller
+
+(kun udnyttet på RC750-4)
+
+2 møtrikker (NV5)
+Batterinolder
+(fiederbelastet 2 skruer
+ophzeng)
+
+front
+
+-92- A/S Regnecentralen .
+Partner 7. Systemopbygning
+
+Afmontering - dekplade
+
+1)
+
+2)
+3)
+
+4)
+
+Yderkappen afmonteres (se afsnit 7.3.1), og eventuel
+winchestercontroller afmonteres (se afsnit 7.3.2), hvor
+denne indgår i systemet (RC750-4).
+
+Mgtrikker løsnes og fjernes - 2 stk.
+
+Skruer løsnes og fjernes - 2 stk.
+
+Dækpladen skubbes venstre ud.
+
+Herefter er der adgang til:
+
+- winchesterdisk (RC750-4)
+~ diskettestation(er).
+
+Montering - dekplade
+
+5)
+
+6)
+
+7)
+
+8)
+
+Dækpladen vendes med ombukket endekant opad og mod høj-
+re - skubbes ind - gevindtappene skal fange i hullerne
+i den ombukkede kant.
+
+Kablet til Winchestercontroller/SCSI-bus skal ligge
+ovenpå dækpladen efter montage af denne.
+
+Møtrikker sættes på og spændes let - skruer sættes i.
+Møtrikker spændes - 2 stk.
+Skruer spændes - 2 stk.
+
+Winchestercontroller (se afsnit 7.3.2) og yderkappe (se
+afsnit 7.3.1) monteres.
+
+A/S Regnecentralen -93-
+7.  Systeropbygning Partner
+
+7.3.4 Winchester disk
+
+(Ledsagende tekst: Se højresiden).
+
+NØ
+Monteringsprincip
+(a) Monteringsplade Nøgletap
+G) « Negiehuller es CD
+—— Ben
+
+(a) 2 skruer lesnes
+
+(b) Skub mod bagkant,
+så skrue og nøgletap sidder
+
+midt i nøgliehuliet
+
+(c) Løft lige op
+
+-94-— | A/S Regnecentralen
+Partner 7. Systemopbygning
+
+Generelle bemærkninger
+
+BEMÆRK! En winchesterdisk kræver FORSIGTIG HÅNDTERING |
+(j£. de indledende bemærkninger i afsnit 7.3). Fi-
+ler på disken bør, hvis muligt, være kopieret over
+på et andet medium før afmonteringen!
+
+Winchesterdisken er altid placeret som disk B (i højre side
+af centralenheden set forfra).
+
+På winchester diske findes et typeskilt.
+I vejledningen her skelnes mellem typerne WDD703 og WDD706.
+
+Der skelnes ligeledes mellem winchester-controllerne WDC702
+og WDC703.
+
+A/S Regnecentralen -95-
+7... Systemopbygning Partner
+72324.1 WDD703
+(Ledsagende tekst: Se højresiden).
+kabelstik BEMÆRK
+kabel 6a} KBL572 MÆRKET LED-
+eller NING MOD
+KBL573 KBL607 VENSTRE
+printkort ft i
+GQ SS AS S
+© HE :
+<G5- th --- pe
+ADVARSEL! |
+MOTOROMRADE
+SPINDEL MA
+IKKE BERORES L__<_
+(DREJES) = ]
+|
+rth |
+|
+,
+mn —— højre
+BEMÆRK !
+LEDNINGER front
+VENDER BAGUD
+Skal IKKE
+MOD DISK afmonteres
+Kontroliampe
+
+(frontpanel)
+
+—96- A/S Regnecentralen
+Partner . 7. Systemopbygning
+
+Afmontering - WDD703
+
+1)
+
+2)
+
+3)
+
+4)
+
+5)
+
+Dekpladen afmonteres (se afsnit 7.3.3)
+
+Diskettestationen placeret som disk A i venstre side af
+centralenheden fjernes. Dette er nødvendigt for at kun-
+ne afmontere winchesterdisken og er beskrevet under
+"Afmontering - diskettestation" (se afsnit 7.3.5).
+
+Skruer til monteringsplade lgsnes - 2 stk.
+
+Enhver disk sidder pa en monteringsplade, og alle mon-
+teringsplader er fastgjort efter samme princip - jf.
+illustrationen. Skruerne til winchesterdiskens monte-
+ringsplade skal løsnes ret meget - uden at skulle skru-
+es helt ud - for at kunne løfte monteringspladen fri af
+fangknasten.
+
+Stikforbindelse afmonteres.
+
+Winchesterdisken løftes ud af monteringsbeslaget (løft
+dens bageste del - skub bagud - løft op).
+
+Løft diskens bageste del ud og træk forsigtigt disken
+opad - når den forreste del er tilgængelig, afmonteres
+stikforbindelsen til kontrollampen. (Vær opmærksom på
+gevindtappe fra dækplade - disken må eventuelt  kantes
+fri af disse).
+
+De følgende kabler afmonteres. Træk i kabelstikkene,
+væk fra printkortets kant.
+
+a) KBL572, hvis WDC702
+KBL607, hvis WDC703
+
+b) KBL573.
+
+De løse kabler opbevares, til disken igen skal monte-
+
+A/S Regnecentralen -97-
+LÆR
+
+Systemopbygning Partner
+
+Montering - WDD703
+
+7)
+
+8)
+
+9)
+
+10)
+
+11)
+
+Kablerne monteres.  Kabelstikkene skubbes ind sover
+printkortets kant. Kabelstikkene vendes således, at
+fladkablerne har specielt farvemærket ledning i venstre
+side (disk set fra front).
+
+a)  KBL573 - jf. 6b)
+
+b) KBL572, hvis WDC702 - jf. 6a)
+KBL607, hvis WDC703 - jf. 6a).
+
+Disken vendes med monteringspladen nedad og kabelstik-
+kene bagud - den placeres i disk B position (højre si-
+de af centralenheden, set forfra). Inden disken senkes
+helt ned, skal stikforbindelsen til kontrollampen mon-
+teres - jf. 5).
+
+Stikket pa ledningerne vendes, således at ledningerne
+løber ud af stikket i retning ind mod disken.
+
+Disken sænkes ned, således at nøgletappe mod front fan-
+ger i nøglehuller i chassis'et, og nøglehuller bagude
+fanger skruerne. (Vær opmærksom på gevindtappe fra dæk-
+plade - disken må eventuelt kantes ned). Kabler kan
+lægges henover disken under isætning, men MÅ IKKE berø-
+re motorområdet.
+
+Disken skubbes frem, indtil fangknasten falder på plads
+i det tilsvarende hul i diskens monteringsplade. Disken
+kan ikke skubbes frem/tilbage, hvis fangknasten er kor-
+rekt i indgreb. Spænd skruerne - 2 stk. jf. 3).
+
+Stikforbindelse - jf. 4) - monteres.
+
+I denne situation er der to ens sæt ledninger med samme
+type stik (til winchesterdisk og til diskettestation)-
+det gør ingen forskel, hvilken der vælges. (Begge er
+forbindelser til den interne strømforsyning og begge
+har samme specifikationer).
+
+Dette stik kan ikke monteres forkert. Det skal eventu-
+elt drejes en halv omgang for at kunne monteres.
+
+Diskettestationen monteres (se afsnit 7.3.5). (Bemærk:
+En winchesterdisk, der har været indleveret til efter-
+syn, skal initialiseres før brug - jf. bilag A.)
+
+—98- A/S Regnecentralen
+Partner 7. Systemopbygning
+
+A/S Regnecentralen ~99—
+7. Systemopbygning Partner
+
+723-4.2 WDD706
+
+(Ledsagende tekst: Se hgjresiden).
+
+kabelstik
+kabel
+KBL624 BEMÆRK
+—— KBL572 NING MOD
+eller VENSTRE
+
+printkort
+
+&
+
+ADVARSEL! |
+MOTOROMRÅDE
+SPINDEL MÅ
+IKKE BERØRES L. _<
+(DREJES) — === ]
+| |
+| ib |
+| |
+Lecend mmm seme mam ol
+imens . _ højre
+/ front
+MONTERING AF STIK: FM
+SE TEKST ! / All
+Kontrollampe
+(frontpanel)
+
+-100- A/S Regnecentralen
+Partner 7. Systemopbygning
+
+Afmontering - WDD706
+
+1)
+
+2)
+
+3)
+
+4)
+
+5)
+
+6)
+
+Dækpladen afmonteres (se afsnit 7.3.3)
+
+Diskettestationen placeret som disk A i venstre side af
+centralenheden fjernes. Dette er nødvendigt for at kun-
+ne afmontere winchesterdisken og er beskrevet under
+"Afmontering - diskettestation" (se afsnit 7.3.5).
+
+Skruer til monteringsplade løsnes - 2 stk.
+Enhver disk sidder pa en monteringsplade, og alle mon-
+
+teringsplader er fastgjort efter samme princip - jf.
+illustrationen. Skruerne til winchesterdiskens monter-
+
+_ingsplade skal løsnes ret meget - uden at skulle skrues
+
+helt ud - for at kunne løfte monteringspladen fri af
+fangknasten. |
+
+Stikforbindelse afmonteres.
+
+Winchesterdisken løftes ud af monteringsbeslaget (løft
+dens bageste del - skub bagud - løft op).
+
+Løft diskens bageste del ud og træk forsigtigt disken
+opad - når den forreste del er tilgængelig, afmonteres
+stikforbindelsen til kontrollampen. (Vær opmærksom på
+gevindtappe fra dækplade - disken må eventuelt kantes
+fri af disse).
+
+De følgende kabler afmonteres. Træk i kabelstikkene,
+væk fra printkortets kant.
+
+a) KBL572, hvis WDC702
+KBL607, hvis WDC703
+
+b) KBL624.
+
+De løse kabler opbevares, til disken igen skal monte-
+res.
+
+A/S Regnecentralen | -101-
+7...
+
+Systemopbygning Partner
+
+Montering - WDD706
+
+7)
+
+8)
+
+9)
+
+10)
+
+11)
+
+Kablerne monteres. Kabelstikkene skubbes ind over
+printkortets kant. Kabelstikkene vendes således, at
+fladkablerne har specielt farvemærket ledning i venstre
+side (disk set fra front).
+
+a) KBL614 - jf. 6b)
+
+b) KBL572, hvis WDC702 - jf. 6a)
+KBL607, hvis WDC703 - jf. 6a).
+
+Disken vendes med monteringspladen nedad og kabelstik-
+kene bagud - den placeres i disk B position (højre side
+af centralenheden, set forfra). Inden disken sænkes
+helt ned, skal stikforbindelsen til kontrollampen mon-
+teres - jf. 5).
+
+Stikken er markeret med et mærke i den ene side og skal
+vende således, at dette mærke er placeret længst væk
+fra printkortet og disk-enheden.
+
+Disken sænkes ned, således at nøgletappe mod front fan-
+ger i nøglehuller i chassis'et, og nøgelhuller bagude
+fanger skruerne. (Vær opmærksom på gevindtappe fra dæk-
+plade - disken må eventuelt kantes ned). Kabler kan
+lægges henover disken under isætning, men MÅ IKKE berø-
+re motorområdet.
+
+Disken skubbes frem, indtil fangknasten falder på plads
+i det tilsvarende hul i diskens monteringsplade. Disken
+kan ikke skubbes frem/tilbage, hvis fangknasten er kor-
+rekt i indgreb. Spænd skruerne - 2 stk. jf. 3).
+
+Stikforbindelse - jf. 4) - monteres.
+
+I denne situation er der to ens set ledninger med samme
+type stik (til winchester-disk og til diskettestation)-
+det gør ingen forskel, hvilken der vælges. (Begge er
+forbindelser til den interne strømforsyning og begge
+har samme specifikationer).
+
+Dette stik kan ikke monteres forkert. Det skal eventu-
+elt drejes en halv omgang for at kunne monteres.
+
+Diskettestationen monteres (se afsnit 7.3.5). (Bemærk:
+En winchester disk, der har været indleveret til efter-
+syn, skal initialiseres før brug - jf. bilag A).
+
+—102- A/S Regnecentralen
+Partner 7. Systemopbygning
+
+A/S Regnecentralen | -103—-
+7.. Systemopbygning Partner
+
+7.3.5 Diskettestation
+
+(Ledsagende tekst: se højresiden)
+
+Monteringsprincip
+
+Monteringspiade Negtetap
+| |
+
+y — = ee
+; Neglehuller == rn
+(OX | . #2 Ur '
+
+2 skruer løsnes
+
+(2) Skub mod bagkant,
+
+så skrue og negietap sidder
+— midt i nøglehuilet
+
+(©) Lett lige op
+
+A/S Regnecentralen
+Partner 7. Systemopbygning
+
+Afmontering - diskettestation
+
+For at kunne afmontere en diskettestation, placeret som
+disk B (d.v.s i højre side af centralenheden set forfra),
+skal den diskettestation, der er placeret som disk A (i
+venstre side), først afmonteres. Enhver disk sidder på en
+monteringsplade, og alle monteringsplader er fastgjort ef-
+ter samme princip - jf. illustrationen.
+
+1) Dækpladen afmonteres (se afsnit 7.3.3).
+
+2) Kabler afmonteres. Træk i kabelstikkene, væk fra print-
+kortets kant.
+
+3) Stikforbindelse(r) afmonteres.
+4) Skruerne til monteringspladen lgsnes - 2 stk.
+Diskettestationen løftes ud af monteringsbeslaget (løft
+
+dens bageste del - skub bagud - løft op).
+
+Montering - diskettestation
+
+5) Diskettestationen vendes med monteringspladen nedad og
+kabelstikkene bagud og sænkes ned, så nøgletappene mod
+front fanger i nøglehullerne i chassis'et og nøglehul-
+ler bagude fanger skruerne. Skub herefter frem, så
+fangknasten falder på plads i det tilsvarende hul i
+diskens monteringsplade. Disken kan ikke skubbes
+frem/tilbage, hvis fangknasten er korrekt i indgreb.
+Spend skruerne - 2 stk. jf. 4).
+
+6) Stikforbindelse(r) - jf. 3) - monteres.
+
+Der er tre set ledninger med samme type stik - alle er
+forbindelser til den interne strgmforsyning og har sam-
+me specifikationer. Det længste set ledninger bruges
+til disken i position A; et vilkårligt af de to andre
+sæt til disken i position B.
+
+Disse stik kan ikke monteres forkert. De skal eventuelt
+drejes en halv omgang for at kunne monteres.
+
+7) Kabel monteres. Kabelstik skubbes ind over printkortets
+kant. Den specielt farvemærkede ledning i fladkabet
+placeres mod højre, set fra maskinens front, den kan
+dog næppe vendes forkert. Eventuelt skal stikket drejes
+en halv omgang.
+
+8) Dekpladen monteres (se afsnit 7.3.3).
+
+A/S Regnecentralen -105-
+7. Systemopbygning Partner
+
+7.3.6 Bundplade
+
+(Ledsagende tekst: se højresiden)
+
+ce
+Ke
+4Q°3
+®
+
+BEMÆRK
+
+LØFT LIGE OP
+2 skruer
+
+SS S
+
+front
+
+-106- A/S Regnecentralen
+Partner 7. Systemopbygning
+
+Afmontering - bundplade
+
+Bundpladen kan afmonteres uden forudgående afmontering af
+andre moduler.
+
+Bundpladen afmonteres bl.a., når hovedkortet skal afmonte-
+res; da dette også kræver adgang "fra oven", skal yder kap-
+pen i denne situation også afmonteres (se afsnit 7.3.1).
+Hvis både yderkappe og bundplade skal afmonteres, så afmon-
+teres yderkappen først, dernæst bundpladen - ellers mangler
+to af "gummibenene" hvilket gør det mere besværligt at
+trække yderkappen af.
+
+1) Centralenheden vendes med bunden opad. Skruerne ud mod
+bagkanten løsnes og fjernes - 2 stk.
+
+Bunåpladen skubbes i retning mod bagkanten.
+
+2) Løft bundpladen lige op.
+
+Herefter er der adgang til:
+
+- lagerkort.
+- eventuelle ekstrakort, herunder lagerudvidelse
+
+Montering - bundplade
+
+3) Bundpladen sænkes lige ned på chassis'et, således at
+tappene langs endekanterne fanger i låsehakkene i chas-
+sis'et.
+
+4) Bundpladen skubbes mod front og skruerne sættes i og
+spændes - 2 stk. jf. 1).
+Hvis yderkappen har været afmonteret, monteres den nu (se
+
+afsnit 7.3.1).
+
+Hvis hovedkortet har været afmonteret, skal system-parame-
+trene konfigureres påny (se afsnit 4.1).
+
+A/S Regnecentralen -107-
+7. Systemopbygning
+
+7.3.7
+
+Ekstraudstyr
+
+(Ledsagende tekst: se højresiden)
+
+7.3.7.1 Generelt
+
+7.3.7.2 Lagerkortudvidelse
+
+gevind,
+lagerkort
+
+skruehul,
+lagerkortudvidelse
+
+STIKFORBINDELSE
+SKAL PASSE PRÆ-
+CIS - SKRUEHULLER
+MA IKKE TVINGES
+PA PLADS
+
+a
+QO
+a
+VED MONTAGE a
+Oo
+a
+
+-108-
+
+A/S Regnecentralen
+
+Partner
+
+Partner 7. Systemopbygning
+
+Generelt
+
+Montagevejledninger følger de forskellige ekstrakort; kun
+montage af lagerkortudvidelse og lokalnet controllerkort er
+medtaget i det følgende.
+
+Afmontering - lagerkortudvidelse
+
+1) Bundpladen afmonteres (se afsnit 7.3.6).
+2) Skruer lgsnes og fjernes - 3 stk.
+
+3) Kortet afmonteres ved at lgfte/trekke i plastsnoren.
+
+Montering - lagerkortudvidelse
+
+4) Det lagerkort, der skal monteres, drejes således, at
+dets kontaktstik vender mod det allerede monterede la-
+gerkort og mod venstre (set fra maskinens front, nar
+den har bunden i vejret).
+
+Kortet settes ned pa det allerede monterede lagerkort
+og skal indpasses med stikbenene pa dette. Stikforbin-
+delsen skal monteres præcist - der ma ikke vere for-
+skydninger til siderne eller fremad/bagud. Som kontrol:
+Se efter om skruehullerne umiddelbart er placeret over
+gevindbgsningerne på det underliggende kort (skruerne
+skal kunne skrues direkte ned uden nogen besver). Kor-
+tet med lagerudvidelsen MA IKKE TVINGES PA PLADS for at
+kunne sette skruerne i.
+
+5) Skruer sættes i og spændes (moderat) - 3 stk.
+
+6) Bundpladen monteres (se afsnit 7.3.6).
+
+A/S Regnecentralen -109-
+7. Systemopbygning Partner
+
+7.3.7.3 Lokalnet controllerkort (MF106)
+
+(Ledsagende tekst: se højresiden)
+
+15-polet stik
+
+a
+
+Lokainet- .
+controller.
+
+a
+
+50-polet stik
+
+-110- A/S Regnecentralen |
+Partner 7. Systemopbygning
+
+Afmontering - lokalnet controllerkort
+
+1)
+
+2)
+
+3)
+
+Bundpladen afmonteres (se afsnit 7.3.6).
+
+Fastspendingsskruerne for controllerkortet løsnes og
+fjernes - 2 stk. .
+
+Den forreste ende af controllerkortet løftes så meget i
+vejret, at dets 50-polede stik er fri af det tilsvaren-
+de 50-polede stik på det underliggende kort. Kontrol-
+ler-kortet kan nu afmonteres ved at trække det fremad
+
+og op.
+
+Montering - lokalnet controllerkort
+
+4)
+
+5)
+
+6)
+
+7)
+
+8)
+
+Afmonter bagstykkets blændplade.
+
+Controllerkortet vendes således, at komponentsiden ven-
+der væk fra hovedkortet og således, at det 15-polede
+stik vender ud mod bagsiden af centralenheden, jf. fig-
+uren.
+
+Controllerkortet placeres således, at det 15-polede
+stik går ud gennem åbningen (benævnt "LAN") i bagpla-
+den. Det 50-polede stik på controllerkortet trykkes
+derefter ned over det tilsvarende stik på centralenhed-
+en. Kontroller, at stikforbindelserne ikke er forskudt
+i forhold til hinanden.
+
+De to skruer sættes i og spændes.
+
+Bundpladen monteres (se afsnit 7.3.6).
+
+A/S Regnecentralen -lll-
+7.. Systemopbygning Partner
+
+7.3.8 Lagerkort
+
+(Ledsagende tekst: se højresiden)
+
+befæstigelse til
+lagerkortudvidelse
+
+stikben til lager-
+ortudvideise
+
+—-112- A/S Regnecentralen
+Partner 7. Systemopbygning
+
+Afmontering - lagerkort
+
+1) Bundpladen afmonteres (se afsnit 7.3.6).
+
+Hvis lagerkortudvidelse er installeret, så afmonteres
+denne (se 7.3.7.2), før der fortsættes med punkt 2.
+
+2) Skruerne, der fastholder lagerkortet, løsnes og fjernes
+- 2 stk. krydskærv og 1 stk. sekskant.
+
+3) Kortet afmonteres ved at løfte/trække i plastsnoren.
+
+Herefter er der adgang til hovedkortet (andre ekstrakort
+forudsettes afmonteret).
+
+Montering - lagerkort
+
+4) Kortet drejes, således at stikkene til lagerkortudvi-
+delsen er placeret opad og mod venstre, og stikket til
+hovedkortet nedad og fremad (set fra forsiden af cen-
+tralenheden, nar den har bunden i vejret).
+
+Lagerkortet senkes ned pa hovedkortet og skal indpasses
+med stikbenene pa hovedkortet. Stikforbindelsen skal
+
+monteres precist - der ma ikke vere forskydninger mod
+højre eller venstre (vil næppe kunne forekomme i prak-
+sis).
+
+5) Skruer sættes i og spændes (moderat) - 2 stk. krydskærv
+og 1 stk. sekskant. .
+
+6) Bundpladen monteres (se 7.3.6). Hvis systemet er udsty-
+ret med lagerkort-udvidelse, må denne dog monteres (se
+7.3.7.2), før bundpladen monteres.
+
+A/S Regnecentralen -113-—-
+7. Systemopbygning Partner
+
+7.3.9 Hovedkort
+
+(Ledsagende tekst: se hgjresiden)
+
+front
+
+es)
+
+Kabel til dis- Kabel til bag- Kabel til win- Stiktorbindelse
+kettestatiorier) panel chester/SCSI-bus __ til intern strem-
+
+samt (bagved) forsyning
+
+stikforbindeise
+
+til stramforsy-
+
+ning (dataskeerm)
+
+NB! Skal løsnes
+
+med et beslut-
+
+"somt ryk!
+
+~114- . A/S Regnecentralen
+Partner _ 7. Systemopbygning
+
+Afmontering - hovedkort
+
+1) Yderkappe og lagerkort afmonteres (se 7.3.1 og 7.3.8).
+
+2) Centralenheden stilles i normal stilling (oversiden op-
+ad).
+
+Kabelforbindelserne fra hovedkortet afmonteres:
+a) til diskettestation(er)
+
+b) til bagpanel
+
+c) til bagpanel (strømforsyning til dataskerm)
+
+OBS! Denne stikforbindelse sidder bagved kablet,
+der blev afmonteret under b) - stikforbindel-
+sen lgsnes med et beslutsomt ryk.
+
+ad) til winchesterdisk og til bagpanel (SCSI bus)
+e) til intern strømforsyning.
+3) Centralenheden vendes med bunden opad.
+a) sekskantskruer løsnes og fjernes - 5 stk.
+b) krydskervskruer løsnes og fjernes - 2 stk.
+(Se illustration neste side).
+4) Hovedkort tages ud:
+
+a) skub hovedkortet i retning mod centralenhedens
+front, så stik i bagpanelet gar fri.
+
+b) løft i kortet, så kanten ved bagpanelet hæves ud
+af chassis'et.
+
+c) træk kortet bagud og fri af chassis'et.
+
+(Se illustration næste side).
+
+AfS Regnecentralen | -115-
+7.. Systemopbygning Partner
+
+(Ledsagende tekst: se højresiden)
+
+—116- A/S Regnecentralen |
+Partner 7. Systemopbygning
+
+Montering - hovedkort
+
+5)
+
+6)
+
+7)
+
+8)
+
+>)
+
+Centralenheden placeres med bunden i vejret, og hoved-
+kortet anbringes på plads. Kortet vendes således, at
+det har komponentsiden opad, og de tre kabelstik er på
+den højre halvdel, ud mod bagpanelet.
+
+a) kortet stikkes ned og skubbes ud mod centralenhed-
+ens front - jf. 4c) og 4a)
+
+b) kortet sænkes ned ved bagpanelet, og de tre stik
+indpasses i bagpanel; kortet presses bagud (fje-
+derbelastet fra kontaktskive omkring stikkene) -
+jf. 4b).
+
+Skruerne monteres og spændes (moderat) - 5 stk. seks-
+kantskruer og 2 stk. krydskærvskruer.
+
+Lagerkortet monteres (se 7.3.8). Eventuelle ekstrakort
+monteres (se 7.3.7).
+
+Centralenheden stilles i normal stilling (oversiden op-
+ad).
+
+Kabelforbindelserne til hovedkortet monteres - jf. 2) -
+disse stikforbindelser kan ikke monteres forkert. De
+skal eventuelt drejes en halv omgang for at kunne ind-
+passes (dette vil næppe kunne forekomme i praksis):
+
+a) fra intern strømforsyning - jf. 2e)
+
+b) fra winchester-disk og fra bagpanel (SCSI bus) -
+jf. 2a)
+
+c) fra bagpanel (strømforsyning til dataskerm) - jf.
+2c)
+
+OBS! Denne stikforbindelse sidder bagved kablet,
+der skal monteres under da) - stikforbindelsen
+samles med et beslutsomt tryk.
+
+d) fra bagpanel - jf. 2b)
+
+e) fra diskettestation(er) - jf. 2a).
+
+Yderkappe monteres (se 7.3.1).
+
+Berzerk: Systemparametrene skal konfigureres pany (se afsnit
+4.1), idet de ikke vil vere intakte, nar hovedkortet har
+være afmonteret.
+
+A/S Regnecentralen -117-
+7. Systemopbygning Partner
+
+-118- A/S. Regnecentralen
+8. Fejlfinding
+
+I forbindelse med fejlfinding bør man altid søge fejlkil-
+derne ud fra følgende overordnede gruppering/rækkefølge:
+
+- betjeningsfejl, incl. forkert opstilling/sammenkob-
+ling af systemenhederne
+
+- diskettefejl eller "darlige” omgivelser
+
+- fejl i programmel
+
+- fejl i maskinel.
+
+Til støtte for fejlfinding og -afhjælpning har Partner sy-
+stemet en række faciliteter: .
+
+- vejledende meddelelser fra programmel; beskrevet i
+betjeningsvejledning(er) hørende til det pågældende
+programmel.
+
+- diskette verifikation; beskrevet i betjeningsvejled-
+ningen.
+
+- et sæt testprogrammer, “Partner System-vedligeholdel-
+se", der afvikles under menusystemet; testprogram-
+merne er beskrevet i afsnit 8.4.
+
+- automatisk test under systemets opstart af de vesent-
+ligste systemenheder; beskrevet i betjeningsvejled-
+ningen, samt i afsnit 8.1 i dette kapitel.
+
+Problemstillinger med relation til betjeningssituationen er
+beskrevet i betjeningsvejledningen. ("Hvis noget gar
+galt").
+
+Afsnit 8.1 omhandler som nzvnt den automatiske selvtest un-
+der opstart, og i de følgende afsnit beskrives fejlfinding
+i: relation til tre hovedproblemstillinger:
+
+Afsnit 8.2: Systemet kan ikke gennemføre en opstart, og
+det giver ingen fejlmeddelelser.
+
+Afsnit 8.3: Systemet har påbegyndt en opstart, som dog
+oo? " ikke er fuldført, idet systemet er stoppet
+med angivelse af fejlkode. |
+
+Afsnit 8.4: - Systemet har fuldført en opstart, og der er
+ingen fejlmeddelelser, men pa grund af tid-
+
+A/S Regnecentralen 9 9—
+8. . Fejlfinding Partner
+
+ligere driftsforstyrrelser er der ønske om
+en aftestning af funktionen af een eller
+flere af systemets enheder.
+
+Almindelig betjening af systemet og viden om systemets nor-
+male reaktioner i en given situation forudsættes at være
+kendt.
+
+I tilfælde af fejl, der ikke umiddelbart kan afhjælpes,
+indleveres den fejlbehæftede del til eftersyn hos leveran-
+dør (forhandleren eller RC). Før transport af systemer med
+indbygget winchesterdisk er det VIGTIGT, at nedlukning af
+winchesterdisken er udført (se afsnit 6.1). Kan nedlukning
+ikke udføres, eller hersker der tvivl herom, så tilkald as-
+sistance. (Håndtering af centralenheden for at afmontere
+anåre moduler kan foregå, men skal foretages med yderste
+forsigtighed for ikke at udsætte winchesterdisken for stød
+eller rystelser).
+
+Under fejlfindingen vil man altid få udpeget en systemenhed
+(centralenhed, dataskærm, tastatur eller diskenhed) eller
+et modul (hovedkort, lagerkort, diskettestation, etc.) som
+fejlkilde. Afmontering af moduler er beskrevet i kapitel 7.
+Alle moduler er monteret i centralenheden, og brugere, der
+ikke har den fornødne tekniske kompetance kan indlevere
+hele centralenheden i stedet for det modul, der udpeges som
+fejlkilde.
+
+Systemenheder skal transporteres i den originale emballage
+ved indlevering (jf. evt. afsnit 7.3).
+
+8.1 Selvtest under opstart
+
+Under opstart udføres automatisk en række selvtest-forløb,
+der skal sikre, at systemets grundfunktioner arbejder til-
+fredsstillende med henblik på indlæsning af styreprogran-
+met.
+
+Disse testforløb udgør en delmængde af systemets samlede
+indbyggede selvtest-faciliteter, der i deres fulde omfang
+er beregnet for teknisk servicering af anlægget, og som er
+styrede fra et menubillede. Dette menubillede kan man util-
+sigtet havne i, hvis man under afviklingen af den automa-
+tiske del af selvtestforløbet kommer til at trykke på mel-
+lemrumstangenten. I så fald, tryk pa <CTRL+ALT+SLET> og for —
+retag en ny opstart, idet den resterende del af den automa-
+tiske selvtest overspringes. (Eller genstart med RESET
+knappen, hvorved selvtesten udføres forfra).
+
+—120- A/S Regnecentralen.
+Partner 8. Fejlfinding
+
+Får man under opstarten en fejlmeddelelse, stopper syste-
+met. Hvis man ønsker at forbigå en given fejlsituation, kan
+man ligeledes trykke på <CTRL+ALT+SLET> - f.eks. i et for-
+søg på at udføre opstart for derefter at forsøge at udføre
+en aftestning med testprogrammer, eller for at søge at nå
+frem til nedlukning af en eventuel winchester-disk.
+
+Fejl meddeles med udskrifter af typen "ERROR: xx" (hvor xx
+er et tal), og samtidig høres et antal "dyt" fra højtale-
+ren, svarende til fejlkodens nummer. Lydsignalerne sendes
+med en lavere tonehøjde for hvert fjerde "dyt" for at lette
+tællingen.
+
+I afsnit 8.3 er givet mere udførlig information om selvtest
+for de enkelte enheder i systemet, ligesom fejlmeddelelser
+og fejlkoder fra systemet er beskrevet.
+
+8.2. Opstart ikke mulig
+
+Situation: Systemet kan ikke gennemføre opstart og mel-
+| der ikke fejl.
+
+Man må i denne situation foretage en grundig gennemgang af
+hele systemopstillingen. Som forhandskontrol inden denne
+gennemgang stilles lyd-, lys- og kontrast-regulering pa
+"fuld styrke" (drejes i retning med uret) og opstart fors¢-
+ges gentaget. Hvis fejlsituationen herefter er uændret, sa
+gå frem som følger:
+
+1) Netafbryderen på centralenhed stilles i ”slukket"
+stilling - og sluk også for stikkontakten!
+
+2) Undersøg om der er fejl på lysnettet (virker det gvrige
+eludstyr i lokalet?).
+
+Hvis der findes fejl på lysnettet, så få det udbedret
+og forsøg en ny opstart; ellers fortsæt med pkt. 3.
+
+3) a) Undersøg om alle ledningsforbindelser mellem sy-
+stemenheder er korrekt tilsluttet - jf. kapitel l.
+
+Ret eventuelle fejl og sørg for god elektrisk kon-
+takt, eksempelvis ved at afmontere stikforbindel-
+ser og montere dem sammen igen (gentag eventuelt
+dette par gange). Sgrg for, at alle de stik, der
+er udstyret med fastspendingsskruer, er spændt
+fast.
+
+A/S Regnecentralen . -121-
+Fejlfinding | Partner
+
+4)
+
+5)
+
+6)
+
+b) Undersøg ligeledes om tilslutning til lysnettet er
+i orden.
+
+Tend for systemet (stikkontakt samt afbryder pa cen-
+tralenhed).
+
+Hvis opstart nu fuldføres, så fortsæt med normal drift.
+
+Hvis systemet giver fejlmeddelelse(r), så fortsæt med
+afsnit 8.3.
+
+Ellers (d.v.s., hvis opstart ikke lykkes, og der ingen
+fejlmeddelelser kommer) s& fortset med pkt. 5.
+
+Er der lys (rgdt) i afbryderen pa centralenheden ?
+
+Hvis ja, sa er centralenheden og/eller dataskermen
+fejlbeheftede, og begge bør indleveres til eftersyn.
+
+Hvis der ikke er lys i centralenhedens afbryderknap
+fortsettes med pkt. 6.
+
+Sluk for systemet og kontroller sikringen - jf. afsnit
+6.4.
+
+Hvis sikringen er sprunget, sa skift den og gå til pkt.
+4.
+
+Ellers er centralenheden fejlbehæftet (yderligere fejl
+på de øvrige systemenheder kan ikke udelukkes, men kan
+i denne situation ikke konstateres på grund af fejlen
+på centralenheden).
+
+8.3 Fejlkoder under opstart
+
+Situation: Systemet har påbegyndt opstart, som dog ikke
+
+er fuldført, idet systemet er stoppet med an
+givelse af en fejlkode. .
+
+Generelt: En fejlkode indikerer, at der sandsynligvis
+
+er fejl på en bestemt systemenhed eller på et
+bestemt modul i centralenheden. Enheden/mo-
+dulet kan afmonteres og indleveres til efter-
+syn/reparation, eller fejlkoden kan danne
+grundlag for at tilkalde teknisk assistance.
+Fejlkoden bedes oplyst ved indlevering.
+
+Fejlkoder er kun vejledende, og andre eller
+flere fejlkilder kan ikke helt udelukkes.
+
+-122- . A/S Regnecentralen
+Partner 8. Fejlfinding
+
+Specielt bør opmerksomheden også rettes mod
+omgivelserne (overholdes kravene som er an-
+ført i afsnit 1.1).
+
+Tastatur: Tastaturet udfører et selvstændigt testforløb
+og afgiver nogle klik-lyde ca. 2 sekunder ef-
+ter, at der tændes for systemet. Denne test
+udføres efter sluk-tænd af system og efter
+genstart med RESET knap, ikke efter<CTRLt-
+ALT+SLET>.
+
+Hvis der udsendes 3 klik, sa er tastaturet i
+orden.
+
+Hvis et andet antal klik høres, så er der
+fejl pa tastaturet, og hele tastaturet indle-
+veres. Fejlen vil også blive vist som en
+fejlkode, "ERROR: 17", pa dataskermen.
+
+Winchester- Nogle winchestermodeller udfører et selv-
+
+disk: stendigt testforlgb, og fejl meddeles ved, at
+disk-kontrollampen pa centralenhedens front
+blinker. Dette sker i løbet af ca. 5 sekunder
+efter, at der tendes for systemet. Denne test
+udføres ikke efter genstart. med RESET eller
+<CTRL+ALT+SLET>. 7
+
+Hvis der indikeres fejl, indleveres winchest-
+er disken, efter at man om muligt har udført
+nedluknings-proceduren for den (se afsnit
+6.1). Hvis nedlukning ikke med sikkerhed er
+udfgrt, skal der tilkaldes teknisk assistan-
+ce.
+
+Nogle fejlmeddelelser giver anledning til yderligere under-
+sgZgelser, inden modulskifte eventuelt foretages:
+
+Fejlkode 19:
+
+Fejlkode 19 indikerer problemer med systemparameter-la-
+geret, der er placeret pa centralenhedens hovedkort.
+Problemerne kan skyldes en egentlig fejl, men kan ogsa
+skyldes, at indholdet i parameter-lageret er blevet
+slettet (f.eks. ved batteriskift med centralenheden
+slukket eller ved afmontering af hovedkortet). I sidst-
+nevnte tilfelde kreves blot en ny konfigurering af sy-
+stemet (se afsnit 4.1). Man foretager derfor følgende:
+
+A/S Regnecentralen -123-
+8. Fejlfinding Partner
+
+1) Konfigurer systemet. For at kunne konfigurere, er
+man nødt til at overspringe selvtesten, (der jo
+stopper med fejlkode 19) - dette gøres med
+<CTRL+ALT+SLET>. Hvis det ikke er muligt på denne
+made at indlæse systemet og få konfigureringsmenuen
+frem (se afsnit 4.1), sa er der sandsynligvis fejl
+pa hovedkortet. Hvis konfigureringen ser ud til at
+vere lykkedes, så prøv en genstart med selvtest
+" (RESET).
+
+2) Er der stadig fejlmeddelelse med fejlkode 19, så er
+der to fejlmuligheder:
+
+a) Batteriet er defekt og skal skiftes.
+b) Hovedkortet er defekt.
+
+Fejlkode 26-30:
+
+Fejlkoder i dette interval har relation til diskette-
+stationen, men vil også kunne forekomme, hvis der er
+fejl på selve disketten. I disse situationer bør man
+derfor altid prøve med en fejlfri diskette, så vidt mu-
+ligt en direkte arbejdskopi af den originale system-
+diskette.
+
+Hvis fejlsituationen består uændret, efter at man har
+prøvet med en anden diskette, så gå frem som følger:
+
+1) Har systemet to diskettestationer?
+Hvis ja, så gå til pkt. 2.
+
+Hvis nej, så indleveres et af følgende moduler som
+fejlbehæftet:
+
+hovedkort, hvis fejlkode 26
+centralenhed, hvis fejlkode 27
+diskettestation, hvis fejlkode 28-30.
+(hvis fejlkode 30, så kontroller dog først
+diskettestationens fladkabler).
+
+2) Benyt den alternative diskettestation til opstart.
+
+Hvis opstart nu kan gennemføres, så er der fejl på
+den diskettestation, der meldte fejl ved det
+oprindelige opstartsfors¢g.
+
+Hvis opstart stadig ikke kan gennemføres, så er
+hovedkortet sandsynligvis fejlbehæftet (idet sand-
+
+—124- A/S Regnecentralen
+Partner 8. Fejlfinding
+
+synligheden for samtidig fejl på begge diskette-
+stationer regnes væsentligt lavere).
+
+Den efterfølgende liste over fejlkoder peger for hver fejl-
+kode på en sandsynlig fejlkilde i form af en systemenhed
+eller et modul. I kolonnen med overskriften "komponent" er
+yderligere forsøgt en indkredsning på komponentniveau af
+fejlen, og i kolonnen "bemærkninger" er der givet nogle op-
+lysninger om fejlens karakter. informationen i begge disse
+kolonner må dog kun tages som "vejledende rådgivning”, der
+giver sandsynlige muligheder/forklaringer, idet problemet
+også kan ligge andre steder og/eller have andre årsager.
+
+Afmontering af moduler er beskrevet i afsnit 7.3
+
+Fejl-
+kode Enhed/Modul Komponent Bemer kning
+1 Hovedkort Opstart- - Checksum fejl
+
+PROM 'er
+
+2 Lagerkort Hovediager ell. Datafejl
+
+billedlager
+
+3 Hovedkort CPU, DMA Datafejl
+
+4 Hovedkort CPU, DMA Overfgrt for fa/mange bytes
+
+5 Hovedkort CPU/Interrupt Modtog interrupt, da intet var
+Controller forventet
+
+6 Hovedkort Interrupt Modtog ikke forventet interrupt
+Controller
+
+7 Centralenhed
+
+8 Hovedkort CPU Ukendt/ikke-mulig instruktion
+
+er søgt wiffrt
+9 Lager kort Hovedlager Glemmer indhold
+10 Hovedkort CPU Timer defekt (lydindikering af
+7 fejl fungerer ikke)
+
+11 Hovedkort Interrupt Modtog interrupt på forkert
+Controller niveau
+
+12 Hovedkort CPU Modtog ikke forventet interrupt
+
+A/S Regnecentralen -125-
+8. Fejlfinding Partner
+
+Fejl-
+kode Enhed/Modul Komponent Bemærkning
+13 Hovedkort CPU Modtog interrupt på forkert
+
+niveau
+
+14 Hovedkort Serial Inter- Paritetsfejl
+face Controll.
+
+15 Hovedkort Serial Inter- Data overløb
+face Controll.
+
+16 Hovedkort Dataskerm
+controller
+
+17 Tastatur
+
+18 Hovedkort Internal Par-
+allel Contr.
+
+19 Hovedkort Systemparame— Checksum fejl
+ter-lager (NB: Se mere information an kode
+19 tidligere i dette afsnit).
+
+20 Hovedkort Serial Inter- Modtagne data forskellige fra
+face Contr. afsendte
+
+21 Hovedkort Serial Inter- Fejl på X.21 forbindelser
+
+face Contr.
+22 Hovedkort Serial Inter- Fejl på V.24 forbindelser
+face Contr.
+23 Hovedkort Serial Inter- Modtog aldrig data, som er
+face Contr. sendt
+24 Hovedkort Printer port Fejl i styresignaler
+25 Hovedkort Printer port Fejl i data-signaler
+26 Hovedkor t Diskette kon- Underlgb ved læsning
+trol (se note 1 efter tabellen).
+27 Central enhed CRC fejl
+| (se note 1 efter tabellen).
+28 Diskette— Kan ikke finde sektor
+station - (se note 1 efter tabellen).
+29 Diskette— Ségefejl
+station (se note 1 efter tabellen).
+
+-126- A/S Regnecentralen
+Partner 8. Fejlfinding
+Fejl-
+kode Enhed/Modul Komponent Bemer kning
+30 Diskette— "klar" tilstand skiftet til
+station “ikke-klar" tilstand (se note 1
+efter tabellen).
+31 Winchester Ségefejl
+disk .
+32 Winchester Datafejl
+disk
+33 Winchester Kommandofej1
+controller
+34 Winchester Fejl i RAM lager
+controller
+35 Hovedkort SCSI Inter-
+face
+36 Lokalnet Lokalnet Controller selvtest,
+kort contr. fejl i controller.
+37 Lokalnet Lokalnet Sende-status fejl.
+kort contr.
+38 Lokalnet Lokalnet Test-data fejl.
+kort contr.
+39 Lokalnet Stikforbin- Giver ikke interrupt
+kort delse .
+40 Lokalnet Lokalnet Modtage-status fejl.
+kort contr.
+41 Lokalnet Lokalnet contr. Transmissions-fejl.
+/Transceiver
+boks
+42 Lokalnet Medie Logan-fejl
+/net—vert /Open file
+/Read file.
+43 Lokalnet System para~- Forkert knude-nummer
+
+meter lager
+
+/Flere med samme nummer.
+
+A/S Regnecentralen
+
+-127-
+8. Fejlfinding Partner
+
+44 Lokalnet Medie Ingen forbindelse til
+/net-vært vært
+/ lokalnet /verten er slukket
+/transceiver
+
+45 Lokalnet Medie Ingen NDOS svar
+/net-vert /verten er for lenge an.
+
+at svare, overbelastet
+
+46 Lokalnet Lokalnet Initialiseringsfejl
+contr. .
+
+47-255 Centralenhed
+
+Note 1: For fejlkoder 26-30: Se mere information tidligere
+i dette afsnit.
+
+8.3.1 Fejlkoder under opstart via lokalnet _.
+
+Hvis der sker en fejl ved indlesningen af styresystemet via
+lokalnettet vises følgende billede:
+
+Partner BOOTLOADER, VERSION 2.0
+SELECT LOADMEDIUM:
+
+A: DRIVE A
+
+B: DRIVE B
+
+N: DOWNLINE LOAD
+
+K: CONFIGURATION OF NET PARAMETERS.
+SELECT:
+
+ERROR xx "tekst"
+
+Hvis der forekommer en udskrift af typen ERROR: xx (hvor xx
+er et tal), er der konstateret en fejl - det er i sa fald
+samme type fejlnummer, som under selv-testen.
+
+-128- A/S Regnecentralen
+Partner 8. Fejlfinding
+
+Feltet "tekst" vil indeholde en tekst, som er relateret til
+fejlen og som beskriver denne, der vil være een af følgende
+muligheder:
+
+"ETHERNET CONTROLLER INITIALIZATION ERROR"
+
+Hvilket betyder, at der er opstået en fejl på lokal
+netcontrollerkortet.
+
+"LOGON ERROR"
+
+Hvilket betyder, at net værten i øjeblikket ikke kan
+administrere flere maskiners forespgrgsler.
+
+"NO CONNECTION TO SERVER"
+
+Hvilket betyder, at der for øjeblikket ikke er for-
+bindelse til net værten (f.eks. kan denne vere sluk-
+ket).
+
+"NODE CONFLICT ERROR”
+Hvilket betyder, at to eller flere systemer pa net-
+tet har samme knudenummer. Derfor skal knudenummeret
+ændres i basiskonfigurationen som nedenfor beskrev-
+et.
+
+“OPEN FILE ERROR"
+
+Hvilket betyder, at pageldende styresystem ikke fin-
+des hos net verten.
+
+“TRANSMISSION ERROR"
+
+Hvilket betyder, at der er opstået en fysisk fejl på
+nettet under indlæsning af styresystemet.
+
+"READ FILE ERROR"
+
+Hvilket betyder, at der er opstået en fejl under
+indlæsning af styresystemet.
+
+"CLOSE FILE ERROR"
+
+Hvilket betyder, at lukning efter endt læsning af
+filen med styresystemet hos net værten er gået galt.
+
+A/S Regnecentralen -129-
+8. Fejlfinding Partner
+
+"NO NDOS ANSWER FROM SERVER"
+
+Hvilket betyder, at en data pakke med en del af sty-
+resystemet har været for længe under vejs (f.eks.
+opstået ved ekstrem belastning af net værten).
+
+"NDOS ERROR (BUFSIZE)"
+
+Hvilket betyder, at der er opstaet en protokolfejl
+under indlæsning af styresystemet, her størrelsen af
+data pakkerne.
+
+"NDOS ERROR (MULTI SECTOR)"
+
+Hvilket betyder, at der er opstået en protokolfejl
+under indlesning af styresystemet.
+
+Følgende betingelser skal vere opfyldt for at gennemføre en
+fejlfri indlæsning af styresystemet via lokalnettet. Det
+ønskede styresystem skal vere til stede hos net værten. Den
+basale netkonfiguration skal vere i orden. Sidstnevnte kan
+kontrolleres ved at vælge indgang K (CONFIGURATION) i menu-
+en, hvorefter følgende billede vises:
+
+PARTNER BOOTLOADER VERSION 2.0
+CONFIGURATION OF NET PARAMETERS
+
+<l> : LOCAL NODE ID x
+<2> : SERVER NODE ID x
+<3> : AUTOMATIC NET=-LOGON CONSOLE 0 XXX
+<4> : AUTOMATIC NET=-LOGON CONSOLE 1 XXX
+<5> : AUTOMATIC NET-LOGON CONSOLE 2 XXX
+<6> : AUTOMATIC NET~LOGON CONSOLE 3 XXX
+<7> : SYSTEM FILE NAME (.SYS) XXXX
+<8> : MACHINE IDENTIFICATION KBNX xx
+<9> : SERIAL NUMBER XXXXX
+<Y> : UPDATE NVM WITH NEW PARAMETERS, AND EXIT
+<N> : EXIT WITHOUT UPDATE
+
+SELECT:
+
+Til højre pa billedet vises de nuværende værdier af parame-
+trene. Vælges en af parametrene vises denne alene på skern-
+en med den nuværende værdi. Efter skråstregen kan den nye
+verdi indtastes. .
+
+Nar man mener, alt er i orden, tastes Y og Select menuen
+kommer igen op pa skærmen.
+
+=130- A/S Regnecentralen.
+Partner 8. Fejlfinding
+
+Følgende lokalnet-parametre kan ændres i den basale konfig-
+uration:
+
+"LOCAL NODE ID"
+
+Her indtastes knudenummeret for ens egen maskine.
+"SERVER NODE ID"
+
+Her indtastes net værtens knudenummer.
+"AUTOMATIC NET LOGON CONSOLE 0"
+
+Her kan vælges om nævnte konsol automatisk skal
+koble sig til lokalnettet eller ej. En tilsvaren-
+de mulighed findes for de tre andre konsoller.
+
+"SYSTEM FILE NAME (.SYS)"
+
+Her indtastes navnet på det styresystem, som øns-
+kes indlæst fra netværten. Navnet på styresyste-
+met har formatet CCPMnnnn, hvor nnnn er et fir-
+cifret tal.
+
+"MACHINE IDENTIFICATION"
+
+Her indtastes systemets typenummer, f.eks.
+KBN710. Se serie- og typenummerskilt.
+
+"SERIAL NUMBER"
+
+~
+
+Her indtastes systemets serienummer. Se serie og
+type nummerskilt.
+
+De foretagne rettelser af parametrene kan gemmes i system-
+parameterlageret ved at taste Y. Ønskes ændringerne ikke
+gemt tastes N.
+
+A/S Regnecentralen -131-
+8. Fejlfinding Partner
+
+8.4 Funkticns-testning
+
+Situation: Systemet har fuldført en opstart, og der er
+ingen fejlmeddelelser, men på grund af tidli-
+gere driftsforstyrrelser er der ønske om en
+aftestning af funktionen af een eller flere
+af systemets enheder.
+
+Efter opstart af systemet er der mulighed for at gennemføre
+supplerende testforløb, der ligger så tæt på normal drift
+som muligt. Hertil findes programmet SYSVEDL (System Vedli-
+geholdelse), der kan køres enten direkte som CCP/M-86 kom-
+mando eller indlægges som brugerprogram i en menu.
+
+Testprogrammerne i SYSVEDL er specielt velegnede til at re-
+gistrere sporadiske fejl, der ikke er registreret under
+selvtesten, idet aftestningen kan fortsætte, indtil den
+stoppes ved at trykke på mellemrumstangenten.
+
+Bemærk generelt, at en række symptomer, der peger på fejl i
+systemet, også kan skyldes uheldige forhold i omgivelserne,
+f.eks. hvis kravene i afsnit 1.1 ikke er overholdt med hen-
+syn til:
+
+- statisk elektricitet
+- luftfugtighed
+
+- temperatur, herunder også eventuelle interne tempera-
+turstigninger i enhederne grundet dårlig ventilation
+(manglende renholdelse af filteret i ventilationsind-
+sugningen)
+
+- el-kvalitet, herunder at eludstyr med hyppige start og
+stop (f.eks. køleskabe og kopimaskiner) ikke bør til-
+sluttes samme netgruppe (målergruppe) som datamatudsty-
+ret.
+
+Eventuelle fejl i systemets interne strømforsyning eller
+svigtende elektrisk kontakt i lednings- og kabelstik kan
+være andre, "ydre" fejlkilder - set i forhold til funkti-
+ons-testprogrammerne, der "opfatter" alt udenfor modulerne
+som "ydre"ting. Dette gælder også kabelforbindelser internt
+mellem moduler.
+
+-132- A/S Regnecentralen
+Partner 8. Fejlfinding
+
+Testprogrammerne i SYSVEDL er indeholdt pa systemdisketten
+sammen med det øvrige systemprogrammel og afvikles som øv-
+rige hjælpeprogrammer under styreprogrammet, men bliver dog
+ikke automatisk installeret på arbejdsdisketten ved instal-
+leringen af systemprogrammellet (afsnit 2). Efter opstart
+hentes det fra den arbejdskopi, der er taget af systemdis-
+ketten, eller det indlægges på forhånd som brugerprogram i
+en menu og hentes via denne. Det præsenterer sig med følg-
+ende menu:
+
+Partner System Vedligeholdelse Versim 2.0
+
+A Normal test
+T Teknisk test
+
+Tryk ESC for at returnere
+
+Testprogrammerne har - ligesom de indbyggede selvtestfaci-
+liteter - også relation til teknisk servicering af anlægget
+og kan benyttes med individuelle valg af testspecifikation-
+er (teknisk test). I beskrivelsen i denne vejledning medta-
+ges kun brug af test med standardspecifikationer (normal
+test); havner man utilsigtet i "teknisk test", så tryk på
+ESC tasten for at returnere til det indledende menuvalg.
+(Brug af teknisk test kan indebære, at data på diskette el-
+ler winchester-disk slettes under testforløbet og kræver i
+visse tilfælde specielt testudstyr).
+
+Efter valg af normal test fremkommer følgende menu, hvorfra
+forskellige test kan vælges:
+
+A/S Regnecentralen i -133-
+8. Fejlfinding Partner
+
+Partner System Vedligeholdelse Versio 2.0
+
+Skriver test
+Diskettestatim test
+Winchester disk test
+Lokalnet test
+
+QO CC 2 ou mu
+
+Seriel Port test
+
+Tryk ESC for at returnere
+
+Bemærk: Flere testvalg kan indgå i menuen.
+
+Velges S starter skrivertesten umiddelbart. Velges D fren-
+kommer spørgsmålet "VÆLG (A/B)". Der svares nu med A eller
+B afhængig af, hvilken diskettestation man Ønsker testen
+udfgrt pa.
+
+Vælges W fremkommer spørgsmålet "VÆLG (B/P)". Der svares nu
+med et bogstav fra B til P afhængig af, hvilken Winchester
+disk man ønsker testen udført på.
+
+Testafviklingen startes/stoppes ved tryk på mellemrumstan-
+genten; de tilsvarende tekster i kommentarlinien i den ak-
+tuelle menu er:
+
+Tryk på MELLEMRUM for at udføre test
+
+Tryk på MELLEMRUM for at stoppe test
+De enkelte testvalgmuligheder er nærmere beskrevet i det
+følgende.
+8.4.1 Skriver test
+
+Vælges skriver test, vises følgende menu under testafvik-
+lingen: |
+
+-134- | A/S Regnecentralen
+Partner 8. Fejlfinding
+
+Partner Skriver test Versim 2.0
+
+Tryk MELLEMRIM for at stoppe test
+Tryk ESC for at returnere
+
+Denne test gennemprøver en række af skriverens funktioner
+og testforløbet vurderes på basis af udskrifterne.
+
+Skriveren skal være gjort klar til normal drift forud for
+valg af denne test; sideformatet skal kunne indeholde 50
+linier med hver 80 tegn. '
+
+Bemærk iøvrigt, at de fleste skrivere har en selvstændig
+selvtest og således kan aftestes isoleret fra systemet
+(jvf. betjeningsvejledning til den aktuelle skriver).
+
+Testen omfatter udskrift af:
+
+l. side: ASCII tegnsæt - rullende mønster
+Samtlige printbare ASCII tegn udskrives; tegnsæt
+gentages efter hinanden over 50 linier med hver 80
+tegn i hver.
+
+2. side: HHHHHH ...
+
+50 linier med hver 80 tegn udskrives med H'er.
+
+A/S Regnecentralen | -135—
+8. Fejlfinding Partner
+
+3. side: the quick brown fox jumps over the lazy dog
+THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG
+the quick brown fox jumps over the lazy dog
+THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG
+the quick brown ...
+
+50 linier skrives med tekstprøven (den indeholder
+netop alle bogstaver fra A til Z mindst en gang);
+skiftevis store og små bogstaver; hver linie over-
+skrives femdobbelt.
+
+4. side:
+
+01.2356 7890123456 7890123456 7890123456 7890123456 7890123456 78901234567890123456789
+
+k kk kk kk kk kk ek * k k kk k kk
+* * * * * * * * * * * * * * * * * * * *
+* * * * * * * * * *
+
+* * * * *
+
+* * *
+
+* *
+kkkkkkkkkkkkkkkkkkkkkkkkkkk kk kk RAR KR KK kk kk
+* * * * * * * * * * * * * * * * * * * *
+* * * * * * * * * *
+
+* * * * *
+
+* * *
+
+* *
+
+eee
+
+012345678901234567890123456789012345678901234567890123456789012345678901234567890
+
+Udskriftsprgve med tabulering og mellemrum; øverst
+(og nederst) på siden skrives en tellelinie; der-
+nest en ménsterblok, der gentages 8 gange; hver
+blok omfatter: enkelt mellemrum (første linie) og
+tabulering til hver 4./8./16./32./64. position
+(følgende fem linier).
+
+8.4.2 Diskettestation test
+
+Før testafviklingen startes, indsættes en diskette i den
+valgte diskettestation, og der vælges mellem diskettestati-
+on A eller B. Disketten kan være en vilkårlig (med indhold,
+der normalt kan læses af Partner), men:
+
+- mistænkes diskettefejl, benyttes den diskette, der tid-
+ligere har udvist fejl (som sådan er testen et alterna-
+tiv til diskette verificering)
+
+~136- A/S Regnecentralen.
+Partner 8. Fejlfinding
+
+- mistænkes fejl på diskettestation, benyttes en fejlfri
+diskette - om muligt en diskette, der er kontrolleret
+ved diskette verificering.
+
+Har systemet to diskettestationer, kan man - efter at have
+konstateret fejl under testafviklingen på den ene station -
+benytte samme diskette på den alternative station og genta-
+ge testen. Hvis begge testforløb udviser (næsten) samme an-
+tal fejl, så peger testen på diskettefejl; hvis ikke, så
+peger testen på fejl på diskettestation, idet:
+
+- væsentlig færre fejl pa test 1 end test 2: fejl på den
+diskettestation, der blev benyttet til test 2
+
+-… væsentlig færre fejl pa test 2 end test 1: fejl på den
+diskettestation, der blev benyttet til test 1.
+
+Testen gennemføres under følgende forhold:
+- spender over alle spor (fra 0 til 76)
+- søgning udføres alternerende
+
+~ data leses.
+
+Under testafviklingen vises følgende menu-billede:
+
+Partner Diskettestatim test Versio 2.0
+
+Antal gennemløb: XXXXX
+Antal fejl: XXXXX
+
+Disk: x Spor: xx Side: x
+Tryk MELLEMRIM for at stoppe test
+Tryk ESC for at returnere
+
+Betydningen af de enkelte felter:
+
+Antal gennemløb - her optelles, hvor mange gange
+søgeforløbet er udført.
+
+A/S Regnecentralen -137-
+8. Fejlfinding Partner
+
+Antal fejl - her optælles antal fejl.
+
+Disk - her vises aktuelle diskettestati-
+on (A eller B).
+
+Spor - her vises, hvor lese-/skrive-ho-
+vedet aktuelt befinder sig (spor
+O til 76).
+
+Side | - her vises, hvilket læse-/skrive-
+
+hoved der aktuelt benyttes.
+
+Testen kan startes/stoppes ved tryk på mellemrumstangenten.
+Optælling af gennemløb/fejl nulstilles først, når der re-
+turneres til testvalgmenu.
+
+Hvis testen stoppes under afviklingen, og der har været de-
+tekteret fejl, vises en oversigt over fejlene (se følgende
+illustration). Hvis der er flere linier end der kan være i
+skærmbilledet, skrives der i sidste linie "Tryk RETUR for
+"at fortsætte". Det kan vere  Spraktisk at taste
+<CTRL+PRINT>,,hvorved skærmbilledet udskrives (forudsat at
+skriveren er tilkoblet og driftsklar). Ved at trykke -
+<RETUR> fortsettes oversigten.
+
+Partner Diskettestatimm test Versim 2.0
+*eeeStatIstik**** |
+Side Spar Antal qperatimer antal fejl
+x XX XXXXX OCOK
+x xx XXXXX XXXXX
+
+Tryk MELLEMRIM for at uiføre test
+Tryk ESC for at returnere
+
+Testen kan umiddelbart fortsættes ved at trykke på mellen-
+rumstangenten.
+
+— 7138- A/S Regnecentralen
+Partner 8. Fejlfinding
+
+8.4.3 Winchester disk test
+
+Hvis der optræder fejl under winchesterdisk testen bør man
+generelt forholde sig som følger:
+
+a) så mange af filerne som muligt kopieres over på disket-
+te
+
+b) winchesterdisken initialiseres påny (jf. bilag A).
+
+HUSK! Ved initialisering slettes hele indholdet pa
+disken i
+
+c) efter formatteringen indlæses filerne igen, og en ny
+funktionstest gennemføres.
+
+Hvis der herefter stadig optræder fejl, skal både winchest-
+ercontroller og -disk indleveres til eftersyn.
+
+Testen gennemføres under følgende forhold:
+- spænder over alle spor (fra 0 til 601)
+- søgning udføres alternerende
+- data læses.
+
+Under testafviklingen vises følgende menu-billede:
+
+Partner Winchester disk test Versi 2.0
+
+Antal gennemigb: pie eee
+Antal fejl: XXXxX
+
+Disk: x Spor: xx Side: x
+Truk MELLEMRUM for at stoppe test
+
+Tryk ESC for at returnere
+
+A/S Regnecentralen | .=—139-
+8. Fejlfinding Partner
+
+Betydningen af de enkelte felter:
+
+Antal gennemløb - her optalles, hvor mange gange
+søgeforløbet er udført.
+
+Antal fejl - her optælles antal fejl.
+
+Disk - her vises aktuelle diskbetegnelse
+(B,C,D,...,P).
+
+Spor - her vises, hvor lese-/skrive-ho-
+vedet aktuelt befinder sig (spor
+O til 601).
+
+Side - her vises, hvilket lese-/skrive-
+
+hoved, der aktuelt benyttes.
+
+Testen kan startes/stoppes ved tryk pa mellemrumstangenten.
+Optealling af gennemlgb/fejl nulstilles først, nar der re-
+turneres til testvalgmenu.
+
+Hvis testen stoppes under afviklingen, og der har veret de-
+tekteret fejl, vises en oversigt over fejlene (se følgende
+illustration). Hvis der er flere linier, end der kan være i
+skærmbilledet, skrives der i sidste linie "Tryk RETUR for
+at fortsætte". Det kan være praktisk at taste <CTRL+PRINT>,
+hvorved skærmbilledet udskrives (forudsat at skriveren er
+tilkoblet og driftsklar). Ved at trykke <RETUR> fortsættes
+oversigten.
+
+-140- | A/S Regnecentralen
+Partner 8. Fejlfinding
+
+Parmer Winchester disk test Versim 2.0
+eekEStatistik****
+Side Spor Antal qperatimer Antal fejl
+x xX XXXXX XXXXX
+x xx XXXXX XXXXX
+
+Tryk MELLEMRIM for at uiffre test
+
+Tryk ESC for at returnere
+
+Testen kan umiddelbart fortsættes ved at trykke pa mellen-
+rumstangenten.
+
+8.4.4 Lokalnet Test
+
+Dersom man har to eller flere Partnere sammenkoblet ved
+hjælp af et lokalnet, vil man kunne have brug for at afpr¢g-
+ve forbindelsen mellem maskinerne. Dette kan ske ved hjælp
+af lokalnet testen, der afprøver et lokalnets pålidelighed
+ved at sende testdata (test pakker) fra den maskine, hvor-
+fra testen er startet, til alle andre maskiner tilsluttet
+nettet. Testen skal startes i alle maskiner samtidigt.
+
+Der er to tidspunkter, hvor det er relevant at køre lokal-
+net test; nemlig for det første umiddelbart efter installa-
+tion af eller udvidelse af et lokalnet, og for det andet i
+tilfelde af, at der under normal drift optreder fejl, som
+eventuelt kan tilskrives lokalnettet.
+
+Nar en lokalnetinstallation skal aftestes, skal alle maski-
+ner, der er koblet pa nettet, være startet op. Bemærk, at
+normal drift principielt kan fortsettes under testen; dog
+bør man sikre sig, at ingen maskiner nedlukkes (kobles af
+nettet), medens testen foregar.
+
+A/S Regnecentralen -141-
+8. Fejlfinding Partner
+
+Inden selve testforløbet aktiveres undersøger dette om, der
+skulle være andre maskiner på nettet med samme identifika-
+tion (Type og serie-nummer). Det foregår mens udskriften:
+
+"Undersøger Type og Serie nr. sammenfald med andre maskin-
+er"
+
+kan ses på skærmen. Det varer ca. 4 seckunder.
+Hvis fejludskriften:
+"Type og serie nr. sammenfald -- Omkonfigurer!"
+
+forekommer i kommentarlinien, er der ingen grund til at
+fortsætte. I stedet skal man lokalisere de to maskiner, som
+har sammenfald i identifikationen (den ene er den, som har
+skrevet fejludskriften) og rette dette i overensstemmelse
+med type og serienummer skiltet. Der er to muligheder for
+at rette: Den ene er ved at starte systemet fra disk og æn-
+dre typebetegnelse og serienummer i konfigurering af lokal-
+net (se afsnit 4.1.6), den anden er ved at konfigurere fra
+bootloaderen (se afsnit 8.3.1).
+
+Testen bør kunne forløbe uden fejl, d.v.s., at felterne
+"buffermangel" og "stationsnedlukning" begge skal forblive
+nul. Endvidere kontrolleres "STATISTIK"-billedet (se ek-
+semplet senere i dette afsnit), hvis sidste to kolonner og-
+så skal være nul.
+
+Skulle en maskine, der er koblet til lokalnettet, blive
+nedlukket under testen, vil det give sig udslag i, at tal-
+let for "Stationsnedlukning" bliver talt een op. Hvilken
+maskine, det drejer sig om, kan ses i "STATISTIK"-billedet.
+
+Hvis der under lokalnettesten afsløres en fejl på nettet,
+er der flere muligheder for, hvor fejlen kan ligge. Det kan
+være i kontrolenheden, som er monteret indvendig i Partn-
+er'en; det kan være i transceiver-boxen, som er monteret på
+lokalnet kablet, og endelig kan det være en kabelfejl.
+
+Gå derfor frem efter følgende metode, når en fejl er kon-
+stateret under testen:
+
+- Alle kabelforbindelser kontrolleres. Er de forskellige
+stik korret monteret? (se afsnit 1.2.2). Er coaxial-
+kablet ubeskadiget og korrekt installeret uden skarpe
+knæk?
+
+-142- A/S Regnecentralen
+Partner 8. Fejlfinding
+
+- Findes alle kabelforbindelser i orden, genstartes alle
+maskinerne ved at trykke på den sorte "RESET"-knap på
+bagsiden af kabinettet. Herved udfører systemet en au-
+tomatisk selvtest, hvor det bl.a. kontrolleres, om lo-
+kalnet kontrolenheden fungerer.
+
+- Er fejlen endnu ikke fundet, genstartes lokalnet tes-
+ten. Hvis testen stadig viser fejl, er det naturligt at
+mistænke den tredie og sidste del af nettet, nemlig en
+af transceiverboxene. Man må derfor forsøge at finde
+den fejlbehæftede box. Det gøres ved, mens testen kø-
+rer, at trykke på mellemrums tangenten, så "STATISTIK"-
+billedet bliver vist. Er der kun een maskine, der fej-
+ler, findes fejlen ved denne maskine. Hvis der ser ud
+til at være flere maskiner, der fejler, er fejlen ved
+den maskine, hvor "STATISTIK"-billedet vises.
+
+Hvad foregår der så, når testen kører? :.
+
+- Lokalnet testprogrammet udsender testpakker med data på
+samme måde, som når der sendes normale datapakker
+mellem maskinerne. En pakke, der er udsendt, modtages
+af en anden maskine, som så returnerer den til den op-
+rindelige afsender. Når afsenderen modtager den pakke
+igen, som den for lidt siden har afsent, kontrolleres
+indholdet. Testpakkerne er af varierende størrelse (fra
+48 til 1024 tegn).
+
+Under testafviklingen vises følgende menu-billede:
+
+Parmer Lokalnet Test Versim 2.0
+Antal gennemløb : 0
+
+Antal afsendte pakker : 17632
+
+Antal modtagne pakker : 17632
+Buffer-mangel til modtagning : O
+Statiomedlukning : 0
+
+"Pakke Cyklus-Tid i mSEC : O
+
+Tryk MELIEMRIM for at stoppe test
+
+Tryk ES for at returnere
+
+A/S Regnecentralen -143-
+8. Fejlfinding Partner
+
+Testen kan startes/stoppes ved tryk på mellemrumstangenten.
+Optællingen af de viste felter nulstilles først, når der
+returneres til testvalgmenuen (med ESC).
+
+Betydningen af de enkelte felter:
+
+Antal gennemløb - Opdateres hver gang, der har ve-
+ret sendt testpakker med fra 48
+til 1024 tegn til alle maskiner
+der er tilkoblet nettet.
+
+Antal afsendte pakker - Det samlede antal pakker, som er
+afsendt.
+Antal modtagne pakker - Det samlede antal pakker, som er
+
+returneret fra de andre maskiner
+pa nettet og modtaget af den op-
+rindelige afsender.
+
+Test retransmissioner - Antal gange, en testpakke har
+mattet sendes mere end een gang
+før den nar igennem. Den samme
+testpakke eftersendes maximalt 5
+gange fgr den station der sendes
+til, betragtes som nedlukket.
+
+Stations—nedlukning - Antal maskiner, der under testen
+er koblet fra nettet.
+
+Pakke Cyklus-Tid - Tiden fra en testpakke afsendes,
+til den modtages retur igen.
+
+Hvis testen stoppes med mellemrumstangenten, vises følgende
+menubillede ("STATISTIK"-billedet), som giver et overblik
+over hvilke maskiner, testmaskinen kommunikerer med, samt
+deres tilstand.
+
+—144- A/S Regnecentralen
+Partner
+
+8. Fejlfinding
+
+Tryk MELLEMRIM for at starte test
+Tryk ESC for at returnere
+
+Partner Lokalnet Test Versim 2.0
+***STATISTIK***
+Maskin-ID Pakker Afbrydelse Buffer længde fejl Data fejl
+KBN708 586 562 lej 0 0
+KBN710 562 562 Nej 0 0
+K8N710 148 561 Nej 0 0
+
+Betydningen af de enkelte felter:
+
+Maskin-ID
+
+Pakker
+
+Afbrydelser
+
+Buffer lengde
+fejl
+
+Data fejl
+
+For at et testforlgb
+
+Den pågældende maskines type-nr., efter-
+
+fulgt af maskinens serie-nr.
+
+Det samlede antal pakker, som er sendt re-
+tur fra den pageldende maskine.
+
+Angiver, om forbindelsen til den pågældende
+maskine er afbrudt.
+
+Antal pakker, som er modtaget af den pa-
+gældende maskine, og som har en anden
+lengde end forventet.
+
+Antal pakker, hvor der er konstateret for-
+skel mellem de data, der oprindeligt blev
+afsent i pakken, og de data, der er i pak-
+ken, nar denne kommer retur.
+
+er gennemført fejlfrit kræves det at
+
+værdierne i statistikbilledet for samtlige maskiner er f¢l-
+
+gende:
+"Afprydelse" : Nej
+"Buffer længde fejl”: 0
+"Data- fejl" : O
+
+A/S Regnecentralen
+
+~145-
+8. Fejlfinding Partner
+
+8.4.5 Seriel Port Test
+
+Systemet er udstyret med to serielle porte, som det er mu-
+ligt at afteste v.h.a. "Seriel Port Testen". Som nødvendigt
+hjælpemiddel til testen skal bruges et standard V.24 kabel,
+såsom KBL636. (CBL912/913/914 kan også benyttes). For at
+udføre testen skal de to porte kaldet henholdsvis
+"Kommunikations Port" og "V.24 Port" forbindes med dette
+kabel.
+
+Testen vil afprøve de serielle portes pålidelighed ved at
+sende blokke af data med varierende størrelse fra den ene
+port til den anden. Kommunikationsporten sender data, som
+modtages af V.24-porten, og V.24-porten sender data, som
+modtages af Kommunikationsporten.
+
+Testen bør kunne forløbe uden fejl. Hvis der opstår fejl
+under kørsel af testen, bør man undersøge, om kablet er
+korrekt monteret. Er det tilfældet, kan der være grundlag
+for at søge teknisk assistance.
+
+Testen gennemføres under følgende forhold:
+
+- Varierende blokstørrelse fra 1 til 1024 bytes.
+
+- Testblokkene indeholder et tzllende data møn-
+ster.
+
+- Testen udfgres med 7 bit pr. tegn, lige paritet
+og 9600 bps.
+
+Nar testen aktiveres, vises følgende menu-billede:
+
+Partner Seriel Port Test Versim 2.0
+
+Forbind konmnikaticns-port aj V24-port med KBI636.
+Tryk RETUR, når leblet er mmteret, og det er OK
+at CMKONFIGURERE de to porte I I
+
+Tryk ESC for at returnere
+
+~146- A/S Regnecentralen
+Partner 8. Fejlfinding
+
+Som beskrevet skal kablet være monteret, før testen kan
+startes. Bemærk, at de to porte bliver konfigureret som ov-
+enfor beskrevet. Derfor bør testen afsluttes på normal måde
+ved at trykke ESC, således at portene bliver rekonfigureret
+til den oprindelige konfigurering.
+
+Under testafviklingen vises følgende menubillede:
+
+Partner Seriel Port Test Version 2.0
+
+Kommnikaticoms port  SV.24 port
+
+: 0
+Antal gennemlgo : 7 7
+Antal afsendte blokke : 7 7
+Antal modtagne blokke : 7 0
+Transmissims-fejl : 0 0
+
+Tryk MELLEMRIM for at stoppe test
+Tryk ESC for at returnere
+
+A/S Regnecentralen -147——
+8. Fejlfinding
+
+Partner
+
+Testen kan startes/stoppes ved et tryk på mellemrumstangen-
+ten. Optællingen af de viste felter nulstilles først, når
+der returneres til testvalgmenuen.
+
+Betydningen af de enkelte felter:
+
+Antal gennemløb
+
+Antal afsendte blokke
+Antal modtagne blokke
+
+Transmissions-fejl
+
+Opdateres hver gang, der har væ-
+ret sendt en serie af testblokke
+med fra 1 til 1024 bytes mellem
+de to porte.
+
+Det samlede antal blokke, som er
+afsendt fra pågældende port.
+
+Det samlede antal blokke, som er
+modtaget af pågældende port.
+
+Det samlede antal af overløb,
+paritets-, data- og statussig-
+nalfejl for den pageldende port.
+
+-148-
+
+A/S Regnecentralen
+Installation og vedligeholdelse
+
+DEL IV:
+
+Bilag
+—- 150 - | A/S Regnecentralen
+A. Initialisering af winchester disk
+
+Winchesterdisken leveres initialiseret fra A/S Regnecen-
+tralen - det er derfor ikke nødvendigt at initialisere ef-
+ter systemopstilling. Initialisering er kun nødvendig, så-
+fremt winchester-disken har været afmonteret og indsendt
+til reparation, eller hvis der under funktionstest af winc-
+hesterdisken optræder fejl.
+
+ADVARSEL! Ved initialisering slettes hele indholdet på
+disken.
+
+Til initialisering af winchesterdisken anvendes programmet
+WDINIT, der køres direkte som en CCP/M-86 kommando. Pro-
+grammet findes på CCP/M-86 systemdisketten (DISK 1), men
+overføres IKKE til arbejdsdisketten ved systeminstallation=
+en.
+
+Efter opstart af programmet vises nedenstående billede - de
+enkelte spørgsmål fremkommer et ad gangen.
+
+Partner Winchester disk initialiserirg Versim 2.0
+
+Vælg disk:onfigurering B
+ADVARSEL: Eventuelle filer på disk B
+vil blive slettet. KK (j/n) da
+
+Disk navn: MINDISK
+
+Tryk ESC for at returnere
+
+Initialisering af winchester-disk
+
+Som disk navn kan et vilkarligt navn angives (maksimalt 11
+tegn). Nar navnet er angivet og der er tastet <RETUR>,
+startes initialiseringen, og der skiftes til neste billede.
+
+A/S Regnecentralen -151-
+A. Initialisering af winchester disk Partner
+
+Partner Winchester disk initialisering Versim 2.0
+
+Formatter winchester disk B, varighed ca. 3 minutter
+Skriver læder/konfigureringssektor
+
+Verificerer disk B, spor: 601
+
+Indtast liste oer fejlbetæftede spor
+
+Tast "cylinder" "hoved” ag tryk retur
+
+Initialiser katalog
+Initialisering af disk MINDISK slut
+
+Tryk RESET pa centralenheden for at
+inkludere winchester disken i systemet
+
+Initialisering af winchester disk
+
+De enkelte skærmlinier vil blive udskrevet efterhånden som
+programmet udfører de enkelte funktioner. Når disken er
+blevet verificeret udskrives:
+
+Indtast liste over fejlbehæftede spor
+Tast "cylinder" "hoved" og tryk retur.
+
+Denne facilitet benyttes til at "mærke" dårlige spor på
+disken, således at de ikke bliver benyttet. Hvis programmet
+selv finder dårlige spor på disken vil de automatisk blive
+"mærket".
+
+Når teksten "Tryk RESET på centralenheden ------ " fremkon-
+mer, er initialiseringen slut. Nar der trykkes RESET, gen-
+startes systemet og styresystemet læser winchesterdiskens
+konfigurationssektor, hvorefter der kan læses/skrives på
+disken.
+
+-152- A/S Regnecentralen
+B. Styretegn til skærm
+
+Styretegn Værdi Betydning
+
+NULL 00 Ignoreres
+
+BELL 07 Akustisk signal
+
+BS 08 Markør til venstre
+
+LF OA Ny linie - hvis markøren er pa ne-
+derste linie, ruller billedet op.
+
+CR oc Markgr til liniestart
+
+ESC : xx 1B 3A xx Set funktionstast - se bilag C
+
+ESC < xx 1B 3C xx Rul vindue op - se B.1
+
+ESC > xx 1B 3E xx Rul vindue ned - se B.1
+
+ESC 6 1B 06 funktionstast-ekspandering annule-
+ret
+
+ESC 7 1B 07 funktionstast-ekspandering normal
+
+ESC A 1B 41 Markgr op
+
+ESC B 1B 42 Markgr ned
+
+ESC C 1B 43 Markgr til højre
+
+ESC D 1B 44 Markgr til venstre
+
+ESC E 1B 45 Slet skærm, markør hjem
+
+ESC H 1B 48 Markør hjem (position 0,0)
+
+ESC I 1B 49 Linie op - hvis markøren er pa ¢-
+verste linie ruller billedet ned.
+
+ESC J 1B 4A Slet skærm fra markør og fremefter
+
+ESC K lB 4B Slet linie fra markør og fremefter
+
+ESC L 1B 4C Indsæt linie, flyt billede ned
+
+ESC M 1B 4D Slet linie, flyt billede op
+
+ESC N 1B 4E Slet tegn, flyt resten af linien
+
+| til venstre
+
+ESC 0O 1B 4F Indset tegn, flyt resten af linien
+til højre .
+
+ESC P 1B 50 Vælg alternativt tegnsæt
+
+ESC Q 1B 51 Vælg standard tegnsæt
+
+ESC Y xx 1B 59 xx Flyt markør - se B.2
+
+ESC a | 1B 61 Ignoreres
+
+ESC b xx 1B 62 Set forgrundsfarve - se B.3
+
+ESC c xx 1B 63 Set baggrundsfarve - se B.3
+
+ESC 4a 1B 64 Slet skærm fra 0,0 til markør
+
+ESC e 1B 65 Tend markør
+
+ESC f£ 1B 66 Sluk markør
+
+ESC g 1B 67 Start understregning
+
+ESC h 1B 68 Stop understregning
+
+ESC i 1B 69 Start ikke-synlig skrift
+
+ESC j 1B 6A Gem markør position
+
+ESC k 1B 6B Flyt markør til gemt position
+
+A/S Regnecentralen — -153-
+B. Styretegn til skærm Partner
+
+ESC 1 1B 6C Slet hele linien
+
+ESC m 1B 6D Tend markør
+
+ESC n 1B 6E Sluk markør
+
+ESC o 1B 6F Slet fra liniestart til markør
+ESC p 1B 70 Start invers skrift
+
+ESC q 1B 71 Stop invers skrift
+
+ESC fr 1B 72 Start fremhevet skrift
+
+ESC gs 1B 73 Start blinkende skrift
+
+ESC t 1B 74 Stop blinkende skrift
+
+ESC ou 1B 75 Stop fremhævet skrift
+
+ESC v 1B 76 Begynd på næste linie ved linieslut
+ESC w 1B 77 Skip tegn ved linieslut
+
+ESC x 1B 78 Stop ikke-synlig skrift
+
+ESC gz 1B 7A Set standard attributter
+
+ESC <241> 1B Fl Blinkende markør
+
+ESC <242> 1B F2 Ikke blinkende markør
+
+ESC <243>xx 1B F3 Markgr højde - se B.4
+
+ESC <244> 1B F4 Set blød rulning
+
+ESC <245> 1B F5 Set linie rulning
+
+B.1 Rulning af vindue
+
+Teksten i et udsnit af skermen kan rulles op eller ned ved
+at sende følgende styretegn til skærmen (konsollen):
+
+ESC < linie, linie» i rul op
+ESC > linie; linie» rul ned
+Første linie i udsnittet er linie, - sidste linie. Linie-
+
+nummeret skal være i intervallet 0 - 23. Til linienummeret
+skal adderes 32 (hex:20). Ved rulning (nedad) af tekst i et
+vindue fra linie 4 til linie 11 sendes følgende styretegn:
+
+ESC > $ +
+hvilket angivet i talværdi er lig med:
+
+dec: 27 62 36 43
+hex: 1B 3E 24 2B
+
+B.2 Flytning af markør
+
+Markgren kan placeres vilkårligt på skærmen ved at sende
+følgende styretegn:
+
+ESC Y linie kolonne
+
+-154- A/S Regnecentralen
+Partner B. Styretegn til skærm
+
+Til linie- og kolonnenummeret skal adderes 32 (hex: 20).
+Linienummeret skal være i intervallet 0 - 23; kolonnenumme-
+ret 0 - 79. Ved placering af markøren i nederste højre
+hjørne (pos. 23,79), sendes følgende styretegn:
+
+ESC Y 7 o
+
+hvilket angivet i talværdi er lig med:
+
+dec: 27 89 55 111
+hex: 1B 59 37 6F
+
+B.3 Forgrunds-— og baggrundsfarve
+
+Farven pa teksten, der vises pa skermen (forgrundsfarven),
+kan andres ved at sende fglgende styretegn:
+
+ESC b farve
+
+Farven på baggrunden kan endres ved at sende følgende sty-
+retegn:
+
+ESC c farve
+
+Farven angives i begge tilfælde ved hjelp af et tegn, hvor
+de fire mindst betydende bit har følgende betydning:
+
+7 6 5 4
+x x x X
+
+QO Wit
+3s OR Ole
+Mer WO
+
+roOtrns ct BD riw
+
+Nedenfor er angivet samtlige farver og det tilhørende sty-
+
+retegn (ment som, eksempler, da kunde fire mindst betydende
+bit benyttes):
+
+A/S Regnecentralen -155-
+B. Styretegn til skærm Partner
+
+Farveskærm monokrom skærm
+0 Sort Sort
+1 Blå
+2 Grøn
+3 Cyan (blå + grøn)
+4 Rød Normal intensitet
+5 Magenta (rød + blå) |
+6 Gul (rød + grøn)
+7 Hvid (rød + blå + grøn)
+8 Grå Lav intensitet
+9 Kraftig lysende blå
+: Kraftig lysende grøn
+; Kraftig lysende cyan
+< Kraftig lysende rød Høj intensitet
+= Kraftig lysende magenta
+> Kraftig lysende gul
+? Kraftig lysende hvid
+Eksempel:
+
+Forgrundsfarven sættes til grøn ved at sende følgende sty-
+
+retegn:
+ESC b 2
+
+hvilket angivet i talværdier er lig med:
+dec: 27 97 50
+
+hex: 1B 61 32
+
+-156- | A/S Regnecentralen
+Partner B. Styretegn til skærm
+
+B.4 Ændring af markgrens udseende
+
+Markgrens udseende kan ændres ved at sende følgende styre-
+tegn:
+
+ESC <243> markgrkontrol
+<243> angiver eet tegn med den decimale værdi 243.
+
+Markgrens udseende defineres ved at angive numrene pa de
+videolinier i tegnet, hvor markgren skal hhv. starte og
+slutte. For en blokmarkgr er startvideolinienummeret 0, og
+slutvideolinienummeret 14.
+
+I styretegnet angives start i de 4 mindst betydende bit og
+slut i de 4 mest betydende bit.
+
+Ønskes en dobbelt understregning som markør, sendes følgen-
+de styretegn angivet i talværdi:
+
+dec: 27 243 236
+
+hex: 1B F3 EC
+
+A/S Regnecentralen -157-
+B. Styretegn til skærm Partner
+
+-158- A/S Regnecentralen
+C. Funktionstaster
+
+Cel Programmering af funktionstaster
+
+Tast Styretegn Værdi (hex)
+
+Fl ESC : ; T20 NULL 1B 3A 3B nn
+
+T4 NULL 1B 3A 51 nn
+T4 NULL 1B 3A 52 nn
+T4 NULL 1B 3A 53 nn
+T4 NULL 1B 3A 54 nn
+T4 NULL 1B 3A 55 nn
+T4 NULL 1B 3A 56 nn
+T4 NULL 1B 3A 57 nn
+T4 NULL 1B 3A 58 nn
+T4 NULL 1B 3A 59 nn
+T4 NULL 1B 3A 5A nn
+T4 NULL 1B 3A 5B nn
+TT4 NULL 1B SA 5C nn
+T4 NULL 1B 3A 5D nn
+T4 NULL 1B 3A 5E nn
+
+NUM. TAB ESC
+TEGN IND ESC
+SLET TEGN ESC
+PRINT ESC
+SHIFT-Al ESC
+SHIFT-A2 ESC
+SHIFT-A3 ESC
+SHIFT-A4 ESC
+ALT-F1l ESC
+ALT-F12 ESC
+SHIFT-F1ll ESC
+SHIFT-F12 ESC
+CTRL-F1l ESC
+CTRL-F12 ESC
+
+F2 ESC : < T20 NULL 1B 3A 3C nn
+F3 ESC : = T20 NULL 1B 3A 3D nn
+F4 ESC : > T20 NULL 1B 3A 3E nn
+F5 ESC : ? T20 NULL 18 3A 3F nn
+F6 ESC : T20 NULL 1B 3A 40 nn
+F7 ESC : T20 NULL 1B 3A 41 nn
+F8 ESC : T20 NULL 1B 3A 42 nn
+F9 ESC : T20 NULL 1B 3A 43 nn
+F10 ESC : T20 NULL 1B 3A 44 nn
+Fll ESC : T20 NULL 1B 3A 45 nn
+F12 ESC : T20 NULL 1B 3A 46 nn
+i$ ESC : T4 NULL 1B 3A 47 nn
+> ESC : T4 NULL 1B 3A 48 nn
+Al ESC : T4 NULL 1B 3A 49 nn
+A2 ESC : T4 NULL 1B 3A 4A nn
+¢ ESC : T4 NULL 1B 3A 4B nn
+NUM. RETUR ESC : T4 NULL 1B 3A 4C nn
+» ESC : T4 NULL 1B 3A 4D nn
+A3 ESC : T4 NULL 1B 3A 4E nn
+A4 ESC : T4 NULL 1B 3A 4F nn
+a ESC : NULL 1B 3A 50 nn
+
+te ee oe
+
+SrAanK XK ESCHANWOVO RZ Er RGQH MANA UA WY
+J
+x
+
+ee
+
+oe oe oe ee ee 668
+
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+
+nn
+
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+nn
+
+nn
+nn
+nn
+
+nn
+
+sø €& & +
+
+e@¢« @ 6
+
+eee
+
+oe 8 6
+
+e & & £&
+
+& & & &
+
+, & & 6
+
+s €&é& & &
+
+oo & @
+
+oe 0
+
+ee 6
+
+ee @ ©
+
+o@eve
+
+eee @
+
+eo eve
+
+ee & @
+
+URE ØER ER |
+
+oe ee
+
+oe eo @
+
+eoeoee
+
+oe oe
+
+ee @ 68
+
+9 & 6
+
+eee
+
+ee @ @
+
+oe 8 6
+
+owes
+
+eee 8
+
+ee 8 @
+
+ee 2.8
+
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+00
+
+A/S Regnecentralen.
+
+-159-
+C. Funktionstaster Partner
+
+Tast Styretegn Værdi. (hex)
+
+ALT-F 1 ESC : T4 NULL 1B 3A 61 nn nn .... 00
+ALT-F 2 ESC : T4 NULL 1B 3A 62 nn nn .... OO
+ALT-F3 ESC : T4 NULL 1B 3A 63 nn nn .... 00
+ALT-F4 ESC : T4 NULL 1B 3A 64 nn nn .... 00
+ALT-F5 ESC : T4 NULL 1B 3A 65 nn nn .... OO
+ALT-F6 ESC : T4 NULL 1B 3A 66 nn nn .... OO
+ALT-F7 ESC : T4 NULL 1B 3A 67 nn nn .... 00
+ALT-F8 ESC : T4 NULL 1B 3A 68 nn nn .... 00
+ALT-F9 ESC : T4 NULL 1B 3A 69 nn nn .... OO
+ALT-F10 ESC : T4 NULL 1B 3A 6A nn nn .... OO
+
+T4 NULL 1B 3A 6B nn nn .... 00
+T4 NULL 1B 3A 6C nn nn .... 00
+T4 NULL 1B 3A 6D nn nn .... 00
+T4 NULL 1B 3A 6E nn nn .... OO
+T4 NULL 1B 3A 6F nn nn .... OO
+T4 NULL 1B 3A 70 nn nn .... 00
+T4 NULL 1B 3A 71 nn nn .... 00
+T4 NULL 1B 3A 72 nn nn .... 00
+T4 NULL 1B 3A 73 nn nn .... OO
+T4 NULL 1B 3A 74 nn nn .... 00
+T4 NULL 1B 3A 75 nn nn .... 00
+T4 NULL 1B 3A 76 nn nn .... 00
+T4 NULL 1B 3A 77 nn nn .... 00
+T4 NULL 1B 3A 78 nn nn .... 00
+T4 NULL 1B 3A 79 nn nn .... 00
+T4 NULL 1B 3A 7A nn nn .... 00
+T4 NULL 1B 3A 7B nn nn .... 00
+T4 NULL 1B 3A 7C nn nn .... 00
+T4 NULL 1B 3A 7D nn nn .... OO
+T4 NULL 1B 3A TE nn nn .... 00
+
+SHIFT-Fl ESC
+SHIFT-F2 ESC
+SHIFT-F3 ESC
+SHIFT-F4 ESC
+SHIFT-F5 ESC
+SHIFT-F6 ESC
+SHIFT-F7 ESC
+SHIFT-F8 ESC
+SHIFT-F9 ESC
+SHIFT-F10 ESC
+CTRL-F1 ESC
+CTRL-F 2 ESC
+CTRL-F 3 ESC
+CTRL-F4 ESC
+CTRL-F5 ESC
+CTRL-F6 ESC
+CTRL-F7 ESC
+CTRL-F8 ESC
+CTRL-F9 ESC
+CTRL-F10 ESC
+
+os ss. os Eid oe
+
+cCMmOANKM KX ES SEE NO ODS Er ReUr TO HO Aan OD
+
+ee ee
+
+ee oe ee ee oe ee oe ee ee ee
+
+T20 angiver en tegnfglge pa mellem 0 og 20 tegn.
+
+T4 angiver en tegnfglge pa mellem 0 og 4 tegn.
+
+nn nn .... angiver den til T4 eller T20 svarende sekvens af
+tegnverdier. |
+
+Programmeringen af funktionstasterne vil gelde indtil pro-
+grammet, hvorfra de blev defineret, termineres. Når der re-
+turneres til CCP/M-86 eller menusystemet, tildeles funkt-
+ionstasterne deres oprindelige værdier. Ønsker man at prog-
+rammere funktionstasterne permanent, anvendes programmet
+FUNCTION ("Programmering af funktionstaster" i hovedmenu-
+en).
+
+-160- A/S Regnecentralen
+Partner C. FPunktionstaster
+
+Eksempel:
+
+Programmering af F2 til tegnsekvensen: RC Partner
+Styretegn: ESC : < RC Partner NULL
+
+hvilket angivet i tal-værdi er lig med:
+Dec: 27 58 60 82 67 32 80 97 114 116 110 101 114 00
+
+Hex: 1B 3A 3C 52 43 20 50 61 72 74 6E 65 72 00
+
+C.2 Standard tegnssekvenser for funktionstaster
+
+Tast Tegnsekvens Verdi (hex)
+¢ ESC D 1B 44
+> ESC C 1B 43
+» ESC A -1B 41
+4 ESC B 1B 42
+% ESC H 1B 48
+TEGN IND ESC L 1B 4c
+SLET TEGN DEL 7F
+
+De resterende programmerbare funktionstaster giver ingen
+tegnsekvens ved nedtrykning.
+
+A/S Regnecentralen -161-
+C. Funktionstaster Partner
+
+-162- | A/S Regnecentralen
+D. Avanceret lokalnet indstilling
+
+I dette appendix beskrives hvorledes et netstyresystem dan-
+nes ved direkte brug af programmerne GENNET og ADDNET.
+
+D.1 Nødvendige forudsætninger.
+
+På disketten mærket "SW1500 CCP/M 3.1 DISK 2" findes alle
+de filer, der er nødvendige for at tilpasse netprogrammel-
+let og generere et netstyresystem, nemlig:
+
+GENNET. CMD
+CPGENNET. CMD
+R. CMD
+
+NIOS. CMD
+RCNET. CMD
+SNET. CMD
+RSNET. CMD
+ADDNET. CMD
+CPADDNET. CMD
+SDEF
+
+RDEF
+
+RSDEF
+
+Endvidere skal man bruge filen CCPM.SYS, der skal vere gen-
+ereret med systemprocessen NETDREV.RSP (se afsnit 4.2.2).
+
+D.2 GENNET
+
+Ved hjælp af programmet GENNET kan man generere de(n) ty-
+pe(r) af netsystem(er) man har brug for, således at man op-
+når den ønskede funktionalitet. Alle Partnere, der skal ha-
+ve identisk funktionalitet, kan anvende det samme netstyre-
+system. De individuelle forskelle sættes på kgrselstids-
+punktet. Det er således ikke nødvendigt at generere et net-
+styresystem til hver enkelt Partner i nettet.
+
+GENNET danner på basis af de ovennævnte filer en fil kaldet
+DRNET.CMD. Denne fil og filen CCPM.SYS bruges som inddata
+til programmet ADDNET (se nedenfor). ADDNET sammenkæder
+DRNET.CMD og CCPM.SYS til et netstyresystem.
+
+GENNET anvendes ved, at brugeren interaktivt svarer på en
+
+række spørgsmål, eller ved at GENNET læser svarene i en da-
+tafil.
+
+Inden man kalder GENNET, skal man sikre sig, at alle de ov-
+enfor nævnte filer er tilstede på disken.
+
+A/S Regnecentralen —_ - -163-
+D. Avanceret lokalnet indstilling Partner
+
+D.3
+
+Interaktiv brug af GENNET.
+
+For at starte en interaktiv udførelse af GENNET gives følg-
+ende CCP/M-kommando:
+
+A>GENNET <RETUR>
+
+GENNET præsenterer herefter følgende skærmbillede:
+
+Se de de de de de de de se de de de de de de de de dk de de de de de Je de Se de de de de de ke de dk de de de ne de
+
+*
+*
+
+DR Net System Generation Utility *
+Release 1.0 03-23-84 *
+
+Se de de de de de de de dk de de le de se de de de de de de de de de de de de de de Se de de de de de de de de de de de
+
+Please answer the following questions. All numbers are
+in hexadecimal, unless preceded by a pound ( ) sign.
+Defaults are in parentheses.
+
+( 1) what is this machine's physical node ID? :
+( 2) How many shadow processes can run on this machine? (10):
+( 3) How many processes can run as network rewuesters? (OC):
+( 4) How many copies of the requester configuration table? (08):
+( 5) How many input Line Driver Control Blocks (LDCB's)? (01):
+( 6) How many output Line Driver Control Blocks (LDCB's)? (01):
+( 7) What is the first flag available for use by DR Net? (20):
+( 8) What is the maximum logical message size? . (10B):
+( 9) What is the length of any end-to-end message header? (00):
+(10) What is the length of any end-to-end message trailer? (00):
+(11) How big should the message buffer pool be? (2000):
+(12) How many seconds until a transaction timeout? (06):
+(13) Network password (no more than 8 characters)? (PASSWORD):
+(14) What server should be your default server? (00):
+(15) Note: Flags 20 throgh 3C must be used only by the network.
+(16) Is all of the information above correct? (Y/N):
+(17) What disks do you want mapped across the network initially?
+
+(Use a carriage return when you are through mapping).
+
+Disk Drive (A: through P:)? :
+(18) Remote Disk Drive? :
+(19) Server node ID of the remote disk drive? :
+(20) List all drives you want protected from network access
+
+(Use a carriage return when you are through mapping).
+
+List a private drive :
+—164- A/S Regnecentralen
+Partner D. Avanceret lokalnet indstilling
+
+(21) What printers do you want mapped across the network
+
+initially?
+(Use a carriage return when you are through mapping).
+Printer Number (0 through F)? :
+
+(22) Remote Printer Number? :
+
+(23) Server node ID of remote printer? :
+
+(24) What queues do you want mapped across the network ini-
+
+tially? |
+(Use a carriage return when you are through mapping).
+Queue Name (8 characters or less)? :
+
+(25) Remote Queue Name (8 characters or less)?
+(26) Server node ID of the remote queue?
+
+(27) Are all of the mappings above correct? (Y/N):
+Building DRNET.CMD ...
+
+Network System Generation Complete
+
+Tallene i parentes i venstre margin udskrives ikke af GEN-
+NET. Disse tal bruges i det følgende som beskrivelsesrefe-
+rence.
+
+De ovenfor viste spørgsmål kan inddeles i fire grupper:
+
+Implementationsafhængige spørgsmål (nummer 5, 6, 7, 8, 9,
+10 og 12). Til disse spørgsmål skal der blot tastes retur,
+idet netstyresystemet selv vil indsætte de rigtige værdier
+under opstart. Eventuelle andre valg vil således blive ov-
+erskrevet.
+
+Spørgsmål vedrørende den enkelte maskine (nummer 1, 13 og
+14). Tilpasning af netnummer, given netvært og løsen (pass-
+word) sker ved hjælp af programmet KONFIG (se afsnit 4.1).
+Netstyresystemet vil under opstarten indsætte de rigtige
+værdier, og eventuelle modstridende svar afgivet under af-
+vikling af GENNET vil blive overskrevet. Spørgsmål 13 og 14
+besvares blot ved at taste retur. I spørgsmål 1 kræver GEN-
+NET et svar og man kan blot svare O <RETUR>.
+
+Generelle spørgsmål for netsystemet (nummer 2, 3, 4 og 11).
+Svarene på disse spørgsmål bestemmer, hvilken type netsty-
+resystem, man genererer. I det følgende diskuteres mulig-
+hederne for besvarelsen af de enkelte spørgsmål. Bemærk, at
+alle svar skal angives i hexadecimal notation. .
+
+A/S Regnecentralen -165—
+D. Avanceret lokalnet indstilling Partner
+
+How many shadow processes can run on this machine? :
+
+Hvis man ønsker at generere et netbruger-system, tastes
+O<RETUR>. Hvis man derimod ønsker at generere et netvært-
+system eller et netvært-/netbruger-system, svares med
+antallet af netbrugere, der kan tilslutte sig til denne
+netvært.
+
+Antallet af netbrugere beregnes som antallet af konsoller,
+der ønsker at benytte netværten. Hver netbruger, der ønskes
+tilsluttet netværten, fylder 297 (hex) bytes i dennes dyna-
+miske lager.
+
+How many processes can run as network requesters? :
+
+Hvis man ønsker at generere et netvert-system svares blot
+O<RETUR>. Hvis man ønsker at generere et netbruger-system
+eller et netvært-/netbruger-system, specificeres antallet
+af processer, der samtidigt ønskes tilsluttet nettet.
+
+Antallet af processer beregnes ud fra følgende retningsli-
+nier: Som minimum skal man bruge 2 tilsluttede processer
+for hver konsol, man ønsker at tilslutte til nettet samtid-
+igt. Nemlig en proces til TMP og en proces til afvikling af
+et bruger program. Hvis man f.eks. vil afvikle SUBMIT-pro-
+grammet over nettet kræves 3 tilsluttede processer. Hvis
+man på sine netbruger-Partnere ønsker at kunne tilslutte
+alle konsoller til nettet samtidigt og være sikker på at
+kunne afvikle SUBMIT i alle fire konsoller, vil svaret alt-
+så blive 4*3 = 12.
+
+Bemærk, at svaret ikke har noget at gøre med, hvor mange
+netværter en given process kan være tilsluttet (dette er
+max 16); men udelukkende bestemmer, hvor mange processer,
+der kan være tilsluttet nettet samtidig. Hver proces, der
+ønskes tilsluttet nettet, fylder 297 (hex) bytes i dynamisk
+lager.
+
+How many copies of the Requester Configuration Table?
+
+Hvis man Ønsker at generere et netvært-system svares blot
+O<RETUR>. For et netbruger-system eller et netvert-/netbru-
+ger-system gælder følgende: Hver proces, der ønskes til-
+sluttet nettet, krever en kopi af den givne navngivningsta-
+bel. Hvis en proces, der allerede er tilsluttet nettet,
+tilslutter sig igen, bruger den endnu en kopi. Det vil si-
+ge, at der kræves mindst 2 kopier for hver konsol, der sam-
+tidigt skal kunne tilsluttes nettet. Et fornuftigt valg ved
+almindelig brug vil vere omkring 8 totalt. Hver kopi af den
+givne navngivningstabel fylder 1A8 (hex) bytes.
+
+-166- A/S Regnecentralen
+Partner D. Avanceret lokalnet indstilling
+
+How big should the message buffer pool be? :
+
+Dette spørgsmål vedrører størrelsen af det lager, DR-NET
+anvender til mellemlager for ind- og udgående meddelelser.
+Mellemlageret er en del af det dynamiske lager. Den mindste
+størrelse, mellemlageret kan have, er 870 (hex) bytes. Den
+-maximale størrelse beregnes ved at multiplicere 434 (hex)
+med (2 + svaret i spørgsmål 2 + svaret i spørgsmål 3). Sva-
+ret skal ligge i intervallet mellem 870 (hex) og den stgrs-
+te bufferstgrrelse. Hvorvidt man skal vælge et stort eller
+lille mellemlager, afhenger af trafikken pa de(n) Partner-
+(e), hvor netstyresystemet skal afvikles. Systemet kan al-
+tid fungere med den mindste bufferstg¢grrelse; men hvis tra-
+fikken bliver for stor, vil effektiviteten blive nedsat.
+Som en hovedregel kan anføres, at rene netbrugersystemer
+kan klare sig med et lille mellemlager, medens der pa sys-
+temer, der fungerer som netverter, bør ofres noget mere af
+hensyn til effektiviteten.
+
+De tre første grupper af spørgsmål afsluttes med spgrgsmal-
+et:
+
+Is all the information above correct? :
+
+Hvis man er tilfreds med alle de tidligere afgivne svar,
+tastes der Y<RETUR> (for engelsk yes), og man kan fortsette
+med den sidste gruppe af spørgsmål. I modsat fald tastes
+N<RETUR> (for engelsk no), og programmet starter forfra med
+sine spørgsmål, hvor eventuelle fejl derefter kan rettes.
+
+Spørgsmål vedrørende den givne navngivningstabel (spørgsmål
+17 til 26). Svarene på disse spørgsmål har betydning for
+opbygningen af den givne navngivningstabel, og vil således
+afgøre, hvilke netressourcer et netbrugersystem kender ef-
+ter opstarten.
+
+Da spørgsmålene 17 til 19 og 21 til 26 kun vedrører navn-
+givning, er svarene uden betydning, hvis man vil tilpasse
+et netvært-system. I dette tilfælde tastes blot retur til
+spørgsmålene 17, 21 og 24.
+
+Spørgsmål 20 har kun betydning for netvært-systemer eller
+netvart-/netbruger-systemer. Hvis man tilpasser et netbrug-
+er-system tastes blot retur som svar på spørgsmål 20. Hvis
+man tilpasser et netvært-system eller et netvert-/netbru-
+ger-system, kan man ved hjælp af svarene på spørgsmål 20
+beskytte nogle af netværtens diske, således at netbrugere
+ikke kan benytte disse.
+
+A/S Regnecentralen ~167—_
+D. Avanceret lokalnet indstilling Partner
+
+Alle netbrugere har en given netvært, som vælges for den
+enkelte netbruger-maskine ved hjælp af programmet KONFIG
+(se afsnit 4.1.6). De ressourcer, man navngiver ved hjælp
+af svarene på spørgsmål 17 til 26, vil alle tilhøre den gi-
+vne netvert, idet netværtens netnummer vil blive indsat i
+den givne navngivningstabel under opstarten af systemet.
+Det er således muligt at anvende det samme system og den
+samme navngivning til netbruger-Partnere i nettet, selv om
+disse eventuelt har forskellig given netvært.
+
+Spørgsmålene deler sig i tre undergrupper, der vedrører
+navngivning af henholdsvis diske, skrivere og køer. Når man
+er færdig med en af undergrupperne eller ikke ønsker at
+svare på spørgsmålene i denne, tastes blot retur til det
+første spørgsmål i gruppen.
+Navngivning af diske (nummer 17, 18 og 19)
+
+Local Disk Drive (A: through P:)?
+Her angives betegnelsen hos netværten for disken.
+
+Server node ID of the remote disk drive? :
+Som ovenfor nævnt indsættes automatisk under opstarten net-
+nummeret på den enkelte Partners givne netvært. Da GENNET
+kræver et svar tastes blot O<RETUR>.
+Navngivning af skrivere (nummer 21, 22 og 23)
+
+Local Printer Number (0 through F)? :
+
+Her angives nummeret hos netbrugeren på den skriver, man
+ønsker at anvende.
+
+Remote Printer Number (O through F)? :
+Her angives nummeret hos netverten pa skriveren.
+Server node ID of the remote printer? :
+Som ovenfor nævnt indsættes automatisk under opstarten net-
+
+nummeret på den enkelte Partners givne netvært. Da GENNET
+kræver et svar tastes blot O<RETUR>.
+
+—168- A/S Regnecentralen
+Partner D. Avanceret lokalnet indstilling
+
+Navngivning af køer (nummer 24, 25 og 26)
+Local Queue Name (8 characters or less)? :
+
+Her angives det navn, man ønsker at kende køen under hos
+netbrugeren.
+
+Remote Queue Name (8 characters or less)?
+
+Her angives køens navn hos netværten.
+Server node ID of the remote disk queue? :
+
+Som ovenfor nævnt indsættes automatisk under opstarten net-
+nummeret på det enkelte Partners givne netvært. Da GENNET
+kræver et svar tastes blot O<RETUR>.
+
+Den sidste gruppe af spørgsmål afsluttes af spørgsmålet:
+Are all the mappings above correct: :
+
+Hvis man er tilfreds med alle de tidligere afgivne svar
+tastes der Y<RETUR>, og filen DRNET.CMD dannes. I modsat
+fald tastes N<RETUR>, og programmet starter forfra med sine
+spørgsmål om navngivning, hvorunder eventuelle fejl kan
+rettes.
+
+Brug af GENNET i forbindelse med datafil.
+
+På disketten mærket ”SW1500 CCP/M 3.1 DISK 2" findes tre
+datafiler, der kan bruges til at tilpasse et netbruger-sys-
+tem, et netvært-system eller et netvært-/netbruger-system.
+Filerne indeholder svar til programmet GENNET (jf. afsnit
+4.2.3.2).
+
+Datafilen RDEF indeholder svar, der giver et netbruger-sys-
+tem, hvor enhver af de fire konsoller kan have to processer
+tilsluttet nettet samtidigt. Antallet af kopier af den giv-
+ne navngivningstabel er sat til 8, og mellemlageret er sat
+til minimumsværdien (870 (hex) bytes).
+
+Datafilen SDEF indeholder svar, der giver et netvært-system
+med mulighed for 16 samtidigt tilsluttede netbrugere. Mel-
+lemlageret er sat til 12 * 434 bytes (begge tal er i hexa-
+decimal notation).
+
+A/S Regnecentralen | | -169—
+D. Avanceret lokalnet indstilling Partner
+
+Datafilen RSDEF indeholder svar, der giver et netvært-/net-
+bruger-system. Dette system kan have alle fire konsoller
+tilsluttet nettet samtidigt med hver to processer. Samtidig
+med dette kan det betjene 16 samtidige netbrugere. Antallet
+af kopier af den givne navngivningstabel er sat til 8, og
+mellemlageret er sat til 12 * 434 bytes (begge tal er i
+hexadecimal notation).
+
+Datafilerne RDEF og RSDEF indeholder svar, der genererer en
+given navngivningstabel med følgende indhold:
+
+Diske:
+navn hos navn hos
+netbruger ' iven netvært
+E: A:
+F: B:
+G: Cs:
+H: D:
+Skrivere:
+navn hos navn hos
+netbruger given netvert
+skriver 2 skriver 0
+skriver 3 skriver 1
+
+Køer: RDEF og RSDEF indeholder ingen navngivning af køer.
+
+Hvis man ønsker at generere et af de ovenstående systemer,
+kaldes GENNET med den pågældende datafil som parameter.
+
+.Eksempel:
+
+A>GENNET RSDEF <RETUR>
+genererer i filen DRNET.CMD et netvært-/netbruger-system.
+Alle tre datafiler er almindelige tekstfiler og kan der for
+
+modificeres efter ønske ved hjælp af et editerings- eller
+tekstbehandlingsprogram, f.eks. RCTEKST eller ID.
+
+-170- A/S Regnecentralen
+Partner D. Avanceret lokalnet indstilling
+
+D.4 ADDNET
+
+Programmet ADDNET sammenkeder DRNET.CMD med en fil, der in-
+deholder styresystemet CCP/M, hvilket som resultat giver en
+netstyresystemfil kaldet CCPM.SYS.
+
+DRNET.CMD fremkommer som uddata fra programmet GENNET som
+ovenfor beskrevet. Styresystemfilen fremkommer som uddata
+fra programmet GENCCPM (se afsnit 4.2.2).
+
+Inden man udfører ADDNET, skal man sikre sig:
+
+1. At styresystemet er genereret med filen NETDRV.RSP (se
+4.2.2), da netprogrammellet ellers ikke fungerer.
+
+2. At filen DRNET.CMD ligger pa samme disk som ADDNET.CMD.
+
+Eksempel 1:
+A>ADDNET <RETUR>
+
+Her vil ADDNET sammenkede filen A:DRNET.CMD med filen
+A:CCPM.SYS og legge det resulterende netstyresystem i filen
+A:CCPM.SYS. .
+
+Eksempel 2:
+
+A>REN CCPM.NET=CCPM.SYS <RETUR>
+A>ADDNET CCPM.NET <RETUR>
+
+Her omdøbes først et CCP/M-86 styresystem til CCPM.NET.
+Herefter vil ADDNET sammenkede filen A:DRNET.CMD med filen
+A:CCPM.NET og legge netstyresystemet i filen A:CCPM.SYS.
+
+A/S Regnecentralen -171-
+D. Avanceret lokalnet indstilling Partner
+
+-172- A/S Regnecentralen
+E. Specifikationer
+
+I dette bilag er de vigtigste elektriske og mekaniske spec-
+ifikationer angivet.
+
+E.l Mal og vægt -
+Centralenhed, RC750 - 1,2,3 og 4:
+
+Højde : 145 mm
+Bredde: 380 mm
+
+Dybde : 361 mm
+
+Vægt : ca. 12 kg.
+Tastatur, RC730:
+
+Højde : 40/50 mm
+
+Bredde: 460 mm
+
+Dybde : 180 mm
+
+Vægt : 2,0 kg.
+
+Monokrom dataskerm, RC740:
+
+Højde : 296 mm
+Bredde: 360 mm
+
+Dybde : 330 mm |
+
+Vægt : 6,5 kg.
+Farveskerm, RC741:
+
+Højde : 350 mm
+
+Bredde: 410 mm
+
+Dybde : 410 mm
+
+Vægt : 13,6 kg.
+
+A/S Regnecentralen | - 173 -
+E. Specifikationer Partner
+
+E.2 Elektriske data
+
+Effektforbrug på lysnet (ca. angivelser).
+
+Centralenhed uden tastatur og dataskærm:
+RC750-1 60W
+RC750-2 7 OW
+RC750-3 85W
+RC750-4 105W
+
+Tastatur: 3,5W
+Monokrom dataskzrm, RC740: 25W
+
+Farvedataskerm, RC741: 75W
+(220V-240V ~ )
+
+Centralenhedens netudtag og sikringsbeskyttelse
+
+Net- 1,6A TRÆG Central-
+indtag
+220- effekt-
+240V~
+forbrug
+400W
+nr EA
+Net-
+© udtag
+o- 1A
+Relea med
+Qu
+
+tidsforsinkelse
+
+- 174 - A/s Regnecentralen
+Partner
+
+E.3 Stikfunktioner
+
+E. Specifikationer
+
+I dette bilag gives en beskrivelse af samtlige stik place-
+ret i centralenheden. (STEL=OV, forsyningsspændinger er un-
+
+derstreget,
+
+19
+
+SCSI |
+
+BUS
+
+ikke benyttede forbindelser er markeret med -).
+
+Å 1
+ooooooooo eo 000000
+O000000800000000 0 0
+
+rad
+
+37
+OV
+OV
+OV
+OV
+OV
+OV
+OV
+OV
+OV
+
+10:-ATN
+
+7 oe 6 os
+
+WOON A UAW DN LH
+
+ss os os … ae
+
+14
+
+1:+R
+
+2:+1l
+
+3:+G
+
+4:+B
+5:+HSYNC
+
+6 :+VS YNC
+
+7: VSYNCIN
+
+8 : MONOCHROME
+9:22kHz
+10: COMP. VIDEO
+
+il:
+12:-BSY
+13:-ACK
+14:-RST
+15:-MSG
+16:-SEL
+17:-C/D
+18:-REQ
+19:-1/0
+20:-DBO
+
+OV
+
+21:-DB1l
+22:=-DB2
+23:-DB3
+24:-DB4
+25:—DB5
+26:-DB6
+27:-DB7
+28:-DBP
+29:
+
+30:
+
+MONITOR
+
+QO0000000000
+0000 O000000
+
+11:AUDIO OUT
+12:KB CLOCK
+
+13:KB DATA IN
+14:-R
+
+15:-I
+
+16:<G
+
+17:-B
+
+18:17V RET
+19:4+17V/1,5A
+20:17V/RET
+
+20
+31: OV
+32: OV
+33: OV
+34: OV
+35: OV
+36: OV
+37: OV
+
+OV
+OV
+
+25
+21:+17V/1, 5A
+22: OV
+23: OV
+24: OV
+
+25:KB POW(12V/500mA)
+
+NB!: 17V RET har ikke forbindelse til OV.
++17V/1,5A ligger ubelastet pa 32V
+
+A/S Regnecentralen
+
+- 175 -
+E. Specifikationer Partner
+
+COMM. /V24
+
+14
+
+l: OV
+2:TX DATA
+3:RX DATA
+4:RTS
+5:cCTS
+6:DSR
+7: OV
+8: DCD
+9:T(A)
+10:I(A)
+
+11:-X21 SEL 21:R(A)
+12:T(B) 22:CT
+l13:- 23:-
+14:C(B) 24:1(B)
+15: TX CLOCK 25:C(A)
+16:S(B)
+17:RX CLOCK
+18:S(A)
+19:R(B)
+20:DTR
+
+RS232C/V24
+
+1: ov 11: TECH CON 21:-
+2:TX DATA 12: - 22:CI
+3:RX DATA 13: - 23:-
+4:RTS 14: - 24:-
+5:CTS 15: - 25:-
+6:DSR 16: -
+73 OV 17: -
+8:DCD 18: -
+9: - 19: -
+10: - 20:DTR
+- 176 - A/S Regnecentralen
+Partner E. Specifikationer
+PRINTER
+14
+Coooooo o0o$6
+(.50%%53%%% 000 0
+1 —
+13
+
+1:-STROBE 11:BUSY 21: OV
+
+2: PDO 12:PAPER END 22: OV
+3:PD1 13:SELECTED 23: OV
+4:PD2 14:-AUTOLF 24: OV
+5:PD3 15:~FAULT 25: OV
+6:PD4 16:-INIT
+
+7:PD5 17:-SELECT
+
+8: PD6 18: OV
+
+9:PD7 19: OV
+10:-ACK 20: OV
+
+LAWN
+
+il: OV 6: OV ll: -
+2:+COLDET 7: - 12:-RECEIVE |
+3:+TRANSMIT 8: - 13:+12V/500mA
+4: - 9:-COLDET 14: -
+
+5 : +RECEIVE 10:-TRANSMIT 15:
+
+A/S Regnecentralen
+
+- 177 -
+E. Specifikationer Partner
+
+KEYBOARD
+
+l: CLOCK
+
+2: DATA
+
+3: -
+
+4: OV
+5:+12V/500mA
+
+- 178 - A/S Regnecentralen
+Stikordsregister
+
+ADDNET-programmet, 54, 171
+adgangskode, 39
+
+aktuelle værdier, 40
+arbejdsdiskette, 19
+ASSIGN.DIR filen, 61
+ASSIGN.SYS filen, 59
+automatisk opstart, 41
+automatisk selvtest, 120
+
+batteri, 75
+brugerprogrammel, installation, 25
+bundplade, montering, 106
+
+CCP/M-86, se også styresystem
+CCP/M-86, installation, 19
+
+CCP/M-86 styresystem, indstilling, 42
+centralenhed, adskillelse, 82
+centralenhed, tilslutning, 16
+
+dataskærm, indstilling, 35
+dataskærm, styretegn, 153
+DISK-1, 19, 43 |
+DISK-2, 19, 43
+diskbuffer-menu, 48
+diskettefejl, 136
+disketter, anskaffelse, 73
+diskettestation, montering, 104
+diskettestation, test, 136
+disksystem, indstilling, 37
+distributionsdiskette, 26
+dækplade, montering, 92
+
+ekstraudstyr, 15
+ekstraudstyr, montering, 108
+elektriske data, 174
+
+fejlfinding, 119
+
+fejlkilder, 119
+
+fejlkoder v. opstart, 122
+fejlkoder, liste, 125
+fejlmeddelelser, lokalnet, 129
+filer, overførsel fra diskette, 25
+FILEX-programmet, 26
+
+filoverførsel v. kommunikation, 26
+filter, 74 .
+
+fod for dataskærm, 13
+funktionstaster, tegnværdier, 159
+funktionstest, 132
+
+_A/S Regnecentralen
+Stikordsregister
+
+Partner
+
+garanti, 74, 79
+GENCCPM-programmet, 42
+GENNET-programmet, 163, 169
+GKONFIG-programmet, 59
+grafik, drivprogram, 59
+grafik, installation, 59
+grafik, konfigurationsfil, 59
+GSX-86, 59
+
+hovedkort, montering, 114
+
+identifikationskode, 17
+indholdsfortegnelse, 3
+
+indstilling, lokalnet, 163
+indstilling, systemprogrammel, 31
+initialisering af winchesterdisk, 151
+installation, brugerprogrammel, 25
+installation, CCP/M-86, 19
+installation, systemprogrammel, 19
+installationsmenu, 20, 22
+
+kabler, montering, 13
+kommunikation, filoverfgrsel, 26
+kommunikationsport, indstilling, 32
+kommunikationsport, test, 146
+KONFIG-programmet, 31
+konfigurering, se indstilling
+
+lagerallokerings-menu, 47
+lagerkort, montering, 112
+lagerkort-udvidelse, 108
+
+LAN fatning, 15
+
+levering af udstyr, 11
+
+" lokaleforhold, 11
+
+lokalnet, se også net
+lokalnet, adapter, 15
+lokalnet, controllerkort, montering, 110
+lokalnet, fejlmeddelelser, 129
+lokalnet, indstilling, 38, 163
+lokalnet, konfiguration, 130
+lokalnet, navneservice, 56
+lokalnet, navngivning, 168
+lokalnet, programmel, indstilling, 49
+lokalnet, test, 141
+
+lokalnet, transceiver, 15
+luftfilter, 74
+
+luftfugtighed, 12
+
+lysnet, tilslutning, 16
+læsevejledning, 6
+
+- 180 -
+
+AfS Regnecentralen
+Partner Stikordsregister
+
+løsen, 39
+
+M-disk, 37
+markgr-presentation, 35
+MDF-filtype, 63
+
+mellemlager, 53
+
+Menu Definition File, 63
+menu, opbygning, 63
+
+menu, valgtegn, 64
+
+menu, ændring, 63
+menu-vedligeholdelse, 63
+MENUVEDL-programmet, 63
+MF106, montering, 110
+MF110/112 fod, 13
+
+moduler, forsendelse, 82
+moduler, reparation, 82
+moduler, transport, 82
+modulmontage, 82
+modulplacering, 81
+
+montering, bundplade, 106
+montering, diskettestation, 104
+montering, dekplade, 92
+montering, ekstraudstyr, 108
+montering, hovedkort, 114
+montering, lagerkort, 112
+montering, lokalnet-controllerkort, 110.
+montering, MF106, 110
+montering, WDC702, 88
+montering, WDC703, 90
+montering, WDD703, 96
+montering, WDD706, 100
+montering, winchester-controller, 86
+montering, winchesterdisk, 94
+montering, yderkappe, 84
+
+mal, 173
+
+NAMESMOD-programmet, 56, 57
+nationalitetskode, 17
+navneservice, installation, 56
+navngivning, 50
+navngivning, diske, 168.
+navngivning, køer, 169
+navngivning, skrivere, 168
+navngivningstabel, 50
+nedlukning af system, 74
+net, se også lokalnet
+netbruger, 49
+netkonfiguration, 130
+netnummer, 39
+
+A/S Regnecentralen | - 181 -
+Stikordsregister
+
+Partner
+
+netstyresystem, 49
+NETVEDL-programmet, 51
+netvært, 49
+
+normal test, 133
+
+opstart af system, 17
+opstart, fejlkoder, 122
+opstart, selvtest, 120
+opstilling af udstyr, 11
+
+PASSWORD, 39
+
+permanent lager, 32
+
+placering, se opstilling
+programmel-installation, 19, 25
+
+RC740 dataskærm, 13
+
+RC741 farvedataskærm, 14
+reparation, 82
+
+resident system process, 48
+RSP, 48
+
+rulning af skærmbillede, 35
+
+selvtest v. opstart, 120
+seriel port, test, 146
+serienummer, 38
+
+sikring, 76
+
+skriver, tegnsæt, 40
+skriver, test, 134
+skærmkopi, 40
+
+skærmmenu, se menu
+skærmtrimning, 35
+specifikationer, 173
+start, se opstart
+STARTUP-fil, 41
+STDKONF-filen, 43
+stik-beskrivelser, 175
+strømforbrug, 174
+strømforsyning, 12
+styresystem, etiket, 48
+styresystem, indstilling, 42
+
+styresystem, standardtilpasning, 43 ©
+
+styretegn, dataskerm, 153
+SYSPARAMS-menu, 45
+systemopbygning, 79
+systemparameter menu, 45
+systemvedligeholdelse, 132
+systemdiskette, 19
+systemenheder, oversigt, 80
+systemparameter-lager, 123
+
+- 182 -
+
+A/S Regnecentralen
+Partner Stikordsregister
+
+systemparametre, 31, 75, 83
+systemprogrammel, indstilling, 31
+systemprogrammel, installation, 19
+SYSVEDL-programmet, 132
+
+tastatur, tilslutning, 12, 15
+teknisk test, 133 '
+temperatur-grænser, 12
+
+test af enkeltenheder, 132
+test, diskettestation, 136
+test, kommunikationsport, 146
+test, lokalnet, 141
+
+test, normal, 133
+
+test, seriel port, 146
+
+test, skriver, 134
+
+test, teknisk, 133
+
+test, V.24-port, 146
+
+test, winchesterdisk, 139
+testprogrammer, 132
+tilpasning, se indstilling
+tilslutning til lysnet, 16
+transceiver, 15
+
+transport af systemenheder, 74, 82
+transport af udstyr, 11
+typebetegnelse, 38
+
+typeskilt, 38
+
+ur, indstilling, 36
+
+V.24-port, indstilling, 33
+V.24-port, test, 146
+valgtegn, 64
+
+vedligeholdelse, generelt, 73
+ventilation, 13, 74
+
+vegt, 173
+
+værktøj, 82
+
+WDC702, montering, 88
+
+WDC703, montering, 90
+
+WDD703, montering, 96
+
+WDD706, montering, 100
+WDINIT-programmet, 151
+winchester-controller, montering, 86
+winchesterdisk, initialisering, 151
+winchesterdisk, montering, 94
+winchesterdisk, test, 139
+
+yderkappe, montering, 84
+
+A/S Regnecentralen — an : 983 —
+Stikordsregister Partner
+
+- 184 - A/S Regnecentralen
+LÆSERBEMÆRKNINGER
+
+Titel: Partner Mikrodatamatsystem RCSL Nr.: 991 09961
+Installation og vedligeholdelse
+A/S Regnecentralen af 1979 bestræber sig på at forbedre kvalitet og brugbarhed af
+
+sine publikationer. For at opnå dette ønskes læserens kritiske vurdering af denne
+publikation.
+
+Kommenter venligst manualens fuldstændighed, nøjagtighed, disposition, anvende-
+lighed og læsbarhed: .
+
+Angiv fundne fejl (reference til sidenummer):
+
+Hvordan kan manualen forbedres:
+
+Andre kommentarer:
+
+Navn: — Stilling:
+
+Firma:
+
+Adresse:
+
+Dato:
+
+På forhånd tak!
+eders. Riv ikke - Fold her og hæft ..............20000-
+Frankeres
+som
+brev
+§ REGNECENTRALEN
+af 1979
+Informationsafdelingen
+Lautrupbjerg 1
+
+2750 Ballerup
