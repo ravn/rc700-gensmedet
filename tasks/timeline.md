@@ -8921,3 +8921,16 @@ celle). 82730 mode-block: aktivt felt (hfldstp-hfldstrt)*16 = 720 px / 80 kol = 
 7 px glyf venstre-stillet -> 2 px mellemrum. Konfig via rc75x `m_text_hpitch` (rc750=9, rc759
 urørt). (2) CPU rettet 6 -> **8 MHz** 80186 (user-korrektion). Begge verificeret; snapshot
 `mame/snap/rc750_pitch9.png`.
+
+## 2026-09-03 — RC750 floppy-boot bring-up: FDC-porte + SCSI-fejl (error 35) fikset
+
+Mål: boote SW1500 CCP/M-86-floppy (datamuseum Bits:30009620, IMD). Reverse-engineered
+Partnerens I/O-kort fra boot-ROM'en (unidasm x86_16):
+- **FDC = WD1797 @ 0x200-0x206** (ikke 0x280) — verificeret via BUSY-poll + Force-Interrupt.
+- Floppy drive-select @ 0x260, sense @ 0x220 (provisoriske).
+- **ERROR 00035 = SCSI-test** (dok. side 127) ROOT-CAUSED: poll-løkke venter på PPI port B bit3
+  (in 0x72) skal gå lav; ppi_portb_r() hardkodede bit3=1 -> timeout. Fix: bit3=0 (SCSI-handshake).
+  Bekræftet: error 35 væk, POST fortsætter.
+- CTRL+ALT+SLET-skip (dok. side 125) dekodet: CTRL 0x1D + ALT 0x37 (kode 55, nu mappet) + Backspace
+  0x0E; men GATED under selvtest ([13Bh]=0xFF springer combo-ISR over) -> valgte SCSI-fix i stedet.
+Næste blocker: 82730-mailbox-handshake-loop (test 16). mame-branch rc750-rom-font-text (commit 2857258).

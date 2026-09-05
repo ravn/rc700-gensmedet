@@ -119,6 +119,11 @@ What MAME does (`txt_update_row`, `ppi_portc_w`, `palette_w`):
 The upstream driver header already says so: `TODO: - Needs better I82730
 emulation`.
 
+> **Channel attention & MYRESNAK-fixet:** for hvordan 82730 modtager kommandoer
+> (CA-mekanisme, det fulde CBP-kommandosæt, og rodårsag/rettelse af
+> MYRESNAK BB/HENT/HUSK-frysningen, ravn/mame#31), se
+> `RC759_82730_channel_attention.md`.
+
 ---
 
 ## 4. Conclusions
