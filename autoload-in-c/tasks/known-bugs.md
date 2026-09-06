@@ -243,3 +243,46 @@ and reuse it in all three paths.
 **Pointers:** `rom.c` `prom1_if_present` (~740), call sites 760 / 856 / 869,
 `prom_disable()` at 873; overlay semantics in `rc700-gensmedet/CLAUDE.md`
 (port 0x18 RAMEN disables both PROM0 and PROM1).
+
+## 5. `make mame`'s `EXPECT_BANNER` check fires too late — always FAILs even on a correct boot (recurrence of bug #1's harness class, different symptom) — OPEN
+
+**Status:** OPEN, found 2026-09-06 while verifying the `ravn/llvm-z80`
+upstream-merge branch (`merge-upstream-2026-09-05`) didn't regress the
+autoload boot path.
+
+**Symptom:** `make mame COMPILER=clang` reports
+`FAIL: booted but wrong banner (expected 'RC700 ROA375 CL')`, with the
+captured display showing DRI CP/M's own sign-on
+(`RC700   56k CP/M vers.2.2   rel. 2.3`) at the canonical BIOS base
+0xF800 — **not** autoload's banner. This reproduces identically with
+both COMPILER=clang and COMPILER=sdcc, so it is unrelated to any
+compiler change.
+
+**Root cause (confirmed with a frame-by-frame screen trace via a patched
+`mame_boot_test.lua`, dumping `screen_text()` every 10 frames instead of
+only at the "A>" check):** autoload's banner **is** correctly displayed —
+frames 30-70 (display base 0x7830, ~0.6-1.4s emulated) show
+`RC700 ROA375 CL 2026-09-06 11.06 2951f96/ravn ... SW1 12345678: 00000000`
+verbatim. Around frame 80 the display base switches to 0xF800 as DRI
+CP/M's cold-boot code (loaded from Track 0, see "CP/M" row in
+`BOOT_SEQUENCE.md`'s disk-boot-variants table) takes over the screen and
+writes its own sign-on. `mame_boot_test.lua`'s `EXPECT_BANNER` match only
+runs at the moment `screen_find("A>")` first succeeds — by then CP/M has
+already overwritten the banner autoload wrote, so the check can never see
+it. This is a **test-timing bug**, structurally the same class as bug #1
+above (the harness looks at the wrong moment/place), but a different
+manifestation: bug #1 was fixed by scanning both display bases; this one
+additionally needs the *banner match* to run **before** CP/M's handoff,
+not only at the final `A>` check.
+
+**Fix options (deferred — no code change made yet, pending go-ahead):**
+record whether `EXPECT_BANNER` was ever seen on **any** frame (not just
+the final one) before deciding pass/fail, e.g. latch a `banner_seen`
+flag the first time `screen_find(EXPECT_BANNER)` matches at the
+DMA-derived base, independent of the later `A>`/0xF800 check.
+
+**Pointers:** `autoload-in-c/mame_boot_test.lua` (`screen_find`,
+`finish()`), `autoload-in-c/Makefile` `mame:` target (~line 165, sets
+`EXPECT` per compiler), `autoload-in-c/BOOT_SEQUENCE.md` "CP/M —
+`" RC702"` at offset 0x0008" section (documents the Track-0 handoff that
+overwrites the banner).
