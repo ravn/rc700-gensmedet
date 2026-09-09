@@ -289,7 +289,15 @@ CLANG_CFLAGS += -DINIT_SEM702=$(INIT_SEM702)
 # is what makes the source-annotated listing (clang/prom.clang.lis)
 # possible.
 
-CLANG_OBJS = clang/boot.o clang/intvec.o clang/rom.o clang/runtime.o
+# compiler-rt Z80 builtins: the backend emits calls to the
+# CallingConv::Z80_Builtin routines __z80_mem{cpy,set,move}_builtin; these .asm
+# files provide them (plus the C entry points _mem*).  --gc-sections drops the
+# ones the PROM does not reference.
+CRT_Z80 = $(LLVM_Z80)/compiler-rt/lib/builtins/z80
+CLANG_RT_OBJS = clang/rt_memset.o clang/rt_memcpy.o clang/rt_memmove.o
+
+CLANG_OBJS = clang/boot.o clang/intvec.o clang/rom.o clang/runtime.o \
+             $(CLANG_RT_OBJS)
 CLANG_ZX0_OBJS = clang/dzx0_standard.o clang/text_compressed.o
 
 # Host-side ZX0 compressor + verifier from z88dk source tree.
@@ -347,6 +355,13 @@ clang/boot.o: boot_rom.c rom.h clang/banner.h $(CLANG_COMPILER) Makefile
 	$(RUN) $(CLANG_CC) $(CLANG_CFLAGS) -c $< -o $@
 
 clang/runtime.o: clang/runtime.s $(CLANG_COMPILER)
+	$(RUN) $(CLANG_CC) --target=z80 -c $< -o $@
+
+clang/rt_memset.o: $(CRT_Z80)/memset.asm $(CLANG_COMPILER)
+	$(RUN) $(CLANG_CC) --target=z80 -c $< -o $@
+clang/rt_memcpy.o: $(CRT_Z80)/memcpy.asm $(CLANG_COMPILER)
+	$(RUN) $(CLANG_CC) --target=z80 -c $< -o $@
+clang/rt_memmove.o: $(CRT_Z80)/memmove.asm $(CLANG_COMPILER)
 	$(RUN) $(CLANG_CC) --target=z80 -c $< -o $@
 
 clang/dzx0_standard.o: clang/dzx0_standard.s $(CLANG_COMPILER)
