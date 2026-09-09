@@ -38,7 +38,7 @@ endif
 CFLAGS = --target=z80 -Oz -g -nostdlib -ffreestanding -std=c23 \
 	 -flto -ffunction-sections -fdata-sections \
 	 -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT) \
-	 -Xclang -target-feature -Xclang +static-stack \
+	 -Xclang -target-feature -Xclang +static-frame \
 	 -Iclang -I. -Wno-gcc-compat -Wno-return-type \
 	 -Wimplicit-int-conversion \
 	 -DMSIZE=$(MSIZE) \

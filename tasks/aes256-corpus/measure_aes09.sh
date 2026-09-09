@@ -9,7 +9,7 @@ LLVMNM=/Users/ravn/z80/llvm-z80/build-macos/bin/llvm-nm
 HERE=$(cd "$(dirname "$0")" && pwd)
 cd "$HERE/sweep"
 "$CLANG" --target=z80 -nostdlib -ffreestanding -std=c89 -Wno-deprecated-non-prototype \
-  -Oz -Xclang -target-feature -Xclang +static-stack \
+  -Oz -Xclang -target-feature -Xclang +static-frame \
   -mllvm -disable-lsr -mllvm -disable-machine-licm -mllvm -disable-machine-cse \
   -ffunction-sections -fdata-sections \
   -c ../aes256.c -o "${LABEL}_aes.o"

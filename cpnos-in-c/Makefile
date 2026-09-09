@@ -114,7 +114,7 @@ ifeq ($(COMPILER),clang)
   # flag is marginally beneficial via better ZX0 compressibility.
   CFLAGS = --target=z80 -std=c23 -Oz -nostdlib -g \
            -ffunction-sections -fdata-sections \
-           -Xclang -target-feature -Xclang +static-stack \
+           -Xclang -target-feature -Xclang +static-frame \
            -mllvm -disable-lsr \
            -DENABLE_FDC=$(ENABLE_FDC) \
            -DMIRROR_SIOB=$(MIRROR_SIOB) \
@@ -582,7 +582,7 @@ $(BUILDDIR)/transport_pio.o: transport_pio.c transport.h hal.h compiler/compat.h
 # but SDCC doesn't implement it.  See tasks/sdcc-port.md.
 #
 # Relocator compile flags: same as CFLAGS but without the
-# `-Xclang -target-feature -Xclang +static-stack` sequence.  The
+# `-Xclang -target-feature -Xclang +static-frame` sequence.  The
 # ---- Size check (PROM1-only line program) ------------------------
 # Print the lineprog size + cap status; defers to the prom1-lineprog
 # rule for the actual size enforcement (errors over 2048 B for clang).

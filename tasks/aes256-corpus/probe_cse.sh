@@ -7,7 +7,7 @@ LLVMOBJCOPY=/Users/ravn/z80/llvm-z80/build-macos/bin/llvm-objcopy
 TICKS=/Users/ravn/z80/z88dk/bin/z88dk-ticks
 HERE=$(cd "$(dirname "$0")" && pwd); cd "$HERE/sweep"
 BASE=(--target=z80 -nostdlib -ffreestanding -std=c89 -Wno-deprecated-non-prototype \
-  -Oz -Xclang -target-feature -Xclang +static-stack -mllvm -disable-lsr \
+  -Oz -Xclang -target-feature -Xclang +static-frame -mllvm -disable-lsr \
   -ffunction-sections -fdata-sections)
 
 run() {

@@ -117,11 +117,11 @@ build_and_measure "01_baseline_Oz"            -Oz
 build_and_measure "02_Os"                     -Os
 build_and_measure "03_O3"                     -O3
 build_and_measure "04_O2"                     -O2
-build_and_measure "05_Oz_static_stack"        -Oz -Xclang -target-feature -Xclang +static-stack
+build_and_measure "05_Oz_static_stack"        -Oz -Xclang -target-feature -Xclang +static-frame
 build_and_measure "06_Oz_no_licm_cse"         -Oz -mllvm -disable-machine-licm -mllvm -disable-machine-cse
 build_and_measure "07_Oz_no_lsr"              -Oz -mllvm -disable-lsr
 build_and_measure "08_Oz_gc_sections"         -Oz -ffunction-sections -fdata-sections
-build_and_measure "09_Oz_prod_like"           -Oz -Xclang -target-feature -Xclang +static-stack \
+build_and_measure "09_Oz_prod_like"           -Oz -Xclang -target-feature -Xclang +static-frame \
                                               -mllvm -disable-lsr \
                                               -mllvm -disable-machine-licm \
                                               -mllvm -disable-machine-cse \

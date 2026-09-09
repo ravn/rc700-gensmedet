@@ -20,7 +20,7 @@ LLVMOBJCOPY=/Users/ravn/z80/llvm-z80/build-macos/bin/llvm-objcopy
 TICKS=/Users/ravn/z80/z88dk/bin/z88dk-ticks
 HERE=$(cd "$(dirname "$0")" && pwd); cd "$HERE/sweep"
 AES_SRC=../aes256.c
-BASE="-Xclang -target-feature -Xclang +static-stack -mllvm -disable-lsr -ffunction-sections -fdata-sections"
+BASE="-Xclang -target-feature -Xclang +static-frame -mllvm -disable-lsr -ffunction-sections -fdata-sections"
 # OFF state = default (in-tree disablePass active).  ON state = lift the
 # in-tree disable.  Both `-z80-enable-licm` and `-z80-enable-cse` so the
 # A/B isolates the combined LICM+CSE workaround as a single signal.

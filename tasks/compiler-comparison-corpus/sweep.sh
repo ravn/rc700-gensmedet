@@ -19,7 +19,7 @@
 #   SPEED = clang -O2  / zsdcc --opt-code-speed / dcc dccpeep ON
 # The only variable between the two cells is the opt level (clang also
 # leaves LSR enabled in the SPEED cell); the production memory model
-# (+static-stack), section-gc, and --sdcccall 1 are held constant.
+# (+static-frame), section-gc, and --sdcccall 1 are held constant.
 # dcc has no -Oz/-O2 axis -- its only knob is the dccpeep peephole pass
 # (improves BOTH size and speed), so size=peep-off, speed=peep-on.
 #
@@ -83,15 +83,15 @@ CEDEV_PREFIX="${CEDEV_PREFIX:-/Users/ravn/z80/cedev-eval/CEdev}"
 # `-mllvm -z80-enable-licm` / `-mllvm -z80-enable-cse` which override
 # the in-tree disable.  CLANG_EXTRA env var injects extra flags into
 # every cell; used by the per-investigation wrapper scripts.
-LLVM_FLAGS=(-Oz -Xclang -target-feature -Xclang +static-stack
+LLVM_FLAGS=(-Oz -Xclang -target-feature -Xclang +static-frame
             -mllvm -disable-lsr
             -ffunction-sections -fdata-sections)
 # Speed-optimized counterpart of LLVM_FLAGS: -O2 instead of -Oz, and LSR
 # is left ENABLED (the size cell passes -disable-lsr).  Session #75's
 # isLegalAddImmediate TTI made LSR a net win, so the speed cell wants it.
-# +static-stack and section-gc are the production memory model and are
+# +static-frame and section-gc are the production memory model and are
 # orthogonal to size/speed, so they stay identical in both cells.
-LLVM_FLAGS_SPEED=(-O2 -Xclang -target-feature -Xclang +static-stack
+LLVM_FLAGS_SPEED=(-O2 -Xclang -target-feature -Xclang +static-frame
             -ffunction-sections -fdata-sections)
 # Historical belt-and-suspenders flag `-mllvm -disable-machine-licm/cse`
 # was here; removed 2026-06-08 because the Z80 backend's in-tree
