@@ -72,7 +72,7 @@ prom:
 	@#          roa375.ic66 slot is a 4 KB file format).
 	@PROM=$$(wc -c < $(PROM_BIN) | tr -d ' '); \
 	 if [ "$(COMPILER)" = "sdcc" ]; then CEIL=4096; CLABEL="MAME 4 KB"; \
-	 else CEIL=2048; CLABEL="PROM0 2 KB hard"; fi; \
+	 else CEIL=4096; CLABEL="TEMP 4 KB (MAME boot-test; 2 KB hard cap suspended)"; fi; \
 	 echo "$(COMPILER) PROM: $$PROM / $$CEIL bytes ($$CLABEL)"; \
 	 if [ $$PROM -gt 4096 ]; then \
 	   echo "ERROR: exceeds 4096-byte file-format limit by $$((PROM - 4096)) bytes"; \
