@@ -25,18 +25,27 @@ static inline void
 memcpy_z80(void *dest, const void *src, unsigned short blocks16, unsigned char remainder)
 {
 #ifdef __z80__
+    /* Bind operands to physical pairs via GCC local register variables (the
+     * upstream-standard form); clang rejects the braced "+{de}" in C source.
+     * The remainder LDIR advances DE/HL past the initial block, so thread the
+     * read-write pointers forward into the 16xLDI loop. */
     if (remainder) {
-        unsigned short rem = remainder;
-        __asm volatile("ldir"
-            : "+{de}"(dest), "+{hl}"(src), "+{bc}"(rem) :: "memory");
+        register void *de       __asm__("de") = dest;
+        register const void *hl __asm__("hl") = src;
+        register unsigned short bc __asm__("bc") = remainder;
+        __asm volatile("ldir" : "+r"(de), "+r"(hl), "+r"(bc) :: "memory");
+        dest = de;
+        src  = (const void *)hl;
     }
     if (blocks16) {
-        unsigned short bc = blocks16;
+        register void *de       __asm__("de") = dest;
+        register const void *hl __asm__("hl") = src;
+        register unsigned short bc __asm__("bc") = blocks16;
         __asm volatile(
             "1: ldi\n ldi\n ldi\n ldi\n ldi\n ldi\n ldi\n ldi\n"
             "   ldi\n ldi\n ldi\n ldi\n ldi\n ldi\n ldi\n ldi\n"
             "   jp pe, 1b"
-            : "+{de}"(dest), "+{hl}"(src), "+{bc}"(bc) :: "memory");
+            : "+r"(de), "+r"(hl), "+r"(bc) :: "memory");
     }
 #else
     memcpy(dest, src, blocks16 + remainder);

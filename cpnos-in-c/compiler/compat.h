@@ -270,10 +270,13 @@
 #if defined(__clang__) && defined(__z80__)
 static inline void mem_copy_backwards(void *dst_end, const void *src_end,
                                       size_t n) {
-    __asm__ volatile("lddr"
-        : "+{de}"(dst_end), "+{hl}"(src_end), "+{bc}"(n)
-        :
-        : "memory");
+    /* Bind operands to physical pairs via GCC local register variables (the
+     * upstream-standard form); clang has no pair CONSTRAINT letter and rejects
+     * the braced "+{de}" in C source. */
+    register void *de       __asm__("de") = dst_end;
+    register const void *hl __asm__("hl") = src_end;
+    register size_t bc      __asm__("bc") = n;
+    __asm__ volatile("lddr" : "+r"(de), "+r"(hl), "+r"(bc) :: "memory");
 }
 #elif defined(__SDCC) || defined(__SCCZ80)
 extern void mem_copy_backwards_callee(void *dst_end, const void *src_end,
@@ -339,7 +342,8 @@ static inline void intrinsic_im_2(void) { ASM_VOLATILE("im 2"); }
 /* clang Z80: pass the page in A using the address_space-style hack
  * isn't available; use a constraint so the value is in A on entry. */
 static inline void intrinsic_ld_i_a(uint8_t page) {
-    ASM_VOLATILE("ld i, a" :: "{a}"(page));
+    register uint8_t a __asm__("a") = page;
+    ASM_VOLATILE("ld i, a" :: "r"(a));
 }
 
 #else
