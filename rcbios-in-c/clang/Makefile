@@ -36,20 +36,25 @@ else
 endif
 
 CFLAGS = --target=z80 -Oz -g -nostdlib -ffreestanding -std=c23 \
-	 -flto -ffunction-sections -fdata-sections \
+	 -ffunction-sections -fdata-sections \
 	 -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT) \
 	 -Xclang -target-feature -Xclang +static-frame \
 	 -Iclang -I. -Wno-gcc-compat -Wno-return-type \
 	 -Wimplicit-int-conversion \
 	 -DMSIZE=$(MSIZE) \
 	 $(if $(filter B,$(KBDPORT)),-DKBD_PIO_B)
-# -flto re-enabled 2026-07-03 (experiment): boot_entry.c + bios_hw_init.c
-# functions annotated __attribute__((section(".boot_code"),used)) so LTO
-# retains them in BOOT, not in .text.  Linker script gains KEEP(*(.boot_code))
-# before the per-file matchers.  Previously disabled in a7a7293 (2026-06-28)
-# because per-file matchers (*boot_entry.o, *bios_hw_init.o) don't fire under
-# LTO — now covered by explicit section attributes (same fix boot_block.c uses
-# for .boot).  Boot MUST be re-verified with make mame-test after this change.
+# -flto DISABLED 2026-09-10 (ravn/llvm-z80#312): under LTO the link-time codegen
+# runs the Z80DanglingDebugCleanup pass, which segfaults in MachineOperand::setReg
+# on non-DBG_VALUE debug instrs (repro: `llc clang/bios.o`, crashes on
+# @bios_write_c/@rwoper). Exposed once the PR #40 builtin/HasZ80 fix let rcbios
+# compile through to link. The boot-placement machinery (section attrs +
+# per-file matchers + link ASSERTs) remains in place, so -flto is a one-line
+# re-enable once the backend crash is fixed. See the issue for the investigation.
+#
+# History: -flto was re-enabled 2026-07-03 and fully working 2026-07-06 (boots to
+# A> in MAME) via __attribute__((section(".boot_code"/.boot_data/.bios_jt),used))
+# on boot code+data; per-file matchers (*boot_entry.o, ...) don't fire under LTO.
+# Re-verify boot with `make mame-test` after any -flto toggle.
 # Investigation hook (ravn/llvm-z80#23): inject extra clang flags via
 # `make CLANG_EXTRA="-mllvm -z80-enable-licm -mllvm -z80-enable-cse"`.
 CFLAGS += $(CLANG_EXTRA)
