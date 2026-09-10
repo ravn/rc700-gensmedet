@@ -39,11 +39,24 @@ static inline void intrinsic_im_2(void) {}
  *
  * These allow bios.c to compile with clang without changes.
  * The naked functions become empty stubs (dead code, gc'd by linker).
+ *
+ * __critical and __interrupt expand to NOTHING on clang: every ISR body
+ * is compiled as a plain (RET-ending) function, and the interrupt framing
+ * — register save/restore, EI, RETI — is supplied EXPLICITLY by the
+ * assembly wrappers in bios_shims.s that the IVT points at.  This is the
+ * same "explicit wrapper" model the __naked ISRs already use.
+ *
+ * Rationale: clang's __attribute__((interrupt)) emits RETI but no EI, and
+ * the RC702 requires every handler to re-enable interrupts before RETI
+ * (Z80 RETI does NOT restore IFF).  Relying on the attribute (or on the
+ * removed z80_critical attribute) left interrupts permanently disabled
+ * after the first ISR -> black screen.  Owning EI/RETI in the wrappers
+ * removes that dependency on compiler magic entirely.  See bios_shims.s.
  * ================================================================ */
 
 #define __naked
-#define __critical __attribute__((z80_critical))
-#define __interrupt(n) __attribute__((interrupt))
+#define __critical
+#define __interrupt(n)
 #define __sdcccall(x)
 
 /* Neutralize SDCC-syntax inline asm in naked function bodies.

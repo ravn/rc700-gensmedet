@@ -299,3 +299,169 @@ _isr_sio_a_rx_wrapper:
 	ei
 	reti
 
+; ================================================================
+; ISR wrappers — non-stack-switching interrupt handlers
+;
+; Pattern: save caller-saved registers, call the C body, restore
+; them, EI, RETI.  These handlers run on the interrupted program's
+; stack (no ISTACK switch) — mirroring the previous __critical
+; __interrupt behaviour.  The C body is a plain function (clang's
+; __critical/__interrupt macros expand to nothing, see intrinsic.h),
+; so it preserves its own callee-saved registers (IX/IY); the wrapper
+; only saves the caller-saved set (AF/BC/DE/HL).
+;
+; EI is delayed one instruction, so no interrupt can fire between EI
+; and RETI.  On Z80, RETI does NOT restore IFF, so this explicit EI is
+; what re-enables interrupts on handler exit.
+; ================================================================
+
+	.section .text._isr_dummy_wrapper,"ax",@progbits
+	.globl	_isr_dummy_wrapper
+_isr_dummy_wrapper:
+	push	af
+	push	bc
+	push	de
+	push	hl
+	call	_isr_dummy
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af
+	ei
+	reti
+
+	.section .text._isr_hd_wrapper,"ax",@progbits
+	.globl	_isr_hd_wrapper
+_isr_hd_wrapper:
+	push	af
+	push	bc
+	push	de
+	push	hl
+	call	_isr_hd
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af
+	ei
+	reti
+
+	.section .text._isr_sio_b_tx_wrapper,"ax",@progbits
+	.globl	_isr_sio_b_tx_wrapper
+_isr_sio_b_tx_wrapper:
+	push	af
+	push	bc
+	push	de
+	push	hl
+	call	_isr_sio_b_tx
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af
+	ei
+	reti
+
+	.section .text._isr_sio_b_ext_wrapper,"ax",@progbits
+	.globl	_isr_sio_b_ext_wrapper
+_isr_sio_b_ext_wrapper:
+	push	af
+	push	bc
+	push	de
+	push	hl
+	call	_isr_sio_b_ext
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af
+	ei
+	reti
+
+	.section .text._isr_sio_b_rx_wrapper,"ax",@progbits
+	.globl	_isr_sio_b_rx_wrapper
+_isr_sio_b_rx_wrapper:
+	push	af
+	push	bc
+	push	de
+	push	hl
+	call	_isr_sio_b_rx
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af
+	ei
+	reti
+
+	.section .text._isr_sio_b_spec_wrapper,"ax",@progbits
+	.globl	_isr_sio_b_spec_wrapper
+_isr_sio_b_spec_wrapper:
+	push	af
+	push	bc
+	push	de
+	push	hl
+	call	_isr_sio_b_spec
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af
+	ei
+	reti
+
+	.section .text._isr_sio_a_tx_wrapper,"ax",@progbits
+	.globl	_isr_sio_a_tx_wrapper
+_isr_sio_a_tx_wrapper:
+	push	af
+	push	bc
+	push	de
+	push	hl
+	call	_isr_sio_a_tx
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af
+	ei
+	reti
+
+	.section .text._isr_sio_a_ext_wrapper,"ax",@progbits
+	.globl	_isr_sio_a_ext_wrapper
+_isr_sio_a_ext_wrapper:
+	push	af
+	push	bc
+	push	de
+	push	hl
+	call	_isr_sio_a_ext
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af
+	ei
+	reti
+
+	.section .text._isr_sio_a_spec_wrapper,"ax",@progbits
+	.globl	_isr_sio_a_spec_wrapper
+_isr_sio_a_spec_wrapper:
+	push	af
+	push	bc
+	push	de
+	push	hl
+	call	_isr_sio_a_spec
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af
+	ei
+	reti
+
+	.section .text._isr_pio_par_wrapper,"ax",@progbits
+	.globl	_isr_pio_par_wrapper
+_isr_pio_par_wrapper:
+	push	af
+	push	bc
+	push	de
+	push	hl
+	call	_isr_pio_par
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af
+	ei
+	reti
+

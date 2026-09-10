@@ -27,30 +27,62 @@ extern void isr_sio_a_ext(void);
 extern void isr_sio_a_spec(void);
 extern void isr_pio_par(void);
 
-/* Stack-switching ISRs: SDCC uses __naked wrappers in bios.c;
- * clang uses assembly wrappers in bios_shims.s. */
-/* isr_sio_b_rx runs on the interrupted program's stack (__critical
- * __interrupt), so both paths reference it directly — no wrapper. */
-#ifdef __clang__
-extern void isr_crt_wrapper(void);
-extern void isr_floppy_wrapper(void);
-extern void isr_sio_a_rx_wrapper(void);
-extern void isr_pio_kbd_wrapper(void);
-#define ISR_CRT      isr_crt_wrapper
-#define ISR_FLOPPY   isr_floppy_wrapper
-#define ISR_SIO_A_RX isr_sio_a_rx_wrapper
-#define ISR_SIO_B_RX isr_sio_b_rx
-#define ISR_PIO_KBD  isr_pio_kbd_wrapper
-#else
+/* Every ISR is framed by explicit assembly wrappers in bios_shims.s on the
+ * clang path (the wrappers own register save/restore + EI + RETI), and by the
+ * bare __naked / __interrupt functions in bios.c on the SDCC path.  The IVT
+ * below is wired through ISR_* macros so each compiler points at the right
+ * symbol.  clang MUST NOT reference the bare ISR bodies directly — its
+ * __critical/__interrupt macros expand to nothing (intrinsic.h), so a bare
+ * body is a plain RET function with no EI/RETI and would hang the machine. */
 extern void isr_crt(void);
 extern void isr_floppy(void);
 extern void isr_sio_a_rx(void);
 extern void isr_pio_kbd(void);
-#define ISR_CRT      isr_crt
-#define ISR_FLOPPY   isr_floppy
-#define ISR_SIO_A_RX isr_sio_a_rx
-#define ISR_SIO_B_RX isr_sio_b_rx
-#define ISR_PIO_KBD  isr_pio_kbd
+
+#ifdef __clang__
+extern void isr_dummy_wrapper(void);
+extern void isr_hd_wrapper(void);
+extern void isr_crt_wrapper(void);
+extern void isr_floppy_wrapper(void);
+extern void isr_sio_b_tx_wrapper(void);
+extern void isr_sio_b_ext_wrapper(void);
+extern void isr_sio_b_rx_wrapper(void);
+extern void isr_sio_b_spec_wrapper(void);
+extern void isr_sio_a_tx_wrapper(void);
+extern void isr_sio_a_ext_wrapper(void);
+extern void isr_sio_a_rx_wrapper(void);
+extern void isr_sio_a_spec_wrapper(void);
+extern void isr_pio_kbd_wrapper(void);
+extern void isr_pio_par_wrapper(void);
+#define ISR_DUMMY      isr_dummy_wrapper
+#define ISR_HD         isr_hd_wrapper
+#define ISR_CRT        isr_crt_wrapper
+#define ISR_FLOPPY     isr_floppy_wrapper
+#define ISR_SIO_B_TX   isr_sio_b_tx_wrapper
+#define ISR_SIO_B_EXT  isr_sio_b_ext_wrapper
+#define ISR_SIO_B_RX   isr_sio_b_rx_wrapper
+#define ISR_SIO_B_SPEC isr_sio_b_spec_wrapper
+#define ISR_SIO_A_TX   isr_sio_a_tx_wrapper
+#define ISR_SIO_A_EXT  isr_sio_a_ext_wrapper
+#define ISR_SIO_A_RX   isr_sio_a_rx_wrapper
+#define ISR_SIO_A_SPEC isr_sio_a_spec_wrapper
+#define ISR_PIO_KBD    isr_pio_kbd_wrapper
+#define ISR_PIO_PAR    isr_pio_par_wrapper
+#else
+#define ISR_DUMMY      isr_dummy
+#define ISR_HD         isr_hd
+#define ISR_CRT        isr_crt
+#define ISR_FLOPPY     isr_floppy
+#define ISR_SIO_B_TX   isr_sio_b_tx
+#define ISR_SIO_B_EXT  isr_sio_b_ext
+#define ISR_SIO_B_RX   isr_sio_b_rx
+#define ISR_SIO_B_SPEC isr_sio_b_spec
+#define ISR_SIO_A_TX   isr_sio_a_tx
+#define ISR_SIO_A_EXT  isr_sio_a_ext
+#define ISR_SIO_A_RX   isr_sio_a_rx
+#define ISR_SIO_A_SPEC isr_sio_a_spec
+#define ISR_PIO_KBD    isr_pio_kbd
+#define ISR_PIO_PAR    isr_pio_par
 #endif
 
 /* FDC write helper in bios.c (relocated BIOS) */
@@ -78,28 +110,28 @@ typedef void (*isr_fn)(void);
 
 __attribute__((section(".boot_rodata"), used))
 static const isr_fn ivt_template[IVT_ENTRIES] = {
-    isr_dummy,              /*  0: CTC1 ch0 — SIO-A baud rate */
-    isr_dummy,              /*  1: CTC1 ch1 — SIO-B baud rate */
+    ISR_DUMMY,              /*  0: CTC1 ch0 — SIO-A baud rate */
+    ISR_DUMMY,              /*  1: CTC1 ch1 — SIO-B baud rate */
     ISR_CRT,                /*  2: CTC1 ch2 — display refresh */
     ISR_FLOPPY,             /*  3: CTC1 ch3 — floppy completion */
-    isr_hd,                 /*  4: CTC2 ch0 — hard disk */
-    isr_dummy,              /*  5: CTC2 ch1 — unused */
-    isr_dummy,              /*  6: CTC2 ch2 — unused */
-    isr_dummy,              /*  7: CTC2 ch3 — unused */
-    isr_sio_b_tx,           /*  8: SIO ch.B TX */
-    isr_sio_b_ext,          /*  9: SIO ch.B ext status */
+    ISR_HD,                 /*  4: CTC2 ch0 — hard disk */
+    ISR_DUMMY,              /*  5: CTC2 ch1 — unused */
+    ISR_DUMMY,              /*  6: CTC2 ch2 — unused */
+    ISR_DUMMY,              /*  7: CTC2 ch3 — unused */
+    ISR_SIO_B_TX,           /*  8: SIO ch.B TX */
+    ISR_SIO_B_EXT,          /*  9: SIO ch.B ext status */
     ISR_SIO_B_RX,           /* 10: SIO ch.B RX — test console */
-    isr_sio_b_spec,         /* 11: SIO ch.B special */
-    isr_sio_a_tx,           /* 12: SIO ch.A TX */
-    isr_sio_a_ext,          /* 13: SIO ch.A ext status */
+    ISR_SIO_B_SPEC,         /* 11: SIO ch.B special */
+    ISR_SIO_A_TX,           /* 12: SIO ch.A TX */
+    ISR_SIO_A_EXT,          /* 13: SIO ch.A ext status */
     ISR_SIO_A_RX,           /* 14: SIO ch.A RX — ring buffer */
-    isr_sio_a_spec,         /* 15: SIO ch.A special */
+    ISR_SIO_A_SPEC,         /* 15: SIO ch.A special */
 #ifdef KBD_PIO_B
-    isr_pio_par,            /* 16: PIO ch.A — parallel host */
+    ISR_PIO_PAR,            /* 16: PIO ch.A — parallel host */
     ISR_PIO_KBD,            /* 17: PIO ch.B — keyboard */
 #else
     ISR_PIO_KBD,            /* 16: PIO ch.A — keyboard */
-    isr_pio_par,            /* 17: PIO ch.B — parallel output */
+    ISR_PIO_PAR,            /* 17: PIO ch.B — parallel output */
 #endif
 };
 
