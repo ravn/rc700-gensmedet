@@ -1916,32 +1916,22 @@ byte ls_port;           /* 0=SIO-A, 1=SIO-B */
 #define NOINLINE __attribute__((noinline))
 /* SIO write-register-5 / read-register-1 for either channel A or B.
  *
- * Clang (with ravn/llvm-z80#44 fixed): emits OUT (C),A for runtime port
- * addresses, so a single function with port_out_rt() is smallest.
- *
- * SDCC: __sfr requires constant addresses, so the channel selection
- * must be done via separate per-port helpers + a dispatcher. The
- * NOINLINE prevents the optimizer from creating a PHI of port pointers
- * that SDCC's backend can't handle. */
-#if defined(__clang__) && defined(__z80__)
-static void NOINLINE sio_wr5(byte val) {
-    byte port = ls_port ? PORT_SIO_B_CTRL : PORT_SIO_A_CTRL;
-    port_out_rt(port, 5);
-    port_out_rt(port, val);
-}
-static byte NOINLINE sio_rd1(void) {
-    byte port = ls_port ? PORT_SIO_B_CTRL : PORT_SIO_A_CTRL;
-    port_out_rt(port, 1);
-    return port_in_rt(port);
-}
-#else
+ * ONE version for clang AND SDCC (ravn/llvm-z80#44 / #313): separate per-port
+ * NOINLINE helpers keep each channel's port a compile-time CONSTANT. A single
+ * function with a `port = ls_port ? PORT_SIO_B_CTRL : PORT_SIO_A_CTRL` variable
+ * would make the address_space(2) I/O address a PHI of two constant ports;
+ * clang cannot select IN/OUT on that (no IN A,(C)/OUT (C),A per #44) and SDCC's
+ * __sfr likewise requires constant addresses. NOINLINE stops the optimizer from
+ * merging the two channels back into such a PHI; ls_port only selects which
+ * helper runs. (The old single-`port` clang form was 14 B smaller,
+ * rc700-gensmedet 8fdb1a7; ravn/llvm-z80#313 tracks restoring it once the
+ * backend can select a PHI-of-constant-ports.) */
 static void NOINLINE sio_a_wr5(byte v) { port_out(sio_a_ctrl, 5); port_out(sio_a_ctrl, v); }
 static void NOINLINE sio_b_wr5(byte v) { port_out(sio_b_ctrl, 5); port_out(sio_b_ctrl, v); }
 static void sio_wr5(byte val) { if (ls_port) sio_b_wr5(val); else sio_a_wr5(val); }
 static byte NOINLINE sio_a_rd1(void) { port_out(sio_a_ctrl, 1); return port_in(sio_a_ctrl); }
 static byte NOINLINE sio_b_rd1(void) { port_out(sio_b_ctrl, 1); return port_in(sio_b_ctrl); }
 static byte sio_rd1(void) { return ls_port ? sio_b_rd1() : sio_a_rd1(); }
-#endif
 #undef NOINLINE
 
 byte ls_line;

@@ -36,24 +36,24 @@ else
 endif
 
 CFLAGS = --target=z80 -Oz -g -nostdlib -ffreestanding -std=c23 \
-	 -ffunction-sections -fdata-sections \
+	 -flto -ffunction-sections -fdata-sections \
 	 -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT) \
 	 -Xclang -target-feature -Xclang +static-frame \
 	 -Iclang -I. -Wno-gcc-compat -Wno-return-type \
 	 -Wimplicit-int-conversion \
 	 -DMSIZE=$(MSIZE) \
 	 $(if $(filter B,$(KBDPORT)),-DKBD_PIO_B)
-# -flto DISABLED 2026-09-10 (ravn/llvm-z80#312): under LTO the link-time codegen
-# runs the Z80DanglingDebugCleanup pass, which segfaults in MachineOperand::setReg
-# on non-DBG_VALUE debug instrs (repro: `llc clang/bios.o`, crashes on
-# @bios_write_c/@rwoper). Exposed once the PR #40 builtin/HasZ80 fix let rcbios
-# compile through to link. The boot-placement machinery (section attrs +
-# per-file matchers + link ASSERTs) remains in place, so -flto is a one-line
-# re-enable once the backend crash is fixed. See the issue for the investigation.
+# -flto is ON. It was briefly disabled 2026-09-10 while diagnosing the PR #40
+# recovery, but the two blockers were codegen bugs, not LTO: the
+# Z80DanglingDebugCleanup DBG_LABEL crash (fixed in ravn/llvm-z80 e39b9651) and
+# an address_space(2) PHI-of-constant-ports select (worked around in bios.c's
+# sio_* helpers, ravn/llvm-z80#313). With those fixed -flto links cleanly AND is
+# required to fit .bss under the interrupt-stack limit (-flto off overflows .bss
+# by ~1.3 KB). ravn/llvm-z80#312 (the -flto re-enable investigation) is resolved.
 #
-# History: -flto was re-enabled 2026-07-03 and fully working 2026-07-06 (boots to
-# A> in MAME) via __attribute__((section(".boot_code"/.boot_data/.bios_jt),used))
-# on boot code+data; per-file matchers (*boot_entry.o, ...) don't fire under LTO.
+# History: -flto re-enabled 2026-07-03, fully working 2026-07-06 (boots to A> in
+# MAME) via __attribute__((section(".boot_code"/.boot_data/.bios_jt),used)) on
+# boot code+data; per-file matchers (*boot_entry.o, ...) don't fire under LTO.
 # Re-verify boot with `make mame-test` after any -flto toggle.
 # Investigation hook (ravn/llvm-z80#23): inject extra clang flags via
 # `make CLANG_EXTRA="-mllvm -z80-enable-licm -mllvm -z80-enable-cse"`.
