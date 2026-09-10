@@ -54,10 +54,24 @@ MAME_RUN = $(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
 RC700 = ../../rc700
 FLOPPY = $(HOME)/Downloads/SW1711-I8.imd
 
-.PHONY: all prom mame floppy-boot-test mamesym rc700 clean fdc-log \
+.PHONY: all prom mame floppy-boot-test mamesym rc700 clean fdc-log io-log \
         clang_asm clang_disasm clang_src_lis clang_symbols clang_mamesym
 
 all: prom
+
+.PHONY: help
+help:
+	@echo 'autoload-in-c -- ROA375 boot PROM (PROM 0).'
+	@echo 'Native llvm-z80 toolchain is auto-detected (build-linux/build-macos/build);'
+	@echo 'no LLVM_Z80= or path args needed. Override with NATIVE=0 to use the Docker image.'
+	@echo
+	@echo 'Manual targets:'
+	@echo '  make prom                 clang PROM (default) -> clang/prom.clang.bin  [2 KB hard cap]'
+	@echo '  make prom COMPILER=sdcc   SDCC PROM -> sdcc/prom.bin                    [4 KB, MAME-only]'
+	@echo '  make mame                 build PROM + boot-test in MAME'
+	@echo '  make clang_asm            emit clang assembly (codegen inspection)'
+	@echo '  make clang_disasm         disassemble the built clang PROM'
+	@echo '  make clean'
 
 # ================================================================
 # PROM dispatch: make prom → build + pad + install
@@ -216,6 +230,43 @@ fdc-log: prom
 	    >/tmp/autoload_fdc_mame.log 2>&1
 	@echo "--- decoded FDC transactions ($(FDC_DECODED_LOG)) ---"
 	@cat $(FDC_DECODED_LOG) 2>/dev/null || { echo "no decoded log (see /tmp/autoload_fdc_mame.log)"; exit 1; }
+
+# ================================================================
+# Full IN/OUT instruction logger — boot-failure post-mortem
+# ================================================================
+# Boots the PROM with the 8" distribution floppy and records every
+# Z80 IN and OUT instruction (port + value + timestamp) to IO_LOG.
+# Use when a boot fails to reach A> and you need to see the complete
+# I/O conversation between the Z80 and its peripherals.
+#
+#   make io-log                       # default: clang PROM, 60s, SW1711-I8.imd
+#   make io-log IO_LOG_SECONDS=90     # longer run
+#   make io-log COMPILER=sdcc         # SDCC PROM
+IO_LOG         ?= /tmp/autoload_io.txt
+IO_LOG_SECONDS ?= 60
+IO_FLOPPY      ?= $(FLOPPY)
+
+io-log: prom
+	@rm -f $(IO_LOG)
+	@echo "=== MAME io-log: $(COMPILER) PROM, $(IO_LOG_SECONDS)s, floppy=$(notdir $(IO_FLOPPY)) ==="
+	-IO_LOG="$(IO_LOG)" IO_LOG_SECONDS="$(IO_LOG_SECONDS)" \
+	 $(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
+	    -nothrottle -window -skip_gameinfo \
+	    -seconds_to_run $$(($(IO_LOG_SECONDS) + 5)) \
+	    -sound none \
+	    -autoboot_script mame_io_log.lua \
+	    -snapname autoload_io_log \
+	    -flop1 "$(IO_FLOPPY)" \
+	    >/tmp/autoload_io_mame.log 2>&1
+	@echo "--- IN/OUT log: $(IO_LOG) ---"
+	@if [ -f "$(IO_LOG)" ]; then \
+	    wc -l "$(IO_LOG)"; \
+	    echo "(last 40 lines:)"; \
+	    tail -40 "$(IO_LOG)"; \
+	else \
+	    echo "FAIL: no log produced (see /tmp/autoload_io_mame.log)"; \
+	    exit 1; \
+	fi
 
 mamesym:
 ifeq ($(COMPILER),clang)
@@ -434,9 +485,16 @@ ZLFLAGS = -m --list -create-app -Cz"--org 0" $(ZLIB)
 
 sdcc/prom.bin: sdcc/sections.asm rom.c rom.h boot_rom.c intvec.c sdcc/peephole.def
 	@mkdir -p sdcc
+	@# Generate the build banner on the HOST (not in the container) so it
+	@# carries the same distinguishing marker as the clang banner: an "SD"
+	@# compiler tag (clang uses "CL"), the git short hash, and the host user
+	@# -- inside the z88dk container git is absent and whoami is "root", which
+	@# left the SDCC banner indistinguishable from a stale clang display.
+	@HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "????"); \
+	 BANNER=" RC700 ROA375 SD $$(date '+%Y-%m-%d %H.%M') $$HASH/$$(whoami)"; \
+	 { echo "#define BUILD_BANNER \"$$BANNER\""; \
+	   echo "#define BUILD_BANNER_LENGTH $${#BANNER}"; } > sdcc/build_stamp.h
 	$(Z88DK_DOCKER) sh -c '\
-	BANNER=" RC700 ROA375 $$(date "+%Y-%m-%d %H.%M")/$$(whoami)" && \
-	printf '"'"'#define BUILD_BANNER "%s"\n#define BUILD_BANNER_LENGTH %d\n'"'"' "$$BANNER" $${#BANNER} > sdcc/build_stamp.h && \
 	zcc $(ZFLAGS) -Cs"--codeseg BOOT" -c boot_rom.c -o sdcc/boot_rom.o && \
 	zcc $(ZFLAGS) -c intvec.c -o sdcc/intvec.o && \
 	cd sdcc && zcc $(ZFLAGS) $(ZLFLAGS) -o prom0 sections.asm intvec.o ../rom.c boot_rom.o'

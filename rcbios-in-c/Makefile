@@ -111,6 +111,19 @@ CPMCP ?= cpmcp
 
 all: bios size
 
+.PHONY: help
+help:
+	@echo 'rcbios-in-c -- CP/M BIOS in C (clang / llvm-z80).'
+	@echo 'Native llvm-z80 toolchain is auto-detected (build-linux/build-macos/build).'
+	@echo
+	@echo 'Manual targets:'
+	@echo '  make bios         build the BIOS (clang)'
+	@echo '  make size         build + report size'
+	@echo '  make mame-test    boot-test in MAME (rcbios standalone)'
+	@echo '  make mame-mini    install rel.2.2 5.25" mini BIOS into MAME roms + boot'
+	@echo '  make mame-maxi    install rel.2.3 8" maxi BIOS into MAME roms + boot'
+	@echo '  make clean'
+
 # ================================================================
 # Build timestamp (shared by both compilers)
 # ================================================================

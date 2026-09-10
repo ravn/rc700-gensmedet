@@ -82,6 +82,17 @@ PIO_SPEED_TEST    ?= 0
 COMPILER ?= clang
 BUILDDIR  = $(COMPILER)
 
+# Host-agnostic locator for the native llvm-z80 toolchain bin dir
+# (build-linux on sonnyboy, build-macos on the macbook, plain build/ for
+# Docker). Use this OUTSIDE the COMPILER=clang block below -- e.g.
+# qsort-build-clang and the PROM1-only sentinel extraction -- where
+# CLANG_BUILD is not in scope. NEVER hardcode an absolute or build-macos path
+# here: it breaks cross-machine (sonnyboy builds to build-linux).
+LLVMZ80_NATIVE_BIN := $(firstword $(wildcard \
+    $(CURDIR)/../../llvm-z80/build-linux/bin \
+    $(CURDIR)/../../llvm-z80/build-macos/bin \
+    $(CURDIR)/../../llvm-z80/build/bin))
+
 # ----------------------------------------------------------------------
 # CPNOS_PROM1_CAP: max size of the PROM1-only line program binary.
 #
@@ -362,6 +373,20 @@ ALL_OBJS = $(PAYLOAD_OBJS) $(SDCC_C_OBJS) $(SDCC_AUDIT_S)
 # (PROM 1).  The two-PROM build was removed 2026-06-03; the only supported
 # slave topology is `make prom1-lineprog`.  See finishing-checklist.md.
 all: prom1-lineprog
+
+.PHONY: help
+help:
+	@echo 'cpnos-in-c -- CP/NOS slave PROM1-only line program (PROM 1).'
+	@echo 'Native llvm-z80 toolchain is auto-detected; COMPILER=clang (default) or sdcc.'
+	@echo 'PIO (pio-irq) is the verified transport (default); SIO is parked.'
+	@echo
+	@echo 'Manual targets:'
+	@echo '  make prom1-lineprog COMPILER=clang   production PROM1 line program (clang)  [2 KB cap]'
+	@echo '  make prom1-lineprog COMPILER=sdcc    SDCC variant                           [4 KB, MAME-only]'
+	@echo '  make cpnos-polypascal-test           full-stack MP/M + slave + PolyPascal boot test'
+	@echo '  make cpnos-dir-test COMPILER=clang TRANSPORT=pio-irq   directory smoke test'
+	@echo '  make cpnos-size / cpnos-disasm / cpnos-clean'
+	@echo '  make _kill-mpm            stop a stale MP/M screen session before a test run'
 
 # Integration test: full E2E with z80pack mpm-net2 + MAME running CP/NOS
 # slave + PolyPascal compiling and running PRIMES.PAS.  Catches the
@@ -1774,7 +1799,7 @@ QSORT_SRC = $(SHARED)/testutil/qsort_disk.c
 # so fall back to the dev fork (../../z88dk) when the prebuilt is absent.
 Z88DK_PREBUILT = $(firstword $(wildcard $(CURDIR)/../z88dk) $(CURDIR)/../../z88dk)
 Z88DK_DEV      = $(CURDIR)/../../z88dk
-LLVMZ80_CLANG  = $(CURDIR)/../../llvm-z80/build-macos/bin/clang
+LLVMZ80_CLANG  = $(LLVMZ80_NATIVE_BIN)/clang
 .PHONY: qsort-build
 qsort-build:
 	@echo "=== building QSORT.COM (z88dk classic / sccz80) -> drive_i ==="
@@ -2086,7 +2111,7 @@ $(PROM1ONLY_BIN): $(PROM1ONLY_OBJS) $(PROM1ONLY_DIR)/prom1.ld $(PROM1ONLY_PAYLOA
 	@# there); the final link here only sees bootstrap.o + decoder +
 	@# the compressed payload/init blobs, so the symbol has to be
 	@# injected via --defsym.
-	@S=$$(/Users/ravn/z80/llvm-z80/build-macos/bin/llvm-nm $(PROM1ONLY_PAYLOAD_ELF) | awk '/ _prom1_only_sentinel$$/ {print "0x"$$1; exit}'); \
+	@S=$$($(LLVMZ80_NATIVE_BIN)/llvm-nm $(PROM1ONLY_PAYLOAD_ELF) | awk '/ _prom1_only_sentinel$$/ {print "0x"$$1; exit}'); \
 	 [ -n "$$S" ] || { echo "ERROR: _prom1_only_sentinel not found in payload.elf"; exit 1; }; \
 	 echo "PROM1-only link: _prom1_only_sentinel = $$S"; \
 	 $(LD) -T $(PROM1ONLY_DIR)/prom1.ld --defsym=_prom1_only_sentinel=$$S $(PROM1ONLY_OBJS) \
