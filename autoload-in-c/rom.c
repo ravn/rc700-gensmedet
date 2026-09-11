@@ -944,8 +944,14 @@ void nothing_int(void) __interrupt(0);
 void refresh_crt_dma_50hz_interrupt(void) __critical __interrupt(1);
 void floppy_completed_operation_interrupt(void) __critical __interrupt(2);
 
-/* Dummy ISR for unused interrupt vectors (generates EI + RETI). */
+/* Dummy ISR for unused interrupt vectors.
+ * clang's `interrupt` attribute emits RETI but NOT EI (upstream removed the
+ * __critical/z80_critical DI-EI wrapping post-#40), and RETI alone does not
+ * re-enable maskable interrupts on the Z80 — so every ISR must EI explicitly
+ * as its last act, else the first interrupt taken leaves IFF1 clear and no
+ * further interrupt (incl. floppy completion) ever fires. */
 void nothing_int(void) __interrupt(0) {
+    ei();
 }
 
 /* CRT vertical retrace ISR (CTC Ch2).
@@ -972,6 +978,8 @@ void refresh_crt_dma_50hz_interrupt(void) __critical __interrupt(1) {
 
     ctc2_write(0xD7); /* rearm CTC Ch2: counter, interrupt */
     ctc2_write(0x01); /* time constant = 1 (every retrace) */
+
+    ei(); /* re-enable interrupts (clang interrupt attr emits bare RETI) */
 }
 
 /* Floppy disk ISR (CTC Ch3).
@@ -984,6 +992,7 @@ void floppy_completed_operation_interrupt(void) __critical __interrupt(2) {
     } else {
         fdc_sense_interrupt();
     }
+    ei(); /* re-enable interrupts (clang interrupt attr emits bare RETI) */
 }
 
 /* Post-relocation entry point.  Called from start() after LDIR copy.
