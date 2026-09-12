@@ -995,18 +995,24 @@ void floppy_completed_operation_interrupt(void) __critical __interrupt(2) {
     ei(); /* re-enable interrupts (clang interrupt attr emits bare RETI) */
 }
 
-/* Post-relocation entry point.  Called from start() after LDIR copy.
- * Sets SP, I register, IM2, then calls init_peripherals() + main().
- * __naked because we set SP mid-function.
- * Not marked NORETURN: __naked functions ignore the attribute, and on the
- * call-site in start() it would prevent the tail-call JP optimization. */
+/* Post-relocation entry point.  Called (tail-JP) from start() after LDIR copy.
+ * Sets I register, IM2, then calls init_peripherals() + main().
+ *
+ * SP is set by start() (SET_SP(ROM_STACK)) BEFORE the JP here -- do NOT re-set
+ * it in this function.  clang gives this function an ordinary frame (its `__naked`
+ * is a no-op for clang) and spills to it relative to SP; a manual `ld sp` here
+ * would move SP after those spills, so their later reloads would read a different,
+ * uninitialised slot -- observed as a null `&fdc_cmd.sector` pointer that made the
+ * boot Read Data use sector 0 -> DISKETTE ERROR (ravn/llvm-z80#318,
+ * ravn/rc700-gensmedet#128).  Keeping SP untouched here leaves the frame valid.
+ * Not marked NORETURN: it would prevent the tail-call JP optimization at the
+ * start() call site. */
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-noreturn"
 #endif
 void main_relocated(void) __naked
 {
-    SET_SP(ROM_STACK);
     set_i_reg(INTVEC_PAGE);
     intrinsic_im_2();
     init_pio();
