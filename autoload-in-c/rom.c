@@ -1011,7 +1011,7 @@ void floppy_completed_operation_interrupt(void) __critical __interrupt(2) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-noreturn"
 #endif
-void main_relocated(void) __naked
+void main_relocated(void)
 {
     set_i_reg(INTVEC_PAGE);
     intrinsic_im_2();

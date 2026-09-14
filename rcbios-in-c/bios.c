@@ -41,9 +41,18 @@ disk_parameter_header *bios_seldsk_c(byte drv);
 static byte xread(void);
 void bios_home(void);
 
+/* ISR wrapper attribute: SDCC inlines stack switch + register save via
+ * isr_enter_full/isr_exit_full into __naked functions; clang uses explicit
+ * assembly wrappers in clang/bios_shims.s and calls these as regular C functions. */
+#ifndef __clang__
+#define ISR_WRAPPER __naked
+#else
+#define ISR_WRAPPER
+#endif
+
 /* ISR forward declarations (needed for IVT array) */
-void isr_crt(void) __naked;
-void isr_floppy(void) __naked;
+void isr_crt(void) ISR_WRAPPER;
+void isr_floppy(void) ISR_WRAPPER;
 void isr_dummy(void) __interrupt(0);
 void isr_hd(void) __interrupt(4);
 void isr_sio_b_tx(void) __critical __interrupt(8);
@@ -52,9 +61,9 @@ void isr_sio_b_rx(void) __critical __interrupt(10);
 void isr_sio_b_spec(void) __critical __interrupt(11);
 void isr_sio_a_tx(void) __critical __interrupt(12);
 void isr_sio_a_ext(void) __critical __interrupt(13);
-void isr_sio_a_rx(void) __naked;
+void isr_sio_a_rx(void) ISR_WRAPPER;
 void isr_sio_a_spec(void) __critical __interrupt(15);
-void isr_pio_kbd(void) __naked;
+void isr_pio_kbd(void) ISR_WRAPPER;
 void isr_pio_par(void) __interrupt(17);
 
 /* ================================================================
@@ -770,8 +779,8 @@ void bios_boot_c(void);
 /* Cold boot entry — sets BIOS stack then calls bios_boot_c. */
 void bios_boot(void) __naked
 {
-    ASM_VOLATILE("ld sp, #" STR(BIOS_STACK) "\n");       /* use BIOS private stack */
-    bios_boot_c();
+    ASM_VOLATILE("ld sp, #" STR(BIOS_STACK) "\n"        /* use BIOS private stack */
+                 "jp _bios_boot_c           \n");
 }
 
 void bios_boot_c(void)
@@ -884,7 +893,6 @@ static volatile byte __at(CCP_BASE) ccp_entry_point;
 #ifndef __clang__
 static void jump_ccp(byte drive) __naked
 {
-    (void)drive;
     ASM_VOLATILE("ld c, a               \n"
             "jp _ccp_entry_point   \n");
 }
@@ -1465,9 +1473,8 @@ static void specc(void)
  * the CP/M ABI requirement that BIOS calls preserve all registers.
  * No stack switch needed — CONOUT uses at most 16 bytes of stack.
  */
-void bios_conout(byte c) __naked
+void bios_conout(void) __naked
 {
-    (void)c;
     ASM_VOLATILE("ld a, c               \n"
             "jp _bios_conout_c     \n"); /* explicit tail call */
 }
@@ -1663,16 +1670,12 @@ void bios_home(void)
 
 /* CP/M passes drive in C register, expects disk_parameter_header in HL.
  * sdcccall(1) returns word in DE, CP/M expects HL. */
-word bios_seldsk(byte disk) __naked
+word bios_seldsk(void) __naked
 {
-    (void)disk;
     ASM_VOLATILE("ld a, c               \n"
             "call _bios_seldsk_c   \n"
             "ex de, hl             \n"
             "ret                   \n");
-#ifdef __clang__
-    return 0; /* unreachable — silences clang -Wreturn-type */
-#endif
 }
 
 disk_parameter_header *bios_seldsk_c(byte drv)
@@ -1729,23 +1732,20 @@ disk_parameter_header *bios_seldsk_c(byte drv)
     }
 }
 
-void bios_settrk(word track) __naked
+void bios_settrk(void) __naked
 {
-    (void)track;
     ASM_VOLATILE("ld (_cpm_track), bc       \n"  /* CP/M passes track in BC */
             "ret                     \n");
 }
 
-void bios_setsec(word sector) __naked
+void bios_setsec(void) __naked
 {
-    (void)sector;
     ASM_VOLATILE("ld (_cpm_sector), bc       \n"  /* CP/M passes sector in BC */
             "ret                     \n");
 }
 
-void bios_setdma(word addr) __naked
+void bios_setdma(void) __naked
 {
-    (void)addr;
     ASM_VOLATILE("ld (_cpm_dma_addr), bc       \n"  /* CP/M passes DMA address in BC */
             "ret                     \n");
 }
@@ -1816,14 +1816,10 @@ byte bios_read(void)
 }
 
 /* CP/M passes write type in C register */
-byte bios_write(byte type) __naked
+byte bios_write(void) __naked
 {
-    (void)type;
     ASM_VOLATILE("ld a, c               \n"
             "jp _bios_write_c      \n"); /* explicit tail call */
-#ifdef __clang__
-    return 0; /* unreachable — silences clang -Wreturn-type */
-#endif
 }
 
 byte bios_write_c(byte wt)
@@ -1841,15 +1837,11 @@ byte bios_listst(void)
     }
 }
 
-word bios_sectran(word sector) __naked
+word bios_sectran(void) __naked
 {
-    (void)sector;
     ASM_VOLATILE("ld h, b                \n"  /* return BC in HL (no translation) */
             "ld l, c                \n"
             "ret                    \n");
-#ifdef __clang__
-    return 0; /* unreachable — silences clang -Wreturn-type */
-#endif
 }
 
 /* ================================================================
@@ -1874,12 +1866,12 @@ word bios_sectran(word sector) __naked
  * Used by FORMAT.COM (RC700 FORMAT UTILITY VERS 1.2). */
 void bios_wfitr(void) __naked
 {
-    fdc_irq_wait_rearm();
-    ASM_VOLATILE("ld a, (_fdc_result)         \n"
-            "ld b, a                \n"
+    ASM_VOLATILE("call _fdc_irq_wait_rearm   \n"
+            "ld a, (_fdc_result)         \n"
+            "ld b, a                     \n"
             "ld a, (_fdc_result + 1)     \n"
-            "ld c, a                \n"
-            "ret                    \n");
+            "ld c, a                     \n"
+            "ret                         \n");
 }
 
 /* LINSEL (DA50): PROCEDURE LINE_SELECT
@@ -1943,9 +1935,8 @@ void bios_linsel(void) __naked
 {
     ASM_VOLATILE("ld (_ls_port), a       \n"  /* A=port (0=SIO-A, 1=SIO-B) */
             "ld a, b                \n"
-            "ld (_ls_line), a       \n"); /* B=line (0-2) */
-    bios_linsel_body();
-    /* sdcccall(1) returns byte in A — correct for CP/M */
+            "ld (_ls_line), a       \n"  /* B=line (0-2) */
+            "jp _bios_linsel_body   \n");
 }
 
 byte bios_linsel_body(void)
@@ -2141,7 +2132,7 @@ static inline void isr_exit_full(void) __naked
  * Programs the DMA controller to refresh the display from DSPSTR (0xF800).
  * Also increments the 32-bit RTC and decrements timers.
  */
-void isr_crt(void) __naked
+void isr_crt(void) ISR_WRAPPER
 {
 #ifndef HOST_TEST
     isr_enter_full();
@@ -2206,7 +2197,7 @@ void isr_crt(void) __naked
 #endif
 }
 
-void isr_pio_kbd(void) __naked
+void isr_pio_kbd(void) ISR_WRAPPER
 {
 #ifndef HOST_TEST
     isr_enter_full();
@@ -2231,7 +2222,7 @@ void isr_pio_kbd(void) __naked
 #endif
 }
 
-void isr_floppy(void) __naked
+void isr_floppy(void) ISR_WRAPPER
 {
 #ifndef HOST_TEST
     isr_enter_full();
@@ -2352,7 +2343,7 @@ void isr_sio_a_ext(void) __critical __interrupt(13)
 }
 
 /* RCA: Ch.A receive — store in ring buffer with RTS flow control */
-void isr_sio_a_rx(void) __naked
+void isr_sio_a_rx(void) ISR_WRAPPER
 {
 #ifndef HOST_TEST
     isr_enter_full();

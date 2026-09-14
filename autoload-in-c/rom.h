@@ -25,7 +25,7 @@
 #define __at(x)
 #define __interrupt(n) __attribute__((interrupt))
 #define __critical
-#define __naked
+#define __naked        __attribute__((naked))
 #define NORETURN __attribute__((noreturn))
 #elif defined(__SDCC)
 #define NORETURN

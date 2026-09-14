@@ -54,7 +54,7 @@ static inline void intrinsic_im_2(void) {}
  * removes that dependency on compiler magic entirely.  See bios_shims.s.
  * ================================================================ */
 
-#define __naked
+#define __naked __attribute__((naked))
 #define __critical
 #define __interrupt(n)
 #define __sdcccall(x)

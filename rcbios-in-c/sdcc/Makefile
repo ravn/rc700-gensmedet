@@ -39,6 +39,7 @@ ZFLAGS = +z80 -clib=sdcc_iy --no-crt --opt-code-size -SO3 \
          -Cs"--allow-unsafe-read" \
          -Cs"--sdcccall 1" \
          -Cs"--std-sdcc23" \
+         -Cs"--disable-warning 85" \
          -Cs"--disable-warning 147" \
          -Cs"--disable-warning 221" \
          -Cs"--disable-warning 296" \
