@@ -318,6 +318,7 @@ CLANG_CFLAGS = --target=z80 -Oz -g -nostdlib \
 	       -Xclang -target-feature -Xclang +static-frame \
 	       -Xclang -target-feature -Xclang +shadow-regs \
 	       -mllvm -disable-lsr \
+	       -mllvm -z80-closed-world \
 	       -Iclang -I. \
 	       -Weverything \
 	       -Wno-unsafe-buffer-usage \
