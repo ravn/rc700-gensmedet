@@ -106,9 +106,11 @@ SECTIONS {
    * not fail pass 1 -- otherwise the build wedges (pass1.elf never regenerates
    * and no fix can be measured). */
   __prom_end = __text_zx0_end;
-  /* TEMPORARY: 4 KB for MAME boot-testing the addrspace(2)/mem-builtin work
-     while the post-#40 regalloc size regression is being investigated.
-     Restore to 2048 (user's physical 2716 socket, no A11) once code shrinks. */
+  /* Kept at 4096 while the last few bytes are squeezed out: restoring this to
+     2048 fails FINAL_LINK and wedges the build (no .elf/.bin/.lis produced), so
+     no fix can be measured.  The Makefile CEIL=2048 gate below reports the true
+     overage after artifacts exist.  Restore this ASSERT to 2048 once we fit
+     (user's physical 2716 socket, no A11). */
   ASSERT(!DEFINED(FINAL_LINK) || __prom_end <= 4096,
          "PROM0 socket exceeds 4096 bytes after ZX0!")
 
