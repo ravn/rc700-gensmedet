@@ -313,12 +313,11 @@ CLANG_OBJCOPY = $(CLANG_BUILD)/llvm-objcopy
 CLANG_OBJDUMP = $(CLANG_BUILD)/llvm-objdump
 CLANG_NM      = $(CLANG_BUILD)/llvm-nm
 
-CLANG_CFLAGS = --target=z80 -Oz -g -nostdlib \
+CLANG_CFLAGS = --target=z80 -Oz -g -nostdlib -ffreestanding \
 	       -ffunction-sections -fdata-sections \
 	       -Xclang -target-feature -Xclang +static-frame \
 	       -Xclang -target-feature -Xclang +shadow-regs \
 	       -mllvm -disable-lsr \
-	       -mllvm -z80-closed-world \
 	       -Iclang -I. \
 	       -Weverything \
 	       -Wno-unsafe-buffer-usage \
