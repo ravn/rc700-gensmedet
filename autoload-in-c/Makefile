@@ -66,7 +66,7 @@ help:
 	@echo 'no LLVM_Z80= or path args needed. Override with NATIVE=0 to use the Docker image.'
 	@echo
 	@echo 'Manual targets:'
-	@echo '  make prom                 clang PROM (default) -> clang/prom.clang.bin  [2 KB hard cap]'
+	@echo '  make prom                 clang PROM (default) -> clang/prom.clang.bin  [4 KB, MAME-only pt.]'
 	@echo '  make prom COMPILER=sdcc   SDCC PROM -> sdcc/prom.bin                    [4 KB, MAME-only]'
 	@echo '  make mame                 build PROM + boot-test in MAME'
 	@echo '  make clang_asm            emit clang assembly (codegen inspection)'
@@ -80,13 +80,17 @@ help:
 prom:
 	$(MAKE) $(PROM_TARGET)
 	@# Per-compiler size policy:
-	@#   clang: 2 KB hard cap (production binary -- user's physical
-	@#          RC702 has 2716 sockets, no A11 bridge for 2732).
+	@#   clang: TEMPORARILY 4 KB (MAME-only) while llvm-z80 upstream work
+	@#          is in progress. Production target is 2 KB (user's physical
+	@#          RC702 has 2716 sockets, no A11 bridge for 2732); re-enable
+	@#          the 2 KB hard cap when clang-side density regression #340
+	@#          / rc700-gensmedet#130 is resolved and upstream miscompile
+	@#          fixes are landed.
 	@#   sdcc:  4 KB hard cap (MAME-only parity testing; MAME's
 	@#          roa375.ic66 slot is a 4 KB file format).
 	@PROM=$$(wc -c < $(PROM_BIN) | tr -d ' '); \
 	 if [ "$(COMPILER)" = "sdcc" ]; then CEIL=4096; CLABEL="MAME 4 KB"; \
-	 else CEIL=2048; CLABEL="PROM0 2 KB hard"; fi; \
+	 else CEIL=4096; CLABEL="clang 4 KB (temp; production target 2 KB)"; fi; \
 	 echo "$(COMPILER) PROM: $$PROM / $$CEIL bytes ($$CLABEL)"; \
 	 if [ $$PROM -gt 4096 ]; then \
 	   echo "ERROR: exceeds 4096-byte file-format limit by $$((PROM - 4096)) bytes"; \
