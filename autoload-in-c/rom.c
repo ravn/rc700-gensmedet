@@ -944,13 +944,29 @@ void nothing_int(void) __interrupt(0);
 void refresh_crt_dma_50hz_interrupt(void) __critical __interrupt(1);
 void floppy_completed_operation_interrupt(void) __critical __interrupt(2);
 
-/* Dummy ISR for unused interrupt vectors.
- * clang's `interrupt` attribute emits RETI but NOT EI (upstream removed the
- * __critical/z80_critical DI-EI wrapping post-#40), and RETI alone does not
- * re-enable maskable interrupts on the Z80 — so every ISR must EI explicitly
- * as its last act, else the first interrupt taken leaves IFF1 clear and no
- * further interrupt (incl. floppy completion) ever fires. */
+/* ISR structure (2026-09-17):
+ *
+ * Each ISR splits into (a) a normal-C body function marked static+inline
+ * that contains all the actual work, and (b) a thin __interrupt(N) wrapper
+ * that just calls the body and then ei().  The wrapper is what the IM2
+ * vector table points to; the compiler is expected to inline the body so
+ * the emitted code is byte-identical to a direct-body ISR.
+ *
+ * Why split at all: it is the correct upstream-coherent Z80 pattern per
+ * llvm-z80/llvm-z80 PR #40 discussion.  __attribute__((interrupt)) emits
+ * only RETI + register save/restore -- ei() must be an explicit body
+ * statement, and keeping the wrapper minimal makes that placement
+ * unambiguous.  On the SDCC path z88dk still generates its own EI; RETI
+ * for __interrupt(N) so the wrapper's ei() is a no-op there.  See
+ * ravn/llvm-z80#317 (closed 2026-09-17 as matches-upstream-design).
+ *
+ * Migration TODO for cpnos-in-c and rcbios-in-c: same wrapper/body split.
+ * See tasks/todo-isr-wrapper-migration.md. */
+
+/* Dummy ISR body: nothing to do for unused vectors. */
+ISR_BODY_INLINE void nothing_int_body(void) { }
 void nothing_int(void) __interrupt(0) {
+    nothing_int_body();
     ei();
 }
 
@@ -961,11 +977,8 @@ void nothing_int(void) __interrupt(0) {
  * word count are constant.  The BIOS replaces this ISR with its own.
  *
  * The original ROM used two DMA channels (Ch2+Ch3) and scroll_offset
- * for circular-buffer scrolling — not needed here since we don't scroll.
- *
- * __critical keeps interrupts disabled (protects DMA programming).
- * __interrupt(N) generates register save/restore + EI + RETI. */
-void refresh_crt_dma_50hz_interrupt(void) __critical __interrupt(1) {
+ * for circular-buffer scrolling — not needed here since we don't scroll. */
+ISR_BODY_INLINE void refresh_crt_dma_50hz_body(void) {
     (void) crt_status(); /* acknowledge CRT interrupt */
 
     dma_mask(2); /* disable Ch2 during programming */
@@ -978,13 +991,15 @@ void refresh_crt_dma_50hz_interrupt(void) __critical __interrupt(1) {
 
     ctc2_write(0xD7); /* rearm CTC Ch2: counter, interrupt */
     ctc2_write(0x01); /* time constant = 1 (every retrace) */
-
-    ei(); /* re-enable interrupts (clang interrupt attr emits bare RETI) */
+}
+void refresh_crt_dma_50hz_interrupt(void) __critical __interrupt(1) {
+    refresh_crt_dma_50hz_body();
+    ei();
 }
 
 /* Floppy disk ISR (CTC Ch3).
  * Sets floppy_flag, then reads result or senses interrupt. */
-void floppy_completed_operation_interrupt(void) __critical __interrupt(2) {
+ISR_BODY_INLINE void floppy_completed_operation_body(void) {
     floppy_operation_completed_flag = 2; /* Only non-zero value */
     /* delay(0, fdc_isr_delay); — no-op: outer=0 returns immediately */
     if (fdc_status() & 0b00010000) {    /* CB=1: result phase ready */
@@ -992,7 +1007,10 @@ void floppy_completed_operation_interrupt(void) __critical __interrupt(2) {
     } else {
         fdc_sense_interrupt();
     }
-    ei(); /* re-enable interrupts (clang interrupt attr emits bare RETI) */
+}
+void floppy_completed_operation_interrupt(void) __critical __interrupt(2) {
+    floppy_completed_operation_body();
+    ei();
 }
 
 /* Post-relocation entry point.  Called (tail-JP) from start() after LDIR copy.

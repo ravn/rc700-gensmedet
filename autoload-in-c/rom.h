@@ -27,8 +27,10 @@
 #define __critical
 #define __naked        __attribute__((naked))
 #define NORETURN __attribute__((noreturn))
+#define ISR_BODY_INLINE static __attribute__((always_inline)) inline
 #elif defined(__SDCC)
 #define NORETURN
+#define ISR_BODY_INLINE static inline
 #else
 /* Host compiler / IDE — no-op SDCC keywords */
 #define __sfr volatile unsigned char
@@ -37,6 +39,7 @@
 #define __critical
 #define __naked
 #define NORETURN __attribute__((noreturn))
+#define ISR_BODY_INLINE static inline
 #endif
 
 typedef uint8_t  byte;
