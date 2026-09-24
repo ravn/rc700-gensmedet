@@ -15,7 +15,7 @@ from inside its `write()` callback dispatches against the prior mode
 (`MODE_INPUT` after a recv→send transition) instead of the new one.
 The strobe-back fires `m_in_pb_cb()` (= `bridge.read()` in our case)
 and pollutes `m_input` with stale state.  Filed at
-[ravn/mame#11](https://github.com/ravn/mame/issues/11).
+[ravn/mame-rc702-rc759-rc750#11](https://github.com/ravn/mame-rc702-rc759-rc750/issues/11).
 
 ## Why real silicon doesn't have this race
 
@@ -94,12 +94,12 @@ either way — that's the argument above.
 Resolving the Ready-on-mode-entry question definitively needs a
 logic-analyser capture from real silicon (e.g. probe BRDY across a
 Mode 1→Mode 0 transition without any subsequent data write, see if
-BRDY goes high).  Recorded as a comment on ravn/mame#11; not filed
+BRDY goes high).  Recorded as a comment on ravn/mame-rc702-rc759-rc750#11; not filed
 as a separate issue without harder evidence.
 
 ## Status
 
-- Bug filed at [ravn/mame#11](https://github.com/ravn/mame/issues/11)
+- Bug filed at [ravn/mame-rc702-rc759-rc750#11](https://github.com/ravn/mame-rc702-rc759-rc750/issues/11)
   with the Zilog-manual evidence.
 - Fix verified locally to eliminate the m_input pollution in our
   cpnet_bridge use case.

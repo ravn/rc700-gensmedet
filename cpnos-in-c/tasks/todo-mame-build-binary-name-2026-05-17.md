@@ -9,7 +9,7 @@ The historical MAME binary on this workstation is named
 Makefile recipes and `scripts/mame_capture.sh` default look it up
 by that name.
 
-The current MAME source tree (`/Users/ravn/z80/mame`, ravn/mame
+The current MAME source tree (`/Users/ravn/z80/mame`, ravn/mame-rc702-rc759-rc750
 master) when built with `make OSD=sdl SOURCES=src/mame/regnecentralen/
 rc702.cpp REGENIE=1` emits the binary as plain `mame` (~74 MB).
 After a fresh build there is no `regnecentralend` -- subsequent
@@ -45,7 +45,7 @@ Option B: rename `regnecentralend` -> `mame` in all callers, drop
 the legacy alias entirely.  Requires editing recipes in cpnos-in-c
 and possibly other subprojects.
 
-Option C: change the MAME build target in ravn/mame fork to emit
+Option C: change the MAME build target in ravn/mame-rc702-rc759-rc750 fork to emit
 `regnecentralend` (premake5.lua / scripts).  Most invasive --
 diverges from MAME upstream conventions, but means historical
 recipes "just work" forever.

@@ -115,7 +115,7 @@ Boots autoload with `test-disks/SW1711-I8.imd` on the floppy and
 captures every µPD765 command + result byte via MAME passive I/O taps.
 Decodes Read-Track ST1-ND (FDC bug A) and Sense-Int ST0-HD (FDC bug B)
 signatures.  Use to diagnose floppy-boot regressions or to verify the
-local upd765 `& 3` fix in the ravn/mame fork still suppresses the
+local upd765 `& 3` fix in the ravn/mame-rc702-rc759-rc750 fork still suppresses the
 head-bit leak.
 
 Not a PASS/FAIL oracle by itself; outputs `/tmp/autoload_fdc_decoded.txt`.
@@ -134,7 +134,7 @@ checklist to be green (currently parked, see above).
 
 - Native clang at `../../llvm-z80/build-macos/bin/` (built via
   `make toolchain` in workspace root).
-- ravn/mame fork submodule at `../../mame/` with the rc702 driver.
+- ravn/mame-rc702-rc759-rc750 fork submodule at `../../mame/` with the rc702 driver.
   The local upd765 `& 3` fix protects the floppy-boot path from
   the head-bit leak.
 - `test-disks/SW1711-I8.imd` — checked into the tree; the production

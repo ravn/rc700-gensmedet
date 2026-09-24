@@ -1,7 +1,7 @@
 # CP/NET Fast Host Link — Design
 
 > **Status:** MAME-side implemented 2026-04-25 on branches
-> `ravn/mame:cpnet-fast-link` (slot infrastructure + bridge slot card)
+> `ravn/mame-rc702-rc759-rc750:cpnet-fast-link` (slot infrastructure + bridge slot card)
 > and `ravn/rc700-gensmedet:cpnet-fast-link` (Z80 stub +
 > Python+Lua harness).  Pi 4B host hardware not yet acquired; the
 > production Pi+Pico path stays deferred.  MAME-side bring-up
@@ -587,9 +587,9 @@ are functionally interchangeable.
 
 The MAME RC702 driver lives at
 `mame/src/mame/regnecentralen/rc702.cpp` (~555 lines, original author
-Robbbert 2016). User maintains `ravn/mame` fork. Recent CP/NET-related
-work in that fork: ravn/mame#1 (rs232b null_modem default + DCD
-wiring), ravn/mame#3 (z80dart_device -> z80sio_device migration).
+Robbbert 2016). User maintains `ravn/mame-rc702-rc759-rc750` fork. Recent CP/NET-related
+work in that fork: ravn/mame-rc702-rc759-rc750#1 (rs232b null_modem default + DCD
+wiring), ravn/mame-rc702-rc759-rc750#3 (z80dart_device -> z80sio_device migration).
 
 For Option P bring-up we want a fourth patch — but the right framing
 is **not** "wire CP/NET into the driver". It's "expose the PIO ports
@@ -602,7 +602,7 @@ CP/M, BASIC, COMAL, anything historical) sees PIO-B as an idle
 parallel port — exactly as on real hardware.
 
 **Status (2026-04-25):** implementation landed on branch
-`ravn/mame:cpnet-fast-link`, commit `0e6ee52260d`.  All four patches
+`ravn/mame-rc702-rc759-rc750:cpnet-fast-link`, commit `0e6ee52260d`.  All four patches
 described below are committed; `mame -validate rc702` passes,
 `-listdevices` and `-listslots` show the slot system working.  The
 Z80-side stub (`isr_pio_par` byte counter) lives on
@@ -620,7 +620,7 @@ PIO-B (empty) both work individually; only the "card on PIO-B"
 configuration regresses.  The bridge byte path itself is verified —
 6 test bytes flow through listener -> chip `read()` in order — but the
 Z80 ISR never enters because no IRQ reaches the CPU.  Tracked in
-**[ravn/mame#6](https://github.com/ravn/mame/issues/6)** with full
+**[ravn/mame-rc702-rc759-rc750#6](https://github.com/ravn/mame-rc702-rc759-rc750/issues/6)** with full
 reproduction + topology survey;
 [`docs/mame-rc702-piob-slot-regression.md`](mame-rc702-piob-slot-regression.md)
 mirrors the issue body for offline reference.
@@ -655,7 +655,7 @@ What's there today (per project notes through 2026-04-25):
 - **Port B is instantiated but its data lines and BSTB/BRDY handshake
   are not wired to anything externally** — no slot, no peripheral.
   The misleading "Printer" comment sits next to this dead code.
-- Z80-SIO/2 (post-ravn/mame#3) wired with both channels exposed as
+- Z80-SIO/2 (post-ravn/mame-rc702-rc759-rc750#3) wired with both channels exposed as
   `rs232_port_device` slots. SIO-A -> rs232a, SIO-B -> rs232b.
   Both rs232 slots default to `null_modem` and accept `-bitb1` /
   `-bitb2` command-line options for socket / pipe / stdio backends.
@@ -690,7 +690,7 @@ What's there today (per project notes through 2026-04-25):
 
 ### Patch scope (generic-slot pattern, Einstein-userport-modelled)
 
-Four changes, all in `ravn/mame`. The first three are RC702-generic
+Four changes, all in `ravn/mame-rc702-rc759-rc750`. The first three are RC702-generic
 infrastructure; only the fourth is CP/NET-specific. The slot
 infrastructure is a deliberate clone of the Tatung Einstein
 userport pattern (`src/devices/bus/einstein/userport/`), which is
@@ -800,7 +800,7 @@ I/O mapping.
 **(4) Implement the `cpnet_bridge` slot card.**
 
 A new device class implementing `device_rc702_pio_port_interface`,
-scoped to the `ravn/mame` fork. Working name:
+scoped to the `ravn/mame-rc702-rc759-rc750` fork. Working name:
 `rc702_cpnet_bridge_device`. Location:
 `src/devices/bus/rc702/pio_port/cpnet_bridge.{cpp,h}` (next to the
 slot definition, like rs232 cards live under `bus/rs232/`).
@@ -914,13 +914,13 @@ endpoint changes. The Python bridge daemon (`pi_cpnet_bridge.py`)
 already proxies TCP <-> USB-CDC, so the test harness sees a uniform
 TCP interface in both topologies.
 
-### What gets filed against ravn/mame
+### What gets filed against ravn/mame-rc702-rc759-rc750
 
 When implementation opens, file one tracking issue (working title:
 "RC702: generic PIO slot devices + CP/NET bridge peripheral"). The
 issue body is essentially this subsection plus a link back to
 `docs/cpnet_fast_link.md`. Implementation lands as a series of
-commits on a `pio-slots` branch in `ravn/mame`. Note: framing the
+commits on a `pio-slots` branch in `ravn/mame-rc702-rc759-rc750`. Note: framing the
 patch as "generic slots" — not "CP/NET bridge" — is what makes it
 a credible upstream candidate later. CP/NET-specific code lives in
 the bridge peripheral, which can stay in the fork.
@@ -929,7 +929,7 @@ the bridge peripheral, which can stay in the fork.
 
 The MAME bridge is the first concrete bring-up step — it does not
 need the Pi 4B, the J3 cable, or the second Pico. It only needs a
-working `ravn/mame` build (already maintained by the user) and the
+working `ravn/mame-rc702-rc759-rc750` build (already maintained by the user) and the
 Z80-side BIOS additions to be at least at "PIO-B init + a stub
 isr_pio_par that increments a byte counter" level.
 

@@ -2,14 +2,14 @@
 
 > **OBSOLETE — historical reference only (2026-04-27).**
 >
-> This design existed to sidestep ravn/mame#6, which suspected a real bug
+> This design existed to sidestep ravn/mame-rc702-rc759-rc750#6, which suspected a real bug
 > in MAME's slot infrastructure on Z80-PIO ports.  Subsequent investigation
 > traced the symptom (cpnos hangs at PC=0x0039 with `-piob cpnet_bridge`)
 > to a missing `prom1.ic65` in the rc702 rom region — the slot mechanism
 > itself was never broken.  See `docs/cpnet_slot_work_history.md` for the
 > full post-mortem.
 >
-> The slot-based path on `ravn/mame:cpnet-fast-link[-remerge]` is now the
+> The slot-based path on `ravn/mame-rc702-rc759-rc750:cpnet-fast-link[-remerge]` is now the
 > canonical Option P bring-up.  It was end-to-end verified 2026-04-27:
 > 6 TCP bytes round-trip from `:4003` through the bridge slot card to
 > the Z80 `isr_pio_par` ISR, counter advances 0->6, last byte preserved.
@@ -19,19 +19,19 @@
 > tweak is reverted in the same commit that adds this header.  Kept
 > here as a reference for the design-space exploration.
 
-> Branch: `cpnet-pio-direct` (in both `ravn/mame` and `ravn/rc700-gensmedet`).
+> Branch: `cpnet-pio-direct` (in both `ravn/mame-rc702-rc759-rc750` and `ravn/rc700-gensmedet`).
 > Status: design proposed 2026-04-26, **superseded 2026-04-27** —
-> ravn/mame#6 was a misdiagnosis; slot path works fine.
+> ravn/mame-rc702-rc759-rc750#6 was a misdiagnosis; slot path works fine.
 
 ## Goal
 
 Get bytes flowing from an external process to the Z80 inside MAME's
 `rc702` driver via the Z80-PIO port B, **without any slot/card
-infrastructure**.  Sidesteps ravn/mame#6.  Function over elegance.
+infrastructure**.  Sidesteps ravn/mame-rc702-rc759-rc750#6.  Function over elegance.
 
 ## Why this can work where the slot path failed
 
-ravn/mame#6 is triggered when a `device_t` is constructed under
+ravn/mame-rc702-rc759-rc750#6 is triggered when a `device_t` is constructed under
 `device_single_card_slot_interface` on the Z80-PIO chip.  In this
 design there is **no separate device** — the socket and its bookkeeping
 live as private members of `rc702_state` (the driver class), and the

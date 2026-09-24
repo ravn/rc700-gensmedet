@@ -36,7 +36,7 @@ ZCC = $(ZCC_ENV) $(Z88DK)/bin/zcc
 
 SRCS = aes256.c test_main.c
 
-.PHONY: all clean test sizes sweep sweep_clang sweep_sdcc zsdcc clang
+.PHONY: all clean test sizes sweep sweep_clang sweep_sdcc zsdcc clang clang_zcc
 
 all: test
 
@@ -134,6 +134,39 @@ clang_ansi.bin: clang_ansi.elf
 clang: clang.bin
 clang_ansi_target: clang_ansi.bin
 
+# ---------- clang via zcc +cpm (full stdlib, LoopIdiomRecognize active) ----------
+# zcc uses CP/M CRT + z88dk stdlib (memset, etc.). The -Os pipeline (default
+# for llvmz80 via zcc) runs loop-rotation, so LoopIdiomRecognize can convert
+# simple zero-fill loops to ___z80_memset_builtin → asm_memset (LDIR-based).
+# Use aes256_ansi.c — the ANSI-safe variant already verified under clang.
+ZCC_LLVMZ80_FLAGS = +cpm -compiler=llvmz80 \
+                    --opt-code-size \
+                    -Cg-Os \
+                    -create-app
+
+clang_zcc.com: aes256_ansi.c test_main.c
+	$(ZCC) $(ZCC_LLVMZ80_FLAGS) -o clang_zcc aes256_ansi.c test_main.c 2>&1 | tail -10
+	@# llvmz80 produces 'clang_zcc' (COM binary); give it .com so ticks auto-enables
+	@# CP/M mode: loads at 0x0100, installs BDOS trap at 0x0005, exits on JP 0.
+	@test -f clang_zcc.com || \
+	  (test -f clang_zcc && cp clang_zcc clang_zcc.com) || \
+	  (echo "clang_zcc.com missing"; false)
+
+# Alias for make clang_zcc
+clang_zcc.bin: clang_zcc.com
+	@cp clang_zcc.com clang_zcc.bin
+
+clang_zcc: clang_zcc.com
+
+clang_zcc.end_addr: clang_zcc.com
+	@# CP/M .com files exit via JP 0; ticks stops at -end 0 in CP/M mode.
+	@echo "0x0000" > $@
+
+clang_zcc.ram clang_zcc.tstates: clang_zcc.com clang_zcc.end_addr
+	@$(TICKS) -mz80 -end 0 -counter 300000000 \
+	          -output clang_zcc.ram clang_zcc.com 2>&1 | tail -1 > clang_zcc.tstates
+	@printf '%-16s tstates=%s\n' clang_zcc "$$(cat clang_zcc.tstates)"
+
 # ---------- Test runner ----------
 # z88dk-ticks exit conditions (verified from src/ticks/ticks.c):
 #   - `pc == end` (the -end <hex-pc> flag value)
@@ -193,7 +226,7 @@ zsdcc_ansi.ram zsdcc_ansi.tstates: zsdcc_ansi.bin zsdcc_ansi.end_addr
 	          -output zsdcc_ansi.ram zsdcc_ansi.bin 2>&1 | tail -1 > zsdcc_ansi.tstates
 	@printf '%-16s tstates=%s\n' zsdcc_ansi "$$(cat zsdcc_ansi.tstates)"
 
-RAMS = zsdcc.ram clang.ram zsdcc_ansi.ram clang_ansi.ram
+RAMS = zsdcc.ram clang.ram zsdcc_ansi.ram clang_ansi.ram clang_zcc.ram
 
 # Vector layout: [0..15] ciphertext, [16] enc PASS, [17..32] plaintext,
 # [33] dec PASS, [34] 0xA5 end sentinel.
@@ -204,7 +237,7 @@ test: $(RAMS)
 	@echo "--- AES-256 verification at 0xC000 (35 bytes) ---"
 	@echo "expected         ct: $(EXPECTED_CT)  enc=01"
 	@echo "expected         pt: $(EXPECTED_PT)  dec=01  end=a5"
-	@for c in zsdcc clang zsdcc_ansi clang_ansi; do \
+	@for c in zsdcc clang zsdcc_ansi clang_ansi clang_zcc; do \
 	    printf "%-16s " $$c; \
 	    python3 -c "import sys; d=open('$$c.ram','rb').read(); v=d[0xC000:0xC023]; \
 		print('ct:',' '.join(f'{b:02x}' for b in v[0:16]), \
@@ -219,12 +252,13 @@ test: $(RAMS)
 
 # ---------- Size reporting ----------
 sizes: clang.bin zsdcc.bin clang_ansi.bin zsdcc_ansi.bin
-	@echo "--- Binary sizes ---"
-	@for f in clang.bin clang_ansi.bin zsdcc.bin zsdcc_ansi.bin DEMO.COM; do \
+	@echo "--- Binary sizes (full linked binary) ---"
+	@for f in clang.bin clang_ansi.bin zsdcc.bin zsdcc_ansi.bin clang_zcc.com DEMO.COM; do \
 	    if [ -f $$f ]; then \
 		printf "%-18s %6d B\n" $$f $$(wc -c < $$f); \
 	    fi; \
 	done
+	@echo "  (clang_zcc.com includes ~5 KB z88dk CRT+stdlib overhead)"
 	@echo ""
 	@echo "--- aes256.c text size (clang, per variant) ---"
 	@printf "%-18s " clang_kr; \
@@ -235,9 +269,9 @@ sizes: clang.bin zsdcc.bin clang_ansi.bin zsdcc_ansi.bin
 	    python3 -c "import sys; t=sum(int(p[1],16) for p in (l.split() for l in sys.stdin) if len(p)>=4 and p[2] in 'tT'); print(t, 'bytes')"
 
 clean:
-	rm -f *.o *.bin *.map *.elf *.ram *.end_addr *.tstates \
+	rm -f *.o *.bin *.com *.map *.elf *.ram *.end_addr *.tstates \
 	      reset_clang.s clang.ld \
-	      zsdcc clang zsdcc_ansi clang_ansi \
+	      zsdcc clang zsdcc_ansi clang_ansi clang_zcc \
 	      *_CODE.bin *_DATA.bin *_BSS.bin \
 	      aes256.c.lis test_main.c.lis aes256.lis test_main.lis \
 	      aes256_ansi.c.lis aes256_ansi.lis

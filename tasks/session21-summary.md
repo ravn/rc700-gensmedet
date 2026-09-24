@@ -89,7 +89,7 @@ full-speed; sideways move at best.
       sdlc-hw-test.md "TODO before any code lands".
 - [ ] Settle the CTC CLK rate on PCB530 with scope (4 MHz / 5 MHz /
       8 MHz question from session 20).
-- [ ] File ravn/mame issue: PCB530 CTC rate likely differs from the
+- [ ] File ravn/mame-rc702-rc759-rc750 issue: PCB530 CTC rate likely differs from the
       4 MHz in `rc702.cpp`, pending scope confirmation.
 
 ## Files touched

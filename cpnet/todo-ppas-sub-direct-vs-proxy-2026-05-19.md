@@ -145,11 +145,11 @@ perl -e 'alarm 100; exec @ARGV' /Users/ravn/z80/mame/regnecentralend rc702 \
    direct path pass.  If yes, hypothesis 3.  If no, the bug is
    in the bridge.
 
-4. **File at ravn/mame** if conclusively a cpnet_bridge bug; the
+4. **File at ravn/mame-rc702-rc759-rc750** if conclusively a cpnet_bridge bug; the
    wire-log + proxy-vs-direct comparison is enough evidence to
    open a clear issue.
 
-## 2026-05-20 update: filed as ravn/mame#9
+## 2026-05-20 update: filed as ravn/mame-rc702-rc759-rc750#9
 
 Today's session (during ravn/z88dk#13 investigation) accumulated
 more data: 5/5 clang failures, 1/4 sdcc failures across
@@ -158,7 +158,7 @@ between each.  Even with clean master state, the hang is
 reproducible -- this is a real underlying timing bug, not just
 stale-daemon state.
 
-Filed at ravn/mame#9 with full repro, the 3 hypotheses ranked,
+Filed at ravn/mame-rc702-rc759-rc750#9 with full repro, the 3 hypotheses ranked,
 and concrete next-step investigations.
 
 The **clang-vs-sdcc asymmetry** (clang fails more) is new

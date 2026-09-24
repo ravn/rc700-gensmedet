@@ -16,7 +16,7 @@ scripted `commands` blocks.
 
 | Component | Version |
 |---|---|
-| MAME (ravn/mame fork)         | `0.286 (unknown)` (`/Users/ravn/z80/mame/regnecentralend`) |
+| MAME (ravn/mame-rc702-rc759-rc750 fork)         | `0.286 (unknown)` (`/Users/ravn/z80/mame/regnecentralend`) |
 | Docker                        | 29.5.3 build d1c06ef |
 | Container base                | `debian:stable-slim` (already in local registry) |
 | GDB in container              | `gdb-multiarch` from Debian apt — knows Z80 via `set arch z80` |

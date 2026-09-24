@@ -3,7 +3,7 @@
 Date: 2026-04-28 (continuation of session 35)
 Branches:
 - `ravn/rc700-gensmedet:pio-mpm-irq-fix`
-- `ravn/mame:pio-mpm-irq-fix` (no changes this session)
+- `ravn/mame-rc702-rc759-rc750:pio-mpm-irq-fix` (no changes this session)
 
 ## Headline
 

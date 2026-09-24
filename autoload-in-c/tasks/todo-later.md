@@ -146,7 +146,7 @@ Bits:30005726, committed at `test-disks/RC700_Comal.imd`):
 **Remaining barrier is NOT autoload:** COMAL programs can't `RUN` under emulation
 because of a **MAME rc702 driver bug** — `port14_w` applies floppy `mon_w` to the
 always-spinning 8" maxi drive, so COMAL's `0x14 <- 0x00` stops the emulated motor
-and every command hits `DISKETTE FEJL`.  Filed **ravn/mame#12**.  The autoload
+and every command hits `DISKETTE FEJL`.  Filed **ravn/mame-rc702-rc759-rc750#12**.  The autoload
 COMAL-boot path is proven correct; full program execution waits on that MAME fix.
 
 **Code relocation (below) is therefore DROPPED as unnecessary.**  Original notes

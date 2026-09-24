@@ -141,7 +141,7 @@ later at 4 MHz CPU clock.  So real silicon has no equivalent race.
 The MAME ordering is the outlier; floooh/chips's reference Z80-PIO
 emulator already updates the mode register first.
 
-Filed at [ravn/mame#11](https://github.com/ravn/mame/issues/11) with
+Filed at [ravn/mame-rc702-rc759-rc750#11](https://github.com/ravn/mame-rc702-rc759-rc750/issues/11) with
 the canonical-source evidence.  See
 [`tasks/future-mame-pio-setmode-order-bug.md`](../../tasks/future-mame-pio-setmode-order-bug.md)
 for the full Zilog-quote writeup.
@@ -165,7 +165,7 @@ instead.
 
 ### 3. cpnet_bridge.cpp m_brdy_high startup state
 
-(Mentioned in existing bridge comments, ravn/mame#8.)  Chip doesn't
+(Mentioned in existing bridge comments, ravn/mame-rc702-rc759-rc750#8.)  Chip doesn't
 auto-raise BRDY on Mode-1 entry per Zilog spec; bridge has to bootstrap
 its tracking state at first SEND-flip-RECV cycle.  Not new in this
 session — preserved for context.
@@ -243,7 +243,7 @@ experiments is captured in this writeup.
 ## Instrumentation refinement (post-session, 2026-06-13)
 
 The Phase 0 instrumentation plan from the session writeup originally
-called for either Lua taps (now known-broken — ravn/mame#10) or the
+called for either Lua taps (now known-broken — ravn/mame-rc702-rc759-rc750#10) or the
 GDB stub (~25× slowdown, doesn't survive PolyPascal load).  An
 end-of-session survey of MAME's native debugging facilities turned up
 a far better path that uses **only what MAME already ships**:

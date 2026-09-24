@@ -53,7 +53,7 @@ No PCB modification needed (external board on J8 connector).
 ### 6. MAME uses wrong device type
 
 rc702.cpp used `z80dart_device` but hardware is Z80A-SIO/2. Fixed
-locally to `z80sio_device`. Filed as ravn/mame#3. The DART variant
+locally to `z80sio_device`. Filed as ravn/mame-rc702-rc759-rc750#3. The DART variant
 rejects sync mode programming, blocking SDLC testing in MAME.
 
 ## Speed Comparison
@@ -106,7 +106,7 @@ Each CP/NET message = one SDLC I-frame. SIO CRC replaces DRI checksum.
 - `cpnet/SPLIT_CHANNEL_TRANSPORT.md` -- open questions resolved,
   HDLC/NRZI section replaced with SDLC+CTC approach, FTDI baud table
 - `tasks/prompts.md` -- session 18 prompts
-- MAME `rc702.cpp` -- z80dart_device -> z80sio_device (ravn/mame#3)
+- MAME `rc702.cpp` -- z80dart_device -> z80sio_device (ravn/mame-rc702-rc759-rc750#3)
 
 ## Constraints
 

@@ -106,8 +106,8 @@ cap.  cpnos's transport_pio.c / transport_sio.c contribute to cpnos's
 
 - **z80pack mpm-net2 master**: required for any end-to-end test.  Memory
   rule `feedback_session_start_kill_daemons` covers the daemon hygiene.
-- **MAME**: needs `cpnet_bridge` slot device (in `ravn/mame:bus/rc702/`)
-  for the PIO transport.  Local to the fork; not upstream.  `ravn/mame#6`
+- **MAME**: needs `cpnet_bridge` slot device (in `ravn/mame-rc702-rc759-rc750:bus/rc702/`)
+  for the PIO transport.  Local to the fork; not upstream.  `ravn/mame-rc702-rc759-rc750#6`
   (z80pio drops IM2 IRQs with two slot devices) was the original gate;
   workarounds failed per `project_ravn_mame_6_workarounds_failed.md`.
 - **rcbios SNIOS.SPR build**: hand-assembled, dual-density layout
@@ -195,7 +195,7 @@ follow-up only.
 
 ## Not in scope here
 
-- ravn/mame#6 (PIO-B slot regression) — separate `project_ravn_mame_6`
+- ravn/mame-rc702-rc759-rc750#6 (PIO-B slot regression) — separate `project_ravn_mame_6`
   tracking; workarounds known to fail.
 - SDLC physical link (`sdlc-hw-test`) — host-side / bench; not the
   production transport.

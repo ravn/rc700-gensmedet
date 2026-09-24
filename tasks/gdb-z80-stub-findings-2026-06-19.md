@@ -39,7 +39,7 @@ hits the `if (feature == NULL) return NULL;` bail at z80-tdep.c:1099-1100
 because MAME's feature name is wrong.  Architecture init fails; symbol
 mapping breaks even though the wire works.
 
-**Fix is a one-line MAME patch** in our `ravn/mame` fork (which already
+**Fix is a one-line MAME patch** in our `ravn/mame-rc702-rc759-rc750` fork (which already
 carries the col-80 `set_size(560,…)` fix at `035d29086bf`):
 ```c
 "mame.z80",  →  "org.gnu.gdb.z80.cpu",

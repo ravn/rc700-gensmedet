@@ -54,7 +54,7 @@ top comment: "Keyboard has 8048 and 2758, both undumped").
 
 Buffer UTF-8 lead bytes in `kbd_put`; emit the assembled Unicode
 codepoint to the PIO if it fits in 0x80-0xFF. Requires editing the
-MAME source tree (ravn/mame submodule).
+MAME source tree (ravn/mame-rc702-rc759-rc750 submodule).
 
 Sketch:
 

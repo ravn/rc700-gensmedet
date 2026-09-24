@@ -276,7 +276,7 @@ CLAUDE.md corrections.
 - **MP/M server-side protocol gaps**: custom netboot function may need
   MP/M-side work. Mitigation: use `cpnet/server.py` (Python) for early
   bring-up, move to real MP/M only once protocol is frozen.
-- **MAME ↔ real HW divergence**: known MAME SIO bugs (ravn/mame#2).
+- **MAME ↔ real HW divergence**: known MAME SIO bugs (ravn/mame-rc702-rc759-rc750#2).
   Mitigation: async 38400 is proven on real HW per session #23; stick
   with that rate until real-HW test passes.
 

@@ -165,7 +165,7 @@ chip and host): both PIO designs ≈ 50 ms total netboot, ~40× SIO.
 
 ## Branch state
 
-### `ravn/mame:master` (1 commit ahead of origin)
+### `ravn/mame-rc702-rc759-rc750:master` (1 commit ahead of origin)
 - `9c2cbb4e1a9` cpnet_bridge: rdy_w always strobes on rising edge
   — this is a *general improvement* for any PIO-bridge user, not
   just the snios-on-PIO experiment.  The proxy-mode test was
@@ -190,7 +190,7 @@ chip and host): both PIO designs ≈ 50 ms total netboot, ~40× SIO.
    launches MAME, asserts boot strip = `INIT OKPNILOREC+PSJ`.
 2. **Promote the branch** once the harness mode lands and runs
    green on a fresh tree.  `ravn/rc700-gensmedet:pio-mpm-netboot`
-   → main.  `ravn/mame:master` is already in place.
+   → main.  `ravn/mame-rc702-rc759-rc750:master` is already in place.
 3. **Investigate ravn/rc700-gensmedet#56** (snios-on-PIO
    intermittent stall) when there's appetite for more
    chip-emulation archaeology.  Probably a fourth race.

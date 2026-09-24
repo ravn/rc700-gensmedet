@@ -5,7 +5,7 @@ Get SIO-B serial receive working in MAME and investigate faster baud rates.
 
 ## Bugs Found and Fixed
 
-### 1. MAME driver: rs232b missing null_modem (ravn/mame#1)
+### 1. MAME driver: rs232b missing null_modem (ravn/mame-rc702-rc759-rc750#1)
 - `rs232b` had `nullptr` as default device — no null_modem attached
 - Added `"null_modem"` default + `rs232b_defaults` (38400 8N1)
 - Also wired `dcd_handler` for rs232b (from prior session)
@@ -80,7 +80,7 @@ RC700's serial port with standard async serial and existing hardware.
 
 ## Issues Filed
 
-- ravn/mame#1 — RC702: rs232b missing null_modem default and DCD wiring
+- ravn/mame-rc702-rc759-rc750#1 — RC702: rs232b missing null_modem default and DCD wiring
 - ravn/llvm-z80#69 — Switch on shifted byte field uses stale register for second case
 
 ## Open Items

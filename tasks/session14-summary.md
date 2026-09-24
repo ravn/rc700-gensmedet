@@ -98,7 +98,7 @@ Plain MAME's `regnecentralen/rc702.cpp` only wired the 7474's `CLR`
 pin from `~CRTC_IRQ`; `D` and `CLK` were unconnected, so the flop sat
 at `Q=0/Qbar=1` forever and only ch.2 ever serviced the CRTC.
 
-Patched on `ravn/mame @ status-line-26-dual-dma`:
+Patched on `ravn/mame-rc702-rc759-rc750 @ status-line-26-dual-dma`:
 
 - `D ← Qbar` (so each clock toggles)
 - `CLK ← DMA EOP` (the chip's shared TC pin)
@@ -170,7 +170,7 @@ timing gap and doesn't appear on real hardware.
 ## Branches preserved on remotes (not merged to main)
 
 - `ravn/rc700-gensmedet @ status-line-26` (2 commits)
-- `ravn/mame @ status-line-26-dual-dma` (1 commit)
+- `ravn/mame-rc702-rc759-rc750 @ status-line-26-dual-dma` (1 commit)
 - `ravn/z80-compiler-suite-workspace @ status-line-26` (2 commits)
 
 These can be cherry-picked or merged later if we revisit the dual-DMA

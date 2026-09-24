@@ -86,7 +86,7 @@ end
 -- DOT_WATCH_SKIP=1 skips the tap install entirely.  Set by the
 -- cpnos-polypascal-test-trace Makefile recipe, because under the
 -- MAME-debugger trace + LOG=1 PIO instrumentation each tap invocation
--- now allocates a fresh sol coroutine (post-ravn/mame 7ff2271
+-- now allocates a fresh sol coroutine (post-ravn/mame-rc702-rc759-rc750 7ff2271
 -- mame#10 fix) and the slave's per-character screen writes burn so
 -- much wall-clock time on the GC that the test deadline slips.  The
 -- dot_watch buffer is diagnostic-only so it's safe to skip.

@@ -121,7 +121,7 @@ emulation`.
 
 > **Channel attention & MYRESNAK-fixet:** for hvordan 82730 modtager kommandoer
 > (CA-mekanisme, det fulde CBP-kommandosæt, og rodårsag/rettelse af
-> MYRESNAK BB/HENT/HUSK-frysningen, ravn/mame#31), se
+> MYRESNAK BB/HENT/HUSK-frysningen, ravn/mame-rc702-rc759-rc750#31), se
 > `RC759_82730_channel_attention.md`.
 
 ---

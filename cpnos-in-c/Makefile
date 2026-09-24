@@ -148,6 +148,14 @@ ifeq ($(COMPILER),clang)
            -Wno-missing-variable-declarations \
            -Wno-missing-noreturn \
            -Wno-sign-conversion
+  # Optimization remarks hook: pass REMARKS=1 for all, or REMARKS=loop-idiom
+  ifneq ($(REMARKS),)
+    ifeq ($(REMARKS),1)
+      CFLAGS += -Rpass-missed=.* -Rpass-analysis=.*
+    else
+      CFLAGS += -Rpass-missed=$(REMARKS) -Rpass-analysis=$(REMARKS)
+    endif
+  endif
   # Investigation hook (ravn/llvm-z80#23): inject extra clang flags via
   # `make CLANG_EXTRA="-mllvm -z80-enable-licm -mllvm -z80-enable-cse"`.
   CFLAGS += $(CLANG_EXTRA)

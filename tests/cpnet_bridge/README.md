@@ -21,7 +21,7 @@ in order.
 ## Prerequisites
 
 1. **MAME built with the `cpnet-fast-link` slot infrastructure.**
-   `ravn/mame:cpnet-fast-link` branch built as
+   `ravn/mame-rc702-rc759-rc750:cpnet-fast-link` branch built as
    `/Users/ravn/z80/mame/regnecentralend`.  See
    [`../../docs/MAME_RC702.md`](../../docs/MAME_RC702.md) for the build
    command.

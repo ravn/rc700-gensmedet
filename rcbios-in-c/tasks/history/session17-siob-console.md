@@ -202,7 +202,7 @@ hardware. The host FTDI receives at matching baud rate. See
 `cpnet/SPLIT_CHANNEL_TRANSPORT.md` for the CP/NET transport plan.
 
 MAME fix required: rc702.cpp uses `z80dart_device` but the real
-hardware is Z80A-SIO/2 — filed as ravn/mame#3, fixed locally.
+hardware is Z80A-SIO/2 — filed as ravn/mame-rc702-rc759-rc750#3, fixed locally.
 
 ### Inter-character gap experiment
 

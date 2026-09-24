@@ -57,7 +57,7 @@ can't beat 5 µs reliably, the slave design must change.
   block in `read()` until TCP delivers, which preserves correctness
   on the simulator but is irrelevant to real-hardware behaviour.
   See cpnet_bridge.cpp commit log.
-- Per ravn/mame#8: MAME's chip emulation does not auto-raise BRDY
+- Per ravn/mame-rc702-rc759-rc750#8: MAME's chip emulation does not auto-raise BRDY
   on Mode-1 entry, so the bridge has to bootstrap its BRDY-tracking
   state at the first SEND-flip-RECV cycle.  Production hardware
   uses the Zilog datasheet semantics, where this isn't an issue.
@@ -123,8 +123,8 @@ just with a different test sequence loaded into the RC702.
 - `cpnos-in-c/src/transport_pio.c` — slave side of the bare-INIR design.
 - `mame/src/devices/bus/rc702/pio_port/cpnet_bridge.cpp` — MAME's
   simulator-side bridge; the blocking `read()` modification.
-- ravn/mame#8 — MAME PIO BRDY-on-Mode-1-entry quirk.
-- ravn/mame#11 — z80pio set_mode order bug whose follow-up the
+- ravn/mame-rc702-rc759-rc750#8 — MAME PIO BRDY-on-Mode-1-entry quirk.
+- ravn/mame-rc702-rc759-rc750#11 — z80pio set_mode order bug whose follow-up the
   side measurement above resolves.
 - [`future-mame-pio-setmode-order-bug.md`](./future-mame-pio-setmode-order-bug.md)
   "Bonus follow-up" — the question this side measurement settles.

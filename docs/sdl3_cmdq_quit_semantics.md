@@ -80,7 +80,7 @@ it does not return to an internal menu. (The launcher-mode case — MAME started
 with no machine, machine chosen from the internal system-selection menu — is
 governed by MAME's general `schedule_exit()` behaviour and was not measured here.)
 
-Fork branch: `osd-sdl3-cmdq` (github.com/ravn/mame).
+Fork branch: `osd-sdl3-cmdq` (github.com/ravn/mame-rc702-rc759-rc750).
 
 ## Raw data
 

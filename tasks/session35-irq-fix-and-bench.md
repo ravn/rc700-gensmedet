@@ -3,7 +3,7 @@
 Date: 2026-04-28
 Branches:
 - `ravn/rc700-gensmedet:pio-mpm-irq-fix` (off `pio-mpm-netboot`)
-- `ravn/mame:pio-mpm-irq-fix` (off master)
+- `ravn/mame-rc702-rc759-rc750:pio-mpm-irq-fix` (off master)
 
 ## Headline
 
@@ -45,7 +45,7 @@ Branch `pio-mpm-irq-fix`:
   progress below" expectation).  `nos_handoff()` split into
   `print_banner()` + JT/ZP setup.
 
-### ravn/mame
+### ravn/mame-rc702-rc759-rc750
 
 Branch `pio-mpm-irq-fix`:
 
@@ -103,12 +103,12 @@ shared value space with data.
 
 Full root cause analysis in `tasks/session34-direct-pio-stall-rootcause.md`.
 
-### 2. ravn/mame#8: Mode 1 entry doesn't auto-raise BRDY
+### 2. ravn/mame-rc702-rc759-rc750#8: Mode 1 entry doesn't auto-raise BRDY
 
 Per Zilog datasheet, entering MODE_INPUT raises BRDY 2 cycles after
 the mode select.  MAME's `z80pio.cpp::set_mode(MODE_INPUT)` only
 sets `m_mode`, leaving `m_rdy` at whatever it was — usually false
-post-reset.  Filed as **ravn/mame#8** with datasheet reference and
+post-reset.  Filed as **ravn/mame-rc702-rc759-rc750#8** with datasheet reference and
 suggested patch.  Workaround: bridge optimistic-init `m_brdy_high=true`
 self-bootstraps via `set_mode(OUTPUT)` callback.
 
@@ -182,7 +182,7 @@ parsing, no display memory scanning.
 ## Issue / TODO summary
 
 Filed:
-- **ravn/mame#8** — Z80-PIO Mode 1 entry doesn't auto-raise BRDY.
+- **ravn/mame-rc702-rc759-rc750#8** — Z80-PIO Mode 1 entry doesn't auto-raise BRDY.
 
 Recorded in `tasks/todo.md` (deferred):
 - 32-bit CRT frame counter mirroring rcbios's location.

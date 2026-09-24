@@ -33,7 +33,7 @@ printer/loopback fejler den (forventet). Bootstien er selvtest → PARTNER BOOTL
 
 ## Demo-video: rc750_boot_realfont.mp4
 
-MAME-optagelse (ravn/mame) af RC750 Partner der booter SW1500-disken: selvtest →
+MAME-optagelse (ravn/mame-rc702-rc759-rc750) af RC750 Partner der booter SW1500-disken: selvtest →
 banner → installations-menu (med box-ramme + den ægte 9×14-font fra pixel-hukommelsen
 @0xF0000) → ESC + "j" for at forlade menuen → CP/M `A>` → `DIR` viser filerne. Fonten
 renderes direkte fra Partnerens tegngenerator (Programmer's Guide §4.1.2), loadet af

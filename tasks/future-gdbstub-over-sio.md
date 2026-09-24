@@ -25,7 +25,7 @@ instead of `host.docker.internal:23946`.
   PROM layout, real CTC/DMA quirks) become tractable: set a breakpoint,
   inspect state, single-step.
 - **No emulator divergence.**  MAME's PIO emulation has documented
-  bugs (`ravn/mame#7`); a real-hardware GDB session bypasses them.
+  bugs (`ravn/mame-rc702-rc759-rc750#7`); a real-hardware GDB session bypasses them.
 - **Replaces ad-hoc `impl_conout` markers.**  Today the only on-device
   debug is BOOT_MARK to display memory or characters to SIO-B.  GDB
   gives proper interactive inspection without polluting the binary.

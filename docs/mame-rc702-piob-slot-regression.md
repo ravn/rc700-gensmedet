@@ -1,6 +1,6 @@
 # MAME bug report — `rc702`: ~~any slot wrapper on PIO-B blocks guest IM2 IRQs~~
 
-> **CLOSED as not-a-bug** 2026-04-27.  Original ravn/mame#6 was a
+> **CLOSED as not-a-bug** 2026-04-27.  Original ravn/mame-rc702-rc759-rc750#6 was a
 > misdiagnosis; the slot infrastructure on PIO-B works correctly.
 > The actual cause of every "black screen / cpnos-rom hang" symptom
 > was `prom1.ic65` not being loaded into the `prom1` ROM region.
@@ -18,7 +18,7 @@
 
 # (historical) MAME bug report — `rc702`: any slot wrapper on PIO-B blocks guest IM2 IRQs
 
-> **Originally filed as [ravn/mame#6](https://github.com/ravn/mame/issues/6)** on
+> **Originally filed as [ravn/mame-rc702-rc759-rc750#6](https://github.com/ravn/mame-rc702-rc759-rc750/issues/6)** on
 > 2026-04-26.  Closed as not-planned on 2026-04-27 after verification
 > showed slot+card boots cpnos cleanly when prom1.ic65 is loaded.
 
@@ -32,7 +32,7 @@ and stalls at `PC=0x0039` before its first SIO-A transmit.
 
 ## Summary
 
-On `ravn/mame:cpnet-fast-link`, the RC702 driver exposes both halves of
+On `ravn/mame-rc702-rc759-rc750:cpnet-fast-link`, the RC702 driver exposes both halves of
 its single Z80-PIO chip (`m_pio`, ports A and B) as
 `rc702_pio_port_device` slots — see
 `src/devices/bus/rc702/pio_port/`.  PIO-A defaults to the `keyboard`
@@ -65,7 +65,7 @@ drive peripheral chains.
 
 ## Environment (factual)
 
-- Repo: `ravn/mame`, branch `cpnet-fast-link`, top of branch
+- Repo: `ravn/mame-rc702-rc759-rc750`, branch `cpnet-fast-link`, top of branch
   `9291063ccc7` plus a revert/un-revert pair (current HEAD
   `ae827fd92f5`).
 - Host: macOS arm64.  Build:

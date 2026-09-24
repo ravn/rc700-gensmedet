@@ -26,7 +26,7 @@ Three behaviours layered on top of a bitbanger sub-device:
    bridge's `rdy_w` fires and decides whether to send the next strobe.
    The decision is **gated on `m_brdy_high && input_buffer_non_empty`**
    — that gate is the fix in `60e2b9a032f` on
-   `ravn/mame:pio-mpm-irq-fix`.  Without it, IRQs never fire (or fire
+   `ravn/mame-rc702-rc759-rc750:pio-mpm-irq-fix`.  Without it, IRQs never fire (or fire
    too early and the chip latches stale `m_input`), and the IRQ ring
    on the slave never gets bytes.
 
@@ -63,7 +63,7 @@ to Mode-1 polled receive (`INIR` busy-poll) instead of the IRQ ring.
 Saves on the MAME side:
 - ~140 LoC of `cpnet_bridge.cpp` (read/write/rdy_w/poll_tick/timer/buffer)
 - the `m_brdy_high` gate fix
-- `ravn/mame#8` (BRDY-not-auto-raised on Mode-1 entry) — the
+- `ravn/mame-rc702-rc759-rc750#8` (BRDY-not-auto-raised on Mode-1 entry) — the
   optimistic-init-then-`set_mode(OUTPUT)` workaround was driven by
   the IRQ path's bootstrap requirements
 
@@ -94,7 +94,7 @@ peripheral-driven IRQs.  It's the wire architecture you'd build in
 hardware for a real J3 expansion board.  Keeping the IRQ path means
 the slave-side firmware (cpnos's `isr_pio_par` + ring) is exercising
 the same paths it would on physical hardware, which has bugs the
-polled path wouldn't expose (e.g., `ravn/mame#7`'s stale-prefix on
+polled path wouldn't expose (e.g., `ravn/mame-rc702-rc759-rc750#7`'s stale-prefix on
 Mode-1→Mode-0 transition, which the IRQ path bumped into and the
 polled path doesn't).
 

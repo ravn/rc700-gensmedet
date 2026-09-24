@@ -108,7 +108,7 @@ findings below come from a per-flag bisection (see Phases 62-63 in
 The production Makefile sets:
 ```
 -Oz -nostdlib -g
--Xclang -target-feature -Xclang +static-stack
+-Xclang -target-feature -Xclang +static-frame
 -mllvm -disable-lsr
 -mllvm -disable-machine-licm
 -mllvm -disable-machine-cse
@@ -116,7 +116,7 @@ The production Makefile sets:
 
 | flag | role | net Δ on snios_c.o |
 |---|---|---:|
-| `+static-stack` | locals to per-function BSS instead of IX-frame | **−450 B** (without it, IX-relative addressing dominates) |
+| `+static-frame` | locals to per-function BSS instead of IX-frame | **−450 B** (without it, IX-relative addressing dominates) |
 | `-disable-lsr` | skip Loop Strength Reduction | −7 B |
 | `-disable-machine-licm` | skip Loop-Invariant Code Motion (machine-IR pass) | −73 B |
 | `-disable-machine-cse` | skip Machine Common Subexpression Elimination | −11 B |

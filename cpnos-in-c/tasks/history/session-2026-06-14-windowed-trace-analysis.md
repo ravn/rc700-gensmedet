@@ -165,5 +165,5 @@ See harness TaskList for tracking — entries created in this session:
   trace) is unaffected.
 - Sound-card SIGPIPE: already addressed by `-sound none` default in
   mame_capture.sh (commit `63d0dfc`).
-- Daisy IRQ annotation: already shipped in ravn/mame `390ebf4` and
+- Daisy IRQ annotation: already shipped in ravn/mame-rc702-rc759-rc750 `390ebf4` and
   exercised by this trace (1982 annotations).

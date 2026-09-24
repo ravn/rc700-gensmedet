@@ -37,7 +37,7 @@ update `statbuf` — the DMA picks it up on the next frame.
 | Per-frame CPU | Zero — 8237 + 74LS74 do everything | Zero — but ch2 wc has to be exactly right |
 | Memory layout coupling | None; `statbuf` is anywhere in BSS | Display end must leave room for `0xFF` byte before CLOCK |
 | Compatibility with screen-dump tools | Rows 0-24 still at `0xF800`; row 25 elsewhere (document `statbuf` symbol) | Rows 0-24 + part of row 25 at `0xF800`; cleaner for dumb tools |
-| MAME emulation | Works (74LS74 CLK wired in `ravn/mame 7be8a02788a`) | Works on any 8275 emulation that honors `0xFFxx` end-of-screen code |
+| MAME emulation | Works (74LS74 CLK wired in `ravn/mame-rc702-rc759-rc750 7be8a02788a`) | Works on any 8275 emulation that honors `0xFFxx` end-of-screen code |
 | Code symmetry with old assembly BIOS | Different (assembly used contiguous) | Same |
 | Locks ch3 for other uses | Yes — but rcbios doesn't want circular scroll, so no conflict | No (ch3 stays idle) |
 
@@ -109,7 +109,7 @@ inside `4a7726f`'s commit body, which informs step 5 of the plan above.
 
 - `docs/dma_ch3_8275_roll_function.md` — gate-level schematic trace of
   the ch2/ch3 routing (MIC 11), and the MAME wiring (commit
-  `ravn/mame 7be8a02788a`) that makes this rendering correctly in
+  `ravn/mame-rc702-rc759-rc750 7be8a02788a`) that makes this rendering correctly in
   emulation.
 - `RC702_HARDWARE_TECHNICAL_REFERENCE.md` § Video Monitor — RC752
   retrace-margin sums explaining why CRT26 (V=1 → 1.428 ms retrace) is

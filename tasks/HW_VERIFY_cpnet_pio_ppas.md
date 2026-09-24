@@ -19,7 +19,7 @@ hardware dependency that parks the INIR path,
       implement the same byte transport MAME's `cpnet_bridge` does:
       PIO-B Mode-1 input (STB/BRDY handshake) inbound, Mode-0 output
       outbound, bytes shuttled verbatim to/from the CP/NET master. **8-bit
-      clean** — no sentinel byte (mirror `ravn/mame 12ea19d0`; all 256
+      clean** — no sentinel byte (mirror `ravn/mame-rc702-rc759-rc750 12ea19d0`; all 256
       values are valid payload).
 - [ ] CP/NET master reachable from the bridge: either z80pack `mpm-net2`
       on a host, or a real MP/M master. Drive I: (or whichever maps to

@@ -331,6 +331,14 @@ CLANG_CFLAGS = --target=z80 -Oz -g -nostdlib -ffreestanding \
 	       -Wno-gcc-compat \
 	       -Wno-declaration-after-statement \
 	       -Wno-pre-c11-compat
+# Optimization remarks hook: pass REMARKS=1 for all, or REMARKS=loop-idiom
+ifneq ($(REMARKS),)
+  ifeq ($(REMARKS),1)
+    CLANG_CFLAGS += -Rpass-missed=.* -Rpass-analysis=.*
+  else
+    CLANG_CFLAGS += -Rpass-missed=$(REMARKS) -Rpass-analysis=$(REMARKS)
+  endif
+endif
 # Investigation hook (ravn/llvm-z80#23): inject extra clang flags via
 # `make CLANG_EXTRA="-mllvm -z80-enable-licm -mllvm -z80-enable-cse"`.
 CLANG_CFLAGS += $(CLANG_EXTRA)

@@ -62,7 +62,7 @@ Date: 2026-04-27
   :BRIDGE_PORT before MAME launches (otherwise MAME aborts at start
   with "Connection refused" from bitbanger's first I/O).
 
-### `ravn/mame:cpnet-fast-link-remerge`
+### `ravn/mame-rc702-rc759-rc750:cpnet-fast-link-remerge`
 - `f9f1efdc1ce` — cpnet_bridge: switch to MAME-standard bitbanger
   sub-device pattern.  Removes private listener thread, mutex,
   std::atomic, std::deque buffering, and the 50 ms `select()` that
@@ -140,7 +140,7 @@ followed null_modem precisely.
 ## Open follow-ups
 
 ### Branch hygiene
-- [ ] Promote `ravn/mame:cpnet-fast-link-remerge` → `master`.
+- [ ] Promote `ravn/mame-rc702-rc759-rc750:cpnet-fast-link-remerge` → `master`.
       Slot infrastructure + bridge refactor both validated.
 - [ ] Promote `ravn/rc700-gensmedet:cpnet-pio-direct` → `main`.
       Driver, probe, netboot, banner all working end-to-end.

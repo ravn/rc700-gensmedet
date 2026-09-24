@@ -65,7 +65,7 @@ matched.
         > sdcc/cpnos_polypascal_addrs.lua
     ```
 
-  * MAME with PROM1 set to 2732/4KB.  ravn/mame master
+  * MAME with PROM1 set to 2732/4KB.  ravn/mame-rc702-rc759-rc750 master
     sets that default since session 73j-late.
 
 ## Compiler-emit caveat resolved this session

@@ -117,7 +117,7 @@ Afhængig af hvad fase 0 viser:
 
 ### Fase 3 — Pakketering
 - Doc-opdatering + memory-note. Commit på branch `rc759-82730-graphics` (samme som
-  CA/EONF-fixet). Evt. upstream til ravn/mame — **kun** efter eksplicit go-ahead
+  CA/EONF-fixet). Evt. upstream til ravn/mame-rc702-rc759-rc750 — **kun** efter eksplicit go-ahead
   (jf. `feedback_mame_upstream_routing`).
 
 ## Relateret

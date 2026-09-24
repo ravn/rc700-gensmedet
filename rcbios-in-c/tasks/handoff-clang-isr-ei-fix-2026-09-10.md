@@ -1,5 +1,21 @@
 # Handoff: clang BIOS sort skærm — ISR EI-før-RETI fix (2026-09-10)
 
+## ⭐ REPRIORITERING (bruger, 2026-09-10)
+rcbios er **for stor en klump at få på plads på én gang** givet det bredere
+PR #40-fallout. Den umiddelbare ISR-fix nedenfor er implementeret og committet
+(commit `7131371` i rc700-gensmedet), men er **PARKERET/uverificeret** indtil
+compileren igen kan bygge rcbios.
+
+**Ny prioritet:** få **alle llvm-z80-tests grønne** (lit + runtime) efter
+PR #40-merget — og **vent med oraklerne** (MAME-boot, differential firmware-size).
+Dvs. fokus flytter fra rcbios-boot til at bringe `llvm-z80` CI tilbage til grøn.
+Se `llvm-z80` — CI = `.github/workflows/z80-ci.yml` (jobs: `build-and-lit`,
+`runtime-tests`). Denne rcbios-fix genoptages FØRST når compiler-blokkeren
+(builtins + braced constraints) og den grønne testsuite er på plads.
+
+---
+
+
 ## Symptom
 clang-bygget rcbios BIOS booter til **sort skærm** (intet på skærmen).
 Brugerhypotese: `__critical`-ændringen. Bekræftet — men det er én facet af en

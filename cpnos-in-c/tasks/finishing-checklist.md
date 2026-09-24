@@ -153,7 +153,7 @@ boot.
 
 - **llvm-z80**: backlog #173 is the relevant shrink lever.  Other open
   issues (#214/#213/#212/#211/#207/#206) don't directly affect cpnos.
-- **MAME**: works on d0a7dcd ravn/mame; local upd765 `& 3` fix protects
+- **MAME**: works on d0a7dcd ravn/mame-rc702-rc759-rc750; local upd765 `& 3` fix protects
   cpnos's transport-PIO + SIO test runs against the head-bit leak (bug B)
   if any FDC seek were in play (cpnos is diskless, so this is incidental).
 - **z88dk**: SDCC builds + boots over the 2 KB cap at 2201 B; tolerated

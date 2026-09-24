@@ -102,9 +102,9 @@ Test harness:
 
 ## Related MAME PR-track state
 
-- `ravn/mame@1f2d4d000db`: rs232b FLOW_CONTROL default 0x00 → 0x01
+- `ravn/mame-rc702-rc759-rc750@1f2d4d000db`: rs232b FLOW_CONTROL default 0x00 → 0x01
   (symmetric to rs232a), so null_modem honors BIOS RTS-B.
-- `ravn/mame#5` (SIO TX hang from session 22) is subsumed by the
+- `ravn/mame-rc702-rc759-rc750#5` (SIO TX hang from session 22) is subsumed by the
   combined BIOS + rs232b fix and may be closed.
 
 ## Follow-up investigation — CP/NET vs MP/M (same session)

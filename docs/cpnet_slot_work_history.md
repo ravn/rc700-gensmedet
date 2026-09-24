@@ -4,9 +4,9 @@
 > things change.  Companions:
 > [`cpnet_fast_link.md`](cpnet_fast_link.md) (design context),
 > [`cpnet_pio_direct_design.md`](cpnet_pio_direct_design.md) (no-slot
-> alternative), [`mame-rc702-piob-slot-regression.md`](mame-rc702-piob-slot-regression.md) (ravn/mame#6 mirror, closed as not-a-bug).
+> alternative), [`mame-rc702-piob-slot-regression.md`](mame-rc702-piob-slot-regression.md) (ravn/mame-rc702-rc759-rc750#6 mirror, closed as not-a-bug).
 >
-> **Headline finding (2026-04-27)**: ravn/mame#6 was a misdiagnosis.
+> **Headline finding (2026-04-27)**: ravn/mame-rc702-rc759-rc750#6 was a misdiagnosis.
 > The slot infrastructure on PIO-B is fine.  Every "black screen / IM2
 > regression" symptom was caused by `prom1.ic65` not being loaded into
 > the rc702 prom1 ROM region.  Both the empty-slot and `-piob
@@ -56,7 +56,7 @@ guest initialization stalls — VRTC IRQ stops firing, CRT goes black,
 CCP never loads.  Without `-piob` (empty slot), cpnos-rom appeared
 to boot to A>.
 
-Filed as **[ravn/mame#6](https://github.com/ravn/mame/issues/6)**.
+Filed as **[ravn/mame-rc702-rc759-rc750#6](https://github.com/ravn/mame-rc702-rc759-rc750/issues/6)**.
 
 ### Workaround attempts (all failed)
 
@@ -135,7 +135,7 @@ ROM_LOAD_OPTIONAL for prom1.ic65 (CP/NOS resident helpers)".
 Both pass.  Slot infra and the cpnet_bridge card both work fine.
 
 **Implications**:
-- ravn/mame#6 closed as not-a-bug.
+- ravn/mame-rc702-rc759-rc750#6 closed as not-a-bug.
 - Path 2 (Einstein topology revert) was unnecessary.  PIO-A could
   go back to a slot card.
 - Path 3 (devcb / std::function bypass attempts) chased a phantom.
@@ -177,9 +177,9 @@ should be straightforward from the design doc.
 
 | Repo | Branch | Tip | Notes |
 |---|---|---|---|
-| `ravn/mame` | `master` | `b06f303737a` | Revert of merge `588658b4327`; not yet pushed (verification still pending) |
-| `ravn/mame` | `cpnet-fast-link` | `54cccdbc3af` | Slot infra + Path 2 revert; pushed |
-| `ravn/mame` | `cpnet-pio-direct` | (master tip) | No commits beyond master; design doc only in rc700-gensmedet |
+| `ravn/mame-rc702-rc759-rc750` | `master` | `b06f303737a` | Revert of merge `588658b4327`; not yet pushed (verification still pending) |
+| `ravn/mame-rc702-rc759-rc750` | `cpnet-fast-link` | `54cccdbc3af` | Slot infra + Path 2 revert; pushed |
+| `ravn/mame-rc702-rc759-rc750` | `cpnet-pio-direct` | (master tip) | No commits beyond master; design doc only in rc700-gensmedet |
 | `ravn/rc700-gensmedet` | `main` | `3c0a1b1` | Has the merged Phase 3 cpnos-rom + harness pre-redesign |
 | `ravn/rc700-gensmedet` | `cpnet-pio-direct` | (uncommitted) | `harness.py` switched mpm-net2 → `netboot_server.py`; `dump_logs.sh`; design doc |
 
@@ -208,7 +208,7 @@ should be straightforward from the design doc.
    from the design doc.  ~80 lines net change in `rc702.cpp`.
 3. **Verify the direct bridge** with the harness: byte-level
    round-trip + cpnos-rom screen renders + isr_pio_par fires.
-4. **Amend ravn/mame#6** comment to reflect "empty slot also
+4. **Amend ravn/mame-rc702-rc759-rc750#6** comment to reflect "empty slot also
    breaks cpnos for IM2-using guests".
 5. **(Eventually)** revisit the slot-on-PIO regression itself,
    either by debugging MAME's interaction or by accepting the

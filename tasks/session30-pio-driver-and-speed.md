@@ -4,7 +4,7 @@ Date: 2026-04-27
 
 ## Headline
 
-- Closed ravn/mame#6 as **misdiagnosis** — slot infrastructure on
+- Closed ravn/mame-rc702-rc759-rc750#6 as **misdiagnosis** — slot infrastructure on
   Z80-PIO works fine; the cpnos hang at `PC=0x0039` was caused by
   missing `prom1.ic65` in the rc702 rom region.
 - **0xCAFE checksum** in cpnos-rom catches missing/corrupt prom1
@@ -35,7 +35,7 @@ Date: 2026-04-27
 
 ## Commits
 
-### `ravn/mame:cpnet-fast-link-remerge` (slot work re-introduced)
+### `ravn/mame-rc702-rc759-rc750:cpnet-fast-link-remerge` (slot work re-introduced)
 - `03231d1de94` revert-the-revert: PIO slot infrastructure restored
   on a separate branch (master untouched per user instruction).
 
@@ -115,7 +115,7 @@ writes `INIT OK` (markers 0..6); `netboot_mpm.c` writes `NILOREC`
 ## Open follow-ups
 
 ### Branch hygiene
-- [ ] **Promote `ravn/mame:cpnet-fast-link-remerge` to `ravn/mame:master`** —
+- [ ] **Promote `ravn/mame-rc702-rc759-rc750:cpnet-fast-link-remerge` to `ravn/mame-rc702-rc759-rc750:master`** —
       the slot work is verified.  Currently master lacks the
       `-piob cpnet_bridge` slot device, so any cpnos work needs the
       branch checkout.  Decision: when?
@@ -125,7 +125,7 @@ writes `INIT OK` (markers 0..6); `netboot_mpm.c` writes `NILOREC`
 ### Issues filed (ravn/* forks only, per project policy)
 - [x] **ravn/llvm-z80#82** — static-stack uint16_t loop-counter
       desync (XFAIL lit test added).
-- [x] **ravn/mame#7** — Mode 1→0 transition fires stale-latch byte
+- [x] **ravn/mame-rc702-rc759-rc750#7** — Mode 1→0 transition fires stale-latch byte
       via `out_pX_callback` before any CPU OUT.
 - [x] **ravn/rc700-gensmedet#53** — `tap.lua` banner check looks at
       row 0 (decorative stars) instead of row 1 (`RC702 CP/NOS`).
@@ -192,7 +192,7 @@ clock.  Always use real-time MAME for throughput numbers.
 - [`docs/cpnet_pio_speed_results.md`](../docs/cpnet_pio_speed_results.md)
   — this session's throughput report
 - [`docs/cpnet_slot_work_history.md`](../docs/cpnet_slot_work_history.md)
-  — ravn/mame#6 misdiagnosis post-mortem (from prior session)
+  — ravn/mame-rc702-rc759-rc750#6 misdiagnosis post-mortem (from prior session)
 - `cpnos-rom/transport_pio.c` — the parallel-port driver
 - `cpnos-rom/cpnos_main.c` — speed test variants 1..4 under
   `#if PIO_SPEED_TEST == N`

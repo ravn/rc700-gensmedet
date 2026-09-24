@@ -22,7 +22,7 @@ is alive), `cpnet_bridge.cpp` (no logic changes since the 2026-05-31
 baseline), and PIO/PIO transport-consistency (both MAME's `-piob` slot
 and the bridge device are PIO-only by construction, confirmed
 consistent). A real, matching MAME PIO chip race (`mame@72c5e46c`,
-filed as `ravn/mame#11`) was found in the history but is already fixed
+filed as `ravn/mame-rc702-rc759-rc750#11`) was found in the history but is already fixed
 in the currently-built binary -- not the live cause. Two dated,
 unexamined candidates remain (`mame@7be8a027` DMA/CTC wiring;
 `mame@fb6da69a` a 1061-commit upstream merge). **Parked** as
@@ -1598,7 +1598,7 @@ topology -- the only supported slave architecture going forward
     COMPILER={clang,sdcc}` dispatches to the right pipeline; legacy
     `sdcc-prom1lineprog{,-try}` aliases preserved.
 
-  * **MAME companion changes** (ravn/mame@d0a7dcd81f2 + earlier):
+  * **MAME companion changes** (ravn/mame-rc702-rc759-rc750@d0a7dcd81f2 + earlier):
     * `ROM_LOAD_OPTIONAL prom1.ic65` size 0x800 -> 0x1000 so 4 KB
       cpnos PROM1 images load completely.
     * `PORT_CONFNAME` PROM1 default = 0x02 (2732 4KB) so bank2h
@@ -1700,7 +1700,7 @@ entry), shared by clang/SDCC × PROM1-only/two-PROM cold paths.
     cols need exactly 560 px; previous value clipped the rightmost
     ~2 chars on every row.  Verified: autoload's "SW1 12345678:
     00000000" right-justified line now shows all 8 zeros with
-    breathing room.  Committed to ravn/mame@035d29086bf.
+    breathing room.  Committed to ravn/mame-rc702-rc759-rc750@035d29086bf.
   * **Autoload cold-boot screen-clear** (`autoload-in-c/rom.c::
     display_banner_and_start_crt`): added `memset(dspstr, 0x20,
     80*25)` before the banner memcpy so display RAM doesn't show
@@ -6314,7 +6314,7 @@ Three commits after the audit:
   comparison target" to match.
 
 - **MAME side implemented** (2026-04-25, follow-on to design):
-  branches `ravn/mame:cpnet-fast-link` (slot device + bridge card)
+  branches `ravn/mame-rc702-rc759-rc750:cpnet-fast-link` (slot device + bridge card)
   and `ravn/rc700-gensmedet:cpnet-fast-link` (Z80 stub + harness).
   Three commits land the work:
   - `mame 0e6ee52260d` — `bus/rc702/pio_port/` slot infrastructure
@@ -6349,7 +6349,7 @@ Three commits after the audit:
   a generic-slot pattern that mirrors how MAME exposes RS-232 ports.
   Branch: `cpnet-fast-link`.
 
-  Final shape (4 changes in `ravn/mame`), anchored after a source
+  Final shape (4 changes in `ravn/mame-rc702-rc759-rc750`), anchored after a source
   survey of upstream MAME conventions for Z80-PIO peripherals:
 
   - **Precedent identified**: `einstein_userport_device`
@@ -6408,7 +6408,7 @@ Three commits after the audit:
   not a build-time wiring decision.  Steps (1)-(3) are also a
   credible upstream MAME contribution candidate; only the bridge
   peripheral (step 4) needs to stay fork-only.  Bridge is the
-  first concrete bring-up step — needs only a working `ravn/mame`
+  first concrete bring-up step — needs only a working `ravn/mame-rc702-rc759-rc750`
   build (already maintained) and a stub `isr_pio_par` on the Z80
   side, no Pi 4B or J3 cable required.
 
@@ -6439,7 +6439,7 @@ Three commits after the audit:
   and PIO-B as `device_single_card_slot_interface` slots in
   `rc702.cpp`.  POSIX socket listener on :4003 + listener thread +
   FIFO + emu_timer + STB pulse logic.  Filed
-  [ravn/mame#6](https://github.com/ravn/mame/issues/6) when
+  [ravn/mame-rc702-rc759-rc750#6](https://github.com/ravn/mame-rc702-rc759-rc750/issues/6) when
   `-piob cpnet_bridge` (or `-piob keyboard`) blocked cpnos-rom IM2
   IRQ delivery — VRTC stops firing, CRT goes black, CCP never loads.
 
@@ -6458,7 +6458,7 @@ Three commits after the audit:
   card plugged in, the bare `RC702_PIO_PORT(config, m_pio_b)` slot
   wrapper breaks cpnos-rom boot.  Hangs at `PC=0x0039` before its
   first SIO-A transmit, never sends ENQ, never reaches A>.  The
-  earlier "empty slot is benign" claim on ravn/mame#6 was true only
+  earlier "empty slot is benign" claim on ravn/mame-rc702-rc759-rc750#6 was true only
   for autoload-PROM CP/M floppy boot, which doesn't engage PIO-B's
   IM2 IRQ vector.  cpnos-rom uses that vector for `isr_pio_par`,
   hence sensitive.  Issue title amended.
@@ -6486,14 +6486,14 @@ Three commits after the audit:
 
 - **Painful** because three workarounds in a row didn't fix the
   underlying break, the empty-slot finding invalidated yesterday's
-  ravn/mame#6 comment, and the direct-bridge code was lost in a
+  ravn/mame-rc702-rc759-rc750#6 comment, and the direct-bridge code was lost in a
   git stash/checkout cycle and will need re-implementation.
 
 - **What survives**:
   `docs/cpnet_pio_direct_design.md`, `docs/cpnet_slot_work_history.md`
   (this work's connective tissue), `tests/cpnet_bridge/harness.py`
   switched from mpm-net2 to `netboot_server.py`,
-  `tests/cpnet_bridge/dump_logs.sh`, the ravn/mame#6 issue mirror
+  `tests/cpnet_bridge/dump_logs.sh`, the ravn/mame-rc702-rc759-rc750#6 issue mirror
   `docs/mame-rc702-piob-slot-regression.md`.
 
 ### Phase 27: IRQ-driven snios-on-PIO + 3-way bench (Apr 28, 2026) — Hard
@@ -6526,7 +6526,7 @@ Three commits after the audit:
 - **MAME-side issue uncovered**: Mode 1 entry doesn't auto-raise
   BRDY (Zilog datasheet says it should, 2 cycles after mode select).
   Bridge's optimistic-init `m_brdy_high=true` self-bootstraps via
-  `set_mode(OUTPUT)` callback.  Filed **ravn/mame#8**.
+  `set_mode(OUTPUT)` callback.  Filed **ravn/mame-rc702-rc759-rc750#8**.
 - **Banner reorder**: signon now prints BEFORE `NETBOOT()` so the
   screen layout is row 0 = banner, row 1 = netboot progress dots,
   row 2 = blank, row 3 = `A>`.  Wire-mode banner tag extended from
@@ -6971,7 +6971,7 @@ step.  Generic enough to extract any RC700 5.25" mini disk.
 - **Branches**: `ravn/rc700-gensmedet:pio-mpm-netboot` (commits
   `62c2b61` proxy WIP, `20d9203` snios-PIO experiment, `7a50843`
   initial comparison report, `ba9277c` init.c IE-off, `4afa036`
-  deeper-investigation report).  `ravn/mame:master` (`9c2cbb4e1a9`
+  deeper-investigation report).  `ravn/mame-rc702-rc759-rc750:master` (`9c2cbb4e1a9`
   rdy_w fix — landed directly to master since merged from earlier
   Phase 25 work).
 
@@ -7034,7 +7034,7 @@ step.  Generic enough to extract any RC700 5.25" mini disk.
   - PIO is now **7.4× faster than SIO in MAME**, projects to
     ~40× on real hardware.
 - **Branches**: `ravn/rc700-gensmedet:cpnet-pio-direct` (commits
-  `46b5479…3f30d8f`); `ravn/mame:cpnet-fast-link-remerge`
+  `46b5479…3f30d8f`); `ravn/mame-rc702-rc759-rc750:cpnet-fast-link-remerge`
   (`f9f1efdc1ce` — the bitbanger refactor).  Master/main untouched.
 
 ### Phase 24: Option P parallel-port driver + throughput bench (Apr 27, 2026) — Medium
@@ -7046,7 +7046,7 @@ step.  Generic enough to extract any RC700 5.25" mini disk.
   around explicitly:
   1. `set_mode(MODE_OUTPUT)` immediately fires `out_pX_callback` with
      stale `m_output` — leading 0x00 prefix on first Mode 1→0
-     transition.  Filed as ravn/mame#7.
+     transition.  Filed as ravn/mame-rc702-rc759-rc750#7.
   2. Mode 0 STB pulses set `m_ip` even with `m_ie=false`.  Plain
      `0x83` IE-enable on Mode 1 entry causes a spurious IRQ.  Fixed
      with ICW + mask-follows (0x97 + 0x00) which atomically clears
@@ -7073,7 +7073,7 @@ step.  Generic enough to extract any RC700 5.25" mini disk.
   ravn/rc700-gensmedet#54.
 - **Boot markers** moved to row 0 cols 60-78 (upper-right) so they
   survive the nos_handoff banner overwrite on row 1.
-- **Issues filed**: ravn/llvm-z80#82, ravn/mame#7,
+- **Issues filed**: ravn/llvm-z80#82, ravn/mame-rc702-rc759-rc750#7,
   ravn/rc700-gensmedet#53 (tap.lua banner check on wrong row),
   ravn/rc700-gensmedet#54 (recv_byte ring path unusable).
 - **Branch**: all on `cpnet-pio-direct`; `2517ba0` is the throughput
@@ -8370,7 +8370,7 @@ notes B21 (stride-IV) + B22 (variable-shift-by-IV) + "LSR is Harmful" beneficial
 usecase annotation.
 
 **RC752 monitor aspect:** measured active area 230×165 mm → aspect 1.394 (PAR
-0.685).  ravn/mame `rc702.lay` fixed from a "midpoint PAR" compromise (around a
+0.685).  ravn/mame-rc702-rc759-rc750 `rc702.lay` fixed from a "midpoint PAR" compromise (around a
 mis-computed 4:3 = 608×550=1.105) to the true **736:528 = 230:165**.
 
 **datamuseum archaeology (RC700 family):**
@@ -8572,7 +8572,7 @@ and rc700-gensmedet pushed to origin main; #247 closed.
 
 ## Session 2026-07-08 — z80pio stuck-IUS fix + cpnet_bridge 8-bit-clean
 
-**Outcome:** Two ravn/mame commits; upstream mamedev/mame issue filed; rcbios
+**Outcome:** Two ravn/mame-rc702-rc759-rc750 commits; upstream mamedev/mame issue filed; rcbios
 CP/NET PIO transfer now flows without stalling.
 
 ### cpmtools3/libdsk heap overflow (session open, resolved early)
@@ -8580,7 +8580,7 @@ libdsk `dsk_defgetgeom` segfault: `secbuf` was realloc'd to geom->dg_secsize
 after re-reading, not before → heap overflow on oversized reads. Fixed in
 ravn/libdsk, PR filed to lipro-cpm4l/libdsk.
 
-### ravn/mame 12ea19d0 — cpnet_bridge 8-bit-clean
+### ravn/mame-rc702-rc759-rc750 12ea19d0 — cpnet_bridge 8-bit-clean
 `read()` on empty FIFO returned `0xff` sentinel. Fixed to return `m_last_byte`
 (last real byte). Login→H> dropped from 58s/flaky to ~2.9s clean. The old
 0xff was vestigial from the polled cpnos-rom path; the IRQ-driven snios.asm
@@ -8598,12 +8598,12 @@ so B.ius blocked B itself. After the first Mode-0→Mode-1 flip during CP/NET
 ACK, B.ius stuck at 1 → every subsequent byte set B.ip=1 but IRQ suppressed
 → ISR_PIO_RX never ran → ring froze → deadlock.
 
-### ravn/mame 2eb88cea — z80pio check_interrupts fix
+### ravn/mame-rc702-rc759-rc750 2eb88cea — z80pio check_interrupts fix
 Replace global `ius` flag with `ius_above` scanned A→B: each port gated only
 by higher-priority ports. B.ius no longer blocks B.ip. Correct Z80 daisy-chain
-model. Filed upstream: ravn/mame#13 (upstream candidate).
+model. Filed upstream: ravn/mame-rc702-rc759-rc750#13 (upstream candidate).
 
-**Verified:** 28 436 CP/NET bytes delivered without stalling; ravn/mame#9 closed.
+**Verified:** 28 436 CP/NET bytes delivered without stalling; ravn/mame-rc702-rc759-rc750#9 closed.
 
 ### Speed analysis — z80pack 10ms poll cycle
 Attempted: `-video none -sound none` (no effect), z80pack `-f0` (0.3x vs 4.3x,
@@ -8638,7 +8638,7 @@ CY from `RECVBY` so `MSGIN`'s existing `RET C` guards are no longer dead code.
 
 ### Why it works now
 Two fixes compounded:
-1. **z80pio `check_interrupts`** (ravn/mame `2eb88cea`): ISR_PIO_RX now fires
+1. **z80pio `check_interrupts`** (ravn/mame-rc702-rc759-rc750 `2eb88cea`): ISR_PIO_RX now fires
    correctly for every byte.  Root cause of the deadlock.
 2. **RECVBY_PIO timeout** (snios.asm `8f64d9d`): even if a byte is lost,
    RECVBY returns TIMEOUT so RECALL retries.  Explains 750s→16s: without
@@ -8864,7 +8864,7 @@ sdcc is MAME-only secondary, clang is production. Fix (shave >= 28 B) deferred.
 
 ## 2026-08-31 — RC759 MAME: screensaver fix + 82730 dead-code cleanup
 
-Branch `rc759-82730-graphics` merged to ravn/mame master (`d96b498`). Four
+Branch `rc759-82730-graphics` merged to ravn/mame-rc702-rc759-rc750 master (`d96b498`). Four
 commits: (1) correct char-gen-framebuffer graphics rendering (Myresnak △ oracle
 PASS); (2) frame-interrupt clamp fix (Myresnak BB/HENT/HUSK freeze, #31 CLOSED);
 (3) dead `m_gfx_mode`/`set_gfx_mode` removed (#30 CLOSED); (4) EOF + BLK_ROW
@@ -8882,7 +8882,7 @@ Intensify correction), #35 (field_attribute_mask), #36 (Intensify/palette).
 Attribute survey from PICCOLINE/PARTNER guides: Underline, Non-Displayed, Reverse,
 Blink (all CA bits), Intensify (palette IRGB bit 3 — NOT a CA bit).
 
-Open for next session: ravn/mame#29 (GSX interactive drawing pages), #33-#36
+Open for next session: ravn/mame-rc702-rc759-rc750#29 (GSX interactive drawing pages), #33-#36
 (remaining unimplemented 82730 attributes), #32 (NVRAM mapping), #28-adjacent
 (blød rulning #23).
 

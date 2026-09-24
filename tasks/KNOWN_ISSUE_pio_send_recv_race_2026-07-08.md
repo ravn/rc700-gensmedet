@@ -1,8 +1,8 @@
 # KNOWN ISSUE — CP/NET PIO SEND→RECV mode-flip race (2026-07-08)
 
-**Status:** **FIXED 2026-07-08** — ravn/mame commit `2eb88cea` (z80pio:
+**Status:** **FIXED 2026-07-08** — ravn/mame-rc702-rc759-rc750 commit `2eb88cea` (z80pio:
 fix `check_interrupts` — port N.ius must not block port N itself). Filed
-upstream as ravn/mame#13 (upstream candidate). Transfer now flows without stalling (28 436+
+upstream as ravn/mame-rc702-rc759-rc750#13 (upstream candidate). Transfer now flows without stalling (28 436+
 bytes); remaining constraint is z80pack's 10 ms I/O poll speed (see speed
 analysis section below), tracked in ravn/rc700-gensmedet#123.
 
@@ -15,7 +15,7 @@ point is **non-deterministic** (observed at ~41 % and ~82 % of PPAS.COM in
 different runs), which is the fingerprint of a low-probability timing race
 that a long transfer eventually trips.
 
-This is **independent of the 8-bit-clean bridge change** (ravn/mame
+This is **independent of the 8-bit-clean bridge change** (ravn/mame-rc702-rc759-rc750
 `12ea19d0`) — it reproduces identically on the prior 0xff-sentinel bridge.
 It is a property of the PIO handshake + the slave's non-atomic mode flip.
 
@@ -63,7 +63,7 @@ more because BRDY is stuck low.
 touching the ready line — unlike `set_mode(MODE_OUTPUT)` which asserts
 BRDY. So Mode-1 entry gives the bridge no `rdy_w` edge to synchronise on;
 the bridge is left guessing via the 1 ms poll, and the poll can fire mid-
-reconfiguration. See the `ravn/mame#8` note already in
+reconfiguration. See the `ravn/mame-rc702-rc759-rc750#8` note already in
 `cpnet_bridge.cpp::poll_tick` ("MAME doesn't auto-raise BRDY on Mode-1
 entry per Zilog datasheet").
 
@@ -168,7 +168,7 @@ sentinel stall), `cpnos-in-c/tasks/KNOWN_ISSUE_polypascal_alternation_2026-07-07
 
 ## Speed analysis — why the MAME test still takes ~750 s wall (2026-07-08)
 
-The z80pio `check_interrupts` fix (ravn/mame `2eb88cea`) eliminates the
+The z80pio `check_interrupts` fix (ravn/mame-rc702-rc759-rc750 `2eb88cea`) eliminates the
 stuck-IUS deadlock.  The transfer now flows continuously (28 436+ bytes
 delivered), but the test harness needs ~20 minutes wall time.
 

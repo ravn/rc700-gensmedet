@@ -1042,7 +1042,7 @@ trace forks to both pins. See CTC section for details.
 
 **MAME emulation:** rc702.cpp originally used `z80dart_device` (Z80-DART,
 async only) instead of `z80sio_device`. Fixed locally, filed as
-ravn/mame#3. The DART variant silently rejects sync mode programming.
+ravn/mame-rc702-rc759-rc750#3. The DART variant silently rejects sync mode programming.
 
 ### Serial Baud Rate Limits
 

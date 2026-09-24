@@ -115,7 +115,7 @@ confirming the real clock.
   8+ ones = idle-mark).
 - [ ] Scope measurement of the Z80-CTC CLK pin on PCB530 to settle
   the 4-vs-5-vs-8-MHz question.
-- [ ] File ravn/mame issue: PCB530 CTC clock rate differs from the
+- [ ] File ravn/mame-rc702-rc759-rc750 issue: PCB530 CTC clock rate differs from the
   4 MHz in rc702.cpp (pending scope confirmation).
 - [ ] MAME `ftdi_readstream` path is unusable on FT2232D; any
   attempt to bit-bang over 200 kHz on this adapter will drop data.

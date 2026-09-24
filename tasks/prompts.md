@@ -26,8 +26,8 @@
 - explain "case discriminant"
 - please add a test for this bug
 - fact: Whenever you identify a bug in the compiler, always add a test
-- add an issue to ravn/mame
-- enable issues on ravn/mame
+- add an issue to ravn/mame-rc702-rc759-rc750
+- enable issues on ravn/mame-rc702-rc759-rc750
 - now what?
 - 2 (commit)
 - now what?

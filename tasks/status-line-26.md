@@ -10,7 +10,7 @@ visible flicker during cold boot. We pushed three feature branches with
 the working implementation in case we want to come back to this:
 
 - `ravn/rc700-gensmedet @ status-line-26`
-- `ravn/mame @ status-line-26-dual-dma`
+- `ravn/mame-rc702-rc759-rc750 @ status-line-26-dual-dma`
 - `ravn/z80-compiler-suite-workspace @ status-line-26`
 
 ## Hardware mechanism (RC700 dual-DMA CRTC)

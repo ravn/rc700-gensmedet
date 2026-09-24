@@ -32,7 +32,7 @@ Total: ~76 seconds emulated time at ~340% speed.
 | Incorrect .COM from LOAD | LOAD can't merge base + hex overlay | Use MLOAD instead |
 | Lua crash on hard_reset | CPU spaces nil during reset | pcall wrapper in mem_read |
 
-### MAME driver changes (ravn/mame)
+### MAME driver changes (ravn/mame-rc702-rc759-rc750)
 
 - `rc702.cpp`: SIO-A defaults changed to 38400 8N1 with RTS flow control
 - `rc702.cpp`: SIO-B defaults added (38400 8N1, null_modem)

@@ -123,7 +123,7 @@ Both inherit the **old assembly BIOS pattern** (1) above: program ch3 mode + wc=
 
 ## MAME modeling
 
-The ravn/mame fork's `src/mame/regnecentralen/rc702.cpp` driver models the schematic wiring as of 2026-06-14:
+The ravn/mame-rc702-rc759-rc750 fork's `src/mame/regnecentralen/rc702.cpp` driver models the schematic wiring as of 2026-06-14:
 
 | Schematic component | MAME wiring |
 |---|---|

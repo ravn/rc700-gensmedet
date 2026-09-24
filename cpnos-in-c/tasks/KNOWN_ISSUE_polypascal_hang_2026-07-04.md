@@ -78,7 +78,7 @@ in the transport byte-shuttle itself.
    consistently PIO.
 
 6. **A previously real, matching MAME bug (`z80pio.cpp`,
-   `mame@72c5e46c`, 2026-06-13, filed as `ravn/mame#11`)**: MAME's
+   `mame@72c5e46c`, 2026-06-13, filed as `ravn/mame-rc702-rc759-rc750#11`)**: MAME's
    `z80pio_device::pio_port::set_mode(MODE_OUTPUT)` used to fire the
    output callback (which can call back into the chip via
    `strobe_w()`, exactly what `cpnet_bridge::write()` does to
@@ -189,7 +189,7 @@ cpmsim.  screen is retained for the launch because cpmsim needs a PTY on its
 console stdin (a plain `</dev/null` EOFs the MP/M console into a busy-loop that
 starves the CP/NET server — verified).
 
-## STILL OPEN (PIO only): cpnet_bridge byte delivery — ravn/mame#6
+## STILL OPEN (PIO only): cpnet_bridge byte delivery — ravn/mame-rc702-rc759-rc750#6
 
 With the ping fix, `TRANSPORT=pio-irq` still fails: the slave boots (banner) but
 the `cpnet_bridge` MAME PIO-B slot device delivers the slave's first byte to the

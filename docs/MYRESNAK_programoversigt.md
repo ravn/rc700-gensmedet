@@ -122,7 +122,7 @@ POLYSTEP(S,V) POLYSTEP(T,U) POLYTO(S,V,T,U)
 ## Relateret
 
 - MAME-fix for BB/HENT/HUSK-frys (82730 frame-interrupt tabt når felt højere end
-  frame): `mame` branch `rc759-82730-graphics`, `i82730.cpp`; ravn/mame#31.
+  frame): `mame` branch `rc759-82730-graphics`, `i82730.cpp`; ravn/mame-rc702-rc759-rc750#31.
   Fuld analyse + channel-attention-kommandosæt: `RC759_82730_channel_attention.md`.
 - MYRESNAKs farvestøtte er tiltænkt som **orakel** for RC759-farveskærm med mere
   end 2 farveværdier (senere arbejde).

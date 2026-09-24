@@ -186,7 +186,7 @@ Empirical findings worth remembering:
   the 19.6608 MHz video master).  Needs scope verification.
 - **MAME's rc702 clock model may be incorrect for this board.**
   `Z80CTC(config, m_ctc1, 8_MHz_XTAL / 2)` → 4 MHz.  PCB530 appears
-  to be different.  Worth filing a follow-up to ravn/mame once the
+  to be different.  Worth filing a follow-up to ravn/mame-rc702-rc759-rc750 once the
   scope measurement confirms the real rate.
 - **FT2232D async bit-bang max throughput is well under 1 MHz in
   practice.**  Requested sample rate 1 MHz, observed effective rate

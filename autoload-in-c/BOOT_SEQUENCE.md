@@ -127,7 +127,7 @@ The read count is bounded by `INTVEC_ADDR` (autoload's own RAM code base at
 > Verified 2026-07-01 with `test-disks/RC700_Comal.imd`: the load matches the
 > disk tracks (98.6 %; the rest is COMAL's own workspace after entry) and COMAL
 > reaches its interactive `*` prompt.  Running a program is currently blocked by
-> a MAME rc702 motor-model bug (`ravn/mame#12`), not by autoload.
+> a MAME rc702 motor-model bug (`ravn/mame-rc702-rc759-rc750#12`), not by autoload.
 
 ### PROM1 line program (fallback)
 When no bootable/ready floppy is present (drive not ready, format undetectable,

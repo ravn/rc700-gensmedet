@@ -7,7 +7,7 @@ understøtter, samt rodårsag og rettelse af MYRESNAK-frysningen på `BB`/`HENT`
 Kilder (verificeret denne session):
 - `mame/src/devices/video/i82730.cpp` — selve enheden.
 - `mame/src/mame/regnecentralen/rc75x.cpp`, `rc759.cpp`, `rc750.cpp` — driverne.
-- Fix-commit `2a4b21cdbdb` på branch `rc759-82730-graphics` (`Fixes: ravn/mame#31`).
+- Fix-commit `2a4b21cdbdb` på branch `rc759-82730-graphics` (`Fixes: ravn/mame-rc702-rc759-rc750#31`).
 
 ---
 
@@ -158,7 +158,7 @@ Verificeret: `BB`, `HENT`, `HUSK` samt normal boot fungerer efter rettelsen.
 
 ### Status
 Committet lokalt (`2a4b21cdbdb`, branch `rc759-82730-graphics`,
-`Fixes: ravn/mame#31`). **Ikke pushet; issue ikke lukket** — kræver eksplicit
+`Fixes: ravn/mame-rc702-rc759-rc750#31`). **Ikke pushet; issue ikke lukket** — kræver eksplicit
 go-ahead før upstream-handling.
 
 ---

@@ -194,7 +194,7 @@ cfg that MAME saves on exit and reloads on start).
 
 - Separate from the ping-wedge (#119) fixed 2026-07-06 (that was 100% fail; this
   is the residual ~50% alternation).
-- PIO transport is separately blocked by ravn/mame#6 (reopened 2026-07-07) — the
+- PIO transport is separately blocked by ravn/mame-rc702-rc759-rc750#6 (reopened 2026-07-07) — the
   MAME `cpnet_bridge` PIO-B device. SIO (this doc) has NO bridge — MAME connects
   directly to the socket — and is the working transport in MAME.
 

@@ -167,5 +167,5 @@ make COMPILER=sdcc prom
 - **clang (production)**: native llvm-z80 toolchain at
   `../../llvm-z80/build-macos/bin/` (`make toolchain` in workspace
   root).
-- **MAME**: ravn/mame fork submodule at `../../mame/`; rc702 driver.
+- **MAME**: ravn/mame-rc702-rc759-rc750 fork submodule at `../../mame/`; rc702 driver.
 - **SDCC parity (optional)**: Docker + `z88dk:2.4` image.
