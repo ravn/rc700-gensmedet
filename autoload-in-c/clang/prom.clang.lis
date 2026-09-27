@@ -1,5 +1,5 @@
 
-clang/prom.clang.elf:	file format elf32-unknown
+clang/prom.clang.elf:	file format elf32-z80
 
 Disassembly of section .boot:
 
@@ -1975,9 +1975,9 @@ Disassembly of section .text:
     6fb8: 20 52 43 37 30 30 20 52          RC700 R
     6fc0: 4f 41 33 37 35 20 43 4c         OA375 CL
     6fc8: 20 32 30 32 36 2d 30 39          2026-09
-    6fd0: 2d 32 37 20 32 33 2e 34         -27 23.4
-    6fd8: 31 20 37 38 31 63 65 33         1 781ce3
-    6fe0: 66 2f 72 61 76 6e 00            f/ravn.
+    6fd0: 2d 32 37 20 32 33 2e 35         -27 23.5
+    6fd8: 36 20 39 64 65 30 61 35         6 9de0a5
+    6fe0: 39 2f 72 61 76 6e 00            9/ravn.
 
 00006fe7 <__code_end>:
     6fe7: 78           	ld	a,b
