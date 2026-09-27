@@ -8,16 +8,12 @@ is **https://github.com/ravn/AGENTS.md**; the copy in any project root is a mirr
 When a genuinely cross-project rule emerges, edit the canonical first and then
 propagate the same edit to each project root.
 
-**Staleness check.** At the start of a coding session — or whenever something in
-this file feels out of step with how I'm asking you to work today — fetch
-`https://raw.githubusercontent.com/ravn/AGENTS.md/main/AGENTS.md` and diff it
-against the local copy. If they differ, surface the diff and let me decide
-whether to sync before continuing.
+## Session startup protocol (MANDATORY)
 
-**Project-specific setup, constraints, build commands, and status — when the project
-has them — live in a `PROJECT.md` alongside this file** (and in `CLAUDE.md`, which
-Claude Code reads for the fullest live detail). If neither is present, this file is
-the whole brief.
+Before taking ANY action, running ANY command, writing ANY code, or answering any task:
+1. **Durable project constraints:** Check if `CLAUDE.md` exists in the workspace root. If so, read it immediately.
+2. **Durable memory:** Check if `tasks/memory/` (specifically `tasks/memory/MEMORY.md`) exists. If so, read it immediately and respect all recorded feedback, hard constraints, and rules. If neither is present, `PROJECT.md` or this file is the whole brief.
+3. **Staleness check:** At the start of a coding session — or whenever something in this file feels out of step with how I'm asking you to work today — fetch `https://raw.githubusercontent.com/ravn/AGENTS.md/main/AGENTS.md` and diff it against the local copy. If they differ, surface the diff and let me decide whether to sync before continuing.
 
 ---
 
@@ -92,6 +88,10 @@ the whole brief.
   one-statement body, an identifier whose name already says it — no comment
   needed. The goal is to spare the reader reverse-engineering, not to
   paper every line.
+- **Be concise — no wordy essays or historical exposition in code comments.**
+  State WHAT and WHY in 1-3 lines. Do not narrate project history, rejected
+  alternatives, or lengthy background stories in source comments. Comments are
+  for reading the code today, not an archive of how it was developed.
 
 ## GitHub bodies
 
