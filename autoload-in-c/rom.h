@@ -119,12 +119,13 @@ typedef uint16_t word;
  * Z80 port I/O — inline IN/OUT on all backends
  * ================================================================
  *
- * DEFPORT(name, addr) generates per-port inline functions:
- *   port_in_##name()      — reads port, returns uint8_t
- *   port_out_##name(val)  — writes val to port
+ * DEFPORT(name, addr) declares a port address constant `name`;
+ * port_in(name) / port_out(name, val) then do the actual IN/OUT.
  *
  * All backends produce inline IN A,(n) / OUT (n),A — 2 bytes each.
- *   clang:       __attribute__((address_space(2))) pointer dereference
+ *   clang:       inline asm with "a"/"i" constraints (accumulator +
+ *                immediate port), letting the register allocator place
+ *                the value/result instead of forcing a memory access
  *   sdcc/sccz80: static __sfr __at inside inline function body
  *   other:       no-op stubs for IDE indexing
  *
@@ -133,18 +134,26 @@ typedef uint16_t word;
  */
 
 #if defined(__z80__)
-/* Port I/O via address_space(2) — the compiler lowers pointer dereferences
- * in address space 2 to Z80 IN A,(n) / OUT (n),A instructions. */
-#define __io __attribute__((address_space(2)))
-#define DEFPORT(name, addr) \
-    static inline uint8_t port_in_##name(void) { \
-        return *(volatile __io uint8_t *)(uint8_t)(addr); \
-    } \
-    static inline void port_out_##name(uint8_t val) { \
-        *(volatile __io uint8_t *)(uint8_t)(addr) = val; \
-    }
-#define port_in(name)       port_in_##name()
-#define port_out(name, val) port_out_##name(val)
+/* Port I/O via inline asm.  Previously this used a volatile
+ * __attribute__((address_space(2))) pointer dereference, which the
+ * legalizer could not lower for a plain (non-address_space) G_STORE
+ * feeding it (ravn/llvm-z80 crash: "unable to legalize instruction:
+ * G_STORE ... addrspace 2" in fdc_write_when_ready) — reproduced with
+ * the exact production build flags (-Oz +static-frame +shadow-regs),
+ * not just -O2.  Inline asm with "a" (accumulator) / "i" (immediate
+ * port) constraints asks for exactly the two real Z80 instructions
+ * and sidesteps the address-space legalizer path entirely.
+ * DEFPORT just binds `name` to the port number (an enum constant, so
+ * it's usable as the "i" immediate operand below) — no per-port
+ * function is generated. */
+#define DEFPORT(name, addr) enum { name = (addr) };
+#define port_in(name) ({ \
+    uint8_t _r; \
+    __asm__ volatile("in %0, (%1)" : "=a"(_r) : "i"((uint8_t)(name))); \
+    _r; \
+})
+#define port_out(name, val) \
+    __asm__ volatile("out (%0), %1" : : "i"((uint8_t)(name)), "a"((uint8_t)(val)))
 #elif defined(__SDCC) || defined(__SCCZ80)
 /* sdcc emits standalone copies of static inline functions even when
  * unused, wasting space in tight sections like BOOT.  Use __sfr __at
