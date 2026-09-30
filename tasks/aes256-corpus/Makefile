@@ -25,10 +25,10 @@
 # - SDCC accepts K&R natively, no flags needed.
 
 Z88DK ?= /Users/ravn/z80/z88dk
-CLANG ?= /Users/ravn/z80/llvm-z80/build-macos/bin/clang
-LLDLD ?= /Users/ravn/z80/llvm-z80/build-macos/bin/ld.lld
-LLVMOBJCOPY ?= /Users/ravn/z80/llvm-z80/build-macos/bin/llvm-objcopy
-LLVMNM ?= /Users/ravn/z80/llvm-z80/build-macos/bin/llvm-nm
+CLANG ?= /Users/ravn/z80/llvm-z80/build-macos-asserts/bin/clang
+LLDLD ?= /Users/ravn/z80/llvm-z80/build-macos-asserts/bin/ld.lld
+LLVMOBJCOPY ?= /Users/ravn/z80/llvm-z80/build-macos-asserts/bin/llvm-objcopy
+LLVMNM ?= /Users/ravn/z80/llvm-z80/build-macos-asserts/bin/llvm-nm
 TICKS ?= $(Z88DK)/bin/z88dk-ticks
 
 ZCC_ENV = ZCCCFG=$(Z88DK)/lib/config PATH=$(Z88DK)/bin:$$PATH

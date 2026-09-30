@@ -26,7 +26,7 @@ python3 -u tests/sioa_feed_and_read.py $PORT > "$WORK/tcp.log" 2>&1 &
 TCP=$!
 sleep 0.3
 
-OBJDUMP=/Users/ravn/z80/llvm-z80/build-macos/bin/llvm-objdump
+OBJDUMP=/Users/ravn/z80/llvm-z80/build-macos-asserts/bin/llvm-objdump
 KBHEAD_ADDR=$("$OBJDUMP" --triple=z80 -t clang/bios.elf 2>/dev/null | awk '/ _wb$/{print "0x"$1; exit}')
 KBBUF_ADDR=$("$OBJDUMP" --triple=z80 -t clang/bios.elf 2>/dev/null | awk '/ _kbbuf$/{print "0x"$1; exit}')
 export KBHEAD_ADDR KBBUF_ADDR

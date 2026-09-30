@@ -17,7 +17,7 @@ SW1_CONSOLE_BIT ?= 0x01
 
 # LLVM-Z80 toolchain — probe for native build, fall back to Docker
 LLVM_Z80 = $(CURDIR)/../../../llvm-z80
-B_NATIVE = $(firstword $(wildcard $(LLVM_Z80)/build-linux/bin $(LLVM_Z80)/build-macos/bin $(LLVM_Z80)/build/bin))
+B_NATIVE = $(firstword $(wildcard $(LLVM_Z80)/build-linux/bin $(LLVM_Z80)/build-macos-asserts/bin $(LLVM_Z80)/build/bin))
 
 ifneq ($(B_NATIVE),)
   # Native — use whichever build directory exists

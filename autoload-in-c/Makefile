@@ -62,7 +62,7 @@ all: prom
 .PHONY: help
 help:
 	@echo 'autoload-in-c -- ROA375 boot PROM (PROM 0).'
-	@echo 'Native llvm-z80 toolchain is auto-detected (build-linux/build-macos/build);'
+	@echo 'Native llvm-z80 toolchain is auto-detected (build-linux/build-macos-asserts/build);'
 	@echo 'no LLVM_Z80= or path args needed. Override with NATIVE=0 to use the Docker image.'
 	@echo
 	@echo 'Manual targets:'
@@ -297,7 +297,7 @@ NATIVE ?= 1
 
 ifneq ($(NATIVE),0)
   # Native build — run tools directly (probe Linux first, then macOS, then plain build/)
-  CLANG_BUILD = $(firstword $(wildcard $(LLVM_Z80)/build-linux/bin $(LLVM_Z80)/build-macos/bin $(LLVM_Z80)/build/bin))
+  CLANG_BUILD = $(firstword $(wildcard $(LLVM_Z80)/build-linux/bin $(LLVM_Z80)/build-macos-asserts/bin $(LLVM_Z80)/build/bin))
   RUN =
   CLANG_COMPILER = $(CLANG_BUILD)/clang
 else

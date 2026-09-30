@@ -40,13 +40,21 @@
  * ================================================================ */
 
 #if defined(__clang__) && defined(__z80__)
-/* clang Z80 backend: address_space(2) lowers to IN/OUT directly. */
+/* clang Z80 backend: address_space(2) lowers to IN/OUT directly for constants;
+ * runtime-selected ports use inline asm OUT (C),A / IN A,(C). */
 #define __io __attribute__((address_space(2)))
 static inline uint8_t _port_in(uint8_t p) {
-    return *(volatile __io uint8_t *)(uint16_t)p;
+    if (__builtin_constant_p(p))
+        return *(volatile __io uint8_t *)(uint16_t)p;
+    uint8_t ret;
+    __asm__ volatile ("in %0, (c)" : "=a"(ret) : "c"(p));
+    return ret;
 }
 static inline void _port_out(uint8_t p, uint8_t v) {
-    *(volatile __io uint8_t *)(uint16_t)p = v;
+    if (__builtin_constant_p(p))
+        *(volatile __io uint8_t *)(uint16_t)p = v;
+    else
+        __asm__ volatile ("out (c), %0" : : "a"(v), "c"(p));
 }
 
 #elif defined(__SDCC) || defined(__SCCZ80)

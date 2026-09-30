@@ -13,10 +13,10 @@
 # corrupts AES at -O2 -- verifier FAIL).  Its tstates/size are MEANINGLESS;
 # only the verify column matters there.
 set -uo pipefail
-CLANG=/Users/ravn/z80/llvm-z80/build-macos/bin/clang
-LLDLD=/Users/ravn/z80/llvm-z80/build-macos/bin/ld.lld
-LLVMNM=/Users/ravn/z80/llvm-z80/build-macos/bin/llvm-nm
-LLVMOBJCOPY=/Users/ravn/z80/llvm-z80/build-macos/bin/llvm-objcopy
+CLANG=/Users/ravn/z80/llvm-z80/build-macos-asserts/bin/clang
+LLDLD=/Users/ravn/z80/llvm-z80/build-macos-asserts/bin/ld.lld
+LLVMNM=/Users/ravn/z80/llvm-z80/build-macos-asserts/bin/llvm-nm
+LLVMOBJCOPY=/Users/ravn/z80/llvm-z80/build-macos-asserts/bin/llvm-objcopy
 TICKS=/Users/ravn/z80/z88dk/bin/z88dk-ticks
 HERE=$(cd "$(dirname "$0")" && pwd); cd "$HERE/sweep"
 AES_SRC=../aes256.c

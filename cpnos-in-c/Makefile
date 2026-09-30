@@ -83,14 +83,14 @@ COMPILER ?= clang
 BUILDDIR  = $(COMPILER)
 
 # Host-agnostic locator for the native llvm-z80 toolchain bin dir
-# (build-linux on sonnyboy, build-macos on the macbook, plain build/ for
+# (build-linux on sonnyboy, build-macos-asserts on the macbook, plain build/ for
 # Docker). Use this OUTSIDE the COMPILER=clang block below -- e.g.
 # qsort-build-clang and the PROM1-only sentinel extraction -- where
-# CLANG_BUILD is not in scope. NEVER hardcode an absolute or build-macos path
+# CLANG_BUILD is not in scope. NEVER hardcode an absolute or build-macos-asserts path
 # here: it breaks cross-machine (sonnyboy builds to build-linux).
 LLVMZ80_NATIVE_BIN := $(firstword $(wildcard \
     $(CURDIR)/../../llvm-z80/build-linux/bin \
-    $(CURDIR)/../../llvm-z80/build-macos/bin \
+    $(CURDIR)/../../llvm-z80/build-macos-asserts/bin \
     $(CURDIR)/../../llvm-z80/build/bin))
 
 # ----------------------------------------------------------------------
@@ -107,7 +107,7 @@ ifeq ($(COMPILER),clang)
   # ---- clang Z80 toolchain -----------------------------------------
   LLVM_Z80    = $(CURDIR)/../../llvm-z80
   CLANG_BUILD = $(firstword $(wildcard $(LLVM_Z80)/build-linux/bin \
-                                       $(LLVM_Z80)/build-macos/bin \
+                                       $(LLVM_Z80)/build-macos-asserts/bin \
                                        $(LLVM_Z80)/build/bin))
 
   CC      = $(CLANG_BUILD)/clang

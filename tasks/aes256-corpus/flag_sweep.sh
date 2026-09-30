@@ -15,10 +15,10 @@
 
 set -euo pipefail
 
-CLANG=/Users/ravn/z80/llvm-z80/build-macos/bin/clang
-LLDLD=/Users/ravn/z80/llvm-z80/build-macos/bin/ld.lld
-LLVMNM=/Users/ravn/z80/llvm-z80/build-macos/bin/llvm-nm
-LLVMOBJCOPY=/Users/ravn/z80/llvm-z80/build-macos/bin/llvm-objcopy
+CLANG=/Users/ravn/z80/llvm-z80/build-macos-asserts/bin/clang
+LLDLD=/Users/ravn/z80/llvm-z80/build-macos-asserts/bin/ld.lld
+LLVMNM=/Users/ravn/z80/llvm-z80/build-macos-asserts/bin/llvm-nm
+LLVMOBJCOPY=/Users/ravn/z80/llvm-z80/build-macos-asserts/bin/llvm-objcopy
 TICKS=/Users/ravn/z80/z88dk/bin/z88dk-ticks
 
 HERE=$(cd "$(dirname "$0")" && pwd)

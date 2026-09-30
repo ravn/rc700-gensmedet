@@ -16,7 +16,7 @@ WORKDISK  = /tmp/sem702_flip.imd
 ZCC      ?= ../../z88dk/bin/zcc
 export ZCCCFG = $(abspath ../../z88dk/lib/config)
 export PATH  := $(abspath ../../z88dk/bin):$(PATH)
-LLVMZ80EXE   ?= $(abspath ../../llvm-z80/build-macos/bin/clang)
+LLVMZ80EXE   ?= $(abspath ../../llvm-z80/build-macos-asserts/bin/clang)
 
 COM = flip_test.com
 CHKCOM   = chk_test.com

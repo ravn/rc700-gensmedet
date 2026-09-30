@@ -4,8 +4,8 @@
 # Usage: measure_aes09.sh [label]   (label only affects the temp .o name)
 set -e
 LABEL="${1:-probe}"
-CLANG=/Users/ravn/z80/llvm-z80/build-macos/bin/clang
-LLVMNM=/Users/ravn/z80/llvm-z80/build-macos/bin/llvm-nm
+CLANG=/Users/ravn/z80/llvm-z80/build-macos-asserts/bin/clang
+LLVMNM=/Users/ravn/z80/llvm-z80/build-macos-asserts/bin/llvm-nm
 HERE=$(cd "$(dirname "$0")" && pwd)
 cd "$HERE/sweep"
 "$CLANG" --target=z80 -nostdlib -ffreestanding -std=c89 -Wno-deprecated-non-prototype \

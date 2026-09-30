@@ -22,10 +22,10 @@
 # no 16-bit multiply, no division.
 
 Z88DK ?= /Users/ravn/z80/z88dk
-CLANG ?= /Users/ravn/z80/llvm-z80/build-macos/bin/clang
-LLDLD ?= /Users/ravn/z80/llvm-z80/build-macos/bin/ld.lld
-LLVMOBJCOPY ?= /Users/ravn/z80/llvm-z80/build-macos/bin/llvm-objcopy
-LLVMNM ?= /Users/ravn/z80/llvm-z80/build-macos/bin/llvm-nm
+CLANG ?= /Users/ravn/z80/llvm-z80/build-macos-asserts/bin/clang
+LLDLD ?= /Users/ravn/z80/llvm-z80/build-macos-asserts/bin/ld.lld
+LLVMOBJCOPY ?= /Users/ravn/z80/llvm-z80/build-macos-asserts/bin/llvm-objcopy
+LLVMNM ?= /Users/ravn/z80/llvm-z80/build-macos-asserts/bin/llvm-nm
 TICKS ?= $(Z88DK)/bin/z88dk-ticks
 
 # ACK (Amsterdam Compiler Kit) -- runs in Docker.
@@ -77,7 +77,7 @@ sccz80_vol.bin: $(SRCS)
 	@test -f sccz80_vol.bin || (echo "sccz80_vol.bin missing"; false)
 
 # ---------- clang ----------
-CLANG_RT_DIR = /Users/ravn/z80/llvm-z80/build-macos/lib/z80/elf-runtime/builtins
+CLANG_RT_DIR = /Users/ravn/z80/llvm-z80/build-macos-asserts/lib/z80/elf-runtime/builtins
 CLANG_FLAGS = --target=z80 -Oz -nostdlib -ffreestanding
 
 reset_clang.s:

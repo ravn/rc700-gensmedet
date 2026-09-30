@@ -24,7 +24,7 @@
 
 # ---- Tool / path configuration (override on the command line if needed) ----
 Z80ROOT      ?= /Users/ravn/z80
-LLVMZ80_CLANG?= $(Z80ROOT)/llvm-z80/build-macos/bin/clang
+LLVMZ80_CLANG?= $(Z80ROOT)/llvm-z80/build-macos-asserts/bin/clang
 Z88DK_BIN    ?= $(Z80ROOT)/z88dk/bin
 ZCCCFG       ?= $(Z80ROOT)/z88dk/lib/config
 CPMTOOLS_BIN ?= $(HOME)/.local/bin

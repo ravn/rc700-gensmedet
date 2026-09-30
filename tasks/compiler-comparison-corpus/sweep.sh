@@ -36,7 +36,7 @@ cd "$HERE"
 mkdir -p sweep
 cd sweep
 
-LLVM_Z80=/Users/ravn/z80/llvm-z80/build-macos
+LLVM_Z80=/Users/ravn/z80/llvm-z80/build-macos-asserts
 CLANG=$LLVM_Z80/bin/clang
 LLDLD=$LLVM_Z80/bin/ld.lld
 LLVMOBJCOPY=$LLVM_Z80/bin/llvm-objcopy

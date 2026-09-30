@@ -114,7 +114,7 @@ all: bios size
 .PHONY: help
 help:
 	@echo 'rcbios-in-c -- CP/M BIOS in C (clang / llvm-z80).'
-	@echo 'Native llvm-z80 toolchain is auto-detected (build-linux/build-macos/build).'
+	@echo 'Native llvm-z80 toolchain is auto-detected (build-linux/build-macos-asserts/build).'
 	@echo
 	@echo 'Manual targets:'
 	@echo '  make bios         build the BIOS (clang)'
@@ -655,7 +655,7 @@ BAUD_MAME = $(BAUD_MAME_$(BAUD_IDX))
 siob-baud: bios
 	@echo "=== SIO-B baud rate test (idx=$(BAUD_IDX)) ==="
 	@# Generate address include from current BIOS ELF
-	@LLVMNM=$(firstword $(wildcard $(LLVM_Z80)/build-linux/bin/llvm-nm $(LLVM_Z80)/build-macos/bin/llvm-nm $(LLVM_Z80)/build/bin/llvm-nm)); \
+	@LLVMNM=$(firstword $(wildcard $(LLVM_Z80)/build-linux/bin/llvm-nm $(LLVM_Z80)/build-macos-asserts/bin/llvm-nm $(LLVM_Z80)/build/bin/llvm-nm)); \
 	 WB=$$($$LLVMNM $(BIOS_ELF) | awk '/_wb$$/{print "0x"$$1}'); \
 	 RXBUF=$$($$LLVMNM $(BIOS_ELF) | awk '/_rxbuf_b$$/{print "0x"$$1}'); \
 	 printf '; Auto-generated from %s/bios.elf — do not edit\n' $(COMPILER) > siob_bios_addrs.inc; \

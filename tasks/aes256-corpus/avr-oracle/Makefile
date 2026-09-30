@@ -8,7 +8,7 @@
 # step are batched in a single container invocation per target.  Compile
 # (clang, host-native) is separate because clang is on the host.
 
-CLANG    ?= /Users/ravn/z80/llvm-z80/build-macos/bin/clang
+CLANG    ?= /Users/ravn/z80/llvm-z80/build-macos-asserts/bin/clang
 AES_SRC  := ../aes256.c
 MCU      := atmega328p
 HERE     := $(CURDIR)

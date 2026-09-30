@@ -15,7 +15,7 @@ BASE="$Z80ROOT/rc700-gensmedet/autoload-in-c/test-disks/SW1711-I8.imd"
 ORACLE=snap/gfxtest-sccz80.png
 RESULT=opt_sweep_results.txt
 
-mkdir -p "$TOOLS"; ln -sf "$Z80ROOT/llvm-z80/build-macos/bin/clang" "$TOOLS/llvmz80-clang"
+mkdir -p "$TOOLS"; ln -sf "$Z80ROOT/llvm-z80/build-macos-asserts/bin/clang" "$TOOLS/llvmz80-clang"
 : > "$RESULT"
 printf "%-6s %-14s %8s %8s %10s %10s %s\n" opt "clang-opt" size frame draw_s onpix match | tee -a "$RESULT"
 
