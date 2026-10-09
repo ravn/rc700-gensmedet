@@ -1,1 +1,2 @@
 - [No timeout on macOS](feedback_no_timeout_on_macos.md) — use `perl -e 'alarm shift; exec @ARGV' N cmd` to guard hangable ntvcm runs
+- **[const char* vs const byte* in comparisons](feedback_const_char_vs_byte_sign_extension.md) — HARD: mixed-sign byte loop → sign-extension → bloat; ALL comparison params must be `const byte *`**
