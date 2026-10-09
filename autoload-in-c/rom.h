@@ -293,9 +293,7 @@ static inline void set_i_reg(byte page) { (void) page; }
  * Stuff in boot.c
  * ================================================================ */
 
-void fdc_write_when_ready(byte val);
-byte fdc_read_when_ready(void);
-void delay(byte outer, byte inner);
+/* delay — static in rom.c (boot_rom.c has its own copy) */
 
 /* ================================================================
  * Boot state — extern declarations
@@ -364,31 +362,12 @@ extern byte error_saved;      /* saved error code */
 
 /* init — init_pio/ctc/dma/crt/fdc are all static in rom.c */
 
-/* fmt */
-void lookup_sectors_and_gap3_for_current_track(void);
-
-void calc_size_of_current_track(void);
-
-/* fdc */
-void fdc_sense_interrupt(void);
-/* fdc_seek: static in rom.c (single call site) */
-void fdc_read_result(void);
-byte fdc_select_drive_cylinder_head(void);
-void fdc_write_full_cmd(byte cmd);
-byte wait_fdc_ready(byte timeout);
-byte check_fdc_result(void);
-byte fdc_get_result_bytes(byte cmd, byte retries);
-byte fdc_detect_sector_size_and_density(void);
+/* fmt, fdc — all static in rom.c */
 
 /* boot */
 /* display_banner_and_start_crt: static in rom.c (single call site) */
-void error_display_halt(byte code);
-void floppy_legacy_boot(void);
-void prom1_if_present(void);
-NORETURN void halt_forever(void);
-byte compare_6bytes(const byte *a, const byte *b);
-byte check_sysfile(const byte *dir, const char *pattern);
-void syscall(word addr, word de);
+/* error_display_halt, floppy_legacy_boot, prom1_if_present, halt_forever,
+ * compare_6bytes, check_sysfile, syscall — all static in rom.c */
 
 /* entry points and linker-visible symbols */
 void start(void);

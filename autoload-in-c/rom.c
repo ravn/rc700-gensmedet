@@ -23,9 +23,13 @@
 #include <string.h>
 #include "rom.h"
 
+/* Forward declarations for static functions used before their definitions. */
+static void __no_recurse error_display_halt(byte code);
+static void __no_recurse floppy_legacy_boot(void);
+
 /* Wait for FDC ready-to-write, then write val to data register.
  * Polls MSR until RQM=1 and DIO=0 (CPU->FDC direction). */
-void fdc_write_when_ready(byte val) {
+static void __no_recurse fdc_write_when_ready(byte val) {
     word t = 0;
     do {
         if ((fdc_status() & 0b11000000) == 0b10000000) {
@@ -39,7 +43,7 @@ void fdc_write_when_ready(byte val) {
  * Polls MSR until RQM=1 and DIO=1 (FDC->CPU direction).
  * Returns 0xFF on timeout (instead of valid data).
  */
-byte fdc_read_when_ready(void) {
+static byte __no_recurse fdc_read_when_ready(void) {
     word t = 0;
     do {
         if ((fdc_status() & 0b11000000) == 0b11000000) {
@@ -74,7 +78,7 @@ extern void z80_delay_ms(unsigned int ms);
 
 /* Short runtime-variable delay for FDC timing (fdc_result_delay, fdc_isr_delay).
  * delay(0, N) is a no-op (outer=0 returns immediately). */
-void delay(byte outer, byte inner) {
+static void __no_recurse delay(byte outer, byte inner) {
     if (!outer) return;
     do {
         byte mid = inner;
@@ -101,7 +105,7 @@ void delay(byte outer, byte inner) {
 
 /* Low-level delay: outer × inner × 256 × 16T.
  * Also used for short runtime-variable delays (fdc_result_delay, fdc_isr_delay). */
-void delay(byte outer, byte inner) {
+static void __no_recurse delay(byte outer, byte inner) {
     if (!outer) return;
     do {
         byte mid = inner;
@@ -125,7 +129,7 @@ void delay(byte outer, byte inner) {
 
 /* Combined PIO/CTC/DMA/CRT initialization.
  * Macros expand to direct __sfr port writes on Z80. */
-static void init_pio(void) {
+static void __no_recurse init_pio(void) {
     /* Z80 PIO — Port A = keyboard input, Port B = parallel output */
     pio_write_a_ctrl(0x02); /* Port A: interrupt vector = 0x02 */
     pio_write_b_ctrl(0x04); /* Port B: interrupt vector = 0x04 */
@@ -135,7 +139,7 @@ static void init_pio(void) {
     pio_write_b_ctrl(0x83); /* Port B: interrupt — enable, AND, active high */
 }
 
-static void init_ctc(void) {
+static void __no_recurse init_ctc(void) {
     /* Z80 CTC — 4 channels */
     ctc0_write(0x08); /* Ch0: interrupt vector base = 0x08 */
     ctc0_write(0x47); /* Ch0: counter, falling edge, TC follows, reset */
@@ -148,7 +152,7 @@ static void init_ctc(void) {
     ctc3_write(0x01); /* Ch3: time constant = 1 (every interrupt) */
 }
 
-static void init_dma(void) {
+static void __no_recurse init_dma(void) {
     /* AMD Am9517A / Intel 8237 DMA controller */
     dma_command(0x20); /* master clear + standard configuration */
     dma_mode(0xC0); /* Ch0: cascade mode (WD1000 hard disk) */
@@ -156,7 +160,7 @@ static void init_dma(void) {
     dma_mode(0x4A); /* Ch2: single xfer, read mem->I/O (display) */
 }
 
-static void init_crt(void) {
+static void __no_recurse init_crt(void) {
     /* Intel 8275 CRT controller (bits 7-5 = command code) */
     crt_command(0x00); /* reset (expect 4 param bytes) */
     crt_param(0x4F); /*   S=0, H=79: 80 chars/row */
@@ -357,7 +361,7 @@ static const format_entry eot_gap3_table[2][4][2] = {
 };
 
 /* Look up format parameters from disk type and sector size code. */
-void lookup_sectors_and_gap3_for_current_track(void) {
+static void __no_recurse lookup_sectors_and_gap3_for_current_track(void) {
     const format_entry *fmt = &eot_gap3_table[is_mini][fdc_cmd.size_shift][is_mfm];
 
     fdc_cmd.eot = fmt->eot;
@@ -367,7 +371,7 @@ void lookup_sectors_and_gap3_for_current_track(void) {
 
 /* Calculate transfer byte count for current track geometry.
  * transfer_bytes = sectors * (128 << N) = sectors << (7 + N) */
-void calc_size_of_current_track(void) {
+static void __no_recurse calc_size_of_current_track(void) {
     byte sectors = ((disk_type & 0b10000000) && fdc_cmd.head == 1)
                        ? 10 /* maxi, head 1: only 10 sectors - probably a hack */
                        : fdc_cmd.eot - fdc_cmd.sector + 1;
@@ -414,7 +418,7 @@ void calc_size_of_current_track(void) {
 typedef char _waitfl_timeout_check[(255L * WAITFL_POLL_MS >= 400) ? 1 : -1];
 
 /* Send Sense Interrupt Status; ST0 in [0], PCN in [1]. */
-void fdc_sense_interrupt(void) {
+static void __no_recurse fdc_sense_interrupt(void) {
     fdc_write_when_ready(FDC_SENSE_INT);
     fdc_result.st0 = fdc_read_when_ready();
     if ((fdc_result.st0 & 0b11000000) != 0b10000000) {
@@ -424,14 +428,14 @@ void fdc_sense_interrupt(void) {
 }
 
 /* Send Seek command to head/drive dh, cylinder cyl. */
-static void fdc_seek(byte head_and_drive, byte cylinder) {
+static void __no_recurse fdc_seek(byte head_and_drive, byte cylinder) {
     fdc_write_when_ready(FDC_SEEK);
     fdc_write_when_ready(head_and_drive & 0b00000111); /* HD + US (head + drive) */
     fdc_write_when_ready(cylinder); /* NCN (new cylinder number) */
 }
 
 /* Read FDC result phase (up to 7 bytes into fdc_result) and DMA status after. */
-void fdc_read_result(void) {
+static void __no_recurse fdc_read_result(void) {
     byte i;
     byte *p = (byte *) &fdc_result;
 
@@ -450,7 +454,7 @@ void fdc_read_result(void) {
 
 /* Wait for floppy interrupt (floppy_flag set by ISR).
  * Returns 0=ok, 1=timeout. */
-byte wait_fdc_ready(byte timeout) {
+static byte __no_recurse wait_fdc_ready(byte timeout) {
     while (--timeout) {
         delay_ms(WAITFL_POLL_MS);
         if (floppy_operation_completed_flag) {
@@ -465,22 +469,22 @@ byte wait_fdc_ready(byte timeout) {
 }
 
 /* Forward declarations for tail-call fall-through reordering */
-static byte verify_seek_result(byte expected_pcn);
+static byte __no_recurse verify_seek_result(byte expected_pcn);
 
-static void get_floppy_ready(void);
+static void __no_recurse get_floppy_ready(void);
 
-static void boot_from_floppy_or_jump_prom1(void);
+static void __no_recurse boot_from_floppy_or_jump_prom1(void);
 
 /* Seek to fdc_cmd.cylinder and verify.
  * Placed before verify_seek_result for tail-call fall-through (saves 3 bytes). */
-byte fdc_select_drive_cylinder_head(void) {
+static byte __no_recurse fdc_select_drive_cylinder_head(void) {
     fdc_seek((byte)((fdc_cmd.head << 2) | drive_select), fdc_cmd.cylinder);
     return verify_seek_result(fdc_cmd.cylinder);
 }
 
 /* Wait for seek/recalibrate interrupt, verify ST0 and PCN.
  * Returns 0=ok, 1=timeout, 2=wrong drive or cylinder. */
-static byte verify_seek_result(byte expected_pcn) {
+static byte __no_recurse verify_seek_result(byte expected_pcn) {
     if (wait_fdc_ready(0xFF)) {
         return 1;
     }
@@ -497,7 +501,7 @@ static byte verify_seek_result(byte expected_pcn) {
 
 /* Issue FDC read command with parameter block.
  * For Read Data, sends 7-byte block: C, H, R, N, EOT, GPL, DTL. */
-void fdc_write_full_cmd(byte cmd) {
+static void __no_recurse fdc_write_full_cmd(byte cmd) {
     byte mfm_flag = is_mfm ? FDC_MFM : 0;
     byte dh = (byte)((fdc_cmd.head << 2) | drive_select);
 
@@ -516,7 +520,7 @@ void fdc_write_full_cmd(byte cmd) {
 }
 
 /* Check FDC result status.  Returns 0=ok, 1=retry, 2=give up. */
-byte check_fdc_result(void) {
+static byte __no_recurse check_fdc_result(void) {
     if ((fdc_result.st0 & 0b11000011) == drive_select && /* ST0: IC=00 + drive */
         fdc_result.st1 == 0 && /* ST1: no errors */
         (fdc_result.st2 & 0b10111111) == 0) {
@@ -532,7 +536,7 @@ byte check_fdc_result(void) {
 static byte saved_fdc_command;
 
 /* Returns 0=ok, 1=error. */
-byte fdc_get_result_bytes(byte cmd, byte retries) {
+static byte __no_recurse fdc_get_result_bytes(byte cmd, byte retries) {
     byte r;
     saved_fdc_command = cmd;
     retry_count = retries;
@@ -573,7 +577,7 @@ byte fdc_get_result_bytes(byte cmd, byte retries) {
 
 /* Auto-detect disk format by reading sector ID.
  * Tries FM first, then MFM.  Returns 0=ok, 1=error. */
-byte fdc_detect_sector_size_and_density(void) {
+static byte __no_recurse fdc_detect_sector_size_and_density(void) {
     is_mfm = 0;
 
     while (1) {
@@ -628,7 +632,7 @@ static const char msg_rc702[] = " RC702";
  * blocking the CRT refresh ISR with its delay loop.
  * Mask DMA ch1 (floppy) to stop stray DMA transfers.
  * Then enable interrupts so the CRT DMA ISR keeps refreshing. */
-NORETURN void halt_forever(void) {
+static NORETURN __no_recurse void halt_forever(void) {
     ctc3_write(0x03);   /* disable CTC ch3 interrupt, reset */
     dma_mask(1);
     intrinsic_ei();
@@ -653,7 +657,7 @@ NORETURN void halt_forever(void) {
  *
  * Pointer-increment generates compact sdcc output
  * (17 bytes, no IX frame) vs memcmp library call (24 bytes more). */
-byte compare_6bytes(const byte *a, const byte *b) {
+static byte __no_recurse compare_6bytes(const byte *a, const byte *b) {
     byte i = 6;
     do {
         if (*a++ != *b++) {
@@ -664,7 +668,7 @@ byte compare_6bytes(const byte *a, const byte *b) {
 }
 
 /* Check directory entry: 4-byte name match + attribute byte check. */
-byte check_sysfile(const byte *dir, const char *pattern) {
+static byte __no_recurse check_sysfile(const byte *dir, const byte *pattern) {
     dir++; /* skip initial bye´te (dir[0]) */
 
     byte i = 4;
@@ -682,7 +686,7 @@ byte check_sysfile(const byte *dir, const char *pattern) {
 }
 
 /* Display error and halt (unless disk_type indicates retry). */
-void error_display_halt(byte code) {
+static void __no_recurse error_display_halt(byte code) {
     error_saved = code;
     intrinsic_ei();
     if (disk_type & 0b00000001) {
@@ -703,7 +707,7 @@ void error_display_halt(byte code) {
  * File-scope global (boot_dir) avoids IX frame pointer. */
 static byte *boot_dir;
 
-static NORETURN void boot_floppy_or_prom(void) {
+static NORETURN __no_recurse void boot_floppy_or_prom(void) {
     if (compare_6bytes((const byte *) RC700_SIG_OFF, (const byte *) " RC700") == 0) {
         boot_dir = (byte *) BOOT_DIR_OFF;
         while ((word) boot_dir < 0x0D00) {
@@ -711,10 +715,10 @@ static NORETURN void boot_floppy_or_prom(void) {
                 boot_dir += 0x20;
                 continue;
             }
-            if (check_sysfile(boot_dir, "SYSM") == 0) {
+            if (check_sysfile(boot_dir, (const byte *)"SYSM") == 0) {
                 boot_dir += 0x20;
                 if (*boot_dir != 0 &&
-                    check_sysfile(boot_dir, "SYSC") == 0) {
+                    check_sysfile(boot_dir, (const byte *)"SYSC") == 0) {
                     floppy_legacy_boot();
                 }
             }
@@ -750,7 +754,7 @@ static NORETURN void boot_floppy_or_prom(void) {
  *                           operator lock out the PROM1 fallback
  *                           without physically pulling the chip.
  */
-void prom1_if_present(void) {
+static void __no_recurse prom1_if_present(void) {
     if ((read_sw1() & 0x02) == 0 &&
         compare_6bytes((const byte *) 0x2002, (const byte *) msg_rc702) == 0) {
         jump_to(*(word *)0x2000);
@@ -764,7 +768,7 @@ void prom1_if_present(void) {
  * track at a time until all bytes are transferred.  Advances head and
  * cylinder automatically.  Enough for CP/M boot (Track 0 both sides);
  * stand-alone systems (e.g. COMAL) may call this again for more data. */
-static void fdc_read_data_from_current_location(word total_bytes_to_read) {
+static void __no_recurse fdc_read_data_from_current_location(word total_bytes_to_read) {
     bytes_left_to_read = total_bytes_to_read;
 
     while (1) {
@@ -836,7 +840,7 @@ static void init_fdc(void) {
 
 /* Initialize boot state and start floppy boot.
  * Placed before fldsk1 for tail-call fall-through (saves 3 bytes). */
-static void get_floppy_ready(void) {
+static void __no_recurse get_floppy_ready(void) {
     fdc_isr_delay = 3;
     fdc_result_delay = 4;
     is_mini = (read_sw1() >> 7) & 1; /* SW1 bit 7: 0=maxi, 1=mini */
@@ -849,7 +853,7 @@ static void get_floppy_ready(void) {
 
 /* Floppy boot sequence: sense, recalibrate, detect, read, boot.
  * Placed before floppy_legacy_boot for tail-call fall-through (saves 3 bytes). */
-static void boot_from_floppy_or_jump_prom1(void) {
+static void __no_recurse boot_from_floppy_or_jump_prom1(void) {
     byte status;
 
     delay_ms(391);  /* motor spin-up: original ROM uses B=1,C=0xFF ≈ 391ms */
@@ -901,7 +905,7 @@ static void boot_from_floppy_or_jump_prom1(void) {
  * Reads up to INTVEC_ADDR (0x7000) bytes — enough to fill memory from
  * 0x0000 to just below the IVT.  The original ROM passes HL=INTVEC to
  * RDTRK0 as the byte count. */
-void floppy_legacy_boot(void) {
+static void __no_recurse floppy_legacy_boot(void) {
     disk_type = (byte)((is_mini << 7) | disk_type);
     disk_type--;
     fdc_detect_sector_size_and_density();
@@ -913,7 +917,7 @@ void floppy_legacy_boot(void) {
 
 /* BIOS syscall: read sectors from disk.
  * addr = DMA destination, bc = packed cylinder/head/sector. */
-void syscall(word addr, word de) {
+static void __no_recurse syscall(word addr, word de) {
     byte d = (byte) (de >> 8);
     byte e = (byte) (de & 0b11111111);
 
