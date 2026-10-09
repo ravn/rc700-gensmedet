@@ -28,9 +28,13 @@
 #define __naked        __attribute__((naked))
 #define NORETURN __attribute__((noreturn))
 #define ISR_BODY_INLINE static __attribute__((always_inline)) inline
+/* Asserts the function never re-enters (no recursion, no concurrent ISR
+ * activation). Enables static frame allocation in llvm-z80; ignored by SDCC. */
+#define __no_recurse   __attribute__((target("no-recurse")))
 #elif defined(__SDCC)
 #define NORETURN
 #define ISR_BODY_INLINE static inline
+#define __no_recurse
 #else
 /* Host compiler / IDE — no-op SDCC keywords */
 #define __sfr volatile unsigned char
@@ -40,6 +44,7 @@
 #define __naked
 #define NORETURN __attribute__((noreturn))
 #define ISR_BODY_INLINE static inline
+#define __no_recurse
 #endif
 
 typedef uint8_t  byte;

@@ -940,9 +940,9 @@ void syscall(word addr, word de) {
  * Forward declarations here (not in rom.h) because SDCC requires
  * __interrupt(n) on declarations to match definitions exactly.
  * ================================================================ */
-void nothing_int(void) __interrupt(0);
-void refresh_crt_dma_50hz_interrupt(void) __critical __interrupt(1);
-void floppy_completed_operation_interrupt(void) __critical __interrupt(2);
+void nothing_int(void) __interrupt(0) __no_recurse;
+void refresh_crt_dma_50hz_interrupt(void) __critical __interrupt(1) __no_recurse;
+void floppy_completed_operation_interrupt(void) __critical __interrupt(2) __no_recurse;
 
 /* ISR structure (2026-09-17):
  *
@@ -965,7 +965,7 @@ void floppy_completed_operation_interrupt(void) __critical __interrupt(2);
 
 /* Dummy ISR body: nothing to do for unused vectors. */
 ISR_BODY_INLINE void nothing_int_body(void) { }
-void nothing_int(void) __interrupt(0) {
+void nothing_int(void) __interrupt(0) __no_recurse {
     nothing_int_body();
     ei();
 }
@@ -992,7 +992,7 @@ ISR_BODY_INLINE void refresh_crt_dma_50hz_body(void) {
     ctc2_write(0xD7); /* rearm CTC Ch2: counter, interrupt */
     ctc2_write(0x01); /* time constant = 1 (every retrace) */
 }
-void refresh_crt_dma_50hz_interrupt(void) __critical __interrupt(1) {
+void refresh_crt_dma_50hz_interrupt(void) __critical __interrupt(1) __no_recurse {
     refresh_crt_dma_50hz_body();
     ei();
 }
@@ -1008,7 +1008,7 @@ ISR_BODY_INLINE void floppy_completed_operation_body(void) {
         fdc_sense_interrupt();
     }
 }
-void floppy_completed_operation_interrupt(void) __critical __interrupt(2) {
+void floppy_completed_operation_interrupt(void) __critical __interrupt(2) __no_recurse {
     floppy_completed_operation_body();
     ei();
 }
@@ -1029,6 +1029,7 @@ void floppy_completed_operation_interrupt(void) __critical __interrupt(2) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-noreturn"
 #endif
+void main_relocated(void) __no_recurse;
 void main_relocated(void)
 {
     set_i_reg(INTVEC_PAGE);
