@@ -37,8 +37,8 @@ SECTIONS {
   /* BOOT section -- runs from ROM at 0x0000.
    * start() at 0x0000 (DI is the first instruction). */
   .boot : {
-    KEEP(*boot.o(.pagezero.text))
-    KEEP(*boot.o(.pagezero.data))
+    KEEP(*(.pagezero.text))
+    KEEP(*(.pagezero.data))
   } > ROM
 
   /* ZX0 decoder, main-loop part -- placed immediately after start() so it
@@ -47,26 +47,26 @@ SECTIONS {
    * the NMI vector; the split is clean because dzx0s_new_offset ends in an
    * unconditional jr (see dzx0_standard.s), so nothing falls through the gap. */
   .zx0_decoder : {
-    KEEP(*dzx0_standard.o(.zx0_decoder))
+    KEEP(*(.zx0_decoder))
   } > ROM
   ASSERT(. <= 0x0066,
     "ZX0 decoder main-loop (.zx0_decoder) overran the 0x0066 NMI vector")
 
   /* NMI handler at Z80 hardwired vector 0x0066. */
   .nmi 0x0066 : {
-    KEEP(*boot.o(.nmi*))
+    KEEP(*(.nmi*))
   } > ROM
 
   /* ZX0 decoder tail (elias subroutine), after the NMI vector. */
   .zx0_decoder_hi 0x0068 : {
-    KEEP(*dzx0_standard.o(.zx0_decoder_hi))
+    KEEP(*(.zx0_decoder_hi))
   } > ROM
 
   /* ZX0-compressed .text payload, immediately after the decoder tail.
    * __text_zx0_start is consumed by _reloc_zx0 (in dzx0_standard.s). */
   .text_compressed : {
     __text_zx0_start = .;
-    KEEP(*text_compressed.o(.text_compressed*))
+    KEEP(*(.text_compressed*))
     __text_zx0_end = .;
   } > ROM
 
@@ -75,12 +75,12 @@ SECTIONS {
    * .bin by llvm-objcopy --only-section in the Makefile. */
   .text 0x6000 : {
     __code_start = .;
-    KEEP(*intvec.o(.rodata*))  /* IVT: function pointers to ISRs */
-    KEEP(*intvec.o(.text*))    /* IVT code */
-    *rom.o(.text*)             /* All C code (GC'd by reachability) */
-    *rom.o(.rodata*)           /* Constants, strings */
-    *runtime.o(.text*)         /* Runtime stubs */
-    KEEP(*boot.o(.textbanner)) /* banner: moved out of BOOT into the payload */
+    KEEP(*intvec.o(.rodata*))  /* IVT: function pointers to ISRs (must be first;
+                                  intvec.o compiled -fno-lto so filename matches) */
+    *(.text*)                  /* C code + runtime stubs; wildcard covers both
+                                  regular objects and LTO merged output */
+    *(.rodata*)                /* Constants, strings */
+    KEEP(*(.textbanner))       /* banner: moved out of BOOT into the payload */
     __code_end = .;
   } > RAM
 

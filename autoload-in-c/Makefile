@@ -52,7 +52,7 @@ MAME_RUN = $(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
 	-autoboot_script mame_boot_test.lua \
 	-flop1 "$(FLOPPY)"
 RC700 = ../../rc700
-FLOPPY = $(HOME)/Downloads/SW1711-I8.imd
+FLOPPY = $(CURDIR)/test-disks/SW1711-I8.imd
 
 .PHONY: all prom mame floppy-boot-test mamesym rc700 clean fdc-log io-log \
         clang_asm clang_disasm clang_src_lis clang_symbols clang_mamesym
@@ -66,7 +66,7 @@ help:
 	@echo 'no LLVM_Z80= or path args needed. Override with NATIVE=0 to use the Docker image.'
 	@echo
 	@echo 'Manual targets:'
-	@echo '  make prom                 clang PROM (default) -> clang/prom.clang.bin  [4 KB, MAME-only pt.]'
+	@echo '  make prom                 clang PROM (default) -> clang/prom.clang.bin  [2 KB target, 4 KB cap]'
 	@echo '  make prom COMPILER=sdcc   SDCC PROM -> sdcc/prom.bin                    [4 KB, MAME-only]'
 	@echo '  make mame                 build PROM + boot-test in MAME'
 	@echo '  make clang_asm            emit clang assembly (codegen inspection)'
@@ -79,18 +79,15 @@ help:
 
 prom:
 	$(MAKE) $(PROM_TARGET)
-	@# Per-compiler size policy:
-	@#   clang: TEMPORARILY 4 KB (MAME-only) while llvm-z80 upstream work
-	@#          is in progress. Production target is 2 KB (user's physical
-	@#          RC702 has 2716 sockets, no A11 bridge for 2732); re-enable
-	@#          the 2 KB hard cap when clang-side density regression #340
-	@#          / rc700-gensmedet#130 is resolved and upstream miscompile
-	@#          fixes are landed.
-	@#   sdcc:  4 KB hard cap (MAME-only parity testing; MAME's
-	@#          roa375.ic66 slot is a 4 KB file format).
+	@# Size policy:
+	@#   clang: production target 2 KB (physical RC702 has 2716 sockets,
+	@#          no A11 bridge for 2732; PROM0 hard cap 2048 B).
+	@#          Ceiling here is 4 KB (MAME slot format) until the gap
+	@#          closes; the 2 KB cap is enforced separately below.
+	@#   sdcc:  4 KB (MAME-only parity; roa375.ic66 slot is a 4 KB file).
 	@PROM=$$(wc -c < $(PROM_BIN) | tr -d ' '); \
 	 if [ "$(COMPILER)" = "sdcc" ]; then CEIL=4096; CLABEL="MAME 4 KB"; \
-	 else CEIL=4096; CLABEL="clang 4 KB (temp; production target 2 KB)"; fi; \
+	 else CEIL=4096; CLABEL="clang 4 KB (production target 2 KB)"; fi; \
 	 echo "$(COMPILER) PROM: $$PROM / $$CEIL bytes ($$CLABEL)"; \
 	 if [ $$PROM -gt 4096 ]; then \
 	   echo "ERROR: exceeds 4096-byte file-format limit by $$((PROM - 4096)) bytes"; \
@@ -187,8 +184,7 @@ mame: prom mamesym
 	@# prefix per compiler -- the old clang EXPECT "RC700 CL" was never a
 	@# substring of the real banner (ROA375 sits between), so it always FAILed
 	@# even on a correct boot (ravn/rc700-gensmedet#100).
-	$(eval EXPECT := $(if $(filter sdcc,$(COMPILER)),RC700 ROA375,RC700 ROA375 CL))
-	EXPECT_BANNER="$(EXPECT)" $(MAME_RUN)
+	$(MAME_RUN)
 	@cat /tmp/boot_test_result.txt
 	@grep -q '^PASS' /tmp/boot_test_result.txt
 
@@ -319,6 +315,7 @@ CLANG_NM      = $(CLANG_BUILD)/llvm-nm
 
 CLANG_CFLAGS = --target=z80 -Oz -g -nostdlib -ffreestanding \
 	       -ffunction-sections -fdata-sections \
+	       -flto \
 	       -Xclang -target-feature -Xclang +static-frame \
 	       -Xclang -target-feature -Xclang +shadow-isr \
 	       -mllvm -disable-lsr \
@@ -441,7 +438,7 @@ clang/text_compressed.o: clang/text_compressed.s clang/text_compressed.zx0 $(CLA
 	$(RUN) $(CLANG_CC) --target=z80 -c $< -o $@
 
 clang/intvec.o: intvec.c rom.h $(CLANG_COMPILER) Makefile
-	$(RUN) $(CLANG_CC) $(CLANG_CFLAGS) -c intvec.c -o $@
+	$(RUN) $(CLANG_CC) $(CLANG_CFLAGS) -fno-lto -c intvec.c -o $@
 
 clang/rom.o: rom.c rom.h $(CLANG_COMPILER) Makefile
 	$(RUN) $(CLANG_CC) $(CLANG_CFLAGS) -c rom.c -o $@

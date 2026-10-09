@@ -22,6 +22,9 @@ extern const isr_t intvec[16];  /* forward decl for -Wmissing-variable-declarati
 #pragma constseg CODE
 #endif
 
+/* used: LTO must not DCE this array — the Z80 hardware addresses it via the
+ * I register (IM2), invisible to the compiler's reference analysis. */
+__attribute__((used))
 const isr_t intvec[16] = {
     nothing_int,     /*  +0: Dummy */
     nothing_int,     /*  +2: PIO Port A */

@@ -104,7 +104,10 @@ static void __no_recurse delay(byte outer, byte inner) {
     )
 
 /* Low-level delay: outer × inner × 256 × 16T.
- * Also used for short runtime-variable delays (fdc_result_delay, fdc_isr_delay). */
+ * Also used for short runtime-variable delays (fdc_result_delay, fdc_isr_delay).
+ * noinline + optnone: LTO must not restructure these loops or outline the
+ * __asm__ volatile barrier — doing so corrupts the calibrated cycle count. */
+__attribute__((noinline, optnone))
 static void __no_recurse delay(byte outer, byte inner) {
     if (!outer) return;
     do {
