@@ -315,7 +315,6 @@ CLANG_NM      = $(CLANG_BUILD)/llvm-nm
 
 CLANG_CFLAGS = --target=z80 -Oz -g -nostdlib -ffreestanding \
 	       -ffunction-sections -fdata-sections \
-	       -flto \
 	       -Xclang -target-feature -Xclang +static-frame \
 	       -Xclang -target-feature -Xclang +shadow-isr \
 	       -mllvm -disable-lsr \

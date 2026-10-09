@@ -105,8 +105,10 @@ static void __no_recurse delay(byte outer, byte inner) {
 
 /* Implemented in clang/delay.s — assembly keeps LTO from restructuring the
  * timing loops (machine outliner was replacing __asm__ volatile("") with a
- * call to an outlined snippet, breaking the calibrated cycle count). */
-void delay(byte outer, byte inner);
+ * call to an outlined snippet, breaking the calibrated cycle count).
+ * __no_recurse: required so the NonReentrant callgraph analysis treats this
+ * as a context barrier rather than an opaque external call. */
+__no_recurse void delay(byte outer, byte inner);
 
 #endif /* __SDCC / clang */
 
