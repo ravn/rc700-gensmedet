@@ -357,7 +357,7 @@ CRT_Z80 = $(LLVM_Z80)/compiler-rt/lib/builtins/z80
 CLANG_RT_OBJS = clang/rt_memset.o clang/rt_memcpy.o clang/rt_memmove.o
 
 CLANG_OBJS = clang/boot.o clang/intvec.o clang/rom.o clang/runtime.o \
-             $(CLANG_RT_OBJS)
+             clang/delay.o $(CLANG_RT_OBJS)
 CLANG_ZX0_OBJS = clang/dzx0_standard.o clang/text_compressed.o
 
 # Host-side ZX0 compressor + verifier from z88dk source tree.
@@ -422,6 +422,9 @@ clang/rt_memset.o: $(CRT_Z80)/memset.asm $(CLANG_COMPILER)
 clang/rt_memcpy.o: $(CRT_Z80)/memcpy.asm $(CLANG_COMPILER)
 	$(RUN) $(CLANG_CC) --target=z80 -c $< -o $@
 clang/rt_memmove.o: $(CRT_Z80)/memmove.asm $(CLANG_COMPILER)
+	$(RUN) $(CLANG_CC) --target=z80 -c $< -o $@
+
+clang/delay.o: clang/delay.s $(CLANG_COMPILER)
 	$(RUN) $(CLANG_CC) --target=z80 -c $< -o $@
 
 clang/dzx0_standard.o: clang/dzx0_standard.s $(CLANG_COMPILER)

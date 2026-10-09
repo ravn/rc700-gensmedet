@@ -103,23 +103,10 @@ static void __no_recurse delay(byte outer, byte inner) {
         (byte)((_DELAY_INNER_1(ms) <= 255) ? _DELAY_INNER_1(ms) : _DELAY_INNER_2(ms)) \
     )
 
-/* Low-level delay: outer × inner × 256 × 16T.
- * Also used for short runtime-variable delays (fdc_result_delay, fdc_isr_delay).
- * noinline + optnone: LTO must not restructure these loops or outline the
- * __asm__ volatile barrier — doing so corrupts the calibrated cycle count. */
-__attribute__((noinline, optnone))
-static void __no_recurse delay(byte outer, byte inner) {
-    if (!outer) return;
-    do {
-        byte mid = inner;
-        do {
-            byte k = 0;
-            do {
-                __asm__ volatile("");  /* optimization barrier */
-            } while (--k);
-        } while (--mid);
-    } while (--outer);
-}
+/* Implemented in clang/delay.s — assembly keeps LTO from restructuring the
+ * timing loops (machine outliner was replacing __asm__ volatile("") with a
+ * call to an outlined snippet, breaking the calibrated cycle count). */
+void delay(byte outer, byte inner);
 
 #endif /* __SDCC / clang */
 
