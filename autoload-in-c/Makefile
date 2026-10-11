@@ -317,7 +317,6 @@ CLANG_CFLAGS = --target=z80 -Oz -g -nostdlib -ffreestanding \
 	       -ffunction-sections -fdata-sections \
 	       -Xclang -target-feature -Xclang +static-frame \
 	       -Xclang -target-feature -Xclang +shadow-isr \
-	       -mllvm -disable-lsr \
 	       -Iclang -I. \
 	       -Weverything \
 	       -Wno-unsafe-buffer-usage \
