@@ -221,8 +221,8 @@ static void load_chargen_font(void)
 /* Banner string lives in BOOT section (boot_rom.c). */
 #ifdef __SDCC
 #include "sdcc/build_stamp.h"
-#else
-#include "clang/banner.h"
+#elif defined(__z80__)
+#include "clang/build_stamp.h"
 #endif
 #define BANNER_LENGTH BUILD_BANNER_LENGTH
 extern const char banner_string[];
@@ -600,22 +600,24 @@ static byte __no_recurse fdc_detect_sector_size_and_density(void) {
 /* Boot state variables — initialized to zero; preinit() sets non-zero.
  *
  * fdc_cmd is a 8-byte struct sent sequentially by floppy_read_track(). */
-fdc_result_block fdc_result = {0};
-byte drive_select = 0;
-byte fdc_isr_delay = 0;
-byte fdc_result_delay = 0;
-fdc_command_block fdc_cmd = {0};
-volatile byte floppy_operation_completed_flag = 0;
-byte is_mini = 0;
-byte is_mfm = 0;
-static byte is_double_sided = 0;
-byte disk_type = 0;
-byte more_tracks_to_read = 0;
-byte retry_count = 0;
-word dma_transfer_address = 0;
-word dma_transfer_size = 0;
-word bytes_left_to_read = 0;
-byte error_saved = 0;
+fdc_result_block fdc_result;
+/* zsdcc 4.5: explicit = 0 initializers cause BSS/data_compiler duplication.
+ * Globals are zero-initialized by C spec; drop explicit initializers. */
+byte drive_select;
+byte fdc_isr_delay;
+byte fdc_result_delay;
+fdc_command_block fdc_cmd;
+volatile byte floppy_operation_completed_flag;
+byte is_mini;
+byte is_mfm;
+static byte is_double_sided;
+byte disk_type;
+byte more_tracks_to_read;
+byte retry_count;
+word dma_transfer_address;
+word dma_transfer_size;
+word bytes_left_to_read;  /* = 0 implicit; explicit init causes zsdcc BSS duplication */
+byte error_saved;          /* = 0 implicit */
 
 static const char msg_rc702[] = " RC702";
 

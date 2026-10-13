@@ -39,7 +39,7 @@ extern void reloc_zx0(void);
  * bytes instead of a full uncompressed copy in the scarce pre-NMI ROM.  It is
  * read after decompression via BANNER_PTR = &banner_string, which resolves to
  * the RAM address automatically. */
-#include "clang/banner.h"
+#include "build_stamp.h"
 #ifdef __ELF__
 __attribute__((section(".textbanner"), used))
 #endif
@@ -94,8 +94,10 @@ extern const byte code_end;
 #ifdef __ELF__
 __attribute__((section(".pagezero.text")))
 #endif
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-noreturn"
+#endif
 void start(void) {  /* not marked noreturn: allows tail-call JP to main_relocated */
     // Executing at 0x0000 - be very careful about library routines
     intrinsic_di();
@@ -111,16 +113,18 @@ void start(void) {  /* not marked noreturn: allows tail-call JP to main_relocate
     // Jump to relocated code.
     main_relocated();
 }
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
 
 /* ================================================================
  * SDCC-only: banner and NMI padding
  * ================================================================ */
 
-#ifdef __SDCC
+#if defined(__SDCC) || defined(__SCCZ80)
 
 /* Banner string — normal NUL-terminated C string in BOOT section */
-#include "sdcc/build_stamp.h"
+#include "build_stamp.h"
 const char banner_string[] = BUILD_BANNER;
 
 /* Pad to NMI vector at 0x0066 */

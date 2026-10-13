@@ -402,7 +402,7 @@ clang/prom.clang.bin: $(CLANG_OBJS) $(CLANG_ZX0_OBJS) clang/rc700_prom.ld
 # PROM was burnt (matches rcbios-in-c/builddate.h pattern).  The cmp
 # dance avoids retouching the file (and rebuilding clang/boot.o) when
 # neither the date nor the git hash changed since last build.
-clang/banner.h: FORCE
+clang/build_stamp.h: FORCE
 	@HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "????"); \
 	 BANNER=" RC700 ROA375 CL $$(date '+%Y-%m-%d %H.%M') $$HASH/$$(whoami)"; \
 	 { echo "#define BUILD_BANNER \"$$BANNER\""; \
@@ -411,7 +411,7 @@ clang/banner.h: FORCE
 
 FORCE:
 
-clang/boot.o: boot_rom.c rom.h clang/banner.h $(CLANG_COMPILER) Makefile
+clang/boot.o: boot_rom.c rom.h clang/build_stamp.h $(CLANG_COMPILER) Makefile
 	$(RUN) $(CLANG_CC) $(CLANG_CFLAGS) -c $< -o $@
 
 clang/runtime.o: clang/runtime.s $(CLANG_COMPILER)
@@ -519,6 +519,62 @@ sdcc/prom.bin: sdcc/sections.asm rom.c rom.h boot_rom.c intvec.c sdcc/peephole.d
 	@cd sdcc && cat prom0_BOOT.bin prom0_CODE.bin > prom.bin
 	@PROM=$$(wc -c < sdcc/prom.bin | tr -d ' '); \
 	 echo "sdcc PROM: $$PROM bytes"
+
+# ================================================================
+# zsdcc PROM (native z88dk fork, zsdcc 4.5 backend)
+# ================================================================
+
+Z88DK_NATIVE  = $(CURDIR)/../../z88dk
+ZCC_NATIVE    = $(Z88DK_NATIVE)/bin/zcc
+ZCCCFG_NATIVE = $(Z88DK_NATIVE)/lib/config
+
+ZSDCC_FLAGS = +cpm -clib=sdcc_iy --no-crt --opt-code-size -SO3 \
+              -Cs"--sdcccall 1" -Cs"--fomit-frame-pointer" \
+              -Cs"--allow-unsafe-read" -Cs"--disable-warning 296" \
+              -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT) \
+              -DINIT_SEM702=$(INIT_SEM702) \
+              -D__DISABLE_BUILTIN
+
+ZSDCC_LFLAGS = -m --list -create-app -Cz"--org 0" -lz80
+
+.PHONY: zsdcc-prom
+zsdcc-prom: zsdcc/prom.bin
+
+zsdcc/prom.bin: zsdcc/sections.asm rom.c rom.h boot_rom.c intvec.c sdcc/peephole.def
+	@mkdir -p zsdcc
+	@# zcc (ucpp) scans .h files in cwd as side-channel includes, triggering
+	@# zsdcc BSS duplication. Fix: build in /tmp with headers in an inc/
+	@# subdir that ucpp never sees as part of the translation-unit cwd.
+	@HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "????"); \
+	 BANNER=" RC700 ROA375 ZS $$(date '+%Y-%m-%d %H.%M') $$HASH/$$(whoami)"; \
+	 BDIR=/tmp/zsdcc_build; rm -rf "$$BDIR"; \
+	 mkdir -p "$$BDIR/inc/sdcc" "$$BDIR/inc/clang"; \
+	 { echo "#define BUILD_BANNER \"$$BANNER\""; \
+	   echo "#define BUILD_BANNER_LENGTH $${#BANNER}"; } > "$$BDIR/inc/sdcc/build_stamp.h"; \
+	 cp $(CURDIR)/rom.c $(CURDIR)/rom.h \
+	    $(CURDIR)/boot_rom.c $(CURDIR)/intvec.c \
+	    $(CURDIR)/sdcc/peephole.def \
+	    $(CURDIR)/zsdcc/sections.asm \
+	    "$$BDIR/"; \
+	 cp $(CURDIR)/clang/sem702_font.h $(CURDIR)/clang/qr_data.h "$$BDIR/inc/clang/"; \
+	 cp "$$BDIR/inc/sdcc/build_stamp.h" "$$BDIR/build_stamp.h"; \
+	 export PATH="$(Z88DK_NATIVE)/bin:$$PATH"; \
+	 ZCCCFG=$(ZCCCFG_NATIVE) $(ZCC_NATIVE) $(ZSDCC_FLAGS) \
+	     -Iinc/sdcc \
+	     -Cs"--codeseg BOOT" -c "$$BDIR/boot_rom.c" -o "$$BDIR/boot_rom.o" && \
+	 ZCCCFG=$(ZCCCFG_NATIVE) $(ZCC_NATIVE) $(ZSDCC_FLAGS) \
+	     -Iinc \
+	     -c "$$BDIR/intvec.c" -o "$$BDIR/intvec.o" && \
+	 rm -f "$$BDIR/build_stamp.h" && mv "$$BDIR/rom.h" "$$BDIR/inc/" && \
+	 cd "$$BDIR" && \
+	 ZCCCFG=$(ZCCCFG_NATIVE) $(ZCC_NATIVE) $(ZSDCC_FLAGS) \
+	     -Iinc -Iinc/sdcc -Iinc/clang \
+	     $(ZSDCC_LFLAGS) \
+	     -o prom0 sections.asm intvec.o rom.c boot_rom.o && \
+	 cat prom0_BOOT.bin prom0_CODE.bin > $(CURDIR)/zsdcc/prom.bin; \
+	 R=$$?; rm -rf "$$BDIR"; exit $$R
+	@PROM=$$(wc -c < zsdcc/prom.bin | tr -d ' '); \
+	 echo "zsdcc PROM: $$PROM bytes"
 
 # ================================================================
 # RC700 emulator
