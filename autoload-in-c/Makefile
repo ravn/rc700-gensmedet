@@ -528,12 +528,13 @@ Z88DK_NATIVE  = $(CURDIR)/../../z88dk
 ZCC_NATIVE    = $(Z88DK_NATIVE)/bin/zcc
 ZCCCFG_NATIVE = $(Z88DK_NATIVE)/lib/config
 
-ZSDCC_FLAGS = +cpm -clib=sdcc_iy --no-crt --opt-code-size -SO3 \
+ZSDCC_FLAGS = +z80 -clib=sdcc_iy --no-crt --opt-code-size -SO3 \
               -Cs"--sdcccall 1" -Cs"--fomit-frame-pointer" \
               -Cs"--allow-unsafe-read" -Cs"--disable-warning 296" \
               -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT) \
               -DINIT_SEM702=$(INIT_SEM702) \
-              -D__DISABLE_BUILTIN
+              -D__DISABLE_BUILTIN \
+              -D__ZSDCC_SECTION_BOOT_UNDERSCORE
 
 ZSDCC_LFLAGS = -m --list -create-app -Cz"--org 0" -lz80
 
@@ -571,7 +572,7 @@ zsdcc/prom.bin: zsdcc/sections.asm rom.c rom.h boot_rom.c intvec.c sdcc/peephole
 	     -Iinc -Iinc/sdcc -Iinc/clang \
 	     $(ZSDCC_LFLAGS) \
 	     -o prom0 sections.asm intvec.o rom.c boot_rom.o && \
-	 cat prom0_BOOT.bin prom0_CODE.bin > $(CURDIR)/zsdcc/prom.bin; \
+	 cat prom0__BOOT.bin prom0_CODE.bin > $(CURDIR)/zsdcc/prom.bin; \
 	 R=$$?; rm -rf "$$BDIR"; exit $$R
 	@PROM=$$(wc -c < zsdcc/prom.bin | tr -d ' '); \
 	 echo "zsdcc PROM: $$PROM bytes"

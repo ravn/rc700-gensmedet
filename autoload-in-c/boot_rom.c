@@ -64,12 +64,21 @@ __asm__(
 
 #elif defined(__SDCC)
 
+/* SDCC 4.6+ (ravn/z88dk native): --codeseg BOOT generates section _BOOT,
+ * whose tail symbol is ___BOOT_tail (C name __BOOT_tail).
+ * SDCC 4.1 (z88dk:2.4 Docker): generates section BOOT → __BOOT_tail (C: _BOOT_tail). */
+#ifdef __ZSDCC_SECTION_BOOT_UNDERSCORE
+extern byte __BOOT_tail;
+#define _boot_tail_ptr (&__BOOT_tail)
+#else
 extern byte _BOOT_tail;
+#define _boot_tail_ptr (&_BOOT_tail)
+#endif
 extern const byte intvec;
 extern const byte code_end;
 
 #define RELOC_DST   ((void *)&intvec)
-#define RELOC_SRC   ((const void *)&_BOOT_tail)
+#define RELOC_SRC   ((const void *)_boot_tail_ptr)
 #define RELOC_SIZE  ((unsigned)(&code_end - &intvec + 1))
 #define BSS_DST     ((void *)0)
 #define BSS_SIZE    ((unsigned)0)

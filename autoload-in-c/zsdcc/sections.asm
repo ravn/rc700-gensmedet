@@ -12,7 +12,7 @@
 ;     bss_compiler             Uninitialized variables
 ;     code_sentinel            code_end marker (must be last)
 
-	SECTION	BOOT
+	SECTION	_BOOT
 	ORG	0x0000
 
 	SECTION	CODE
