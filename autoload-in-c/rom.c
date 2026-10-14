@@ -1036,6 +1036,12 @@ void main_relocated(void)
     init_ctc();
     init_dma();
     init_crt();
+#ifdef DIAG_EARLY_EI
+    /* Diagnostic: enable interrupts right after display init.
+     * If DMA ch2 gets programmed (Lua sees port 0xF4 writes), the ISR path works
+     * and the problem is somewhere between here and get_floppy_ready. */
+    intrinsic_ei();
+#endif
     /* Program the full ROA327 font into the SEM702 RAM.
      * On a ROA327-ROM machine the OUT writes go nowhere (safe no-op).
      * Omit by building with -DINIT_SEM702=0 to free ~377 B ZX0-compressed. */

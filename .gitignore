@@ -38,4 +38,3 @@ cpnos-in-c/sdcc/cpnos_lp.def
 cpnos-in-c/sdcc/cpnos_lp.lis
 cpnos-in-c/sdcc/cpnos_lp.sym
 cpnos-in-c/sdcc/cpnos_with_locale.img
-!autoload-in-c/zsdcc/prom0.map

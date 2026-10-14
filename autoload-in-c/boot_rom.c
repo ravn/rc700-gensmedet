@@ -12,6 +12,11 @@
  */
 
 #include <string.h>
+/* Suppress set_i_reg from rom.h — it is not needed in the BOOT section
+ * and must NOT appear before start() at 0x0000 (Z80 reset vector). */
+#ifdef __SDCC
+#define __INTVEC_ONLY
+#endif
 #include "rom.h"
 
 extern void main_relocated(void);
@@ -85,30 +90,8 @@ extern const byte code_end;
 #define BSS_DST     ((void *)0)
 #define BSS_SIZE    ((unsigned)0)
 
-/* boot_reloc: LDIR copy of CODE from ROM to RAM.
- * Placed in _BOOT section (same as start), runs from ROM before relocation.
- * Cannot use library memcpy — it's in CODE (not yet in RAM when called).
- *
- * sdcccall(1) on z80: 3-arg function — arg1(dst)→HL, arg2(src)→DE,
- * arg3(len) pushed on stack (overflow). Stack on entry:
- *   [SP+0..1] = return address
- *   [SP+2..3] = len
- * LDIR needs: HL=src, DE=dst, BC=len. */
-static void boot_reloc(void *dst, const void *src, unsigned len) __naked {
-    (void)dst; (void)src; (void)len;
-    __asm__(
-        "ex de, hl\n"     /* HL=src, DE=dst */
-        "push hl\n"       /* save src; stack: [sp]=src,[sp+2]=ret,[sp+4]=len */
-        "ld hl, #4\n"
-        "add hl, sp\n"    /* HL → &len on stack */
-        "ld c, (hl)\n"
-        "inc hl\n"
-        "ld b, (hl)\n"    /* BC = len */
-        "pop hl\n"        /* HL = src again; stack: [sp]=ret,[sp+2]=len */
-        "ldir\n"
-        "ret\n"           /* caller cleans up pushed len */
-    );
-}
+/* Forward declaration so start() (which must be first at 0x0000) can call it. */
+static void boot_reloc(void *dst, const void *src, unsigned len) __naked;
 
 #else
 /* IDE fallback — stubs so CLion can parse start() */
@@ -172,5 +155,33 @@ void pad_to_nmi_retn(void) __naked {
     __asm__("DEFS 0x0066 - ASMPC, 0xFF\n"
         "retn\n");
 }
+
+/* boot_reloc: LDIR copy of CODE from ROM to RAM.
+ * Defined AFTER start() so start() lands at 0x0000 (Z80 reset vector).
+ * Placed in _BOOT section (same as start), runs from ROM before relocation.
+ * Cannot use library memcpy — it's in CODE (not yet in RAM when called).
+ *
+ * sdcccall(1) on z80: 3-arg function — arg1(dst)→HL, arg2(src)→DE,
+ * arg3(len) pushed on stack (overflow). Stack on entry:
+ *   [SP+0..1] = return address
+ *   [SP+2..3] = len
+ * LDIR needs: HL=src, DE=dst, BC=len. */
+#ifdef __SDCC
+static void boot_reloc(void *dst, const void *src, unsigned len) __naked {
+    (void)dst; (void)src; (void)len;
+    __asm__(
+        "ex de, hl\n"     /* HL=src, DE=dst */
+        "push hl\n"       /* save src; stack: [sp]=src,[sp+2]=ret,[sp+4]=len */
+        "ld hl, #4\n"
+        "add hl, sp\n"    /* HL → &len on stack */
+        "ld c, (hl)\n"
+        "inc hl\n"
+        "ld b, (hl)\n"    /* BC = len */
+        "pop hl\n"        /* HL = src again; stack: [sp]=ret,[sp+2]=len */
+        "ldir\n"
+        "ret\n"           /* caller cleans up pushed len */
+    );
+}
+#endif
 
 #endif
