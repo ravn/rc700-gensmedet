@@ -572,6 +572,11 @@ zsdcc/prom.bin: zsdcc/sections.asm rom.c rom.h boot_rom.c intvec.c sdcc/peephole
 	     -Iinc -Iinc/sdcc -Iinc/clang \
 	     $(ZSDCC_LFLAGS) \
 	     -o prom0 sections.asm intvec.o rom.c boot_rom.o && \
+	 IVT=$$(awk '/^_intvec / {gsub(/\$$/, "", $$3); print "0x"$$3; exit}' prom0.map | xargs printf '%d\n' 2>/dev/null); \
+	 if [ -z "$$IVT" ]; then echo "ERROR: _intvec not found in map"; exit 1; fi; \
+	 if [ $$(($$IVT % 256)) -ne 0 ]; then \
+	   echo "ERROR: _intvec=0x$$IVT not page-aligned (Z80 IM2 requires I*256 boundary)"; exit 1; \
+	 fi; \
 	 cat prom0__BOOT.bin prom0_CODE.bin > $(CURDIR)/zsdcc/prom.bin; \
 	 R=$$?; rm -rf "$$BDIR"; exit $$R
 	@PROM=$$(wc -c < zsdcc/prom.bin | tr -d ' '); \

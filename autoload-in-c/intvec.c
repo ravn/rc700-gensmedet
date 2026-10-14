@@ -6,6 +6,12 @@
  * Compiled with default codeseg (no --codeseg flag needed).
  */
 
+/* Suppress set_i_reg emission — it's static in rom.h but unused here.
+ * Without this guard, SDCC emits set_i_reg (3 bytes) before intvec[],
+ * misaligning the IVT away from the required $xx00 page boundary. */
+#ifdef __SDCC
+#define __INTVEC_ONLY
+#endif
 #include "rom.h"
 
 /* ISR declarations — defined in rom.c.

@@ -79,9 +79,36 @@ extern const byte code_end;
 
 #define RELOC_DST   ((void *)&intvec)
 #define RELOC_SRC   ((const void *)_boot_tail_ptr)
-#define RELOC_SIZE  ((unsigned)(&code_end - &intvec + 1))
+/* Copy full PROM slot minus BOOT: 0x1000 - ___BOOT_tail.
+ * This includes all library sections (memcpy etc.) that sit above user code. */
+#define RELOC_SIZE  ((unsigned)(0x1000u - (unsigned)_boot_tail_ptr))
 #define BSS_DST     ((void *)0)
 #define BSS_SIZE    ((unsigned)0)
+
+/* boot_reloc: LDIR copy of CODE from ROM to RAM.
+ * Placed in _BOOT section (same as start), runs from ROM before relocation.
+ * Cannot use library memcpy — it's in CODE (not yet in RAM when called).
+ *
+ * sdcccall(1) on z80: 3-arg function — arg1(dst)→HL, arg2(src)→DE,
+ * arg3(len) pushed on stack (overflow). Stack on entry:
+ *   [SP+0..1] = return address
+ *   [SP+2..3] = len
+ * LDIR needs: HL=src, DE=dst, BC=len. */
+static void boot_reloc(void *dst, const void *src, unsigned len) __naked {
+    (void)dst; (void)src; (void)len;
+    __asm__(
+        "ex de, hl\n"     /* HL=src, DE=dst */
+        "push hl\n"       /* save src; stack: [sp]=src,[sp+2]=ret,[sp+4]=len */
+        "ld hl, #4\n"
+        "add hl, sp\n"    /* HL → &len on stack */
+        "ld c, (hl)\n"
+        "inc hl\n"
+        "ld b, (hl)\n"    /* BC = len */
+        "pop hl\n"        /* HL = src again; stack: [sp]=ret,[sp+2]=len */
+        "ldir\n"
+        "ret\n"           /* caller cleans up pushed len */
+    );
+}
 
 #else
 /* IDE fallback — stubs so CLion can parse start() */
@@ -113,6 +140,10 @@ void start(void) {  /* not marked noreturn: allows tail-call JP to main_relocate
     SET_SP(ROM_STACK);
 #if defined(__ELF__)
     reloc_zx0();
+#elif defined(__SDCC)
+    /* boot_reloc uses LDIR inline (in _BOOT section) — library memcpy is
+     * in CODE section and not yet in RAM when start() runs from ROM. */
+    boot_reloc(RELOC_DST, RELOC_SRC, RELOC_SIZE);
 #else
     memcpy(RELOC_DST, RELOC_SRC, RELOC_SIZE);
 #endif

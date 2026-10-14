@@ -246,10 +246,16 @@ DEFPORT(dma_clbp,     0xFC)
 /* DI/EI/IM2/set_i_reg intrinsics */
 #ifdef __SDCC
 #include <intrinsic.h>
+/* __INTVEC_ONLY: defined in intvec.c to suppress set_i_reg emission there.
+ * set_i_reg is static, so SDCC emits it in every TU that includes rom.h,
+ * even if it's unused. This would push intvec[] away from the $xx00 boundary
+ * required for Z80 IM2 (I register must point to exact start of IVT). */
+#ifndef __INTVEC_ONLY
 static void set_i_reg(byte page) {
     (void) page;  /* sdcccall(1) passes byte in A */
     __asm__("ld i, a\n");
 }
+#endif
 #elif defined(__z80__)
 #include "clang/intrinsic.h"
 static inline void intrinsic_im_2(void) { __asm__ volatile("im 2"); }

@@ -21,7 +21,7 @@
 	SECTION	rodata_compiler
 	SECTION	data_compiler
 	SECTION	bss_compiler
-	SECTION	code_sentinel
+	SECTION	_code_sentinel
 
 	; NOTE: Payload size (_code_end - _intvec + 1) cannot be computed
 	; at link time via DEFC — z80asm asserts on cross-subsection symbol
