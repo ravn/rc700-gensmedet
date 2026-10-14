@@ -577,7 +577,8 @@ zsdcc/prom.bin: zsdcc/sections.asm rom.c rom.h boot_rom.c intvec.c sdcc/peephole
 	 if [ $$(($$IVT % 256)) -ne 0 ]; then \
 	   echo "ERROR: _intvec=0x$$IVT not page-aligned (Z80 IM2 requires I*256 boundary)"; exit 1; \
 	 fi; \
-	 cat prom0__BOOT.bin prom0_CODE.bin > $(CURDIR)/zsdcc/prom.bin; \
+	 cat prom0__BOOT.bin prom0_CODE.bin > $(CURDIR)/zsdcc/prom.bin && \
+	 cp prom0.map $(CURDIR)/zsdcc/prom0.map; \
 	 R=$$?; rm -rf "$$BDIR"; exit $$R
 	@PROM=$$(wc -c < zsdcc/prom.bin | tr -d ' '); \
 	 echo "zsdcc PROM: $$PROM bytes"
