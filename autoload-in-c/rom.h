@@ -48,6 +48,26 @@
 typedef uint8_t  byte;
 typedef uint16_t word;
 
+#if defined(__clang__)
+/* Under -ffreestanding, Clang generates library calls (call _memcpy, call _memset)
+ * pulling in compiler-rt. __builtin_memcpy generates @llvm.memcpy which Z80 lowers
+ * directly to inline LDIR. For memset, writing the 1st byte and copying via
+ * self-overlapping LDIR produces 100% inline Z80 code with zero library calls:
+ *   e.g. memset(0x7830, ' ', 2000) -> ld (0x7830), ' '; ldir 0x7830->0x7831, 1999 */
+#undef memcpy
+#define memcpy(d, s, n) __builtin_memcpy((d), (s), (n))
+#undef memset
+#define memset(d, c, n) do { \
+    size_t _n = (size_t)(n); \
+    if (_n != 0) { \
+        byte *_dst = (byte *)(d); \
+        *_dst = (byte)(c); \
+        if (_n > 1) \
+            __builtin_memcpy(_dst + 1, _dst, _n - 1); \
+    } \
+} while (0)
+#endif
+
 /* ================================================================
  * Constants
  * ================================================================ */

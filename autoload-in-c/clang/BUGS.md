@@ -67,6 +67,44 @@ if (Callee->hasFnAttribute(Attribute::AlwaysInline))
 
 ---
 
+## Bug 4: G_MEMSET lacks inline lowering in Legalizer
+
+**Symptom**: `memset()` calls under Clang pull in `___z80_memset_builtin` from `compiler-rt`, adding library stubs to bare-metal / ROM builds.
+
+**Trigger**: In `llvm/lib/Target/Z80/Z80LegalizerInfo.cpp:1801`, `G_MEMSET` only promotes the value operand to i16 and calls `Helper.createMemLibcall(MRI, MI, LocObserver)`, unlike `G_MEMCPY` which lowers directly to `Z80::LDIR`. Additionally, under `-ffreestanding`, Clang emits external library calls (`call _memset`, `call _memcpy`) rather than `@llvm.memset` / `@llvm.memcpy`.
+
+**Workaround**: In C source, call `__builtin_memcpy` (which forces `@llvm.memcpy` and lowers to `LDIR`), and synthesize `memset` via 1-byte store + self-overlapping `__builtin_memcpy(_dst + 1, _dst, n - 1)`:
+```c
+#if defined(__clang__)
+#undef memcpy
+#define memcpy(d, s, n) __builtin_memcpy((d), (s), (n))
+#undef memset
+#define memset(d, c, n) do { \
+    size_t _n = (size_t)(n); \
+    if (_n != 0) { \
+        byte *_dst = (byte *)(d); \
+        *_dst = (byte)(c); \
+        if (_n > 1) \
+            __builtin_memcpy(_dst + 1, _dst, _n - 1); \
+    } \
+} while (0)
+#endif
+```
+
+---
+
+## Bug 5: Static frame lacks cost model on Z80 (unlike SM83), inflating call spills
+
+**Symptom**: Functions compiled with `+static-frame` experience code size inflation when registers are spilled across `call` instructions (e.g. `_fdc_read_result` grew from 39 B to 51 B, +12 B).
+
+**Trigger**: In `Z80FrameLowering.cpp:148`, commit `b28c4ab0518a` enabled a size cost model for SM83 (`KeepWideOnStack`) which leaves 16-bit slots on the stack if access overhead exceeds prologue savings. However, `KeepWideOnStack` was hardcoded to `false` for Z80 under the assumption that Z80 has 16-bit direct absolute addressing (`ld bc, (nn)`).
+This overlooked that `ld bc, (nn)` is 4 bytes. Spilling `BC` and `D` across a call costs 16 bytes of static BSS stores and reloads per iteration vs 2 bytes for `push de; pop de` on the stack.
+
+**Tracking**: ravn/llvm-z80#415
+**Workaround**: In C, avoid function calls inside tight loops (e.g. inline callees via macros or `ALWAYS_INLINE`).
+
+---
+
 ## Non-bug: Known Backend Weakness
 
 **Bit test generates clunky code**: `status & 0x80` produces:
