@@ -411,8 +411,13 @@ static void calc_size_of_current_track(void) {
 /* Compile-time check: total timeout >= 400ms */
 typedef char _waitfl_timeout_check[(255L * WAITFL_POLL_MS >= 400) ? 1 : -1];
 
-/* Send Sense Interrupt Status; ST0 in [0], PCN in [1]. */
-static void fdc_sense_interrupt(void) {
+/* Forward prototypes for helpers called from naked floppy ISR */
+void fdc_sense_interrupt(void);
+void fdc_read_result(void);
+
+/* Send Sense Interrupt Status; ST0 in [0], PCN in [1].
+ * Non-static so the naked floppy ISR can call it via asm without DCE removal. */
+void fdc_sense_interrupt(void) {
     fdc_write_when_ready(FDC_SENSE_INT);
     fdc_result.st0 = fdc_read_when_ready();
     if ((fdc_result.st0 & 0b11000000) != 0b10000000) {
@@ -428,8 +433,9 @@ static void fdc_seek(byte head_and_drive, byte cylinder) {
     fdc_write_when_ready(cylinder); /* NCN (new cylinder number) */
 }
 
-/* Read FDC result phase (up to 7 bytes into fdc_result) and DMA status after. */
-static void fdc_read_result(void) {
+/* Read FDC result phase (up to 7 bytes into fdc_result) and DMA status after.
+ * Non-static so the naked floppy ISR can call it via asm without DCE removal. */
+void fdc_read_result(void) {
     byte i;
     byte *p = (byte *) &fdc_result;
 
@@ -940,34 +946,39 @@ static void syscall(word addr, word de) {
  * Forward declarations here (not in rom.h) because SDCC requires
  * __interrupt(n) on declarations to match definitions exactly.
  * ================================================================ */
-void nothing_int(void) __interrupt(0);
-void refresh_crt_dma_50hz_interrupt(void) __critical __interrupt(1);
-void floppy_completed_operation_interrupt(void) __critical __interrupt(2);
+/* ================================================================
+ * 6. Interrupt service routines
+ *
+ * IM2 interrupt handlers implemented using the Z80 shadow register
+ * set (EX AF,AF' and EXX) via __naked functions.
+ *
+ * WHY naked + shadow registers instead of compiler __interrupt(N):
+ * Standard compiler-generated __interrupt saves all registers onto the
+ * stack (push af, bc, de, hl, iy, and sets up an IX frame if non-leaf),
+ * adding 20 to 52 bytes of prologue/epilogue overhead per ISR.
+ * Neither SDCC nor upstream LLVM-Z80 have built-in support for +shadow-isr.
+ * By using __naked with inline assembly:
+ * - refresh_crt_dma_50hz_interrupt touches ONLY register A; inlining the
+ *   DMA/CTC I/O between EX AF,AF' takes 39 bytes total (0 pushes, 0 calls).
+ * - floppy_completed_operation_interrupt swaps EX AF,AF' and EXX, inlines
+ *   the FDC status check, and calls fdc_sense_interrupt or fdc_read_result
+ *   in the shadow register bank, then swaps back (26 bytes total, 0 pushes).
+ * ================================================================ */
 
-/* ISR structure (2026-09-17):
- *
- * Each ISR splits into (a) a normal-C body function marked static+inline
- * that contains all the actual work, and (b) a thin __interrupt(N) wrapper
- * that just calls the body and then ei().  The wrapper is what the IM2
- * vector table points to; the compiler is expected to inline the body so
- * the emitted code is byte-identical to a direct-body ISR.
- *
- * Why split at all: it is the correct upstream-coherent Z80 pattern per
- * llvm-z80/llvm-z80 PR #40 discussion.  __attribute__((interrupt)) emits
- * only RETI + register save/restore -- ei() must be an explicit body
- * statement, and keeping the wrapper minimal makes that placement
- * unambiguous.  On the SDCC path z88dk still generates its own EI; RETI
- * for __interrupt(N) so the wrapper's ei() is a no-op there.  See
- * ravn/llvm-z80#317 (closed 2026-09-17 as matches-upstream-design).
- *
- * Migration TODO for cpnos-in-c and rcbios-in-c: same wrapper/body split.
- * See tasks/todo-isr-wrapper-migration.md. */
+void nothing_int(void) __naked;
+void refresh_crt_dma_50hz_interrupt(void) __naked;
+void floppy_completed_operation_interrupt(void) __naked;
 
-/* Dummy ISR body: nothing to do for unused vectors. */
-ISR_BODY_INLINE void nothing_int_body(void) { }
-void nothing_int(void) __interrupt(0) {
-    nothing_int_body();
-    ei();
+/* Dummy ISR: immediately enables interrupts and returns. */
+void nothing_int(void) __naked {
+#if defined(__z80__) || defined(__LLVMZ80)
+    __asm__ volatile("ei\n\treti");
+#elif defined(__SDCC)
+    __asm
+        ei
+        reti
+    __endasm;
+#endif
 }
 
 /* CRT vertical retrace ISR (CTC Ch2).
@@ -976,41 +987,107 @@ void nothing_int(void) __interrupt(0) {
  * 8275 CRT controller.  The boot ROM never scrolls, so the address and
  * word count are constant.  The BIOS replaces this ISR with its own.
  *
- * The original ROM used two DMA channels (Ch2+Ch3) and scroll_offset
- * for circular-buffer scrolling — not needed here since we don't scroll. */
-ISR_BODY_INLINE void refresh_crt_dma_50hz_body(void) {
-    (void) crt_status(); /* acknowledge CRT interrupt */
-
-    dma_mask(2); /* disable Ch2 during programming */
-    dma_clear_bp(); /* reset byte pointer flip-flop */
-
-    dma_ch2_addr(DSPSTR_ADDR); /* Ch2: display buffer base */
-    dma_ch2_wc(80 * 25 - 1); /* Ch2: full screen (2000 bytes) */
-
-    dma_unmask(2); /* re-enable Ch2 */
-
-    ctc2_write(0xD7); /* rearm CTC Ch2: counter, interrupt */
-    ctc2_write(0x01); /* time constant = 1 (every retrace) */
-}
-void refresh_crt_dma_50hz_interrupt(void) __critical __interrupt(1) {
-    refresh_crt_dma_50hz_body();
-    ei();
+ * Touches ONLY register A, so EX AF,AF' is sufficient (no EXX or stack pushes). */
+void refresh_crt_dma_50hz_interrupt(void) __naked {
+#if defined(__z80__) || defined(__LLVMZ80)
+    __asm__ volatile(
+        "ex af, af'\n\t"
+        "in a, (0x0c)\n\t"          /* crt_status(): acknowledge CRT interrupt */
+        "ld a, 0x06\n\t"
+        "out (0xfa), a\n\t"         /* dma_mask(2): disable Ch2 during programming */
+        "out (0xfc), a\n\t"         /* dma_clear_bp(): reset byte pointer flip-flop (port 0xFC) */
+        "xor a\n\t"
+        "out (0xf4), a\n\t"         /* dma_ch2_addr low: 0x00 */
+        "ld a, 0x78\n\t"
+        "out (0xf4), a\n\t"         /* dma_ch2_addr high: 0x78 (DSPSTR_ADDR = 0x7800) */
+        "ld a, 0xcf\n\t"
+        "out (0xf5), a\n\t"         /* dma_ch2_wc low: 0xcf */
+        "ld a, 0x07\n\t"
+        "out (0xf5), a\n\t"         /* dma_ch2_wc high: 0x07 (80*25-1 = 1999 = 0x07cf) */
+        "ld a, 0x02\n\t"
+        "out (0xfa), a\n\t"         /* dma_unmask(2): re-enable Ch2 */
+        "ld a, 0xd7\n\t"
+        "out (0x0e), a\n\t"         /* ctc2_write(0xd7): rearm CTC Ch2 */
+        "ld a, 0x01\n\t"
+        "out (0x0e), a\n\t"         /* ctc2_write(0x01): time constant = 1 */
+        "ex af, af'\n\t"
+        "ei\n\t"
+        "reti"
+    );
+#elif defined(__SDCC)
+    __asm
+        ex af, af'
+        in a, (0x0c)
+        ld a, #0x06
+        out (0xfa), a
+        out (0xfc), a
+        xor a
+        out (0xf4), a
+        ld a, #0x78
+        out (0xf4), a
+        ld a, #0xcf
+        out (0xf5), a
+        ld a, #0x07
+        out (0xf5), a
+        ld a, #0x02
+        out (0xfa), a
+        ld a, #0xd7
+        out (0x0e), a
+        ld a, #0x01
+        out (0x0e), a
+        ex af, af'
+        ei
+        reti
+    __endasm;
+#endif
 }
 
 /* Floppy disk ISR (CTC Ch3).
- * Sets floppy_flag, then reads result or senses interrupt. */
-ISR_BODY_INLINE void floppy_completed_operation_body(void) {
-    floppy_operation_completed_flag = 2; /* Only non-zero value */
-    /* delay(0, fdc_isr_delay); — no-op: outer=0 returns immediately */
-    if (fdc_status() & 0b00010000) {    /* CB=1: result phase ready */
-        fdc_read_result();
-    } else {
-        fdc_sense_interrupt();
-    }
-}
-void floppy_completed_operation_interrupt(void) __critical __interrupt(2) {
-    floppy_completed_operation_body();
-    ei();
+ * Sets floppy_operation_completed_flag = 2, then checks FDC status port 0x04:
+ * bit 4 (CB) = 1 -> result phase ready (fdc_read_result).
+ * bit 4 (CB) = 0 -> sense interrupt (fdc_sense_interrupt).
+ *
+ * Saves AF and BC/DE/HL via EX AF,AF' + EXX; calls fdc routines in shadow bank. */
+void floppy_completed_operation_interrupt(void) __naked {
+#if defined(__z80__) || defined(__LLVMZ80)
+    __asm__ volatile(
+        "ex af, af'\n\t"
+        "exx\n\t"
+        "ld a, 2\n\t"
+        "ld (_floppy_operation_completed_flag), a\n\t"
+        "in a, (0x04)\n\t"
+        "and 0x10\n\t"
+        "jr nz, floppy_read\n\t"
+        "call _fdc_sense_interrupt\n\t"
+        "jr floppy_done\n"
+        "floppy_read:\n\t"
+        "call _fdc_read_result\n"
+        "floppy_done:\n\t"
+        "exx\n\t"
+        "ex af, af'\n\t"
+        "ei\n\t"
+        "reti"
+    );
+#elif defined(__SDCC)
+    __asm
+        ex af, af'
+        exx
+        ld a, #2
+        ld (_floppy_operation_completed_flag), a
+        in a, (0x04)
+        and #0x10
+        jr nz, 00001$
+        call _fdc_sense_interrupt
+        jr 00002$
+00001$:
+        call _fdc_read_result
+00002$:
+        exx
+        ex af, af'
+        ei
+        reti
+    __endasm;
+#endif
 }
 
 /* Post-relocation entry point.  Called (tail-JP) from start() after LDIR copy.
