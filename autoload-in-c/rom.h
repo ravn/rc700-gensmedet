@@ -111,9 +111,19 @@ typedef uint16_t word;
 #define scroll_offset  (*(word *)(DSPSTR_ADDR + 0x07F5))
 
 /* Transfer control to address — never returns.
- * Uses a function pointer call (CALL, not JP).  The dangling return
- * address on the stack is harmless since the target never returns. */
+ * Uses inline assembly on clang/llvmz80 to perform a clean jump (push addr; ret)
+ * without an indirect C function call.  Indirect function pointer calls map to
+ * CallsExternalNode in LLVM's CallGraph, creating a cycle that forces callers
+ * to allocate reentrant frame pointers (IX).
+ * Fallback to function pointer call for SDCC / SCCZ80. */
+#if defined(__z80__) || defined(__LLVMZ80)
+#define jump_to(addr) do { \
+    __asm__ volatile("push %0\n\tret" : : "r"((word)(addr))); \
+    __builtin_unreachable(); \
+} while (0)
+#else
 #define jump_to(addr) ((void (*)(void))(addr))()
+#endif
 
 /* ================================================================
  * Z80 port I/O — inline IN/OUT on all backends

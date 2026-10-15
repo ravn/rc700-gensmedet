@@ -105,8 +105,10 @@ static void delay(byte outer, byte inner) {
 
 /* Implemented in clang/delay.s — assembly keeps LTO from restructuring the
  * timing loops (machine outliner was replacing __asm__ volatile("") with a
- * call to an outlined snippet, breaking the calibrated cycle count). */
-void delay(byte outer, byte inner);
+ * call to an outlined snippet, breaking the calibrated cycle count).
+ * Marked leaf so LLVM CallGraph does not assume it calls back into this
+ * module, preserving static stack frames across callers. */
+void delay(byte outer, byte inner) __attribute__((leaf));
 
 #endif /* __SDCC / clang */
 
