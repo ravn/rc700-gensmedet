@@ -30,7 +30,9 @@ extern const isr_t intvec[16];  /* forward decl for -Wmissing-variable-declarati
 
 /* used: LTO must not DCE this array — the Z80 hardware addresses it via the
  * I register (IM2), invisible to the compiler's reference analysis. */
-#if defined(__z80__)
+#if defined(__LLVMZ80)
+__attribute__((section("intvec_compiler"), used))
+#elif defined(__z80__)
 __attribute__((used))
 #endif
 const isr_t intvec[16] = {

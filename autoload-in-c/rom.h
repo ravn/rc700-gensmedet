@@ -19,7 +19,7 @@
  * __z80__: defined by llvm-z80 cross-compiler (clang --target=z80).
  * __SDCC: defined by SDCC.
  * Neither: host compiler / IDE (CLion, clangd) — stub everything. */
-#if defined(__z80__)
+#if defined(__z80__) || defined(__LLVMZ80)
 /* llvm-z80: map SDCC keywords to clang equivalents */
 #define __sfr volatile unsigned char
 #define __at(x)
@@ -72,7 +72,7 @@ typedef uint16_t word;
 #define STR(x)  STR_(x)
 
 /* Memory layout constants */
-#if defined(__z80__)
+#if defined(__z80__) || defined(__LLVMZ80)
 #define INTVEC_ADDR 0x6000      /* IVT base — clang code is larger, needs room before 0x7A00 */
 #else
 #define INTVEC_ADDR 0x7200      /* IVT base — page-aligned, room for CODE before 0x7A00 */
@@ -92,7 +92,7 @@ typedef uint16_t word;
  * machines.
  * SDCC: code relocates to 0x7200, which would overlap 0x7830, so its (MAME-only,
  * 64 KB-emulated) build keeps the display at 0x7A00. */
-#if defined(__z80__)
+#if defined(__z80__) || defined(__LLVMZ80)
 #define DSPSTR_ADDR 0x7830
 #else
 #define DSPSTR_ADDR 0x7A00
@@ -133,7 +133,7 @@ typedef uint16_t word;
  *         port_out(fdc_data, 0x42)   — writes 0x42 to FDC data register
  */
 
-#if defined(__z80__)
+#if defined(__z80__) || defined(__LLVMZ80)
 /* Port I/O via inline asm.  Previously this used a volatile
  * __attribute__((address_space(2))) pointer dereference, which the
  * legalizer could not lower for a plain (non-address_space) G_STORE
@@ -251,7 +251,7 @@ static void set_i_reg(byte page) {
     __asm__("ld i, a\n");
 }
 #endif
-#elif defined(__z80__)
+#elif defined(__z80__) || defined(__LLVMZ80)
 #include "clang/intrinsic.h"
 static inline void intrinsic_im_2(void) { __asm__ volatile("im 2"); }
 #else
@@ -268,7 +268,7 @@ static inline void set_i_reg(byte page) { (void) page; }
  * Clang: inline asm without # prefix. */
 #ifdef __SDCC
 #define SET_SP(addr) __asm__("ld sp, #" STR(addr) "\n")
-#elif defined(__z80__)
+#elif defined(__z80__) || defined(__LLVMZ80)
 #define SET_SP(addr) __asm__ volatile("ld sp, " STR(addr))
 #else
 #define SET_SP(addr) ((void)0)
@@ -374,7 +374,7 @@ extern byte error_saved;      /* saved error code */
 void start(void);
 void main_relocated(void);
 extern const byte code_end;
-#if defined(__z80__)
+#if defined(__z80__) || defined(__LLVMZ80)
 extern const char banner_string[];
 #endif
 

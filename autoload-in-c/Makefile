@@ -33,6 +33,16 @@ ifeq ($(COMPILER),clang)
   PROM_ELF     = clang/prom.clang.elf
   PROM_LIS     = clang/prom.clang.lis
   PROM_TARGET  = clang/prom.clang.bin
+else ifeq ($(COMPILER),llvmz80)
+  PROM_BIN     = llvmz80/prom.bin
+  PROM_ELF     = llvmz80/prom.bin
+  PROM_LIS     = llvmz80/prom.lis
+  PROM_TARGET  = llvmz80/prom.bin
+else ifeq ($(COMPILER),zsdcc)
+  PROM_BIN     = zsdcc/prom.bin
+  PROM_ELF     = zsdcc/prom.elf
+  PROM_LIS     = zsdcc/prom.lis
+  PROM_TARGET  = zsdcc/prom.bin
 else
   PROM_BIN     = sdcc/prom.bin
   PROM_ELF     = sdcc/prom.elf
@@ -66,8 +76,9 @@ help:
 	@echo 'no LLVM_Z80= or path args needed. Override with NATIVE=0 to use the Docker image.'
 	@echo
 	@echo 'Manual targets:'
-	@echo '  make prom                 clang PROM (default) -> clang/prom.clang.bin  [2 KB target, 4 KB cap]'
-	@echo '  make prom COMPILER=sdcc   SDCC PROM -> sdcc/prom.bin                    [4 KB, MAME-only]'
+	@echo '  make prom                    clang PROM (default) -> clang/prom.clang.bin  [2 KB target, 4 KB cap]'
+	@echo '  make prom COMPILER=llvmz80   llvmz80 PROM (zcc+llvm-z80) -> llvmz80/prom.bin [2 KB target, 4 KB cap]'
+	@echo '  make prom COMPILER=sdcc      SDCC PROM -> sdcc/prom.bin                    [4 KB, MAME-only]'
 	@echo '  make mame                 build PROM + boot-test in MAME'
 	@echo '  make clang_asm            emit clang assembly (codegen inspection)'
 	@echo '  make clang_disasm         disassemble the built clang PROM'
@@ -87,6 +98,7 @@ prom:
 	@#   sdcc:  4 KB (MAME-only parity; roa375.ic66 slot is a 4 KB file).
 	@PROM=$$(wc -c < $(PROM_BIN) | tr -d ' '); \
 	 if [ "$(COMPILER)" = "sdcc" ]; then CEIL=4096; CLABEL="MAME 4 KB"; \
+	 elif [ "$(COMPILER)" = "llvmz80" ]; then CEIL=4096; CLABEL="llvmz80 4 KB (target 2 KB)"; \
 	 else CEIL=4096; CLABEL="clang 4 KB (production target 2 KB)"; fi; \
 	 echo "$(COMPILER) PROM: $$PROM / $$CEIL bytes ($$CLABEL)"; \
 	 if [ $$PROM -gt 4096 ]; then \
@@ -280,7 +292,7 @@ else
 		sub(/^\$$/, "0x", addr); \
 		sub(/^_/, "", name); \
 		printf "%s %s\n", addr, name; \
-	}' sdcc/prom0.map | sort > sdcc/prom0_mame.sym
+	}' $(COMPILER)/prom0.map | sort > $(COMPILER)/prom0_mame.sym
 endif
 	@echo "wrote $(COMPILER)/prom0_mame.sym ($$(wc -l < $(COMPILER)/prom0_mame.sym) symbols)"
 
@@ -361,8 +373,11 @@ CLANG_OBJS = clang/boot.o clang/intvec.o clang/rom.o clang/runtime.o \
 CLANG_ZX0_OBJS = clang/dzx0_standard.o clang/text_compressed.o
 
 # Host-side ZX0 compressor + verifier from z88dk source tree.
-Z88DK_ZX0  = $(CURDIR)/../../z88dk/src/zx0/z88dk-zx0
-Z88DK_DZX0 = $(CURDIR)/../../z88dk/src/zx0/z88dk-dzx0
+Z88DK_NATIVE  ?= $(CURDIR)/../../z88dk
+ZCC_NATIVE    ?= $(Z88DK_NATIVE)/bin/zcc
+ZCCCFG_NATIVE ?= $(Z88DK_NATIVE)/lib/config
+Z88DK_ZX0     = $(Z88DK_NATIVE)/src/zx0/z88dk-zx0
+Z88DK_DZX0    = $(Z88DK_NATIVE)/src/zx0/z88dk-dzx0
 
 # Two-pass build:
 #   Pass 1 link with whatever clang/text_compressed.zx0 currently holds
@@ -584,6 +599,86 @@ zsdcc/prom.bin: zsdcc/sections.asm rom.c rom.h boot_rom.c intvec.c sdcc/peephole
 	 echo "zsdcc PROM: $$PROM bytes"
 
 # ================================================================
+# LLVM-Z80 PROM (via native z88dk fork + llvm-z80 backend)
+# ================================================================
+
+LLVMZ80_ENV = LLVMZ80EXE="$(CLANG_BUILD)/clang" \
+              PATH="$(Z88DK_NATIVE)/bin:$$PATH" \
+              ZCCCFG="$(ZCCCFG_NATIVE)"
+
+LLVMZ80_CFLAGS = +z80 -compiler=llvmz80 -Ca-IXIY -Cl-IXIY \
+                 -I. -Iclang -Illvmz80 \
+                 -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT) \
+                 -DINIT_SEM702=$(INIT_SEM702)
+
+LLVMZ80_LFLAGS = +z80 -compiler=llvmz80 --no-crt -m \
+                 -create-app -Cz"--org 0" -Ca-IXIY -Cl-IXIY
+
+LLVMZ80_OBJS = llvmz80/intvec.o llvmz80/banner.o llvmz80/delay.o llvmz80/rom.o
+
+.PHONY: llvmz80-prom
+llvmz80-prom: llvmz80/prom.bin
+
+llvmz80/build_stamp.h: FORCE
+	@mkdir -p llvmz80
+	@HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "????"); \
+	 BANNER=" RC700 ROA375 LZ $$(date '+%Y-%m-%d %H.%M') $$HASH/$$(whoami)"; \
+	 { echo "#define BUILD_BANNER \"$$BANNER\""; \
+	   echo "#define BUILD_BANNER_LENGTH $${#BANNER}"; } > $@.$$$$; \
+	 cmp -s $@.$$$$ $@ 2>/dev/null && rm -f $@.$$$$ || mv $@.$$$$ $@
+
+llvmz80/text_compressed.zx0:
+	@mkdir -p llvmz80
+	@touch $@
+
+llvmz80/boot.o: llvmz80/boot.asm llvmz80/text_compressed.zx0
+	@mkdir -p llvmz80
+	$(LLVMZ80_ENV) $(ZCC_NATIVE) +z80 -compiler=llvmz80 -Ca-IXIY -c $< -o $@
+
+llvmz80/delay.o: llvmz80/delay.asm
+	@mkdir -p llvmz80
+	$(LLVMZ80_ENV) $(ZCC_NATIVE) +z80 -compiler=llvmz80 -Ca-IXIY -c $< -o $@
+
+llvmz80/intvec.o: intvec.c rom.h
+	@mkdir -p llvmz80
+	$(LLVMZ80_ENV) $(ZCC_NATIVE) $(LLVMZ80_CFLAGS) -c $< -o $@
+
+llvmz80/banner.o: llvmz80/banner.c llvmz80/build_stamp.h
+	@mkdir -p llvmz80
+	$(LLVMZ80_ENV) $(ZCC_NATIVE) $(LLVMZ80_CFLAGS) -c $< -o $@
+
+llvmz80/rom.o: rom.c rom.h llvmz80/build_stamp.h
+	@mkdir -p llvmz80
+	$(LLVMZ80_ENV) $(ZCC_NATIVE) $(LLVMZ80_CFLAGS) -c $< -o $@
+
+llvmz80/prom.bin: llvmz80/sections.asm $(LLVMZ80_OBJS) llvmz80/boot.o
+	@echo "=== pass 1: link to extract raw CODE bytes ==="
+	$(LLVMZ80_ENV) $(ZCC_NATIVE) $(LLVMZ80_LFLAGS) -o llvmz80/prom0 \
+	    llvmz80/sections.asm $(LLVMZ80_OBJS) llvmz80/boot.o
+	@RAW=$$(wc -c < llvmz80/prom0_CODE.bin | tr -d ' '); \
+	 echo "    CODE raw = $$RAW bytes"
+	@echo "=== ZX0 compress ==="
+	$(Z88DK_ZX0) -f llvmz80/prom0_CODE.bin llvmz80/text_compressed.zx0
+	@echo "=== roundtrip verify: z88dk-dzx0 must reproduce pass-1 CODE exactly ==="
+	@rm -f llvmz80/text_roundtrip.bin
+	$(Z88DK_DZX0) llvmz80/text_compressed.zx0 llvmz80/text_roundtrip.bin
+	cmp llvmz80/prom0_CODE.bin llvmz80/text_roundtrip.bin \
+	    || { echo "FAIL: ZX0 roundtrip mismatch -- compressed blob would not unpack correctly at boot"; exit 1; }
+	@echo "    OK: $$(wc -c < llvmz80/prom0_CODE.bin | tr -d ' ') bytes raw -> $$(wc -c < llvmz80/text_compressed.zx0 | tr -d ' ') bytes compressed; roundtrip exact"
+	@echo "=== pass 2: re-assemble boot.o + final link ==="
+	$(LLVMZ80_ENV) $(ZCC_NATIVE) +z80 -compiler=llvmz80 -Ca-IXIY -c llvmz80/boot.asm -o llvmz80/boot.o
+	$(LLVMZ80_ENV) $(ZCC_NATIVE) $(LLVMZ80_LFLAGS) -o llvmz80/prom0 \
+	    llvmz80/sections.asm $(LLVMZ80_OBJS) llvmz80/boot.o
+	@IVT=$$(awk '/^_intvec / {gsub(/\$$/, "", $$3); print "0x"$$3; exit}' llvmz80/prom0.map | xargs printf '%d\n' 2>/dev/null); \
+	 if [ -z "$$IVT" ]; then echo "ERROR: _intvec not found in map"; exit 1; fi; \
+	 if [ $$(($$IVT % 256)) -ne 0 ]; then \
+	   echo "ERROR: _intvec=0x$$IVT not page-aligned (Z80 IM2 requires I*256 boundary)"; exit 1; \
+	 fi
+	cp llvmz80/prom0__BOOT.bin llvmz80/prom.bin
+	@PROM=$$(wc -c < llvmz80/prom.bin | tr -d ' '); \
+	 echo "llvmz80 PROM: $$PROM bytes"
+
+# ================================================================
 # RC700 emulator
 # ================================================================
 
@@ -608,4 +703,5 @@ rc700: prom
 clean:
 	$(MAKE) -C clang clean
 	$(MAKE) -C sdcc clean
+	$(MAKE) -C llvmz80 clean
 	rm -f build_stamp.h prom0.ic66 prom0_mame.sym prom0_debug.cmd

@@ -219,6 +219,8 @@ static void load_chargen_font(void)
 /* Banner string lives in BOOT section (boot_rom.c). */
 #ifdef __SDCC
 #include "sdcc/build_stamp.h"
+#elif defined(__LLVMZ80)
+#include "llvmz80/build_stamp.h"
 #elif defined(__z80__)
 #include "clang/build_stamp.h"
 #endif
