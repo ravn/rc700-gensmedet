@@ -5,7 +5,7 @@
 ;
 ; The compressed .text payload (incbin'd in clang/text_compressed.s)
 ; is at __text_zx0_start in ROM; _reloc_zx0 loads HL/DE and falls
-; through to dzx0_standard, which decompresses into RAM at __code_start.
+; through to dzx0_standard, which decompresses into RAM at _intvec (0x6000).
 ;
 ; Clobbers: AF, BC, DE, HL, AF'.  Uses stack (push/pop, ex (sp),hl).
 
@@ -14,7 +14,7 @@
 	.globl	_reloc_zx0
 _reloc_zx0:
 	ld	hl, __text_zx0_start
-	ld	de, __code_start
+	ld	de, _intvec
 	; fall through into dzx0_standard
 
 	.globl	dzx0_standard

@@ -238,6 +238,10 @@ extern const char banner_string[];
  * Compact form keeps PROM0 well under the 2048 B socket limit -- a
  * per-switch "S1:ON " form previously cost ~167 B compiled for ~50 B
  * of header + 8 B of dynamic bits here. */
+#if !defined(DISPLAY_SW1_STATUS) || DISPLAY_SW1_STATUS
+#if defined(__z80__) || defined(__LLVMZ80)
+void display_sw1_status(void) __attribute__((leaf));
+#else
 #define display_sw1_status() do { \
     byte sw = read_sw1(); \
     char *p = (char *)dspstr + 80 - 22; /* row 0, col 58 */ \
@@ -250,6 +254,10 @@ extern const char banner_string[];
         sw >>= 1;                      /* shift by const 1: no variable-shift loop */ \
     } \
 } while (0)
+#endif
+#else
+#define display_sw1_status() ((void)0)
+#endif
 
 /* Copy banner from BOOT ROM to display, stamp SW1 status on row 1,
  * and start CRT controller.  Programs DMA ch2 with display address

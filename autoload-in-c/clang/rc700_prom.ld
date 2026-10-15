@@ -74,7 +74,6 @@ SECTIONS {
    * in .text_compressed above; this section is excluded from the
    * .bin by llvm-objcopy --only-section in the Makefile. */
   .text 0x6000 : {
-    __code_start = .;
     KEEP(*intvec.o(.rodata*))  /* IVT: function pointers to ISRs (must be first;
                                   intvec.o compiled -fno-lto so filename matches) */
     *(.text*)                  /* C code + runtime stubs; wildcard covers both
@@ -96,7 +95,6 @@ SECTIONS {
   } > RAM
 
   __bss_size = __bss_end - __bss_start;
-  __code_size = __code_end - __code_start;
   __text_zx0_size = __text_zx0_end - __text_zx0_start;
 
   /* Verify ROM payload (decoder + compressed blob) fits in 2 KB.

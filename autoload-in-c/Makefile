@@ -134,7 +134,8 @@ SW1_PROM1   = $(MAME)/roms/rc702/prom1.ic65
 SW1_PROM1_BACKUP = /tmp/autoload_prom1_backup.bin
 
 .PHONY: sw1-test
-sw1-test: prom
+sw1-test:
+	$(MAKE) prom DISPLAY_SW1_STATUS=1
 	@echo "=== preparing empty PROM1 (no signature) ==="
 	@if [ -f "$(SW1_PROM1)" ]; then cp "$(SW1_PROM1)" "$(SW1_PROM1_BACKUP)"; fi
 	@perl -e 'print "\xFF" x 2048' > "$(SW1_PROM1)"
@@ -353,6 +354,10 @@ CLANG_CFLAGS += -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT)
 # to free ~377 B ZX0-compressed for debug payloads.
 INIT_SEM702 ?= 1
 CLANG_CFLAGS += -DINIT_SEM702=$(INIT_SEM702)
+# SW1 status line on row 0 (default OFF to meet 2048 B socket ceiling).
+# Enable with make DISPLAY_SW1_STATUS=1 (+45 B compressed with asm implementation).
+DISPLAY_SW1_STATUS ?= 0
+CLANG_CFLAGS += -DDISPLAY_SW1_STATUS=$(DISPLAY_SW1_STATUS)
 # -g enables DWARF debug info; binary unchanged because objcopy -O binary
 # only emits ALLOC sections and .debug_* are non-ALLOC.  The DWARF info
 # is what makes the source-annotated listing (clang/prom.clang.lis)
@@ -362,6 +367,9 @@ CLANG_CFLAGS += -DINIT_SEM702=$(INIT_SEM702)
 # so compiler-rt builtins are not needed.
 CLANG_OBJS = clang/boot.o clang/intvec.o clang/rom.o clang/runtime.o \
              clang/delay.o
+ifeq ($(DISPLAY_SW1_STATUS),1)
+CLANG_OBJS += clang/sw1_display.o
+endif
 CLANG_ZX0_OBJS = clang/dzx0_standard.o clang/text_compressed.o
 
 # Host-side ZX0 compressor + verifier from z88dk source tree.
@@ -428,6 +436,9 @@ clang/runtime.o: clang/runtime.s $(CLANG_COMPILER)
 clang/delay.o: clang/delay.s $(CLANG_COMPILER)
 	$(RUN) $(CLANG_CC) --target=z80 -c $< -o $@
 
+clang/sw1_display.o: clang/sw1_display.s $(CLANG_COMPILER)
+	$(RUN) $(CLANG_CC) --target=z80 -c $< -o $@
+
 clang/dzx0_standard.o: clang/dzx0_standard.s $(CLANG_COMPILER)
 	$(RUN) $(CLANG_CC) --target=z80 -c $< -o $@
 
@@ -444,7 +455,12 @@ clang/text_compressed.o: clang/text_compressed.s clang/text_compressed.zx0 $(CLA
 clang/intvec.o: intvec.c rom.h $(CLANG_COMPILER) Makefile
 	$(RUN) $(CLANG_CC) $(CLANG_CFLAGS) -fno-lto -c intvec.c -o $@
 
-clang/rom.o: rom.c rom.h $(CLANG_COMPILER) Makefile
+clang/.display_sw1_status: FORCE
+	@mkdir -p clang
+	@{ echo "$(DISPLAY_SW1_STATUS)"; } > $@.$$$$; \
+	 cmp -s $@.$$$$ $@ 2>/dev/null && rm -f $@.$$$$ || mv $@.$$$$ $@
+
+clang/rom.o: rom.c rom.h clang/.display_sw1_status $(CLANG_COMPILER) Makefile
 	$(RUN) $(CLANG_CC) $(CLANG_CFLAGS) -c rom.c -o $@
 
 clang_asm: rom.c rom.h
@@ -528,6 +544,7 @@ ZSDCC_FLAGS = +z80 -clib=sdcc_iy --no-crt --opt-code-size -SO3 \
               -Cs"--allow-unsafe-read" -Cs"--disable-warning 296" \
               -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT) \
               -DINIT_SEM702=$(INIT_SEM702) \
+              -DDISPLAY_SW1_STATUS=$(DISPLAY_SW1_STATUS) \
               -D__DISABLE_BUILTIN \
               -D__ZSDCC_SECTION_BOOT_UNDERSCORE
 
@@ -592,7 +609,8 @@ LLVMZ80_CFLAGS = +z80 -compiler=llvmz80 -Ca-IXIY -Cl-IXIY \
                  -Cg-Xclang -Cg-target-feature -Cg-Xclang -Cg+static-frame \
                  -I. -Iclang -Illvmz80 \
                  -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT) \
-                 -DINIT_SEM702=$(INIT_SEM702)
+                 -DINIT_SEM702=$(INIT_SEM702) \
+                 -DDISPLAY_SW1_STATUS=$(DISPLAY_SW1_STATUS)
 
 LLVMZ80_LFLAGS = +z80 -compiler=llvmz80 --no-crt -m \
                  -create-app -Cz"--org 0" -Ca-IXIY -Cl-IXIY

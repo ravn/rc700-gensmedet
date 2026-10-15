@@ -27,11 +27,10 @@ extern void main_relocated(void);
 
 #if defined(__z80__)
 
-extern char _code_load[], _code_start[], _code_size[];
 extern char _bss_start[], _bss_size[];
 
 /* ZX0 decompressor + wrapper in clang/dzx0_standard.s.  reloc_zx0()
- * loads HL=__text_zx0_start, DE=__code_start and falls through to
+ * loads HL=__text_zx0_start, DE=_intvec and falls through to
  * dzx0_standard, replacing the prior raw LDIR-via-memcpy copy step
  * with a ZX0 decompression. */
 extern void reloc_zx0(void);
