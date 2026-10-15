@@ -769,24 +769,16 @@ static void fdc_read_data_from_current_location(word total_bytes_to_read) {
             return;
         }
 
-        /* calculate transfer size.
-         * The 'remaining' local generates smaller code than in-place
-         * subtraction: sdcc keeps it in HL (free), and the else-branch
-         * uses a simple 16-bit load (6 bytes) instead of += which
-         * requires load-add-store (10+ bytes).  Values < 32K so
-         * signed comparison is safe. */
-        {
-            int16_t remaining;
-            calc_size_of_current_track();
-            remaining = (int16_t) bytes_left_to_read - (int16_t) dma_transfer_size;
-            if (remaining > 0) {
-                more_tracks_to_read = 1;
-                bytes_left_to_read = (word) remaining;
-            } else {
-                more_tracks_to_read = 0;
-                dma_transfer_size = bytes_left_to_read;
-                bytes_left_to_read = 0;
-            }
+        /* Calculate transfer size: compare unsigned track vs remaining bytes.
+         * Unsigned comparison avoids 16-bit sign-bit materialization and spills. */
+        calc_size_of_current_track();
+        if (bytes_left_to_read > dma_transfer_size) {
+            bytes_left_to_read -= dma_transfer_size;
+            more_tracks_to_read = 1;
+        } else {
+            dma_transfer_size = bytes_left_to_read;
+            bytes_left_to_read = 0;
+            more_tracks_to_read = 0;
         }
 
         if (fdc_get_result_bytes(FDC_READ_DATA, 5) != 0) {

@@ -61,11 +61,6 @@ __asm__(
     ".section .text\n"
 );
 
-#define RELOC_DST   (_code_start)
-#define RELOC_SRC   ((const void *)_code_load)
-#define RELOC_SIZE  ((unsigned)_code_size)
-#define BSS_DST     (_bss_start)
-#define BSS_SIZE    ((unsigned)_bss_size)
 
 #elif defined(__SDCC)
 
