@@ -356,9 +356,10 @@ static void calc_size_of_current_track(void) {
                        : fdc_cmd.eot - fdc_cmd.sector + 1;
 
     word tb = (word) sectors;
-    for (byte i = 7 + fdc_cmd.size_shift; i != 0; i--) {
+    byte i = (byte)(7 + fdc_cmd.size_shift);
+    do {
         tb <<= 1;
-    }
+    } while (--i);
     dma_transfer_size = tb;
 }
 
@@ -477,7 +478,7 @@ static byte verify_seek_result(byte expected_pcn) {
      * So fail (return 2) if EITHER differs -- `||` is correct (De Morgan of the
      * "both must match" success condition); `&&` would wrongly accept a seek
      * where just one of the two matched. */
-    if ((drive_select + 0b00100000) != fdc_result.st0 || /* SE+drive */
+    if ((byte)(drive_select + 0b00100000) != fdc_result.st0 || /* SE+drive */
         expected_pcn != fdc_result.st1) {                /* PCN */
         return 2;
     }
