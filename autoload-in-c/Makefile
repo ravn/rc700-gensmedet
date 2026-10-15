@@ -328,7 +328,6 @@ CLANG_NM      = $(CLANG_BUILD)/llvm-nm
 CLANG_CFLAGS = --target=z80 -Oz -g -nostdlib -ffreestanding \
 	       -ffunction-sections -fdata-sections \
 	       -Xclang -target-feature -Xclang +static-frame \
-	       -Xclang -target-feature -Xclang +shadow-isr \
 	       -Iclang -I. \
 	       -Weverything \
 	       -Wno-unsafe-buffer-usage \
@@ -607,6 +606,9 @@ LLVMZ80_ENV = LLVMZ80EXE="$(CLANG_BUILD)/clang" \
               ZCCCFG="$(ZCCCFG_NATIVE)"
 
 LLVMZ80_CFLAGS = +z80 -compiler=llvmz80 -Ca-IXIY -Cl-IXIY \
+                 -Cg-Oz \
+                 -Cg-Wno-gcc-compat \
+                 -Cg-Xclang -Cg-target-feature -Cg-Xclang -Cg+static-frame \
                  -I. -Iclang -Illvmz80 \
                  -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT) \
                  -DINIT_SEM702=$(INIT_SEM702)
