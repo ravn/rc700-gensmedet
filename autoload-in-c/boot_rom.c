@@ -123,16 +123,29 @@ void start(void) {  /* not marked noreturn: allows tail-call JP to main_relocate
     SET_SP(ROM_STACK);
 #if defined(__ELF__)
     reloc_zx0();
+    // BSS is non-empty (> 1 byte). Zero first byte and propagate via LDIR;
+    // __bss_start is loaded once into HL without redundant runtime checks.
+    __asm__ volatile(
+        "ld\thl, __bss_start\n\t"
+        "ld\t(hl), 0\n\t"
+        "ld\td, h\n\t"
+        "ld\te, l\n\t"
+        "inc\tde\n\t"
+        "ld\tbc, __bss_size - 1\n\t"
+        "ldir"
+        ::: "a", "b", "c", "d", "e", "h", "l", "memory"
+    );
 #elif defined(__SDCC)
     /* boot_reloc uses LDIR inline (in _BOOT section) — library memcpy is
      * in CODE section and not yet in RAM when start() runs from ROM. */
     boot_reloc(RELOC_DST, RELOC_SRC, RELOC_SIZE);
-#else
-    memcpy(RELOC_DST, RELOC_SRC, RELOC_SIZE);
-#endif
-    // Now code is in its intended locaiton.
     if (BSS_SIZE)
         memset(BSS_DST, 0, BSS_SIZE);
+#else
+    memcpy(RELOC_DST, RELOC_SRC, RELOC_SIZE);
+    if (BSS_SIZE)
+        memset(BSS_DST, 0, BSS_SIZE);
+#endif
     // Jump to relocated code.
     main_relocated();
 }

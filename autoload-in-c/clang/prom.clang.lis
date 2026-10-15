@@ -9,75 +9,67 @@ Disassembly of section .boot:
 ;     SET_SP(ROM_STACK);
        1: 31 ff bf     	ld	sp,$bfff
 ;     reloc_zx0();
-       4: cd 29 00     	call	$29
-;         memset(BSS_DST, 0, BSS_SIZE);
-       7: af           	xor	a
-       8: 32 b7 6d     	ld	($6db7),a               ; 0x6db7 <_fdc_result>
-       b: 01 3f 00     	ld	bc,$3f
-       e: 79           	ld	a,c
-       f: d6 02        	sub	$2
-      11: 78           	ld	a,b
-      12: de 00        	sbc	a,$0
-      14: 38 0f        	jr	c,$25
-      16: 21 b7 6d     	ld	hl,$6db7
-      19: 11 b8 6d     	ld	de,$6db8
-      1c: 01 3e 00     	ld	bc,$3e
-      1f: 78           	ld	a,b
-      20: b1           	or	c
-      21: 28 02        	jr	z,$25
-      23: ed b0        	ldir
+       4: cd 18 00     	call	$18
+;     __asm__ volatile(
+       7: 21 b7 6d     	ld	hl,$6db7
+       a: 36 00        	ld	(hl),$0
+       c: 54           	ld	d,h
+       d: 5d           	ld	e,l
+       e: 13           	inc	de
+       f: 01 3e 00     	ld	bc,$3e
+      12: ed b0        	ldir
 ;     main_relocated();
-      25: cd 21 61     	call	$6121
+      14: cd 21 61     	call	$6121
 ; }
-      28: c9           	ret
+      17: c9           	ret
 
 Disassembly of section .zx0_decoder:
 
-00000029 <_reloc_zx0>:
-      29: 21 77 00     	ld	hl,$77
-      2c: 11 00 60     	ld	de,$6000
+00000018 <_reloc_zx0>:
+      18: 21 77 00     	ld	hl,$77
+      1b: 11 00 60     	ld	de,$6000
 
-0000002f <dzx0_standard>:
-      2f: 01 ff ff     	ld	bc,$ffff
-      32: c5           	push	bc
-      33: 03           	inc	bc
-      34: 3e 80        	ld	a,$80
+0000001e <dzx0_standard>:
+      1e: 01 ff ff     	ld	bc,$ffff
+      21: c5           	push	bc
+      22: 03           	inc	bc
+      23: 3e 80        	ld	a,$80
 
-00000036 <dzx0s_literals>:
-      36: cd 68 00     	call	$68
-      39: ed b0        	ldir
-      3b: 87           	add	a,a
-      3c: 38 0d        	jr	c,$4b
-      3e: cd 68 00     	call	$68
+00000025 <dzx0s_literals>:
+      25: cd 68 00     	call	$68
+      28: ed b0        	ldir
+      2a: 87           	add	a,a
+      2b: 38 0d        	jr	c,$3a
+      2d: cd 68 00     	call	$68
 
-00000041 <dzx0s_copy>:
-      41: e3           	ex	(sp),hl
-      42: e5           	push	hl
-      43: 19           	add	hl,de
-      44: ed b0        	ldir
-      46: e1           	pop	hl
-      47: e3           	ex	(sp),hl
-      48: 87           	add	a,a
-      49: 30 eb        	jr	nc,$36
+00000030 <dzx0s_copy>:
+      30: e3           	ex	(sp),hl
+      31: e5           	push	hl
+      32: 19           	add	hl,de
+      33: ed b0        	ldir
+      35: e1           	pop	hl
+      36: e3           	ex	(sp),hl
+      37: 87           	add	a,a
+      38: 30 eb        	jr	nc,$25
 
-0000004b <dzx0s_new_offset>:
-      4b: cd 68 00     	call	$68
-      4e: 08           	ex	af,af'
-      4f: f1           	pop	af
-      50: af           	xor	a
-      51: 91           	sub	c
-      52: c8           	ret	z
-      53: 47           	ld	b,a
-      54: 08           	ex	af,af'
-      55: 4e           	ld	c,(hl)
-      56: 23           	inc	hl
-      57: cb 18        	rr	b
-      59: cb 19        	rr	c
-      5b: c5           	push	bc
-      5c: 01 01 00     	ld	bc,$1
-      5f: d4 70 00     	call	nc,$70
-      62: 03           	inc	bc
-      63: 18 dc        	jr	$41
+0000003a <dzx0s_new_offset>:
+      3a: cd 68 00     	call	$68
+      3d: 08           	ex	af,af'
+      3e: f1           	pop	af
+      3f: af           	xor	a
+      40: 91           	sub	c
+      41: c8           	ret	z
+      42: 47           	ld	b,a
+      43: 08           	ex	af,af'
+      44: 4e           	ld	c,(hl)
+      45: 23           	inc	hl
+      46: cb 18        	rr	b
+      48: cb 19        	rr	c
+      4a: c5           	push	bc
+      4b: 01 01 00     	ld	bc,$1
+      4e: d4 70 00     	call	nc,$70
+      51: 03           	inc	bc
+      52: 18 dc        	jr	$30
 
 Disassembly of section .nmi:
 
@@ -130,9 +122,9 @@ Disassembly of section .text:
     6020: 20 52 43 37 30 30 20 52          RC700 R
     6028: 4f 41 33 37 35 20 43 4c         OA375 CL
     6030: 20 32 30 32 36 2d 31 30          2026-10
-    6038: 2d 31 35 20 31 37 2e 34         -15 17.4
-    6040: 31 20 32 63 63 38 35 34         1 2cc854
-    6048: 30 2f 72 61 76 6e 00            0/ravn.
+    6038: 2d 31 35 20 31 38 2e 34         -15 18.4
+    6040: 39 20 31 34 38 32 65 62         9 1482eb
+    6048: 38 2f 72 61 76 6e 00            8/ravn.
 
 0000604f <_fdc_sense_interrupt>:
 ;     fdc_write_when_ready(FDC_SENSE_INT);
