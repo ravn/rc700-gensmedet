@@ -197,26 +197,17 @@ static void init_crt(void) {
  * strict-latch model can't distinguish).
  */
 #include "clang/sem702_font.h"
-static void load_chargen_font(void)
-{
-    byte line, ch;
-    const byte *p = sem702_font; /* line-major: each dot-line is 128 sequential bytes */
-    /* Iterate LINE-OUTER, CHAR-INNER so the table read is a pure sequential walk
-     * (*p++) -- no per-cell index multiply / IY shuttle (llvm-z80 B21).  The
-     * SEM702 forms its RAM address (char_latch<<4)|dot_latch from two independent
-     * latches AT the data write (verified in MAME rc702.cpp sem702_data_w), so
-     * setting ALINE once per line and the char per glyph is equivalent to the old
-     * per-cell order and yields byte-identical RAM.  Only lines 0..10 are written:
-     * the 8275 is programmed for 11 lines/char (init_crt crt_param(0x9A), L field
-     * = 10 -> 11 lines), so ALINE 11..15 are never fetched. */
-    for (line = 0; line < SEM702_FONT_LINES; line++) {
-        port_out(chargen_dot, line); /* ALINE = line, set once per dot-line */
-        for (ch = 0; ch < 128; ch++) {
-            port_out(chargen_char, ch);
-            port_out(chargen_data, *p++);
-        }
-    }
-}
+#define load_chargen_font() do { \
+    byte line, ch; \
+    const byte *p = sem702_font; /* line-major: each dot-line is 128 sequential bytes */ \
+    for (line = 0; line < SEM702_FONT_LINES; line++) { \
+        port_out(chargen_dot, line); /* ALINE = line, set once per dot-line */ \
+        for (ch = 0; ch < 128; ch++) { \
+            port_out(chargen_char, ch); \
+            port_out(chargen_data, *p++); \
+        } \
+    } \
+} while (0)
 
 /* Banner string lives in BOOT section (boot_rom.c). */
 #ifdef __SDCC
@@ -247,20 +238,18 @@ extern const char banner_string[];
  * Compact form keeps PROM0 well under the 2048 B socket limit -- a
  * per-switch "S1:ON " form previously cost ~167 B compiled for ~50 B
  * of header + 8 B of dynamic bits here. */
-static void display_sw1_status(void) {
-    byte sw = read_sw1();
-    char *p = (char *)dspstr + 80 - 22; /* row 0, col 58 */
-    static const char prefix[] = "SW1 12345678: ";
-    byte i;
-
-    memcpy(p, prefix, sizeof prefix - 1);
-    p += sizeof prefix - 1;
-
-    for (i = 0; i < 8; i++) {
-        *p++ = (char)('0' + (sw & 1)); /* bit i -> col i (LSB first) */
-        sw >>= 1;                      /* shift by const 1: no variable-shift loop */
-    }
-}
+#define display_sw1_status() do { \
+    byte sw = read_sw1(); \
+    char *p = (char *)dspstr + 80 - 22; /* row 0, col 58 */ \
+    static const char prefix[] = "SW1 12345678: "; \
+    byte i; \
+    memcpy(p, prefix, sizeof prefix - 1); \
+    p += sizeof prefix - 1; \
+    for (i = 0; i < 8; i++) { \
+        *p++ = (char)('0' + (sw & 1)); /* bit i -> col i (LSB first) */ \
+        sw >>= 1;                      /* shift by const 1: no variable-shift loop */ \
+    } \
+} while (0)
 
 /* Copy banner from BOOT ROM to display, stamp SW1 status on row 1,
  * and start CRT controller.  Programs DMA ch2 with display address
@@ -289,35 +278,31 @@ static void display_sw1_status(void) {
 #include "clang/qr_data.h"
 #define QR_TOP 15
 #define QR_LEFT 65 /* bottom-right: cols 65..77 (13 wide), rows 15..23; 0x84 at col 64 */
-static void draw_qr(void) {
-    const byte *s = qr_screen;                  /* sequential over all 117 cells */
-    byte *d = dspstr + QR_TOP * 80 + QR_LEFT;   /* screen dest, +80 per row */
-    byte r, c;
-    /* One field attribute (0x84 = GPA0=1) selects ROA327/SEM702 from here to the
-     * end of screen -- no 0x80 reset is needed because everything after the QR
-     * is blank spaces, which render identically in both fonts (and the banner /
-     * halt text are on earlier rows, before this attribute). */
-    d[-1] = 0x84;
-    for (r = 0; r < QR_ROWS; r++) {
-        for (c = 0; c < QR_COLS; c++)
-            *d++ = *s++;                        /* both pointers advance (HL/BC) */
-        d += 80 - QR_COLS;                      /* skip to next row */
-    }
-}
+#define draw_qr() do { \
+    const byte *s = qr_screen;                  /* sequential over all 117 cells */ \
+    byte *d = dspstr + QR_TOP * 80 + QR_LEFT;   /* screen dest, +80 per row */ \
+    byte r, c; \
+    d[-1] = 0x84; \
+    for (r = 0; r < QR_ROWS; r++) { \
+        for (c = 0; c < QR_COLS; c++) \
+            *d++ = *s++;                        /* both pointers advance (HL/BC) */ \
+        d += 80 - QR_COLS;                      /* skip to next row */ \
+    } \
+} while (0)
 
-static void display_banner_and_start_crt(void) {
-    memset(dspstr, 0x20, 80 * 25);
-    memcpy(dspstr, BANNER_PTR, BANNER_LENGTH);
-    display_sw1_status();
-    draw_qr();
-    /* Pre-program DMA ch2 for first frame (ISR takes over for subsequent frames) */
-    dma_mask(2);                     /* disable ch2 during programming */
-    dma_clear_bp();                  /* reset byte pointer flip-flop */
-    dma_ch2_addr(DSPSTR_ADDR);      /* display buffer address */
-    dma_ch2_wc(80 * 25 - 1);        /* word count (N-1) */
-    dma_unmask(2);                   /* enable ch2 */
-    crt_command(0x23);               /* start display: burst=0, 8 DMA cycles */
-}
+#define display_banner_and_start_crt() do { \
+    memset(dspstr, 0x20, 80 * 25); \
+    memcpy(dspstr, BANNER_PTR, BANNER_LENGTH); \
+    display_sw1_status(); \
+    draw_qr(); \
+    /* Pre-program DMA ch2 for first frame (ISR takes over for subsequent frames) */ \
+    dma_mask(2);                     /* disable ch2 during programming */ \
+    dma_clear_bp();                  /* reset byte pointer flip-flop */ \
+    dma_ch2_addr(DSPSTR_ADDR);      /* display buffer address */ \
+    dma_ch2_wc(80 * 25 - 1);        /* word count (N-1) */ \
+    dma_unmask(2);                   /* enable ch2 */ \
+    crt_command(0x23);               /* start display: burst=0, 8 DMA cycles */ \
+} while (0)
 
 /* ================================================================
  * 3. Format tables and geometry
@@ -996,10 +981,10 @@ void refresh_crt_dma_50hz_interrupt(void) __naked {
         "ld a, 0x06\n\t"
         "out (0xfa), a\n\t"         /* dma_mask(2): disable Ch2 during programming */
         "out (0xfc), a\n\t"         /* dma_clear_bp(): reset byte pointer flip-flop (port 0xFC) */
-        "xor a\n\t"
-        "out (0xf4), a\n\t"         /* dma_ch2_addr low: 0x00 */
+        "ld a, 0x30\n\t"
+        "out (0xf4), a\n\t"         /* dma_ch2_addr low: 0x30 (DSPSTR_ADDR = 0x7830) */
         "ld a, 0x78\n\t"
-        "out (0xf4), a\n\t"         /* dma_ch2_addr high: 0x78 (DSPSTR_ADDR = 0x7800) */
+        "out (0xf4), a\n\t"         /* dma_ch2_addr high: 0x78 (DSPSTR_ADDR = 0x7830) */
         "ld a, 0xcf\n\t"
         "out (0xf5), a\n\t"         /* dma_ch2_wc low: 0xcf */
         "ld a, 0x07\n\t"
@@ -1023,7 +1008,7 @@ void refresh_crt_dma_50hz_interrupt(void) __naked {
         out (0xfc), a
         xor a
         out (0xf4), a
-        ld a, #0x78
+        ld a, #0x7a
         out (0xf4), a
         ld a, #0xcf
         out (0xf5), a
@@ -1128,7 +1113,6 @@ void main_relocated(void)
     load_chargen_font();
 #endif
     init_fdc();
-    memset(dspstr, ' ', 80 * 25);   /* clear screen */
     display_banner_and_start_crt();
     get_floppy_ready();
     // ReSharper disable once CppDFAEndlessLoop

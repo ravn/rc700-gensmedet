@@ -40,6 +40,33 @@ static inline void z80_set_sp(word addr) {
 
 ---
 
+## Bug 3: areInlineCompatible() rejects always_inline on functions with > 10 instructions
+
+**Symptom**: `remark: 'f' not inlined into 'g' because it should never be inlined (cost=never): conflicting target features [-Rpass-missed=inline]`
+
+**Trigger**: Upstream LLVM commit `7bdca287` (July 6, 2026) moved `areInlineCompatible()` checks ahead of `always_inline` handling. In `llvm/lib/Target/Z80/Z80TargetTransformInfo.h`, `areInlineCompatible()` checks `InlineHint` and `instruction_count <= 10`, but lacks a check for `Attribute::AlwaysInline`:
+```cpp
+bool areInlineCompatible(const Function *Caller,
+                         const Function *Callee) const override {
+  if (Callee->hasFnAttribute(Attribute::InlineHint))
+    return true;
+  if (Callee->getInstructionCount() <= 10)
+    return true;
+  return false;
+}
+```
+Any C function with > 10 instructions annotated with `__attribute__((always_inline))` gets `alwaysinline` attribute (not `inlinehint`), returning false from `areInlineCompatible()`. The inliner rejects it claiming "conflicting target features".
+
+**Tracking**: ravn/llvm-z80#414
+**Workaround**: Use macros (`#define func() do { ... } while (0)`) to force lexical inlining without relying on the function inliner.
+**Fix**: In `Z80TargetTransformInfo.h`, add:
+```cpp
+if (Callee->hasFnAttribute(Attribute::AlwaysInline))
+  return true;
+```
+
+---
+
 ## Non-bug: Known Backend Weakness
 
 **Bit test generates clunky code**: `status & 0x80` produces:

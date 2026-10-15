@@ -17,6 +17,7 @@ roa375_sccz80
 roa375_debug.cmd
 clang/prom0_debug.cmd
 build_stamp.h
+*build_stamp.inc
 boot_entry.c.i
 rom.c.i
 clang/*.elf

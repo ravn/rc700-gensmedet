@@ -8934,3 +8934,24 @@ Partnerens I/O-kort fra boot-ROM'en (unidasm x86_16):
 - CTRL+ALT+SLET-skip (dok. side 125) dekodet: CTRL 0x1D + ALT 0x37 (kode 55, nu mappet) + Backspace
   0x0E; men GATED under selvtest ([13Bh]=0xFF springer combo-ISR over) -> valgte SCSI-fix i stedet.
 Næste blocker: 82730-mailbox-handshake-loop (test 16). mame-branch rc750-rom-font-text (commit 2857258).
+
+## 2026-10-15 — Autoload: nøgne shadow-register ISRs, macro-inlining & DMA-fixes (Hard)
+
+- **Mål**: Optimere kode- og PROM-størrelse for `autoload-in-c` mod 2048 B socket-grænsen under `llvmz80` og `clang`.
+- **Nøgne shadow-register ISRs**:
+  - `refresh_crt_dma_50hz_interrupt`: inlinet mellem `ex af, af'` (0 stak-pushes, 39 B total vs 58 B før).
+  - `floppy_completed_operation_interrupt`: inlinet status-tjek og flag mellem `ex af, af' ; exx` (26 B total vs 78 B før).
+- **DMA port 0xFC gotcha**:
+  - `dma_clear_bp` er port `0xFC` (ikke `0xF8`). Am9517A har en fælles byte-pointer flip-flop på tværs af alle 4 kanaler; uden korrekt clear inverteres adresse-byte-rækkefølgen for Ch2 (CRT) og Ch1 (Floppy), hvilket gav `**DISKETTE ERROR**`.
+- **CRT DMA base address**:
+  - For clang/llvmz80 ligger `DSPSTR_ADDR` på `0x7830` (lav byte `0x30`), mens SDCC bruger `0x7A00` (lav byte `0x00`). Hardkodet `0x7800` i ISR forskød skærmen 48 tegn. Rettet med korrekte per-target lav/høj bytes.
+- **Root-cause for manglende inlining i llvm-z80**:
+  - `Z80TargetTransformInfo.h::areInlineCompatible()` tjekkede kun `InlineHint` og `insns <= 10`, men ikke `AlwaysInline`. Da upstream LLVM (commit `7bdca287`, 6. juli 2026) flyttede `areInlineCompatible()` frem foran `always_inline`-håndtering, blev alle funktioner > 10 instruktioner afvist.
+  - Omlagde `load_chargen_font`, `display_sw1_status`, `draw_qr` og `display_banner_and_start_crt` til macro-blokke, hvilket fjernede alle separate stakrammer og statiske variable.
+  - Fjernede redundant skærm-clear i `main_relocated` (der kørte to på hinanden følgende `memset` til `dspstr`).
+- **Resultater**:
+  - `llvmz80` PROM (med font): 2208 B -> **2176 B** (ZX0: 2057 B, -32 B).
+  - `llvmz80` PROM (uden font, `INIT_SEM702=0`): **1749 B** (299 B under 2048 B socket-grænsen).
+  - `clang` PROM (med font): 2244 B -> **2237 B** (ZX0: 2118 B, -7 B).
+  - Verifikation: `sw1-test`, `qr-test` og `mame` (CP/M `A>` i 3,5 s) PASS på begge compilere.
+
