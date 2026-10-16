@@ -25,7 +25,11 @@
  * ================================================================ */
 
 #ifdef __z80__
-#include_next <intrinsic.h>
+static inline void intrinsic_di(void)   { __asm__ volatile("di"); }
+static inline void intrinsic_ei(void)   { __asm__ volatile("ei"); }
+static inline void intrinsic_halt(void) { __asm__ volatile("halt"); }
+static inline void intrinsic_nop(void)  { __asm__ volatile("nop"); }
+static inline void intrinsic_im_2(void) { __asm__ volatile("im 2"); }
 #else
 static inline void intrinsic_di(void)   {}
 static inline void intrinsic_ei(void)   {}
