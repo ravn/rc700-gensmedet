@@ -56,10 +56,11 @@ endif
 
 MAME ?= $(CURDIR)/../../mame
 MAME_ROM = $(MAME)/roms/rc702/roa375.ic66
-MAME_RUN = $(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
+MAME_BOOT_TEST_LUA ?= $(CURDIR)/../scripts/mame_boot_test.lua
+MAME_RUN = BOOT_RESULT_FILE=$(CURDIR)/boot_test_result.txt $(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
 	-nothrottle -window -skip_gameinfo \
 	-seconds_to_run 60 \
-	-autoboot_script mame_boot_test.lua \
+	-autoboot_script $(MAME_BOOT_TEST_LUA) \
 	-flop1 "$(FLOPPY)"
 RC700 = ../../rc700
 FLOPPY = $(CURDIR)/test-disks/SW1711-I8.imd
@@ -198,8 +199,8 @@ mame: prom mamesym
 	@# substring of the real banner (ROA375 sits between), so it always FAILed
 	@# even on a correct boot (ravn/rc700-gensmedet#100).
 	$(MAME_RUN)
-	@cat /tmp/boot_test_result.txt
-	@grep -q '^PASS' /tmp/boot_test_result.txt
+	@cat $(CURDIR)/boot_test_result.txt
+	@grep -q '^PASS' $(CURDIR)/boot_test_result.txt
 
 # End-to-end production-path oracle: autoload boots the unpatched
 # `test-disks/SW1711-I8.imd` (in-tree, committed) through the DRI
@@ -212,8 +213,8 @@ mame: prom mamesym
 floppy-boot-test: prom mamesym
 	@awk '{printf "comadd %s,%s\n", $$1, $$2}' $(COMPILER)/prom0_mame.sym > $(COMPILER)/prom0_debug.cmd
 	FLOPPY=$(CURDIR)/test-disks/SW1711-I8.imd $(MAME_RUN)
-	@cat /tmp/boot_test_result.txt
-	@grep -q '^PASS' /tmp/boot_test_result.txt
+	@cat $(CURDIR)/boot_test_result.txt
+	@grep -q '^PASS' $(CURDIR)/boot_test_result.txt
 
 # ================================================================
 # FDC (µPD765) transaction logger — upstream bug evidence capture

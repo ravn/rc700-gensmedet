@@ -17,7 +17,7 @@
 
 local SCREEN_COLS = 80
 local SCREEN_ROWS = 25
-local RESULT_FILE = os.getenv("BOOT_RESULT_FILE") or "/tmp/boot_test_result.txt"
+local RESULT_FILE = os.getenv("BOOT_RESULT_FILE") or "boot_test_result.txt"
 local EXPECT_BANNER = os.getenv("EXPECT_BANNER")
 
 local frame = 0

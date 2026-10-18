@@ -151,9 +151,22 @@ SECTIONS {
   /* Total BIOS size including BSS (for overlap checks) */
   __bios_total_end = __bss_end;
 
-  /* ================================================================
-   * Assertions
-   * ================================================================ */
+  /* BIOS private stack top (0xF500, grows down) */
+  BIOS_STACK = DEFINED(BIOS_STACK) ? BIOS_STACK : 0xF500;
+  _BIOS_STACK = BIOS_STACK;
+  ISTACK_ADDR = 0xF600;
+  _ISTACK_ADDR = ISTACK_ADDR;
+
+  /* Minimum stack headroom for BIOS call frames (e.g. disk read / wboot) */
+  BIOS_STACK_MIN_SIZE = 0x80;
+
+  /* BSS must not overlap BIOS private stack */
+  ASSERT(__bss_end <= BIOS_STACK,
+    "BIOS BSS overlaps BIOS private stack (0xF500)!")
+
+  /* BSS must leave sufficient stack headroom below BIOS_STACK */
+  ASSERT(__bss_end <= (BIOS_STACK - BIOS_STACK_MIN_SIZE),
+    "BIOS BSS leaves insufficient headroom for BIOS private stack (< 128 bytes)!")
 
   /* BSS must not overlap interrupt stack at 0xF600 */
   ASSERT(__bss_end <= 0xF600,

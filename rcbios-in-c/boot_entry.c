@@ -47,6 +47,9 @@ extern byte _BOOT_CODE_tail;
 extern byte _BIOS_head;
 extern byte _bss_compiler_head;
 extern word _bss_compiler_size;
+#ifdef __clang__
+extern byte _bios_code_size;
+#endif
 extern word _sentinel_addr;     /* sentinel word at end of .data, before .bss */
 #define SENTINEL_VALUE 0x1842
 
@@ -78,11 +81,15 @@ void relocate_bios(void)
            &_bss_compiler_head,
            (word)&_bss_compiler_size - 1);
 
-    /* Relocate BIOS section from physical to runtime address.
-     * BIOS binary starts right after the last BOOT sub-section. */
+#ifdef __clang__
+    memcpy((void *)BIOS_BASE,
+           &_BOOT_CODE_tail,
+           (word)&_bios_code_size);
+#else
     memcpy((void *)BIOS_BASE,
            &_BOOT_CODE_tail,
            (word)&_bss_compiler_head - BIOS_BASE);
+#endif
 
     /* Copy CONFI defaults to CCP area (init-only) */
     memcpy((void *)CFG_ADDR, confi_on_disk, 128);

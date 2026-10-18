@@ -31,9 +31,9 @@ ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"          # rc700-gensmedet/
 AUTOLOAD="$ROOT/autoload-in-c"
 RCBIOS="$ROOT/rcbios-in-c"
 MAME="${MAME:-$ROOT/../mame}"
-MAME_BIN="$MAME/mame"
+MAME_BIN="${MAME_BIN:-$(ls -1 "$MAME/regnecentralend" "$MAME/regnecentralen" "$MAME/mame" 2>/dev/null | head -1)}"
 MAME_ROM="$MAME/roms/rc702/roa375.ic66"
-LUA="$AUTOLOAD/mame_boot_test.lua"
+LUA="$ROOT/scripts/mame_boot_test.lua"
 BOOT_TIMEOUT_S="${BOOT_TIMEOUT_S:-60}"
 
 ORIG_PROM="$ROOT/roa375/roa375.rom"              # genuine 2 KB ROA375 dump

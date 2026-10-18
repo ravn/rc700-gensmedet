@@ -35,6 +35,11 @@ cpnos-in-c/sdcc/cpnos_lp_*.bin
 cpnos-in-c/sdcc/cpnos_lp.rom
 cpnos-in-c/sdcc/cpnos_lp.map
 cpnos-in-c/sdcc/cpnos_lp.def
-cpnos-in-c/sdcc/cpnos_lp.lis
 cpnos-in-c/sdcc/cpnos_lp.sym
 cpnos-in-c/sdcc/cpnos_with_locale.img
+
+# Test runner artifacts
+boot_test_result.txt
+screen.txt
+*_test.imd
+expected_checksums.txt

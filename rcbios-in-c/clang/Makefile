@@ -41,6 +41,7 @@ CFLAGS = --target=z80 -Oz -g -nostdlib -ffreestanding -std=c23 \
 	 -Xclang -target-feature -Xclang +static-frame \
 	 -Iclang -I. -Wno-gcc-compat -Wno-return-type \
 	 -Wimplicit-int-conversion \
+	 -DDISABLE_BGSTAR \
 	 -DMSIZE=$(MSIZE) \
 	 $(if $(filter B,$(KBDPORT)),-DKBD_PIO_B)
 # -flto is ON. It was briefly disabled 2026-09-10 while diagnosing the PR #40

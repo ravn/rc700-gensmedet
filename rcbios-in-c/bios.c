@@ -772,7 +772,7 @@ void wboot_c(void);
 #ifndef __clang__
 static void jump_ccp(byte drive) __naked;
 #else
-extern void jump_ccp(byte drive);
+extern void jump_ccp(byte drive) __attribute__((noreturn));
 #endif
 void bios_boot_c(void);
 
@@ -994,11 +994,13 @@ byte bios_conin(void)
  * Ctrl-U (0x15) clears foreground: erases only positions NOT marked.
  * ================================================================ */
 
+#ifndef DISABLE_BGSTAR
 #define BGSTAR_SIZE 250         /* 80*25/8 = 250 bytes */
 #define BG_ROW_BYTES 10         /* 80 bits / 8 = 10 bytes per row */
 
 static byte bgstar[BGSTAR_SIZE];
 static byte bgflg;             /* 0=off, 1=foreground, 2=background */
+#endif
 static byte graph;           /* graphical mode flag (sticky) */
 
 /* Forward declarations — definitions placed for tail-call fall-through */
@@ -1035,6 +1037,7 @@ static void rowup(void)
     cursorxy();
 }
 
+#ifndef DISABLE_BGSTAR
 /* Set a bit in BGSTAR for screen position `pos` (0-1999) */
 static void bg_set_bit(word pos)
 {
@@ -1042,6 +1045,7 @@ static void bg_set_bit(word pos)
     byteoff = (byte)(pos >> 3);
     bgstar[byteoff] |= (byte)0x80 >> (byte)(pos & 7);
 }
+#endif
 
 /* ======================================================================
  * SCROLL — performance-critical, hand-optimized in assembly.
@@ -1100,11 +1104,13 @@ scroll_ldi:
     memset((void *)0xFF80, 0x20, 80);
 #endif
 
+#ifndef DISABLE_BGSTAR
     /* --- bgstar overlay: C code (not performance-critical) --- */
     if (bgflg) {
         memcpy(bgstar, bgstar + BG_ROW_BYTES, BGSTAR_SIZE - BG_ROW_BYTES);
         memset(bgstar + BGSTAR_SIZE - BG_ROW_BYTES, 0, BG_ROW_BYTES);
     }
+#endif
 }
 
 /* Cursor left — wrap to previous line if at column 0 */
@@ -1189,15 +1195,19 @@ static void clear_screen(void)
     memset(screen, ' ', SCRN_SIZE);
     goto00();
     cursorxy();
+#ifndef DISABLE_BGSTAR
     if (bgflg) {
         bgflg = 0;
         memset(bgstar, 0, BGSTAR_SIZE);
     }
+#endif
 }
 
+#ifndef DISABLE_BGSTAR
 /* Forward declaration — definition placed after erase_to_eos for fall-through */
 static word bgcl_pos, bgcl_count;
 static void bg_clear_from(void);
+#endif
 
 /* Erase from cursor to end of line */
 static void erase_to_eol(void)
@@ -1205,11 +1215,13 @@ static void erase_to_eol(void)
     byte *row = screen + cury;
     for (byte i = curx; i < SCRN_COLS; i++)
         row[i] = ' ';
+#ifndef DISABLE_BGSTAR
     if (bgflg) {
         bgcl_pos = cury + curx;
         bgcl_count = SCRN_COLS - curx;
         bg_clear_from();
     }
+#endif
 }
 
 /* Erase from cursor to end of screen */
@@ -1220,13 +1232,16 @@ static void erase_to_eos(void)
     pos = cury + curx;
     count = SCRN_SIZE - pos;
     memset(screen + pos, ' ', count);
+#ifndef DISABLE_BGSTAR
     if (bgflg) {
         bgcl_pos = pos;
         bgcl_count = SCRN_SIZE - pos;
         bg_clear_from();
     }
+#endif
 }
 
+#ifndef DISABLE_BGSTAR
 /* Placed after erase_to_eos so the tail call falls through (saves 3 bytes).
  * Clear BGSTAR bits from position `pos` for `count` bits.
  * Parameters passed via static variables to avoid IX frame pointer. */
@@ -1255,6 +1270,7 @@ static void bg_clear_from(void)
         bgstar[byteoff] &= ~((byte)0xFF << (byte)(8 - tail));
     }
 }
+#endif
 
 /* Delete line — shift lines up from cury+1 to ROW24, fill ROW24 */
 static void delete_line(void)
@@ -1263,6 +1279,7 @@ static void delete_line(void)
     if (cury != ROW24_OFFSET)
         memcpy(screen + cury, screen + cury + SCRN_COLS, ROW24_OFFSET - cury);
     memset(DISPLAY_ROW(ROW24), ' ', SCRN_COLS);
+#ifndef DISABLE_BGSTAR
     if (bgflg) {
         static byte dl_off, dl_bgcount;
         dl_off = (byte)(cury >> 3);  /* cury is row*80, /8 = row*10 */
@@ -1271,6 +1288,7 @@ static void delete_line(void)
             memcpy(bgstar + dl_off, bgstar + dl_off + BG_ROW_BYTES, dl_bgcount);
         memset(bgstar + BGSTAR_SIZE - BG_ROW_BYTES, 0, BG_ROW_BYTES);
     }
+#endif
 }
 
 /* Insert line — shift lines from cury..ROW23 down by one row, then
@@ -1320,6 +1338,7 @@ static void insert_line(void)
 #endif
     }
     memset(screen + cury, ' ', SCRN_COLS);
+#ifndef DISABLE_BGSTAR
     if (bgflg) {
         static byte il_off, il_bgcount;
         il_off = (byte)(cury >> 3);
@@ -1341,6 +1360,7 @@ static void insert_line(void)
         }
         memset(bgstar + il_off, 0, BG_ROW_BYTES);
     }
+#endif
 }
 
 /* XY cursor addressing — called for each byte after ctrl-F */
@@ -1391,8 +1411,10 @@ static void displ(void)
     }
 
     screen[locad] = ch;
+#ifndef DISABLE_BGSTAR
     if (bgflg == 2)
         bg_set_bit(locad);
+#endif
     cursor_right();
 }
 
@@ -1414,6 +1436,7 @@ static void cursor_right(void)
     }
 }
 
+#ifndef DISABLE_BGSTAR
 /* Clear foreground: erase screen positions where BGSTAR bit is NOT set */
 static void clear_foreground(void)
 {
@@ -1432,6 +1455,7 @@ static void clear_foreground(void)
         }
     }
 }
+#endif
 
 /* Control character dispatch (0x00-0x1F).
  * Uses if/return chains so sdcc generates cp a,N (preserving A) with
@@ -1458,10 +1482,12 @@ static void specc(void)
     if (usession == 0x01) { insert_line(); return; }
     if (usession == 0x02) { delete_line(); return; }
     if (usession == 0x07) { port_out(bell, 0); return; }
+#ifndef DISABLE_BGSTAR
     /* Rare: fore/background */
     if (usession == 0x13) { bgflg = 2; memset(bgstar, 0, BGSTAR_SIZE); return; }
     if (usession == 0x14) { bgflg = 1; return; }
     if (usession == 0x15) { clear_foreground(); return; }
+#endif
 }
 
 /*
@@ -1479,6 +1505,17 @@ void bios_conout(void) __naked
             "jp _bios_conout_c     \n"); /* explicit tail call */
 }
 
+/* Direct CRT display handler without IOBYTE redirection.
+ * Kept separate from bios_conout_c so bios_list_body can route LST: CRT
+ * here without introducing a mutual recursion cycle in the call graph. */
+static void crt_conout(byte c)
+{
+    usession = c;
+    if (xflg != 0) xyadd();
+    else if (usession < 32) specc();
+    else displ();
+}
+
 void bios_conout_c(byte c)
 {
     switch (IOBYTE_CON(iobyte)) {
@@ -1486,10 +1523,7 @@ void bios_conout_c(byte c)
         serial_conout(c);
         /* fall through to also display on CRT */
     case IOB_CRT:
-        usession = c;
-        if (xflg != 0) xyadd();
-        else if (usession < 32) specc();
-        else displ();
+        crt_conout(c);
         break;
     case IOB_BAT:
         bios_list_body(c);
@@ -1497,10 +1531,7 @@ void bios_conout_c(byte c)
     case IOB_UC1:
         /* Joined: send to both SIO-B serial and CRT. */
         serial_conout(c);
-        usession = c;
-        if (xflg != 0) xyadd();
-        else if (usession < 32) specc();
-        else displ();
+        crt_conout(c);
         break;
     default:
         /* IOBYTE_CON is a 2-bit field; cases 0-3 are exhaustive. */
@@ -1536,7 +1567,7 @@ void bios_list_body(byte c)
 {
     switch (IOBYTE_LST(iobyte)) {
     case IOB_TTY:  serial_conout(c); break;  /* TTY: SIO-B (console) */
-    case IOB_CRT:  bios_conout_c(c); break;  /* CRT: display */
+    case IOB_CRT:  crt_conout(c);    break;  /* CRT: display */
     case IOB_BAT:  list_lpt(c);      break;  /* LPT: SIO-A (data port) */
     default:       break;
     }

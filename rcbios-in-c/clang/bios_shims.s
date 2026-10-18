@@ -14,8 +14,7 @@
 ; ================================================================
 ; Constants (must match bios.h)
 ; ================================================================
-.equ BIOS_STACK,  0xF500
-.equ ISTACK_ADDR, 0xF600
+; BIOS_STACK and ISTACK_ADDR are provided by rc700_bios.ld
 .equ WARMJP_ADDR, 0xFFE5
 .equ TIMER1_ADDR, 0xFFDF
 .equ RTC0_ADDR,   0xFFFC

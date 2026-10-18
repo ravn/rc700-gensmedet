@@ -315,19 +315,25 @@ conout-test: bios conotest
 	@grep -q '^PASS' /tmp/conout_result.txt && echo "=== CONOUT TEST PASSED ===" || (echo "=== CONOUT TEST FAILED ==="; exit 1)
 
 IMG ?= $(IMG_MAXI)
+TEST_IMD = $(CURDIR)/bios_c_test.imd
+TEST_SCREEN = $(CURDIR)/screen.txt
+TEST_CHECKSUMS = $(CURDIR)/expected_checksums.txt
+
 mame-test: bios
-	cp $(IMG) /tmp/bios_c_test.imd
-	$(PATCH) /tmp/bios_c_test.imd $(BIOS_CIM)
-	python3 verify_checksums.py /tmp/bios_c_test.imd > /tmp/expected_checksums.txt
-	$(MAME_BIN) rc702 -rompath $(MAME)/roms \
-		-flop1 /tmp/bios_c_test.imd \
+	rm -f $(TEST_IMD) $(TEST_SCREEN) $(TEST_CHECKSUMS)
+	cp $(IMG) $(TEST_IMD)
+	$(PATCH) $(TEST_IMD) $(BIOS_CIM)
+	python3 verify_checksums.py $(TEST_IMD) > $(TEST_CHECKSUMS)
+	SCREEN_FILE=$(TEST_SCREEN) $(MAME_BIN) rc702 -rompath $(MAME)/roms \
+		-flop1 $(TEST_IMD) \
 		-skip_gameinfo -window -resolution 1100x720 \
 		-nothrottle \
+		-seconds_to_run 120 \
 		-autoboot_script mame_disk_test.lua
 	@echo "--- MAME screen ---"
-	@cat /tmp/screen.txt
+	@cat $(TEST_SCREEN)
 	@echo "--- Expected ---"
-	@cat /tmp/expected_checksums.txt
+	@cat $(TEST_CHECKSUMS)
 
 bgstar-test: bios bgstar_test.asm mame_bgstar_test.lua
 	$(ZMAC) -z --dri bgstar_test.asm

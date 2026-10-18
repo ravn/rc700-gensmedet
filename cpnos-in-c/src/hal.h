@@ -39,20 +39,20 @@
  * `OUT (C),A` for runtime ports; SDCC's hal.asm uses the (C) form.
  * ================================================================ */
 
-#if defined(__clang__) && defined(__z80__)
-/* clang Z80 backend: address_space(2) lowers to IN/OUT directly for constants;
- * runtime-selected ports use inline asm OUT (C),A / IN A,(C). */
-#define __io __attribute__((address_space(2)))
+#if (defined(__clang__) && defined(__z80__)) || defined(__LLVMZ80)
+/* Port I/O via inline assembly matching autoload-in-c (no address_space(2)).
+ * Uses IN A,(n) / OUT (n),A for compile-time constants and (C) for runtime. */
 static inline uint8_t _port_in(uint8_t p) {
-    if (__builtin_constant_p(p))
-        return *(volatile __io uint8_t *)(uint16_t)p;
     uint8_t ret;
-    __asm__ volatile ("in %0, (c)" : "=a"(ret) : "c"(p));
+    if (__builtin_constant_p(p))
+        __asm__ volatile ("in %0, (%1)" : "=a"(ret) : "i"(p));
+    else
+        __asm__ volatile ("in %0, (c)" : "=a"(ret) : "c"(p));
     return ret;
 }
 static inline void _port_out(uint8_t p, uint8_t v) {
     if (__builtin_constant_p(p))
-        *(volatile __io uint8_t *)(uint16_t)p = v;
+        __asm__ volatile ("out (%0), %1" : : "i"(p), "a"(v));
     else
         __asm__ volatile ("out (c), %0" : : "a"(v), "c"(p));
 }

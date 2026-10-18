@@ -444,3 +444,16 @@ When a tripwire fires: (a) state explicitly what surprises me and why it
 contradicts my model, (b) build the smallest decoupled repro that varies ONE
 thing, (c) only then proceed. This operationalises the earlier "control variables
 before debugging the emulator" lesson so it fires without the user prompting.
+## 2026-10-16 — Linker assertions for fixed stack vs BSS boundaries
+
+In bare-metal embedded targets where stack grows downward from a fixed upper memory boundary (e.g. `BIOS_STACK = 0xF500`), silent BSS expansion (from compiler differences, LTO layout changes, or added variables) can push `.bss` up into the stack region.
+
+When a disk deblocking buffer (`_hstbuf`) or DMA target buffer overlaps the active call stack, DMA transfers silently overwrite return addresses and stack frames on disk read. The crash happens only later when a function returns into arbitrary disk data, making post-mortem debugging deceptive.
+
+**Rule**: Always place explicit linker assertions (`ASSERT(__bss_end <= (BIOS_STACK - MIN_STACK_SIZE))`) in the linker script. Overlapping code/bss with stack must be an immediate link-time build error, never a runtime discovery.
+
+## 2026-10-16 — Suppressing MAME ROM checksum / warning screens headless
+
+MAME displays a blocking red modal warning screen on startup when any ROM fails checksum or has `ROM_LOAD` length mismatches (e.g. `roa375.ic66 WRONG LENGTH / ROM NEEDS REDUMP`). In unattended CI or scripted runs, `-skip_gameinfo` alone does not suppress this red screen.
+
+**Rule**: Pass `-seconds_to_run N` (with `0 < N < 300`). In MAME's `ui.cpp`, this automatically forces `show_warnings = false` and `show_gameinfo = false`, allowing scripts and Lua autoboot hooks to execute immediately without hanging.

@@ -3,7 +3,7 @@
 -- Marker: "A>" (CP/M prompt) or "DISK=" (disk test) or timeout.
 
 local frame = 0
-local max_frames = 50 * 120   -- 2 minutes
+local max_frames = tonumber(os.getenv("MAX_FRAMES")) or (50 * 15)
 local done = false
 
 -- Search for a string in screen memory
@@ -27,11 +27,19 @@ emu.register_frame_done(function()
     frame = frame + 1
 
     if frame % 50 == 0 or frame >= max_frames then
-        local space = manager.machine.devices[":maincpu"].spaces["program"]
+        local cpu = manager.machine.devices[":maincpu"]
+        local space = cpu.spaces["program"]
+        local pc = cpu.state["PC"].value
+        local bytes_str = ""
+        for i = 0, 7 do
+            bytes_str = bytes_str .. string.format("%02X ", space:read_u8((pc + i) & 0xFFFF))
+        end
+        print(string.format("[mame_disk_test] frame=%d PC=0x%04X SP=0x%04X: %s", frame, pc, cpu.state["SP"].value, bytes_str))
 
         if screen_find(space, "A>") or screen_find(space, "DISK=")
            or screen_find(space, "error") or frame >= max_frames then
-            local f = io.open("/tmp/screen.txt", "w")
+            local screen_file = os.getenv("SCREEN_FILE") or "screen.txt"
+            local f = io.open(screen_file, "w")
             for row = 0, 24 do
                 local line = ""
                 for col = 0, 79 do

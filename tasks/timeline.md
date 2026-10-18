@@ -8955,3 +8955,28 @@ Næste blocker: 82730-mailbox-handshake-loop (test 16). mame-branch rc750-rom-fo
   - `clang` PROM (med font): 2244 B -> **2237 B** (ZX0: 2118 B, -7 B).
   - Verifikation: `sw1-test`, `qr-test` og `mame` (CP/M `A>` i 3,5 s) PASS på begge compilere.
 
+## 2026-10-16 — RCBIOS clang-port: DMA/stak overlap root-cause, BSS guard & BGSTAR toggle
+
+- **Boot-crash root-cause**:
+  - Clang BIOS kode + rodata var ~340 B større end SDCC, hvilket skubbede `.bss` fra `0xED56` til `0xEEA8..0xF58D`.
+  - `BIOS_STACK` i `clang/bios_shims.s` var hardkodet til `0xF500` (voksende nedad).
+  - Disk-deblocking buffer (`_hstbuf`, 512 B) lå ved `0xEFDB..0xF1DB` (eller `0xF36E..0xF56E`).
+  - `0xF500` lå midt i buffer/BSS. Da `wboot_c()` kaldte `xread()` for at læse CCP/BDOS ind via DMA, overskrev floppy DMA data direkte oveni den aktive kaldstak. Ved return fra `xread` poppende CPU'en diskbytes som returadresse (`0x6664`) og crashede.
+- **Linker-sikkerhedsnet (`rc700_bios.ld`)**:
+  - Tilføjet `BIOS_STACK = 0xF500;` og `BIOS_STACK_MIN_SIZE = 0x80;` samt linker-assertions:
+    - `ASSERT(__bss_end <= BIOS_STACK, "BIOS BSS overlaps BIOS private stack (0xF500)!")`
+    - `ASSERT(__bss_end <= (BIOS_STACK - BIOS_STACK_MIN_SIZE), "BIOS BSS leaves insufficient headroom for BIOS private stack (< 128 bytes)!")`
+  - Gør enhver stak-/BSS-kollision til en øjeblikkelig fatal fejl ved link-time.
+- **BGSTAR deaktivering (`DISABLE_BGSTAR`)**:
+  - Pakket `bgstar` (250 B bitmap) og alle overlay-rutiner (`bg_set_bit`, `bg_clear_from`, `clear_foreground`, Ctrl-S/T/U i `specc`) ind under `#ifndef DISABLE_BGSTAR`.
+  - Aktiveret `-DDISABLE_BGSTAR` i `clang/Makefile`.
+  - `.bss` krympede fra `0xF58D` til `0xF1FA` -> **774 bytes fri plads** op til `BIOS_STACK` (`0xF500`), med `_hstbuf` trygt placeret på `0xEFDB..0xF1DB`.
+- **MAME rød advarselsdialog undertrykkelse**:
+  - `roa375.ic66 WRONG LENGTH / ROM NEEDS REDUMP` advarselsboksen undertrykkes ved at sende `-seconds_to_run 120` til MAME (i MAME sætter `0 < seconds_to_run < 300` automatisk `show_warnings = false` og `show_gameinfo = false`).
+- **Port I/O standardisering i `cpnos-in-c`**:
+  - Erstattet `address_space(2)` med inline assembly (`in a,(%1)` / `out (%0),%1` for konstanter og `(c)` for runtime), identisk med `autoload-in-c`.
+- **LLVM-Z80 Static Frame Fix (#418)**:
+  - Fikset fejl i `Z80NonReentrant.cpp` ved noreturn-funktioner under static-frame allokering. Alle 158 lit tests PASS.
+- **Resultater**:
+  - `mame-test COMPILER=clang`: Booter direkte til `A>` på 2 sekunder.
+  - `cross-version-boot-test.sh`: Alle 4 kryds-version kombinationer (både S01=On og S01=Off) PASS.
