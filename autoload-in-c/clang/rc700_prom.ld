@@ -57,14 +57,9 @@ SECTIONS {
     KEEP(*(.nmi*))
   } > ROM
 
-  /* ZX0 decoder tail (elias subroutine), after the NMI vector. */
-  .zx0_decoder_hi 0x0068 : {
-    KEEP(*(.zx0_decoder_hi))
-  } > ROM
-
-  /* ZX0-compressed .text payload, immediately after the decoder tail.
+  /* ZX0-compressed .text payload, immediately after the NMI vector (0x0068).
    * __text_zx0_start is consumed by _reloc_zx0 (in dzx0_standard.s). */
-  .text_compressed : {
+  .text_compressed 0x0068 : {
     __text_zx0_start = .;
     KEEP(*(.text_compressed*))
     __text_zx0_end = .;

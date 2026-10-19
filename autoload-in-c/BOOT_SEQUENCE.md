@@ -34,20 +34,17 @@ from the current clang build (`llvm-nm clang/prom.clang.elf`).
 
 ### ROM — before ZX0 decompression (physical PROM0, 0x0000–0x07FF)
 
-The ZX0 decoder is **split around the NMI vector** to fill the otherwise-wasted
-pre-NMI ROM, and the banner lives in the compressed payload (not raw in ROM):
+The ZX0 decoder fits **entirely before the NMI vector** (0x0018..0x0063) to fill
+the otherwise-wasted pre-NMI ROM, allowing the compressed payload to begin immediately
+at 0x0068:
 
 | Address | Size | Contents |
 |---|---|---|
-| `0x0000` | 33 B | `.boot` — `start()` (DI, set SP, `reloc_zx0()`, jump) |
-| `0x0021` | ~57 B | `.zx0_decoder` — ZX0 decoder **main loop** (`_reloc_zx0` + `dzx0_standard` … `dzx0s_new_offset`) |
-| `~0x005C`–`0x0066` | ~10 B | padding (`0xFF`) |
+| `0x0000` | 24 B | `.boot` — `start()` (DI, set SP, `reloc_zx0()`, bss zero, jump) |
+| `0x0018` | 75 B | `.zx0_decoder` — entire ZX0 decoder (`_reloc_zx0` + `dzx0_standard` incl. `dzx0s_elias`) |
+| `0x0063`–`0x0065` | 3 B | padding (`0xFF`) |
 | `0x0066` | 2 B | `.nmi` — NMI handler (`RETN`) at the Z80 hardwired vector |
-| `0x0068` | ~15 B | `.zx0_decoder_hi` — decoder **tail** (`dzx0s_elias` subroutine), reached only by `CALL` |
-| `0x0077` | **1524 B** | `.text_compressed` — ZX0-compressed payload (now includes the banner) |
-| `0x066B` | | `__prom_end` — **PROM used = 1643 B** |
-| `0x066B`–`0x07FF` | 405 B | free (`0xFF`) |
-| `0x0800` | | **2 KB hard cap** (A11 not bridged) |
+| `0x0068` | | `.text_compressed` — ZX0-compressed payload (starts right after NMI vector) |
 
 ### RAM — after ZX0 decompression (0x6000–0xBFFF)
 
@@ -65,14 +62,10 @@ pre-NMI ROM, and the banner lives in the compressed payload (not raw in ROM):
 | `0x8000`–`0xBFFE` | 16 KB | free RAM (upper half) |
 | `0xBFFF` | | stack top (`ROM_STACK`, grows down) |
 
-**Pre-NMI packing (2026-07-01).**  The 74 B ZX0 decoder used to sit entirely
-after the NMI vector (payload started at 0x00B3), and the banner was 47 raw
-bytes at 0x0021.  Now the decoder's main loop fills the pre-NMI region (0x0021)
-and its elias tail goes after the NMI at 0x0068 — a clean split because
-`dzx0s_new_offset` ends in an unconditional `jr`, so the tail is only reached by
-`CALL` (no branch crosses the gap, no bridge instruction).  The banner moved
-into the compressed payload.  Net PROM: 1663 → 1643 B (payload start 0x00B3 →
-0x0077 = −60 B, minus ~40 B the banner adds compressed — its date+hash don't
+**Pre-NMI packing (2026-10-19).**  The entire 75 B ZX0 decoder (`_reloc_zx0` +
+`dzx0_standard` + `dzx0s_elias`) fits before 0x0066 (ending at 0x0063).  This eliminates
+the split into `.zx0_decoder_hi` and moves the payload start from 0x0077 down to 0x0068,
+saving 15 bytes in the ROM image.
 compress well).  A linker `ASSERT(. <= 0x0066)` fails the build if the pre-NMI
 decoder part ever overruns the NMI vector.
 

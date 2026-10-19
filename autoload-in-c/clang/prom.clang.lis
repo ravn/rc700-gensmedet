@@ -26,7 +26,7 @@ Disassembly of section .boot:
 Disassembly of section .zx0_decoder:
 
 00000018 <_reloc_zx0>:
-      18: 21 77 00     	ld	hl,$77
+      18: 21 68 00     	ld	hl,$68
       1b: 11 00 60     	ld	de,$6000
 
 0000001e <dzx0_standard>:
@@ -36,11 +36,11 @@ Disassembly of section .zx0_decoder:
       23: 3e 80        	ld	a,$80
 
 00000025 <dzx0s_literals>:
-      25: cd 68 00     	call	$68
+      25: cd 54 00     	call	$54
       28: ed b0        	ldir
       2a: 87           	add	a,a
       2b: 38 0d        	jr	c,$3a
-      2d: cd 68 00     	call	$68
+      2d: cd 54 00     	call	$54
 
 00000030 <dzx0s_copy>:
       30: e3           	ex	(sp),hl
@@ -53,7 +53,7 @@ Disassembly of section .zx0_decoder:
       38: 30 eb        	jr	nc,$25
 
 0000003a <dzx0s_new_offset>:
-      3a: cd 68 00     	call	$68
+      3a: cd 54 00     	call	$54
       3d: 08           	ex	af,af'
       3e: f1           	pop	af
       3f: af           	xor	a
@@ -67,35 +67,33 @@ Disassembly of section .zx0_decoder:
       48: cb 19        	rr	c
       4a: c5           	push	bc
       4b: 01 01 00     	ld	bc,$1
-      4e: d4 70 00     	call	nc,$70
+      4e: d4 5c 00     	call	nc,$5c
       51: 03           	inc	bc
       52: 18 dc        	jr	$30
+
+00000054 <dzx0s_elias>:
+      54: 0c           	inc	c
+
+00000055 <dzx0s_elias_loop>:
+      55: 87           	add	a,a
+      56: 20 03        	jr	nz,$5b
+      58: 7e           	ld	a,(hl)
+      59: 23           	inc	hl
+      5a: 17           	rla
+
+0000005b <dzx0s_elias_skip>:
+      5b: d8           	ret	c
+
+0000005c <dzx0s_elias_backtrack>:
+      5c: 87           	add	a,a
+      5d: cb 11        	rl	c
+      5f: cb 10        	rl	b
+      61: 18 f2        	jr	$55
 
 Disassembly of section .nmi:
 
 00000066 <_nmi_handler>:
       66: ed 45        	retn
-
-Disassembly of section .zx0_decoder_hi:
-
-00000068 <dzx0s_elias>:
-      68: 0c           	inc	c
-
-00000069 <dzx0s_elias_loop>:
-      69: 87           	add	a,a
-      6a: 20 03        	jr	nz,$6f
-      6c: 7e           	ld	a,(hl)
-      6d: 23           	inc	hl
-      6e: 17           	rla
-
-0000006f <dzx0s_elias_skip>:
-      6f: d8           	ret	c
-
-00000070 <dzx0s_elias_backtrack>:
-      70: 87           	add	a,a
-      71: cb 11        	rl	c
-      73: cb 10        	rl	b
-      75: 18 f2        	jr	$69
 
 Disassembly of section .text:
 
@@ -109,9 +107,9 @@ Disassembly of section .text:
     6020: 20 52 43 37 30 30 20 52          RC700 R
     6028: 4f 41 33 37 35 20 43 4c         OA375 CL
     6030: 20 32 30 32 36 2d 31 30          2026-10
-    6038: 2d 31 39 20 31 30 2e 30         -19 10.0
-    6040: 36 20 39 66 32 38 66 61         6 9f28fa
-    6048: 38 2f 72 61 76 6e 00            8/ravn.
+    6038: 2d 31 39 20 31 33 2e 31         -19 13.1
+    6040: 38 20 32 33 63 64 66 37         8 23cdf7
+    6048: 66 2f 72 61 76 6e 00            f/ravn.
 
 0000604f <_fdc_sense_interrupt>:
 ;     fdc_write_when_ready(FDC_SENSE_INT);

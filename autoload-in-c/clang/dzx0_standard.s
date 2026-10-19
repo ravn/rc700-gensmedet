@@ -57,13 +57,8 @@ dzx0s_new_offset:
 	inc	bc
 	jr	dzx0s_copy
 
-	; --- Clean split around the 0x0066 NMI vector. ---
-	; dzx0s_new_offset ends with an unconditional `jr dzx0s_copy`, so the
-	; elias subroutine below is NEVER reached by fall-through — only via CALL
-	; (which has full 16-bit range).  So the main loop above (.zx0_decoder) can
-	; sit in the pre-NMI region (0x0021..) and this tail (.zx0_decoder_hi) after
-	; the NMI vector, with no jr crossing the gap and no bridge instruction.
-	.section .zx0_decoder_hi,"ax",@progbits
+	; All of dzx0_standard fits comfortably before the 0x0066 NMI vector.
+	; 0x0018 + 75 bytes = 0x0063 <= 0x0066.
 dzx0s_elias:
 	inc	c			; interlaced Elias gamma coding
 dzx0s_elias_loop:
@@ -79,3 +74,4 @@ dzx0s_elias_backtrack:
 	rl	c
 	rl	b
 	jr	dzx0s_elias_loop
+
