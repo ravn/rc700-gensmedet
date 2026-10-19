@@ -180,13 +180,8 @@ typedef uint16_t word;
  * it's usable as the "i" immediate operand below) — no per-port
  * function is generated. */
 #define DEFPORT(name, addr) enum { name = (addr) };
-#define port_in(name) ({ \
-    uint8_t _r; \
-    __asm__ volatile("in %0, (%1)" : "=a"(_r) : "i"((uint8_t)(name))); \
-    _r; \
-})
-#define port_out(name, val) \
-    __asm__ volatile("out (%0), %1" : : "i"((uint8_t)(name)), "a"((uint8_t)(val)))
+#define port_in(name)       __builtin_z80_in((uint8_t)(name))
+#define port_out(name, val) __builtin_z80_out((uint8_t)(name), (uint8_t)(val))
 #elif defined(__SDCC) || defined(__SCCZ80)
 /* sdcc emits standalone copies of static inline functions even when
  * unused, wasting space in tight sections like BOOT.  Use __sfr __at

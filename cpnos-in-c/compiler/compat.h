@@ -334,17 +334,13 @@ static inline void mem_copy_backwards(void *dst_end, const void *src_end,
 #  endif
 
 #elif defined(__clang__) && defined(__z80__)
-static inline void intrinsic_di  (void) { ASM_VOLATILE("di"); }
-static inline void intrinsic_ei  (void) { ASM_VOLATILE("ei"); }
-static inline void intrinsic_halt(void) { ASM_VOLATILE("halt"); }
-static inline void intrinsic_nop (void) { ASM_VOLATILE("nop"); }
-static inline void intrinsic_im_2(void) { ASM_VOLATILE("im 2"); }
-/* clang Z80: pass the page in A using the address_space-style hack
- * isn't available; use a constraint so the value is in A on entry. */
-static inline void intrinsic_ld_i_a(uint8_t page) {
-    register uint8_t a __asm__("a") = page;
-    ASM_VOLATILE("ld i, a" :: "r"(a));
-}
+static inline void intrinsic_di  (void) { __builtin_z80_di(); }
+static inline void intrinsic_ei  (void) { __builtin_z80_ei(); }
+static inline void intrinsic_halt(void) { __builtin_z80_halt(); }
+static inline void intrinsic_nop (void) { __builtin_z80_nop(); }
+static inline void intrinsic_im_2(void) { __builtin_z80_im2(); }
+static inline void intrinsic_ld_i_a(uint8_t page) { __builtin_z80_set_i(page); }
+
 
 #else
 /* Host (no z80 target): make the intrinsics swallow their args and

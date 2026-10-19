@@ -9,23 +9,23 @@
 #define _INTRINSIC_H
 
 static inline void intrinsic_di(void) {
-    __asm__ volatile("di");
+    __builtin_z80_di();
 }
 
 static inline void intrinsic_ei(void) {
-    __asm__ volatile("ei");
+    __builtin_z80_ei();
 }
 
 static inline void intrinsic_halt(void) {
-    __asm__ volatile("halt");
+    __builtin_z80_halt();
 }
 
 static inline void intrinsic_nop(void) {
-    __asm__ volatile("nop");
+    __builtin_z80_nop();
 }
 
 static inline void set_i_reg(unsigned char page) {
-    __asm__ volatile("ld i, a" : : "a"(page));
+    __builtin_z80_set_i(page);
 }
 
 #endif /* _INTRINSIC_H */

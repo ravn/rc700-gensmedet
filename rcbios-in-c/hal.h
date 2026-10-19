@@ -107,20 +107,13 @@
  * The _rt form lets one helper handle multiple ports (e.g., SIO channel A vs B
  * selected at runtime). Requires #44 fix on clang side. */
 #if defined(__clang__) && defined(__z80__)
-/* Z80 port I/O via inline assembly.  Previously used address_space(2),
- * which upstream LLVM-Z80 (zlfn) does not support.  Inline asm with
- * "a" (accumulator) / "i" (immediate port) constraints emits native
- * IN A,(n) / OUT (n),A instructions without memory or legalizer overhead. */
+/* Z80 port I/O via compiler builtins: __builtin_z80_in / __builtin_z80_out.
+ * Emits direct IN A,(n) / OUT (n),A for constant ports, and IN r,(C) / OUT (C),r for variable. */
 #define DEFPORT(name, addr) enum { name = (addr) };
-#define port_in(name) ({ \
-    uint8_t _r; \
-    __asm__ volatile("in %0, (%1)" : "=a"(_r) : "i"((uint8_t)(name))); \
-    _r; \
-})
-#define port_out(name, val) \
-    __asm__ volatile("out (%0), %1" : : "i"((uint8_t)(name)), "a"((uint8_t)(val)))
-#define port_in_rt(p)       ((uint8_t)0)
-#define port_out_rt(p, v)   ((void)(p), (void)(v))
+#define port_in(name)       __builtin_z80_in((uint8_t)(name))
+#define port_out(name, val) __builtin_z80_out((uint8_t)(name), (uint8_t)(val))
+#define port_in_rt(p)       __builtin_z80_in((uint8_t)(p))
+#define port_out_rt(p, v)   __builtin_z80_out((uint8_t)(p), (uint8_t)(v))
 #elif defined(__SDCC) || defined(__SCCZ80)
 #define DEFPORT(name, addr) __sfr __at (addr) _sfr_##name;
 #define port_in(name)       (_sfr_##name)

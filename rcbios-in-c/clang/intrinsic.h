@@ -25,11 +25,11 @@
  * ================================================================ */
 
 #ifdef __z80__
-static inline void intrinsic_di(void)   { __asm__ volatile("di"); }
-static inline void intrinsic_ei(void)   { __asm__ volatile("ei"); }
-static inline void intrinsic_halt(void) { __asm__ volatile("halt"); }
-static inline void intrinsic_nop(void)  { __asm__ volatile("nop"); }
-static inline void intrinsic_im_2(void) { __asm__ volatile("im 2"); }
+static inline void intrinsic_di(void)   { __builtin_z80_di(); }
+static inline void intrinsic_ei(void)   { __builtin_z80_ei(); }
+static inline void intrinsic_halt(void) { __builtin_z80_halt(); }
+static inline void intrinsic_nop(void)  { __builtin_z80_nop(); }
+static inline void intrinsic_im_2(void) { __builtin_z80_im2(); }
 #else
 static inline void intrinsic_di(void)   {}
 static inline void intrinsic_ei(void)   {}

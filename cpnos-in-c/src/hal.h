@@ -40,22 +40,15 @@
  * ================================================================ */
 
 #if (defined(__clang__) && defined(__z80__)) || defined(__LLVMZ80)
-/* Port I/O via inline assembly matching autoload-in-c (no address_space(2)).
- * Uses IN A,(n) / OUT (n),A for compile-time constants and (C) for runtime. */
+/* Port I/O via compiler builtins: __builtin_z80_in / __builtin_z80_out.
+ * Emits direct IN A,(n) / OUT (n),A for constant ports, and IN r,(C) / OUT (C),r for variable. */
 static inline uint8_t _port_in(uint8_t p) {
-    uint8_t ret;
-    if (__builtin_constant_p(p))
-        __asm__ volatile ("in %0, (%1)" : "=a"(ret) : "i"(p));
-    else
-        __asm__ volatile ("in %0, (c)" : "=a"(ret) : "c"(p));
-    return ret;
+    return __builtin_z80_in(p);
 }
 static inline void _port_out(uint8_t p, uint8_t v) {
-    if (__builtin_constant_p(p))
-        __asm__ volatile ("out (%0), %1" : : "i"(p), "a"(v));
-    else
-        __asm__ volatile ("out (c), %0" : : "a"(v), "c"(p));
+    __builtin_z80_out(p, v);
 }
+
 
 #elif defined(__SDCC) || defined(__SCCZ80)
 /* SDCC / sccz80: __sfr requires a literal constant address; doesn't
