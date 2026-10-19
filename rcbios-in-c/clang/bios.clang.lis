@@ -1458,7 +1458,7 @@ Disassembly of section .text:
     e087: c9           	ret
 
 0000e088 <_fdstar>:
-;     if (!(port_in(sw1) & 0b10000000))    /* maxi: no motor control */
+;     if (!(port_in(sw1) & SW1_FLOPPY_MINI_BIT))    /* maxi: no motor control */
     e088: db 14        	in	a,($14)
     e08a: 87           	add	a,a
     e08b: 38 01        	jr	c,$e08e
@@ -2951,7 +2951,7 @@ Disassembly of section .text:
     e87c: 21 e1 ff     	ld	hl,$ffe1
     e87f: cd e7 e9     	call	$e9e7
     e882: 20 08        	jr	nz,$e88c
-;     if (!(port_in(sw1) & 0b10000000))    /* maxi: no motor control */
+;     if (!(port_in(sw1) & SW1_FLOPPY_MINI_BIT))    /* maxi: no motor control */
     e884: db 14        	in	a,($14)
     e886: 87           	add	a,a
     e887: 30 03        	jr	nc,$e88c

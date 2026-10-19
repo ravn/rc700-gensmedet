@@ -25,7 +25,7 @@ static inline void intrinsic_nop(void) {
 }
 
 static inline void set_i_reg(unsigned char page) {
-    __builtin_z80_set_i(page);
+    __asm__ volatile("ld i, a" : : "a"(page));
 }
 
 #endif /* _INTRINSIC_H */

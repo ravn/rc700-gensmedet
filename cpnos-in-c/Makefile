@@ -363,7 +363,7 @@ endif
 # with the inconv/outcon choice in cpnos-build/gen_locale_prefix.py.
 CPNOS_LOCALE_TAG ?= da_US
 
-DUAL_TRANSPORT ?= 0
+DUAL_TRANSPORT ?= 1
 
 ifeq ($(DUAL_TRANSPORT),1)
   CFLAGS += -DDUAL_TRANSPORT=1

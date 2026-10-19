@@ -23,8 +23,8 @@
 --   FDC_DECODED_LOG decoded transactions + bug flags (default /tmp/autoload_fdc_decoded.txt)
 -- Runs FDC_LOG_SECONDS emulated seconds (default 20), snapshots, then exits.
 
-local RAW_PATH     = os.getenv("FDC_RAW_LOG")     or "/tmp/autoload_fdc_raw.txt"
-local DEC_PATH     = os.getenv("FDC_DECODED_LOG") or "/tmp/autoload_fdc_decoded.txt"
+local RAW_PATH     = os.getenv("FDC_RAW_LOG")     or "../scratch/autoload_fdc_raw.txt"
+local DEC_PATH     = os.getenv("FDC_DECODED_LOG") or "../scratch/autoload_fdc_decoded.txt"
 local DEADLINE_S   = tonumber(os.getenv("FDC_LOG_SECONDS") or "20")
 local LABEL        = os.getenv("FDC_LOG_LABEL")   or "(unlabelled run)"
 -- Retain tap handles or Lua GC frees them -> segfault in lua_topointer.

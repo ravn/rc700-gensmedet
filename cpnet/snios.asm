@@ -26,6 +26,10 @@ PIO_B_DATA	EQU	011H		; PIO ch.B data register
 PIO_B_CTRL	EQU	013H		; PIO ch.B control register
 SW1		EQU	014H		; DIP-switch bank 1
 
+; SW1 DIP switch bit masks (port 0x14; see docs/SW1_BIT_MAP.md)
+SW1_TRANSPORT_BIT EQU	004H		; bit 2 (S03): 0=PIO, 1=SIO
+
+
 ; PIO mode-control byte values (Z80 PIO datasheet section "Control
 ; Word Format"; see also docs/SW1_BIT_MAP.md).
 PIO_MODE_OUTPUT	EQU	00FH		; Mode 0 (output)
@@ -686,7 +690,7 @@ ERRMSG:	DB	'C','P','N','E','T',' ','E','R','R',' ','T',':',0
 ; with zero per-call dispatch overhead.
 NTWKIN:
 	IN	A,(SW1)
-	AND	004H		; bit 2 (S03)
+	AND	SW1_TRANSPORT_BIT
 	JR	NZ,NTWKIN_SIO	; bit set = SIO
 
 	; ---- PIO mode ----------------------------------------------

@@ -335,7 +335,7 @@ disk_parameter_header dph_table[2];
 /* Motor control */
 static void fdstop(void)
 {
-    if (!(port_in(sw1) & 0b10000000))    /* maxi: no motor control */
+    if (!(port_in(sw1) & SW1_FLOPPY_MINI_BIT))    /* maxi: no motor control */
         return;
     port_out(sw1, 0x00);
 }
@@ -349,7 +349,7 @@ static void waitd(word ticks)
 
 static void fdstar(void)
 {
-    if (!(port_in(sw1) & 0b10000000))    /* maxi: no motor control */
+    if (!(port_in(sw1) & SW1_FLOPPY_MINI_BIT))    /* maxi: no motor control */
         return;
     hal_di();
     if (timer2 == 0) {

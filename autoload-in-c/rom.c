@@ -26,9 +26,11 @@
 /* Forward declarations for static functions used before their definitions. */
 static void error_display_halt(byte code);
 static void floppy_legacy_boot(void);
+static void prom1_if_present(void);
 
 /* Wait for FDC ready-to-write, then write val to data register.
- * Polls MSR until RQM=1 and DIO=0 (CPU->FDC direction). */
+ * Polls MSR until RQM=1 and DIO=0 (CPU->FDC direction).
+ * Matches ROA375 FL02: on 64K timeout calls FDCTOUT -> CHECKPROM1. */
 static void fdc_write_when_ready(byte val) {
     word t = 0;
     do {
@@ -37,6 +39,7 @@ static void fdc_write_when_ready(byte val) {
             return;
         }
     } while (++t);
+    prom1_if_present();
 }
 
 /* Wait for FDC ready-to-read, then read from data register.
@@ -751,7 +754,7 @@ static NORETURN void boot_floppy_or_prom(void) {
  *                           without physically pulling the chip.
  */
 static void prom1_if_present(void) {
-    if ((read_sw1() & 0x02) == 0 &&
+    if ((read_sw1() & SW1_LINEPROG_BIT) == 0 &&
         compare_6bytes((const byte *) 0x2002, (const byte *) msg_rc702) == 0) {
         jump_to(*(word *)0x2000);
         return;
@@ -818,9 +821,18 @@ static void fdc_read_data_from_current_location(word total_bytes_to_read) {
 }
 
 static void init_fdc(void) {
-    delay_ms(391);  /* FDC power-on delay: original ROM uses B=1,C=0xFF ≈ 391ms */
-    while (port_in(fdc_status) & 0x1F)
-        ;
+    byte retries = 5;
+    do {
+        delay_ms(391);  /* FDC power-on delay: original ROM uses B=1,C=0xFF ≈ 391ms */
+        if ((port_in(fdc_status) & 0x1F) == 0)
+            break;
+    } while (--retries);
+    if (retries == 0) {
+        /* FDC never became ready (e.g. no drive / hardware unresponsive).
+         * Skip floppy boot and fall through to PROM1 lineprog / halt. */
+        prom1_if_present();
+        return;
+    }
     fdc_write_when_ready(0x03);  /* Specify command */
     fdc_write_when_ready(0x4F);  /* step rate 3ms, head unload 240ms */
     fdc_write_when_ready(0x20);  /* DMA mode */
@@ -831,7 +843,7 @@ static void init_fdc(void) {
 static void get_floppy_ready(void) {
     fdc_isr_delay = 3;
     fdc_result_delay = 4;
-    is_mini = (read_sw1() >> 7) & 1; /* SW1 bit 7: 0=maxi, 1=mini */
+    is_mini = (byte)((read_sw1() & SW1_FLOPPY_MINI_BIT) >> 7); /* SW1 bit 7: 0=maxi, 1=mini */
 
     intrinsic_ei();
     motor(1); /* turn on floppy motor */
@@ -1113,8 +1125,8 @@ void main_relocated(void)
 #if !defined(INIT_SEM702) || INIT_SEM702
     load_chargen_font();
 #endif
-    init_fdc();
     display_banner_and_start_crt();
+    init_fdc();
     get_floppy_ready();
     // ReSharper disable once CppDFAEndlessLoop
     for (;;);  // halt if ever getting back here.

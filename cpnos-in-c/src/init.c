@@ -540,60 +540,24 @@ static uint16_t netboot_mpm(void) {
  * netboot completion; resident_handoff (RAM) does the OUT. */
 extern uint8_t console_joined;       /* resident.c -- gated by SW1 bit 0 */
 
-/* xport_jt.c trampolines: { 0xC3, target } each, target patched at cold-init. */
-typedef void (*xport_fptr)(void);
-typedef struct { uint8_t op; xport_fptr target; } XportEntry; /* no padding on Z80 */
-extern XportEntry xport_send_byte;    /* xport_jt.c */
-extern XportEntry xport_recv_byte;
-extern void transport_pio_send_byte(uint8_t);
-extern uint16_t transport_pio_recv_byte(uint16_t);
-/* SIO transport functions use unprefixed names -- historical artefact;
- * see transport_sio.c (transport_send_byte / transport_recv_byte). */
-extern void transport_send_byte(uint8_t);
-extern uint16_t transport_recv_byte(uint16_t);
-
-/* Patch the JP NN trampolines in xport_jt.c based on SW1 bit 2 (S03).
- *   On  (bit=0, default) -> PIO (already the link-time default).
- *   Off (bit=1)          -> SIO (overwrite target field).
- * The address references to the SIO transport functions here are what
- * keep transport_sio.o alive under --gc-sections in the dual-transport
- * build.
- *
- * Lives in .resident (RAM-loaded by the bootstrap before .init runs)
- * rather than .init -- the .init region is capped at 640 B by the
- * linker script and has no room.  Costs ~0 B in .init (just one CALL)
- * and ~30 B in .resident. */
-SECTION_INIT_TEXT
-static void install_transport(void) {
-#if DUAL_TRANSPORT
-    if (IO_READ(SW1) & 0x04) {
-        xport_send_byte.target = (xport_fptr)(void *)transport_send_byte;
-        xport_recv_byte.target = (xport_fptr)(void *)transport_recv_byte;
-    }
-#endif
-}
-
 SECTION_INIT_TEXT
 NORETURN void cpnos_cold_entry(void) {
-    /* Sample SW1 bit 0 (S01) ONCE -- impl_conin / impl_conout are hot.
-     * MAME "On" = bit clear = joined console (SIO-B + keyboard input,
-     * SIO-B + CRT output); MAME "Off" = bit set = local-only.
+    /* Sample SW1 once at cold-entry:
+     *   bit 0 (S01): joined console (On=0=joined, Off=1=local)
+     *   bit 2 (S03): transport (On=0=PIO, Off=1=SIO)
      * Must happen before print_banner because that calls impl_conout. */
-    console_joined = (IO_READ(SW1) & 0x01) == 0 ? 1 : 0;
-
-    /* SW1 bit 2 (S03): pick the SNIOS byte-transport (PIO vs SIO).
-     * Patches the xport_jt.s trampolines in place; must happen before
-     * any SNIOS call (netboot is downstream). */
-    install_transport();
+    uint8_t sw1 = IO_READ(SW1);
+    console_joined = (sw1 & SW1_CONSOLE_BIT) == 0 ? 1 : 0;
 
     cfgtbl_init();
     init_hardware();
 
-    /* SNIOS drives PIO byte primitives via the linker's
-     * --defsym=_xport_send_byte=_transport_pio_send_byte alias
-     * (transport_pio.c).  Mark 'P' so the boot strip indicates the
-     * physical wire (PIO) regardless of SNIOS envelope above. */
+    /* Mark boot strip with transport wire ('P' for PIO, 'S' for SIO). */
+#if DUAL_TRANSPORT
+    BOOT_MARK(7, (sw1 & SW1_TRANSPORT_BIT) ? 'S' : 'P');
+#else
     BOOT_MARK(7, 'P');
+#endif
 
     /* IRQ-driven snios-on-PIO needs IFF on during netboot:
      * isr_pio_par fires per chip strobe and pushes bytes into

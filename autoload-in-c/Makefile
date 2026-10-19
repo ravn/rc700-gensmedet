@@ -127,12 +127,14 @@ prom:
 # SW1 status display test.  Boots autoload with a stock 0xFF PROM1
 # (no signature -> autoload reaches its NO-LINEPROG halt, leaving the
 # banner + SW1 line on display); dumps display rows 0..2 from RAM at
+SCRATCH_DIR ?= $(CURDIR)/../scratch
+
 # 0x7A00 and greps for "SW1: " on row 1.  Use to verify the
 # display_sw1_status() output after editing the formatting.
-SW1_DUMP    = /tmp/autoload_sw1_dump.txt
-QR_DUMP     = /tmp/autoload_qr_dump.txt
+SW1_DUMP    = $(SCRATCH_DIR)/autoload_sw1_dump.txt
+QR_DUMP     = $(SCRATCH_DIR)/autoload_qr_dump.txt
 SW1_PROM1   = $(MAME)/roms/rc702/prom1.ic65
-SW1_PROM1_BACKUP = /tmp/autoload_prom1_backup.bin
+SW1_PROM1_BACKUP = $(SCRATCH_DIR)/autoload_prom1_backup.bin
 
 .PHONY: sw1-test
 sw1-test:
@@ -147,7 +149,7 @@ sw1-test:
 	    -seconds_to_run 6 \
 	    -autoboot_script mame_sw1_test.lua \
 	    -snapname autoload_sw1 \
-	    >/tmp/autoload_sw1_mame.log 2>&1
+	    >$(SCRATCH_DIR)/autoload_sw1_mame.log 2>&1
 	@echo "=== restoring PROM1 ==="
 	@if [ -f "$(SW1_PROM1_BACKUP)" ]; then cp "$(SW1_PROM1_BACKUP)" "$(SW1_PROM1)"; rm -f "$(SW1_PROM1_BACKUP)"; fi
 	@echo "--- display rows 0..3 (base taken from DMA ch2, see dump header) ---"
@@ -174,7 +176,7 @@ qr-test: prom
 	    -seconds_to_run 6 \
 	    -autoboot_script mame_qr_test.lua \
 	    -snapname autoload_qr \
-	    >/tmp/autoload_qr_mame.log 2>&1
+	    >$(SCRATCH_DIR)/autoload_qr_mame.log 2>&1
 	@echo "=== restoring PROM1 ==="
 	@if [ -f "$(SW1_PROM1_BACKUP)" ]; then cp "$(SW1_PROM1_BACKUP)" "$(SW1_PROM1)"; rm -f "$(SW1_PROM1_BACKUP)"; fi
 	@cat $(QR_DUMP) 2>/dev/null || { echo "FAIL: no dump produced"; exit 1; }
@@ -225,8 +227,8 @@ floppy-boot-test: prom mamesym
 # Flags the Read-Track ST1-ND (bug A) and Sense-Int ST0-HD (bug B) signatures.
 # Override FDC_FLOPPY to point at a bootable CP/M image for a fuller trace.
 FDC_FLOPPY      ?= $(CURDIR)/test-disks/SW1711-I8.imd
-FDC_RAW_LOG     ?= /tmp/autoload_fdc_raw.txt
-FDC_DECODED_LOG ?= /tmp/autoload_fdc_decoded.txt
+FDC_RAW_LOG     ?= $(SCRATCH_DIR)/autoload_fdc_raw.txt
+FDC_DECODED_LOG ?= $(SCRATCH_DIR)/autoload_fdc_decoded.txt
 FDC_LOG_SECONDS ?= 20
 
 fdc-log: prom
@@ -241,9 +243,9 @@ fdc-log: prom
 	    -autoboot_script mame_fdc_log.lua \
 	    -snapname autoload_fdc \
 	    -flop1 "$(FDC_FLOPPY)" \
-	    >/tmp/autoload_fdc_mame.log 2>&1
+	    >$(SCRATCH_DIR)/autoload_fdc_mame.log 2>&1
 	@echo "--- decoded FDC transactions ($(FDC_DECODED_LOG)) ---"
-	@cat $(FDC_DECODED_LOG) 2>/dev/null || { echo "no decoded log (see /tmp/autoload_fdc_mame.log)"; exit 1; }
+	@cat $(FDC_DECODED_LOG) 2>/dev/null || { echo "no decoded log (see $(SCRATCH_DIR)/autoload_fdc_mame.log)"; exit 1; }
 
 # ================================================================
 # Full IN/OUT instruction logger — boot-failure post-mortem
@@ -256,7 +258,7 @@ fdc-log: prom
 #   make io-log                       # default: clang PROM, 60s, SW1711-I8.imd
 #   make io-log IO_LOG_SECONDS=90     # longer run
 #   make io-log COMPILER=sdcc         # SDCC PROM
-IO_LOG         ?= /tmp/autoload_io.txt
+IO_LOG         ?= $(SCRATCH_DIR)/autoload_io.txt
 IO_LOG_SECONDS ?= 60
 IO_FLOPPY      ?= $(FLOPPY)
 
@@ -271,14 +273,14 @@ io-log: prom
 	    -autoboot_script mame_io_log.lua \
 	    -snapname autoload_io_log \
 	    -flop1 "$(IO_FLOPPY)" \
-	    >/tmp/autoload_io_mame.log 2>&1
+	    >$(SCRATCH_DIR)/autoload_io_mame.log 2>&1
 	@echo "--- IN/OUT log: $(IO_LOG) ---"
 	@if [ -f "$(IO_LOG)" ]; then \
 	    wc -l "$(IO_LOG)"; \
 	    echo "(last 40 lines:)"; \
 	    tail -40 "$(IO_LOG)"; \
 	else \
-	    echo "FAIL: no log produced (see /tmp/autoload_io_mame.log)"; \
+	    echo "FAIL: no log produced (see $(SCRATCH_DIR)/autoload_io_mame.log)"; \
 	    exit 1; \
 	fi
 

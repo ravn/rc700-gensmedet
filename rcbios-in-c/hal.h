@@ -35,13 +35,24 @@
 #define PORT_PIO_B_CTRL   0x13
 #define PORT_SW1          0x14
 
-/* SW1 bit mask for the joined SIO-B console / debug switch (S01).
- * Canonical value is the shared build define -DSW1_CONSOLE_BIT (see
- * ../sw1_config.mk and docs/SW1_BIT_MAP.md); this fallback keeps direct
- * compiles working.  rcbios and autoload use the SAME constant so the
- * console gate and the SIO-B debug gate are provably identical. */
+/* SW1 DIP switch bit masks (port 0x14).
+ * Canonical values in ../sw1_config.mk and docs/SW1_BIT_MAP.md.
+ * Switch On = 0 (default), Switch Off = 1. */
 #ifndef SW1_CONSOLE_BIT
-#define SW1_CONSOLE_BIT   0x01
+#define SW1_CONSOLE_BIT       0x01  /* S01: joined SIO-B console / debug */
+#endif
+#ifndef SW1_LINEPROG_BIT
+#define SW1_LINEPROG_BIT      0x02  /* S02: PROM1 lineprog enable check */
+#endif
+#ifndef SW1_TRANSPORT_BIT
+#define SW1_TRANSPORT_BIT     0x04  /* S03: CP/NET transport: 0=PIO, 1=SIO */
+#endif
+#define SW1_RESERVED_S04_BIT  0x08  /* S04: reserved */
+#define SW1_RESERVED_S05_BIT  0x10  /* S05: reserved */
+#define SW1_RESERVED_S06_BIT  0x20  /* S06: reserved */
+#define SW1_RESERVED_S07_BIT  0x40  /* S07: reserved */
+#ifndef SW1_FLOPPY_MINI_BIT
+#define SW1_FLOPPY_MINI_BIT   0x80  /* S08: 0=8" maxi (500k), 1=5.25" mini (250k) */
 #endif
 #define PORT_BELL         0x1C
 #define PORT_CTC2_CH0     0x44

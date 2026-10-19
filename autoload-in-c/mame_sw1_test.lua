@@ -13,7 +13,7 @@
 --   - port 0xFC (clear byte-pointer flip-flop) -> next 0xF4 write is low byte
 --   - port 0xF4 (ch2 address) low byte then high byte -> 16-bit base
 
-local RESULT_PATH = "/tmp/autoload_sw1_dump.txt"
+local RESULT_PATH = os.getenv("SW1_DUMP") or "../scratch/autoload_sw1_dump.txt"
 local ROW_BYTES   = 80
 local DEADLINE_S  = 4.0
 

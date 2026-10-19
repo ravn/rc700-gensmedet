@@ -39,9 +39,11 @@ cpnos-in-c/sdcc/cpnos_lp.sym
 cpnos-in-c/sdcc/cpnos_with_locale.img
 
 # Test runner artifacts
+scratch/autoload_*
 boot_test_result.txt
 screen.txt
 *_test.imd
 expected_checksums.txt
 error.log
 cpnos-in-c/clang-prom1lineprog/*.map
+

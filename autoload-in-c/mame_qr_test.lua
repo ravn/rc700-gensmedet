@@ -18,7 +18,7 @@
 -- write-taps (never IO reads) -- see mame_sw1_test.lua for the rationale and the
 -- feedback_lua_* memory notes.
 
-local RESULT_PATH = "/tmp/autoload_qr_dump.txt"
+local RESULT_PATH = os.getenv("QR_DUMP") or "../scratch/autoload_qr_dump.txt"
 local ROW_BYTES   = 80
 local DEADLINE_S  = 4.0
 local QR_TOP, QR_LEFT, QR_COLS, QR_ROWS = 15, 65, 13, 9
