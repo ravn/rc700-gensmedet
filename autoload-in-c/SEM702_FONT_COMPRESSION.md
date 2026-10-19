@@ -85,13 +85,27 @@ the PROM sockets). See docs/PROM_SCHEMATICS.PNG and the hardware
 technical reference for details.  **User's machine does not have this
 bridge**; treat 4 KB PROMs as unavailable in any planning.
 
-## Current implementation (2026-05-17 onward)
+## Current implementation and ZX0 Compression Findings (2026-10-19)
 
-`autoload-in-c/rom.c:define_sextants()` runs unconditionally and
-programs the 64 sextant glyphs (codes 0x20-0x3F + 0x60-0x7F) into
-SEM702 RAM with the bit layout documented in
-`ROA327_CHARACTER_ROM.md:155-194` -- no PROM1 font load, no font
-table embedded in the PROM, and no bit-reversal needed (data is in
-8275-native bit-0-leftmost format).  Cost: ~147 B of code, no data.
-Non-sextant codepoints are blanked; line-drawing characters
-(ROA327 0x00-0x1F) are not currently provided in the SEM702 path.
+### 1. Full ROA327 vs Sextants Only in ZX0
+- **Full ROA327 replica (128 glyphs x 11 dot-lines = 1408 B):**
+  When stored line-major in `sem702_font[]` (`clang/sem702_font.h`), it compresses
+  down to **~377 B** with ZX0 (in the `.text` payload). This includes line-drawing
+  graphics (0x00..0x1F), punctuation/digits, uppercase ASCII (0x20..0x5F), and the
+  sextants (0x60..0x7F).
+- **Sextants only (64 glyphs x 11 dot-lines = 704 B):**
+  Because sextants have only 4 distinct scanline patterns (`0x00`, `0x0F`, `0x70`, `0x7F`)
+  repeated over fixed line spans (lines 0..3, 4..6, 7..10), ZX0 compresses the 704 raw
+  bytes down to **32 bytes**!
+- **Procedural code vs ZX0 compressed table:**
+  Generating sextants procedurally on the fly requires nested loops and bit-manipulation
+  taking ~120-190 bytes of compiled Z80 machine code. Storing the ZX0-compressed sextant
+  table takes only **32 bytes** of data plus a ~25-byte transpose loop (~57 bytes total).
+  Therefore, **ZX0 compression is smaller than procedural generation**.
+
+### 2. Hardware Trade-off & 2 KB PROM Budget
+- If the hardware configuration requires the SEM702 board (IC82) to supply all alphanumeric
+  characters while active, the full 128-glyph table (377 B in ZX0) is mandatory.
+- If only sextants (for QR-code display) are required in SEM702 RAM (because IC81 ROA296
+  handles standard alpha text), pruning `sem702_font[]` to sextants only frees
+  **~345 bytes** in the autoload PROM, easily keeping firmware within the 2048 B limit.
