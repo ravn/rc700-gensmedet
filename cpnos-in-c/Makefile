@@ -124,9 +124,11 @@ ifeq ($(COMPILER),clang)
   # -disable-lsr is kept: LSR is IR-level (still runs), and on cpnos the
   # flag is marginally beneficial via better ZX0 compressibility.
   CFLAGS = --target=z80 -std=c23 -Oz -nostdlib -g \
+           -fno-delete-null-pointer-checks \
+           -flto \
+           -fno-jump-tables \
            -ffunction-sections -fdata-sections \
            -Xclang -target-feature -Xclang +static-frame \
-           -mllvm -disable-lsr \
            -DENABLE_FDC=$(ENABLE_FDC) \
            -DMIRROR_SIOB=$(MIRROR_SIOB) \
            -DBOOT_MARK_ENABLED=$(BOOT_MARK_ENABLED) \
@@ -361,6 +363,22 @@ endif
 # with the inconv/outcon choice in cpnos-build/gen_locale_prefix.py.
 CPNOS_LOCALE_TAG ?= da_US
 
+DUAL_TRANSPORT ?= 0
+
+ifeq ($(DUAL_TRANSPORT),1)
+  CFLAGS += -DDUAL_TRANSPORT=1
+  PAYLOAD_TRANSPORT_OBJS = $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o
+  PROM1ONLY_XPORT_JT = $(BUILDDIR)/xport_jt.o
+else
+  CFLAGS += -DDUAL_TRANSPORT=0
+  ifeq ($(TRANSPORT),pio-irq)
+    PAYLOAD_TRANSPORT_OBJS = $(BUILDDIR)/transport_pio.o
+  else
+    PAYLOAD_TRANSPORT_OBJS = $(BUILDDIR)/transport_sio.o
+  endif
+  PROM1ONLY_XPORT_JT =
+endif
+
 # ---- Payload object list -----------------------------------------
 # The same set of objects is linked by both clang and SDCC into the
 # PROM1-only line program (see PROM1ONLY_* rules below; build dirs
@@ -369,7 +387,7 @@ CPNOS_LOCALE_TAG ?= da_US
 PAYLOAD_OBJS = $(BUILDDIR)/bios_jt.o \
                $(BUILDDIR)/cpnos_main.o \
                $(BUILDDIR)/resident.o $(BUILDDIR)/init.o \
-               $(BUILDDIR)/transport_sio.o $(BUILDDIR)/transport_pio.o \
+               $(PAYLOAD_TRANSPORT_OBJS) \
                $(BUILDDIR)/snios_c.o
 
 ALL_OBJS = $(PAYLOAD_OBJS) $(SDCC_C_OBJS) $(SDCC_AUDIT_S)
@@ -1682,6 +1700,7 @@ cpnos-polypascal-test:
 	@sleep 2
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw \
 	       $(TEST_LOG) $(TEST_RESULT)
+	@touch /tmp/cpnos_siob.raw /tmp/cpnos_sioa.raw
 	@echo "=== 5/5 generating $(BUILDDIR)/cpnos_polypascal_addrs.lua ==="
 ifeq ($(COMPILER),sdcc)
 	@# z88dk's prom1-lineprog map `sdcc/cpnos_lp.map` lines look like:
@@ -1721,7 +1740,7 @@ ifeq ($(TRANSPORT),sio)
 	    -autoboot_script $(SHARED)/mame/$(TEST_LUA)
 else
 	-COMPILER=$(COMPILER) \
-	MAME_BIN=$(MAME)/regnecentralend \
+	MAME_BIN=$${MAME_BIN:-$(MAME)/rc702test} \
 	$(CURDIR)/../scripts/mame_capture.sh polypascal_$(COMPILER)_$(TRANSPORT) -- \
 	    rc702 -rompath $(MAME)/roms \
 	    -nothrottle -window -skip_gameinfo \
@@ -2062,8 +2081,10 @@ endif
 # based on SW1 bit 2 (S03).  TRANSPORT_DEFSYMS is overridden to empty
 # so the legacy --defsym aliases don't clash with the asm-emitted
 # symbols.
+ifeq ($(DUAL_TRANSPORT),1)
 $(PROM1ONLY_PAYLOAD_ELF): TRANSPORT_DEFSYMS =
-$(PROM1ONLY_PAYLOAD_ELF): $(PAYLOAD_OBJS) $(BUILDDIR)/xport_jt.o $(PROM1ONLY_LD) cpnos-build/d/cpnos.sym
+endif
+$(PROM1ONLY_PAYLOAD_ELF): $(PAYLOAD_OBJS) $(PROM1ONLY_XPORT_JT) $(PROM1ONLY_LD) cpnos-build/d/cpnos.sym
 	@mkdir -p $(PROM1ONLY_DIR)
 	@N=$$(perl -ne 'while (/([0-9A-Fa-f]{4})\s+NDOS\b/g) { print "$$1"; last }' cpnos-build/d/cpnos.sym); \
 	 [ -n "$$N" ] || { echo "ERROR: NDOS symbol missing from cpnos.sym"; exit 1; }; \
@@ -2071,7 +2092,8 @@ $(PROM1ONLY_PAYLOAD_ELF): $(PAYLOAD_OBJS) $(BUILDDIR)/xport_jt.o $(PROM1ONLY_LD)
 	 echo "prom1-lineprog payload.elf: __cpnos_load_end = $$NEND"; \
 	 $(LD) --gc-sections -T $(PROM1ONLY_LD) \
 	    --defsym=__cpnos_load_end=$$NEND \
-	    $(TRANSPORT_DEFSYMS) $(PAYLOAD_OBJS) $(BUILDDIR)/xport_jt.o \
+	    -Map=$(PROM1ONLY_DIR)/payload.map \
+	    $(TRANSPORT_DEFSYMS) $(PAYLOAD_OBJS) $(PROM1ONLY_XPORT_JT) \
 	    $(CLANG_BUILD)/../lib/z80/z80_rt.a -o $@
 
 $(PROM1ONLY_INIT_BIN): $(PROM1ONLY_PAYLOAD_ELF)

@@ -261,11 +261,14 @@ static void setup_ivt(void) {
      * Z80 LDIR-overlap idiom (~17 B vs 22 B for a volatile loop;
      * see ravn/llvm-z80#130 comment thread).  Adding `volatile` here
      * blocks LoopIdiomRecognize (volatile stores fail isLegalStore). */
-    uint16_t *ivt = (uint16_t *)IVT_ADDR;
-    for (uint8_t n = IVT_ENTRIES; n; --n) {
-        *ivt++ = (uint16_t)(uintptr_t)&isr_noop;
+    *(uint16_t *)IVT_ADDR = (uint16_t)(uintptr_t)&isr_noop;
+    {
+        register void *hl __asm__("hl") = (void *)IVT_ADDR;
+        register void *de __asm__("de") = (void *)(IVT_ADDR + 2);
+        register size_t bc __asm__("bc") = (IVT_ENTRIES - 1) * 2;
+        __asm__ volatile("ldir" : "+r"(hl), "+r"(de), "+r"(bc) :: "memory");
     }
-    ivt = (uint16_t *)IVT_ADDR;
+    uint16_t *ivt = (uint16_t *)IVT_ADDR;
     ivt[2] = (uint16_t)(uintptr_t)&isr_crt;
     ivt[IVT_PIO_A] = (uint16_t)(uintptr_t)&isr_pio_kbd;
     ivt[IVT_PIO_B] = (uint16_t)(uintptr_t)&isr_pio_par;
@@ -406,7 +409,14 @@ static uint8_t cpnet_xact(uint8_t fnc, uint8_t siz_minus_1) {
  * into msg.  The 24-byte zero tail is already zero in BSS. */
 SECTION_INIT_TEXT
 static void install_fcb(void) {
-    __builtin_memcpy(&msg[DAT], FCB_HEAD, 13);
+#if defined(__clang__) && defined(__z80__)
+    register const void *hl __asm__("hl") = FCB_HEAD;
+    register void *de       __asm__("de") = &msg[DAT];
+    register size_t bc      __asm__("bc") = sizeof(FCB_HEAD);
+    __asm__ volatile("ldir" : "+r"(hl), "+r"(de), "+r"(bc) :: "memory");
+#else
+    __builtin_memcpy(&msg[DAT], FCB_HEAD, sizeof(FCB_HEAD));
+#endif
 }
 
 /* Rewrite only DAT[0]=user.  FCB is already in msg[DAT+1..DAT+36] from
@@ -426,6 +436,12 @@ NOINLINE static void crlf(void) {
 }
 
 SECTION_INIT_TEXT
+NOINLINE static void print_line(const char *s) {
+    while (*s) impl_conout((uint8_t)*s++);
+    crlf();
+}
+
+SECTION_INIT_TEXT
 static uint16_t netboot_mpm(void) {
     BOOT_MARK(8, 'N');               /* entered netboot_mpm */
     /* Arm SNIOS.  Drains SIO RX and flips CFGTBL.NETST.ACTIVE. */
@@ -433,7 +449,16 @@ static uint16_t netboot_mpm(void) {
     BOOT_MARK(9, 'I');               /* NTWKIN ok */
 
     /* --- LOGIN ----------------------------------------------------- */
-    __builtin_memcpy(&msg[DAT], login_pwd, 8);
+#if defined(__clang__) && defined(__z80__)
+    {
+        register const void *hl __asm__("hl") = login_pwd;
+        register void *de       __asm__("de") = &msg[DAT];
+        register size_t bc      __asm__("bc") = sizeof(login_pwd);
+        __asm__ volatile("ldir" : "+r"(hl), "+r"(de), "+r"(bc) :: "memory");
+    }
+#else
+    __builtin_memcpy(&msg[DAT], login_pwd, sizeof(login_pwd));
+#endif
     if (cpnet_xact(64, 7) != 0) return 0;
     BOOT_MARK(10, 'L');              /* LOGIN ok */
 
@@ -484,11 +509,7 @@ static uint16_t netboot_mpm(void) {
      * doesn't know which locale tables the master's cpnos.img
      * carries until netboot completes.  dma now points one past the
      * last loaded byte, so the stamp lives at dma-32..dma-1. */
-    {
-        const uint8_t *s = dma - 32;
-        for (uint8_t i = 0; i < 31 && s[i] != 0; ++i) impl_conout(s[i]);
-        crlf();
-    }
+    print_line((const char *)(dma - 32));
 
     /* --- CLOSE ---------------------------------------------------- */
     reuse_fcb();
@@ -510,34 +531,6 @@ static uint16_t netboot_mpm(void) {
  * has tail-called into the RAM-resident `resident_handoff` (in
  * cpnos_main.c).
  */
-
-/* Banner printed BEFORE netboot so the screen layout is:
- *   row 0 (cursor home): "RC702 CP/NOS NNK WWW-MMM cc yyyy-mm-dd HH:MM hash"
- *   row 1: 25 netboot progress dots followed by CR/LF on EOF
- * Operator sees the OS identity immediately on power-on, then
- * watches dots fill in below it. */
-SECTION_INIT_TEXT
-static void print_banner(void) {
-    /* NNK = TPA size (CPNOS_TPA_KB, build-time from cpnos.sym).
-     * WWW-MMM = TRANSPORT_NAME literal (Makefile -DTRANSPORT_NAME='"PIO"'/"SIO").
-     * cc = CPNOS_COMPILER_NAME ("clang"/"sdcc"/"hitech"), picked at preprocess time
-     * so the banner unambiguously identifies which build is running.
-     *
-     * The locale tag (da_US / da_DK / ...) intentionally does NOT
-     * appear on this banner -- print_banner runs BEFORE netboot, so
-     * cpnos.img hasn't been loaded yet and the slave PROM1 has no
-     * idea which locale tables the master's cpnos.img is carrying.
-     * The locale tag rides on the cpnos.img stamp line instead
-     * (printed on row 2 by netboot_mpm's stamp reader). */
-#define _STR(x) #x
-#define STR(x) _STR(x)
-    static const SECTION_INIT_RODATA char banner[] =
-        "RC702 CP/NOS " STR(CPNOS_TPA_KB) "K "
-        TRANSPORT_NAME " " CPNOS_COMPILER_NAME " " BUILD_INFO_STR "\r\n";
-    for (const char *p = banner; *p; ++p) impl_conout((uint8_t)*p);
-#undef STR
-#undef _STR
-}
 
 /* Init phase: runs in place from PROM 0 (INIT_CODE region).
  * Tail-called by the relocator after it copies resident bytes to
@@ -570,41 +563,18 @@ extern uint16_t transport_recv_byte(uint16_t);
  * rather than .init -- the .init region is capped at 640 B by the
  * linker script and has no room.  Costs ~0 B in .init (just one CALL)
  * and ~30 B in .resident. */
-SECTION_RESIDENT
+SECTION_INIT_TEXT
 static void install_transport(void) {
+#if DUAL_TRANSPORT
     if (IO_READ(SW1) & 0x04) {
         xport_send_byte.target = (xport_fptr)(void *)transport_send_byte;
         xport_recv_byte.target = (xport_fptr)(void *)transport_recv_byte;
     }
+#endif
 }
 
 SECTION_INIT_TEXT
 NORETURN void cpnos_cold_entry(void) {
-    /* Locale-tables pre-init: byte-identity outcon at 0xF680..0xF6FF
-     * + sentinel armed.  This used to live in PROM1-only's bootstrap.s
-     * (asm) and the two-PROM relocator.c (clang-only inline asm); both
-     * call paths now share this one C site so the SDCC two-PROM build
-     * gets locale support without per-compiler asm.
-     *
-     * Why HERE: cpnos_cold_entry is the first place after the cold
-     * paths converge.  print_banner (the next call after these few
-     * SW1 reads) goes through impl_conout, which uses the outcon
-     * table at 0xF680 when the sentinel is set -- pre-filling with
-     * identity bytes lets the banner render as its literal characters
-     * before install_locale_tables() overlays the real US-ASCII
-     * outcon in resident_handoff.  Sentinel set here also flips
-     * get_img_base() into "shift IMG_BASE down by 384 B" mode so
-     * netboot lands the cpnos.img locale prefix at 0xDC00.
-     *
-     * Costs ~25 B init.c .text via the compiled for-loop; within the
-     * 640 B .init region budget on both compilers. */
-    {
-        uint8_t *outcon = (uint8_t *)0xF680;
-        for (uint8_t i = 0; i < 128; i++) outcon[i] = i;
-        extern uint8_t prom1_only_sentinel;
-        prom1_only_sentinel = 0x5A;
-    }
-
     /* Sample SW1 bit 0 (S01) ONCE -- impl_conin / impl_conout are hot.
      * MAME "On" = bit clear = joined console (SIO-B + keyboard input,
      * SIO-B + CRT output); MAME "Off" = bit set = local-only.
@@ -632,12 +602,8 @@ NORETURN void cpnos_cold_entry(void) {
 
     /* Banner BEFORE netboot so it appears on row 0; netboot dots
      * flow on row 1 (operator's "OS identity at top, progress
-     * below" expectation).  In PROM1-only, bootstrap.s has both
-     * pre-filled outcon with byte-identity AND armed the sentinel
-     * before this point, so impl_conout indexes a valid identity
-     * table.  In two-PROM, the sentinel stays 0 (no bootstrap.s on
-     * that path) and impl_conout bypasses the table entirely. */
-    print_banner();
+     * below" expectation). */
+    print_line("RC702 CP/NOS");
 
     uint16_t entry = netboot_mpm();
     BOOT_MARK(15, entry ? '+' : '-');

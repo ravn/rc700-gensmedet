@@ -388,76 +388,43 @@ const uint8_t zp_init_data[8] = {
  * netboot failure, otherwise NDOS's cold-start vector. */
 NORETURN
 void resident_handoff(uint16_t entry) {
+    if (!entry) for (;;) { }
+
     /* Disable the PROMs -- exposes RAM underneath for the TPA and
      * netboot-loaded image.  We're at 0xED00 (RAM); still running. */
     IO_WRITE(RAMEN, 0x00);
     BOOT_MARK(16, 'P');                /* PROMs disabled */
 
-    /* Install locale tables from cpnos.img prefix.  PROM1-only-only:
-     * the function checks prom1_only_sentinel and is a no-op on
-     * two-PROM (where the LDIR destination 0xF680..0xF7FF is stack
-     * workspace + pio_rx_buf, not free RAM). */
-    /* install_locale_tables lives in resident.c; both compilers
-     * export it (verified in sdcc/cpnos.map).  Declared at file
-     * scope (just above) because SDCC's z88dk back-end doesn't
-     * propagate function-scope `extern` declarations into the
-     * generated .asm's EXTERN list -- a function-local extern
-     * compiles fine under clang but yields z80asm "undefined
-     * symbol _install_locale_tables" under SDCC.  Caught session
-     * 73j-late while diagnosing the SDCC PROM1-only build. */
     install_locale_tables();
-
-    /* Restore cfgtbl.fnc to LIST (0x05) -- netboot's cpnet_xact left
-     * it at the last function code (16 = CLOSE).  cfgtbl shares its
-     * outbound message-frame area with netboot's msg[] (saves 163 B
-     * BSS), but cfgtbl_init's fnc=5 invariant must hold for SNIOS's
-     * post-netboot LIST behaviour.  fnc=5 is the cfgtbl_init value;
-     * keep them in sync if cfgtbl_init is touched. */
     cfgtbl.fnc = 0x05;
-
-    /* Prime SNIOS: drain SIO RX, seed NETST=ACTIVE, clear SIZ.  NDOS's
-     * own NTWKIN may re-run this; idempotent. */
     snios_ntwkin();
 
-    /* No snios_jt memcpy: cpnos-build/src/cpnios-shim.asm pins NIOS
-     * directly at our resident _snios_jt symbol (0xED33) via the LINK
-     * EQU.  NDOS calls land in resident BIOS without a runtime copy. */
-
 #if defined(PIO_SPEED_TEST) || defined(PIO_LOOPBACK_TEST)
-    /* PIO-B bring-up test runs after IRQs are on so the receive ring
-     * fills via isr_pio_par.  Skipped if netboot failed -- without
-     * netboot we can't trust resident state. */
-    if (entry != 0) {
-        pio_loopback_test();
-    }
+    pio_loopback_test();
 #endif
 
-    if (entry != 0) {
-        /* 1. Copy 17-entry resident BIOS JT (51 B at 0xED00) into NDOS's
-         *    data area at NDOS - 0x100 = NDOSRL + 0x300.  NDOS COLDST
-         *    walks this via ZP[1..2] and rewrites BDOS-related slots
-         *    with its own intercept addresses.
-         * 2. LDIR zp_init_data[8] (in .resident.data, pinned by
-         *    payload.ld ASSERT) into the now-RAM zero page.
-         * 3. enter_coldst (resident asm helper) loads SP=0x100 and
-         *    JPs to NDOS+3 (COLDST). */
-        __builtin_memcpy((void *)BIOS_JT_COPY_ADDR, bios_boot, 51);
+    /* 1. Copy 17-entry resident BIOS JT (51 B at 0xED00) into NDOS's
+     *    data area at NDOS - 0x100 = NDOSRL + 0x300.  NDOS COLDST
+     *    walks this via ZP[1..2] and rewrites BDOS-related slots
+     *    with its own intercept addresses.
+     * 2. LDIR zp_init_data[8] into the now-RAM zero page.
+     * 3. enter_coldst (resident asm helper) loads SP=0x100 and
+     *    JPs to NDOS+3 (COLDST). */
+    __builtin_memcpy((void *)BIOS_JT_COPY_ADDR, bios_boot, 51);
 
-        /* Copy zp_init_data (8 B in resident RODATA) to RAM 0x0000 (the CP/M
-         * zero page).  Without this NDOS COLDST jumps via uninitialised ZP and
-         * the slave hangs after BOOT_MARK 'P'.
-         *
-         * Address 0 is real RAM on the Z80, but clang historically treated a
-         * write through a literal NULL pointer as UB and elided the whole
-         * if-block (ravn/rc700-gensmedet#49/#81), which forced an inline-asm
-         * LDIR.  The Z80 toolchain now defaults to -fno-delete-null-pointer-
-         * checks (null pointer valid on bare-metal page 0), so plain portable
-         * C is correct under both clang and SDCC. */
-        __builtin_memcpy((void *)0, zp_init_data, 8);
-
-        BOOT_MARK(18, 'J');             /* about to JP NDOS COLDST */
-        enter_coldst();
+#if defined(__clang__) && defined(__z80__)
+    {
+        register const void *hl __asm__("hl") = zp_init_data;
+        register void *de       __asm__("de") = (void *)0;
+        register size_t bc      __asm__("bc") = sizeof(zp_init_data);
+        __asm__ volatile("ldir" : "+r"(hl), "+r"(de), "+r"(bc) :: "memory");
     }
+#else
+    __builtin_memcpy((void *)0, zp_init_data, sizeof(zp_init_data));
+#endif
+
+    BOOT_MARK(18, 'J');             /* about to JP NDOS COLDST */
+    enter_coldst();
     for (;;) { }
 }
 

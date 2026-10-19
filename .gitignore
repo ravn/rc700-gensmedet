@@ -43,3 +43,5 @@ boot_test_result.txt
 screen.txt
 *_test.imd
 expected_checksums.txt
+error.log
+cpnos-in-c/clang-prom1lineprog/*.map

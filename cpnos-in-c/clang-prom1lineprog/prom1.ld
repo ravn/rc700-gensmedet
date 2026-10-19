@@ -51,7 +51,7 @@ SECTIONS {
 
   __prom1_used = .;
   ASSERT(__prom1_used <= 0x2800,
-         "PROM1 line program exceeds 2 KB hard cap (no A11 on user's hardware)")
+         "PROM1 line program exceeds 2 KB hard cap")
 
   /DISCARD/ : {
     *(.comment)

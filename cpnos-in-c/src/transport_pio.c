@@ -271,6 +271,7 @@ uint8_t  pio_test_done;
  *
  * Step 1 is additive: no current call sites.  Linker --gc-sections
  * will drop this; size delta = 0 B until Step 2 wires the call. */
+#if 0 /* Step 1 scaffold: no current call sites; disabled until Step 2 */
 uint8_t *pio_block_dst;
 uint8_t  pio_block_count;
 
@@ -285,6 +286,7 @@ void pio_b_recv_block_body(void) __naked {
         "ret\n\t"
     );
 }
+#endif
 
 
 /* =============================================================

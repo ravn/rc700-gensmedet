@@ -21,7 +21,7 @@
  */
 ENTRY(_cpnos_cold_entry)
 MEMORY {
-  INIT (rx) : ORIGIN = 0xC000, LENGTH = 0x0280
+  INIT (rx) : ORIGIN = 0xC000, LENGTH = 0x0800
   PAYLOAD (rwx) : ORIGIN = 0xEE00, LENGTH = 0x1000
   IVT (rw) : ORIGIN = 0xEB00, LENGTH = 0x100
   /* PROM1-only-specific layout (2026-06-04, TPA-grow move):
@@ -66,7 +66,7 @@ SECTIONS {
     __init_end = .;
   } > INIT
   __init_size = __init_end - __init_start;
-  ASSERT(__init_size <= 0x0280, ".init exceeds 640 B INIT region budget")
+  ASSERT(__init_size <= 0x0800, ".init exceeds 2048 B INIT RAM budget")
   .payload 0xEE00 : {
     __payload_start = .;
     KEEP(*(.resident.jumptable))

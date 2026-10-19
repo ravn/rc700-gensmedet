@@ -21,7 +21,7 @@
  * attribute only applies under the ELF compile path; macOS system
  * clang (Mach-O, driving the IDE's LSP) rejects it. */
 #ifdef __ELF__
-#define RESIDENT __attribute__((section(".resident"), used))
+#define RESIDENT __attribute__((section(".resident")))
 #else
 #define RESIDENT
 #endif
@@ -51,7 +51,7 @@ static void console_putc(uint8_t c) {
  * (lives in RESIDENT_JUMPTABLE).  Clang has no such issue and keeps
  * the C version. */
 #ifdef __clang__
-RESIDENT
+RESIDENT USED
 void bios_stub_ret(void) { }
 #endif
 
@@ -76,7 +76,7 @@ NORETURN void enter_coldst(void) {
     __builtin_unreachable();
 }
 
-RESIDENT
+RESIDENT USED
 NORETURN void impl_boot(void) {
     /* CP/M cold-boot entry.  cpnos_main tail-called resident_entry
      * directly once already, so the normal boot flow doesn't come
@@ -86,7 +86,7 @@ NORETURN void impl_boot(void) {
     enter_coldst();
 }
 
-RESIDENT
+RESIDENT USED
 NORETURN void impl_wboot(void) {
     /* CP/M warm boot.  In CP/NOS the whole OS image is in RAM and
      * re-runnable from COLDST, which re-fetches CCP.SPR via NDOS.
@@ -113,9 +113,9 @@ NORETURN void impl_wboot(void) {
  * byte ordering; the PIO path only matters when a human types at the
  * physical keyboard, and the ring smooths over the ISR<->poll race. */
 #define KBD_RING_SIZE 16
-uint8_t kbd_ring[KBD_RING_SIZE];
-uint8_t kbd_head;   /* written by ISR */
-uint8_t kbd_tail;   /* written by CONIN */
+USED uint8_t kbd_ring[KBD_RING_SIZE];
+USED uint8_t kbd_head;   /* written by ISR */
+USED uint8_t kbd_tail;   /* written by CONIN */
 
 /* Legacy harness counters from the polled-PIO bring-up phase.  Replaced
  * by pio_rx_buf/head/tail (transport_pio.c) when the IRQ ring landed in
@@ -141,29 +141,24 @@ USED uint8_t pio_par_count;
  * RAM and we MUST NOT copy them, hence the sentinel guard).
  * Destination = 0xF680..0xF7FF (outcon[128] + inconv[256], rcbios-
  * compatible layout, freed by clang-prom1lineprog/payload.ld v3). */
-RESIDENT
+uint8_t prom1_only_sentinel;
+
+RESIDENT USED
 void install_locale_tables(void) {
-    extern uint8_t prom1_only_sentinel;
-    if (prom1_only_sentinel != 0x5A) return;
     __builtin_memcpy((void *)0xF680,
                      (const void *)(CPNOS_NDOS_ADDR - 384),
                      384);
+    prom1_only_sentinel = 0x5A;
 }
 
 /* Resident helper that returns the netboot LDIR destination -- shifted
- * by 384 B on PROM1-only (sentinel set, cpnos.img has locale prefix),
- * unchanged on two-PROM (sentinel zero).  Called from init.c::netboot_mpm
- * so the branch logic lives in .resident, NOT in .init (which is at its
- * 640 B cap). */
-RESIDENT
+ * by 384 B on PROM1-only (cpnos.img has locale prefix). */
+RESIDENT USED
 uint8_t *get_img_base(void) {
-    extern uint8_t prom1_only_sentinel;
-    return (uint8_t *)(prom1_only_sentinel == 0x5A
-                       ? CPNOS_NDOS_ADDR - 384
-                       : CPNOS_NDOS_ADDR);
+    return (uint8_t *)(CPNOS_NDOS_ADDR - 384);
 }
 
-RESIDENT
+RESIDENT USED
 static uint8_t impl_const(void) {
     if (IO_READ(SIO_B_CTRL) & SIO_RR0_RX_CHAR_AVAIL) {
         return 0xFF;
@@ -223,7 +218,6 @@ uint8_t console_joined;
  * the freed 0xF680..0xF7FF region above pio_rx_buf at 0xEC00 -- on
  * two-PROM 0xF700..0xF7FF is still pio_rx_buf and writes there would
  * corrupt the IRQ ring. */
-uint8_t prom1_only_sentinel;
 static uint8_t xflg;          /* 0 = normal; 2/1 = awaiting XY coord bytes */
 static uint8_t xy_first;      /* first coord saved between XY calls */
 
@@ -239,35 +233,35 @@ static NOINLINE void scroll_up(void) {
     /* Move rows 1..24 to 0..23, blank row 24. */
     uint8_t *d = (uint8_t *)DISPLAY_ADDR;
     __builtin_memcpy(d, d + SCRN_COLS, (SCRN_ROWS - 1) * (unsigned)SCRN_COLS);
-    __builtin_memset(CELL(0, SCRN_ROWS - 1), ' ', SCRN_COLS);
+    uint8_t *p = CELL(0, SCRN_ROWS - 1);
+    for (uint8_t n = SCRN_COLS; n; --n) *p++ = ' ';
 }
 
 /* --- cursor movement ---------------------------------------------- */
 
 RESIDENT
-static void cursor_right(void) {
-    if (++curx < SCRN_COLS) return;
-    curx = 0;
-    if (cury + 1 < SCRN_ROWS) cury++;
+static void cursor_down(void) {
+    if (cury < SCRN_ROWS - 1) cury++;
     else scroll_up();
+}
+
+RESIDENT
+static void cursor_right(void) {
+    if (curx < SCRN_COLS - 1) { curx++; return; }
+    curx = 0;
+    cursor_down();
+}
+
+RESIDENT
+static void cursor_up(void) {
+    cury = (cury != 0) ? cury - 1 : SCRN_ROWS - 1;
 }
 
 RESIDENT
 static void cursor_left(void) {
     if (curx != 0) { curx--; return; }
     curx = SCRN_COLS - 1;
-    cury = (cury != 0) ? cury - 1 : SCRN_ROWS - 1;
-}
-
-RESIDENT
-static void cursor_down(void) {
-    if (cury + 1 < SCRN_ROWS) cury++;
-    else scroll_up();
-}
-
-RESIDENT
-static void cursor_up(void) {
-    cury = (cury != 0) ? cury - 1 : SCRN_ROWS - 1;
+    cursor_up();
 }
 
 RESIDENT
@@ -281,12 +275,18 @@ static void tab(void) {
 /* --- screen ops --------------------------------------------------- */
 
 RESIDENT
+static void erase_to_eos(void) {
+    uint8_t *p = CELL(curx, cury);
+    uint8_t *end = (uint8_t *)(DISPLAY_ADDR + SCRN_ROWS * SCRN_COLS);
+    while (p != end) *p++ = ' ';
+}
+
+RESIDENT USED
 /* Non-static so init.c can CALL us at cold-boot instead of inlining
  * a second LDIR-based memset of the 2000-byte display region. */
 void clear_screen(void) {
-    __builtin_memset((void *)DISPLAY_ADDR, ' ',
-                     (unsigned)SCRN_ROWS * SCRN_COLS);
     home();
+    erase_to_eos();
 }
 
 /* erase_to_eol / erase_to_eos: variable-length space-fill into display
@@ -297,16 +297,9 @@ void clear_screen(void) {
  * compiles tighter on both compilers AND avoids the libcall (#70). */
 RESIDENT
 static void erase_to_eol(void) {
-    uint8_t *p   = CELL(curx, cury);
-    uint8_t *end = CELL(0, cury) + SCRN_COLS;
-    while (p != end) *p++ = ' ';
-}
-
-RESIDENT
-static void erase_to_eos(void) {
-    uint8_t *p   = CELL(curx, cury);
-    uint8_t *end = CELL(0, SCRN_ROWS - 1) + SCRN_COLS;
-    while (p != end) *p++ = ' ';
+    uint8_t *p = CELL(curx, cury);
+    for (uint8_t n = SCRN_COLS - curx; n; --n)
+        *p++ = ' ';
 }
 
 /* Shared scroll: shift the lines below cury one row up (`up=1`,
@@ -317,19 +310,21 @@ static void erase_to_eos(void) {
 RESIDENT
 NOINLINE static void scroll_lines(uint8_t up) {
     uint8_t *row = CELL(0, cury);
-    if (cury + 1 < SCRN_ROWS) {
-        size_t count = (size_t)(SCRN_ROWS - 1 - cury) * SCRN_COLS;
+    uint8_t *last_row = (uint8_t *)(DISPLAY_ADDR + (SCRN_ROWS - 1) * SCRN_COLS);
+    if (row != last_row) {
+        size_t count = (size_t)(last_row - row);
         if (up) {
             __builtin_memcpy(row, row + SCRN_COLS, count);
         } else {
             /* Backward copy: regions overlap with dst > src.  Use
              * mem_copy_backwards (compat.h) instead of memmove —
              * bypasses the SDCC libc 13 B direction-check preamble. */
-            uint8_t *src_e = row + count - 1;
+            uint8_t *src_e = last_row - 1;
             mem_copy_backwards(src_e + SCRN_COLS, src_e, count);
         }
     }
-    __builtin_memset(up ? CELL(0, SCRN_ROWS - 1) : row, ' ', SCRN_COLS);
+    uint8_t *p = up ? last_row : row;
+    for (uint8_t n = SCRN_COLS; n; --n) *p++ = ' ';
 }
 
 RESIDENT
@@ -355,42 +350,30 @@ static void xy_step(uint8_t c) {
      * not reach val < 25 from e.g. val=224 (raw binary 0 sent as
      * coord underflows), and the resulting wild val made CELL()
      * write outside display RAM.  Clamp is safer and smaller. */
-    if (val >= SCRN_ROWS)      val = 0;
-    if (xy_first >= SCRN_COLS) xy_first = 0;
-    curx = xy_first;
-    cury = val;
+    curx = (xy_first < SCRN_COLS) ? xy_first : 0;
+    cury = (val < SCRN_ROWS) ? val : 0;
 }
 
 /* --- control-byte dispatch (0x00..0x1F) --------------------------- */
 
 RESIDENT
 static void specc(uint8_t c) {
-    /* Ordered if/else chain, frequency-first.  Each branch lowers to a
-     * single `cp N; jp Z, _handler` (5 B) via SDCC's tail-call peephole
-     * + the orphan-jp cleanup added in ravn/z88dk#8 (peep 149a/b).
-     * Smaller and faster on the hot controls than the prior numeric
-     * `switch` (which SDCC laid out as a compare chain anyway, but
-     * with the numerically-lowest cases in front -- 0x01/0x02 are the
-     * rarest controls of all, so they punished every more-common one).
-     * CR/LF kept at the bottom defensively: cpnos's impl_conout filters
-     * them upstream so they shouldn't reach here, but rcbios may call
-     * the same routine without that filter (future port). */
-    if      (c == 0x08) cursor_left();      /* BS  -- common */
-    else if (c == 0x09) tab();              /* HT  -- common */
-    else if (c == 0x0C) clear_screen();     /* FF  -- common (PolyPascal blanks) */
-    else if (c == 0x07) IO_WRITE(BIB, 0);   /* BEL -- moderately common */
-    else if (c == 0x1D) home();             /* GS  -- cursor home */
-    else if (c == 0x1E) erase_to_eol();     /* RS */
-    else if (c == 0x1F) erase_to_eos();     /* US */
-    else if (c == 0x18) cursor_right();     /* CAN -- cursor right */
-    else if (c == 0x1A) cursor_up();        /* SUB -- cursor up */
-    else if (c == 0x05) cursor_left();      /* ENQ -- BS alias */
-    else if (c == 0x06) start_xy();         /* ACK -- XY-pos state mach */
-    else if (c == 0x01) insert_line();      /* SOH */
-    else if (c == 0x02) delete_line();      /* STX */
-    else if (c == 0x0A) cursor_down();      /* LF  -- defensive (filtered) */
-    else if (c == 0x0D) curx = 0;           /* CR  -- defensive (filtered) */
-    /* else: unhandled control byte -- drop. */
+    switch (c) {
+    case 0x05:
+    case 0x08: cursor_left(); break;
+    case 0x09: tab(); break;
+    case 0x0C: clear_screen(); break;
+    case 0x07: IO_WRITE(BIB, 0); break;
+    case 0x1D: home(); break;
+    case 0x1E: erase_to_eol(); break;
+    case 0x1F: erase_to_eos(); break;
+    case 0x18: cursor_right(); break;
+    case 0x1A: cursor_up(); break;
+    case 0x06: start_xy(); break;
+    case 0x01: insert_line(); break;
+    case 0x02: delete_line(); break;
+    default: break;
+    }
 }
 
 /* --- public CONIN / CONOUT ---------------------------------------- */
@@ -420,33 +403,33 @@ static void sync_cursor_if_dirty(void) {
     }
 }
 
-RESIDENT
+RESIDENT USED
 uint8_t impl_conin(void) {
     /* Flush any deferred cursor update before blocking — at a prompt
      * the operator expects the block cursor at the typing position
      * immediately, not on the next VRTC. */
     sync_cursor_if_dirty();
 
-    /* inconv[256] at 0xF700: Danish-keyboard input table.  Only
-     * referenced when prom1_only_sentinel == 0x5A (PROM1-only build
-     * with locale prefix installed).  Pass-through otherwise. */
-    const uint8_t *inconv = (const uint8_t *)0xF700;
-    uint8_t use_inconv = (prom1_only_sentinel == 0x5A);
+    uint8_t c;
     for (;;) {
         if (console_joined &&
             (IO_READ(SIO_B_CTRL) & SIO_RR0_RX_CHAR_AVAIL)) {
-            uint8_t c = IO_READ(SIO_B_DATA);
-            return use_inconv ? inconv[c] : c;
+            c = IO_READ(SIO_B_DATA);
+            break;
         }
         if (kbd_head != kbd_tail) {
-            uint8_t c = kbd_ring[kbd_tail];
+            c = kbd_ring[kbd_tail];
             kbd_tail = (kbd_tail + 1) & (KBD_RING_SIZE - 1);
-            return use_inconv ? inconv[c] : c;
+            break;
         }
     }
+    if (prom1_only_sentinel == 0x5A) {
+        c = ((const uint8_t *)0xF700)[c];
+    }
+    return c;
 }
 
-RESIDENT
+RESIDENT USED
 void impl_conout(uint8_t c) {
 #if MIRROR_SIOB
     /* Serial mirror first — captures the raw byte stream for null-modem

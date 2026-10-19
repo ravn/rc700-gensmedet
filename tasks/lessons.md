@@ -457,3 +457,10 @@ When a disk deblocking buffer (`_hstbuf`) or DMA target buffer overlaps the acti
 MAME displays a blocking red modal warning screen on startup when any ROM fails checksum or has `ROM_LOAD` length mismatches (e.g. `roa375.ic66 WRONG LENGTH / ROM NEEDS REDUMP`). In unattended CI or scripted runs, `-skip_gameinfo` alone does not suppress this red screen.
 
 **Rule**: Pass `-seconds_to_run N` (with `0 < N < 300`). In MAME's `ui.cpp`, this automatically forces `show_warnings = false` and `show_gameinfo = false`, allowing scripts and Lua autoboot hooks to execute immediately without hanging.
+
+## 2026-10-19 — Never invoke raw MAME binaries directly
+
+Invoking MAME binaries (`mame`, `rc702test`, `regnecentralen*`) directly from the shell for ad-hoc inspection (e.g. inline Lua ioport probes) easily bypasses safety flags. Because MAME defaults to fullscreen exclusive mode with SDL input-grab on macOS, and blocks on modal ROM warnings before any autoboot script executes, omitting `-window` and `-seconds_to_run` completely locks the host mouse, keyboard, and screen, forcing a hard system reboot.
+
+**Rule**: Absolute ban on raw MAME binary invocations. All runs must go through existing Makefile targets or wrapper scripts that enforce `-window`, `-seconds_to_run N`, `-skip_gameinfo`, and `-sound none`.
+

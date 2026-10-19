@@ -63,6 +63,40 @@ local function select_transport_dip()
         if log then log:write("[transport] WARN: DIP set failed: " .. tostring(err) .. "\n"); log:close() end
     end
 end
+
+-- RC702 firmware (both rcbios and cpnos) programs CTC1 ch0/ch1 (TC=1) and
+-- SIO WR4 (x16 mode) for 38400 baud 8N1. Configure the attached MAME null_modem
+-- devices to match so received bytes are not garbled by the 9600-baud default.
+local function configure_sio_baud()
+    local ok, err = pcall(function()
+        local ports = manager.machine.ioport.ports
+        local b_rx = ports[":rs232b:null_modem:RS232_RXBAUD"]
+        if b_rx and b_rx.fields["RX Baud"] then
+            b_rx.fields["RX Baud"].user_value = 0x0b -- 11 = RS232_BAUD_38400
+        end
+        local b_tx = ports[":rs232b:null_modem:RS232_TXBAUD"]
+        if b_tx and b_tx.fields["TX Baud"] then
+            b_tx.fields["TX Baud"].user_value = 0x0b -- 11 = RS232_BAUD_38400
+        end
+        local a_rx = ports[":rs232a:null_modem:RS232_RXBAUD"]
+        if a_rx and a_rx.fields["RX Baud"] then
+            a_rx.fields["RX Baud"].user_value = 0x0b
+        end
+        local a_tx = ports[":rs232a:null_modem:RS232_TXBAUD"]
+        if a_tx and a_tx.fields["TX Baud"] then
+            a_tx.fields["TX Baud"].user_value = 0x0b
+        end
+    end)
+    local log = io.open("/tmp/cpnos_polypascal_log.txt", "a")
+    if log then
+        if ok then
+            log:write("[sio] Configured null_modem ports to 38400 baud\n")
+        else
+            log:write("[sio] WARN: Failed to configure null_modem baud: " .. tostring(err) .. "\n")
+        end
+        log:close()
+    end
+end
 -- Autoboot scripts load AFTER machine start, so register_start never fires;
 -- run the DIP-set once from the periodic (frame 1, long before cpnos cold-init
 -- reads SW1 at install_transport()).
@@ -226,7 +260,11 @@ local function pass(reason)
 end
 
 emu.register_periodic(function()
-    if not dip_set_done then dip_set_done = true; select_transport_dip() end
+    if not dip_set_done then
+        dip_set_done = true
+        select_transport_dip()
+        configure_sio_baud()
+    end
     if prog == nil then
         local cpu = manager.machine.devices[":maincpu"]
         if cpu == nil then return end

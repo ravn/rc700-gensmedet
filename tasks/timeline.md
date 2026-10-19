@@ -8980,3 +8980,20 @@ Næste blocker: 82730-mailbox-handshake-loop (test 16). mame-branch rc750-rom-fo
 - **Resultater**:
   - `mame-test COMPILER=clang`: Booter direkte til `A>` på 2 sekunder.
   - `cross-version-boot-test.sh`: Alle 4 kryds-version kombinationer (både S01=On og S01=Off) PASS.
+
+## 2026-10-19 — CPNOS: 2 KB PROM cap, SIO-B 38.400 baud & PolyPascal test PASS
+
+- **SIO-B baud rate alignment (38.400 baud)**:
+  - RC702 firmware konfigurerer CTC1 ch0/ch1 (TC=1) og SIO WR4 (x16 mode) til 38.400 baud (8N1).
+  - MAMEs standard for `null_modem` er 9600 baud, hvilket medførte framing-støj på SIO-B.
+  - Tilføjet `configure_sio_baud()` i `cpnos-shared/mame/polypascal_test.lua` (og opdateret `cpnos-in-c/cfg/rc702.cfg`), der sætter `:rs232b:null_modem` og `:rs232a:null_modem` til 38.400 baud (`0x0b`).
+  - SIO-B seriel output er nu 100% ren ASCII.
+- **CP/NOS 2 KB PROM1 reduktion**:
+  - Aktiveret `-flto`, `-fno-delete-null-pointer-checks` og `-fno-jump-tables` i `cpnos-in-c/Makefile`.
+  - Single-transport som standard (`DUAL_TRANSPORT ?= 0`, sparer xport trampoliner og SIO driver).
+  - Optimerede loops og pointer-walking i `snios_c.c` (`try_send_frame` og `try_recv_frame`).
+  - Slankede banner og init i `init.c` og fjernede forældet 640 B INIT assertion i `payload.ld`.
+  - `prom1-lineprog.bin`: **2043 / 2048 B** (5 bytes fri under den fysiske 2 KB hardwaregrænse).
+- **End-to-end verifikation**:
+  - `make -C cpnos-in-c cpnos-polypascal-test COMPILER=clang`: PASS på 43,21 sekunder.
+  - RC702 netbooter 28 sektorer fra MP/M master, starter `PPAS`, indlæser og kompilerer `PRIMES.PAS`, beregner primtal til 29989, og afslutter rent til `E>`.
