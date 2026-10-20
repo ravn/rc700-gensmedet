@@ -299,13 +299,13 @@ SERVER_CFLAGS =
 # wire.  SNIOS calls _xport_send_byte / _xport_recv_byte (snios.s);
 # we ld --defsym those names to the chip-specific implementations.
 #
-#   pio-irq  : Z80-PIO Mode 1, IRQ-driven 256-byte SPSC ring buffer
-#              (transport_pio.c).  Default for this branch.
 #   sio      : SIO-A async polled (transport_sio.c).  Original wire,
-#              ~38400 baud, ~3.8 KB/s.
+#              ~38400 baud, ~3.8 KB/s.  Default for testing.
+#   pio-irq  : Z80-PIO Mode 1, IRQ-driven 256-byte SPSC ring buffer
+#              (transport_pio.c).  Awaits test on physical hardware.
 #
 # Used by `make pio-irq-smoke`, `make sio-smoke`, etc.
-TRANSPORT ?= pio-irq
+TRANSPORT ?= sio
 
 # Default emulated-time cap for polypascal-test variants.  Baseline (LOG=0,
 # no debugger trace) PASS lands at ~53 sim sec, so 240 is generous.  The
