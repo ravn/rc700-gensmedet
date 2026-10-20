@@ -5,9 +5,9 @@
 
 ## Build command
 ```sh
-make SUBTARGET=regnecentralen DEBUG=1 SOURCES=src/mame/regnecentralen/rc702.cpp TOOLS=1 SYMLEVEL=3 SYMBOLS=1 OSD=sdl -j10
+make SUBTARGET=regnecentralen DEBUG=1 SOURCES=src/mame/regnecentralen/rc702.cpp TOOLS=1 SYMLEVEL=3 SYMBOLS=1 -j10
 ```
-**IMPORTANT**: `OSD=sdl` is required — MAME makefile defaults to `OSD := sdl3` but SDL3 is not installed. SDL2 is installed (NOT via brew — never use brew on this machine). Without `OSD=sdl`, build fails with `'SDL3/SDL.h' file not found`.
+On macOS, MAME defaults to `OSD := sdl3` and builds against `SDL3.xcframework` (installed in `~/Library/Frameworks/SDL3.xcframework/macos-arm64_x86_64/`). `mame/scripts/src/osd/sdl3.lua` automatically checks `~/Library/Frameworks` first before `/Library/Frameworks`. If using SDL2, explicitly pass `OSD=sdl`.
 
 ## Machine variants
 | Name | Floppy | FDC Clock | DIP S08 | Parent | Status |
