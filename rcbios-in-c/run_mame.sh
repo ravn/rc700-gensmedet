@@ -12,14 +12,14 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-MAME_DIR=/Users/ravn/git/mame
-MAME_BIN="$MAME_DIR/regnecentralen"
+MAME_DIR="${MAME_DIR:-$(cd ../../mame && pwd)}"
+MAME_BIN="${MAME_BIN:-$(ls -1 "$MAME_DIR/regnecentralend" "$MAME_DIR/regnecentralen" 2>/dev/null | head -1)}"
 FLOPTOOL="$MAME_DIR/floptool"
 PATCH="python3 ../rcbios/patch_bios.py"
 IMG_MINI="$HOME/Downloads/CPM_med_COMAL80.imd"
 IMG_MAXI="$HOME/Downloads/SW1711-I8.imd"
 IMG_PPAS="$HOME/Downloads/PolyPascal_3.10.imd"
-CPMCP=/Users/ravn/.local/bin/cpmcp
+CPMCP="${CPMCP:-$(command -v cpmcp || echo /Users/ravn/.local/bin/cpmcp)}"
 
 FORMAT=maxi FORCE=false AUTOTEST=false CYCLETEST=false PROFILE=false ORIGINAL=false GDBSTUB=false FLOP2=""
 
@@ -88,6 +88,7 @@ fi
 # MAME arguments — use MFI image (writable)
 ARGS=("$SYS" -rompath "$MAME_DIR/roms" -flop1 "$WORK.mfi"
       -skip_gameinfo -window -resolution 1100x720)
+[ -f "../autoload-in-c/clang/prom0.ic66" ] && ! $ORIGINAL && ARGS+=(-rom1 "$(cd ../autoload-in-c/clang && pwd)/prom0.ic66")
 [ -n "$FLOP2" ] && ARGS+=(-flop2 "$FLOP2")
 
 if $GDBSTUB; then

@@ -32,7 +32,6 @@ AUTOLOAD="$ROOT/autoload-in-c"
 RCBIOS="$ROOT/rcbios-in-c"
 MAME="${MAME:-$ROOT/../mame}"
 MAME_BIN="${MAME_BIN:-$(ls -1 "$MAME/regnecentralend" "$MAME/regnecentralen" "$MAME/mame" 2>/dev/null | head -1)}"
-MAME_ROM="$MAME/roms/rc702/roa375.ic66"
 LUA="$ROOT/scripts/mame_boot_test.lua"
 BOOT_TIMEOUT_S="${BOOT_TIMEOUT_S:-60}"
 
@@ -41,8 +40,7 @@ STOCK_DISK="$AUTOLOAD/test-disks/SW1711-I8.imd"  # in-tree pristine stock image
 
 WORK="$(mktemp -d)"
 RESULT="$WORK/boot_result.txt"
-PROM_BACKUP="$WORK/roa375.ic66.bak"
-trap '[ -f "$PROM_BACKUP" ] && cp "$PROM_BACKUP" "$MAME_ROM"; [ -n "${KEEP_TMP:-}" ] || rm -rf "$WORK"' EXIT
+trap '[ -n "${KEEP_TMP:-}" ] || rm -rf "$WORK"' EXIT
 
 say() { printf '\n=== %s ===\n' "$*"; }
 fail() { printf 'FATAL: %s\n' "$*" >&2; exit 2; }
@@ -50,7 +48,6 @@ fail() { printf 'FATAL: %s\n' "$*" >&2; exit 2; }
 [ -x "$MAME_BIN" ] || fail "MAME binary not found: $MAME_BIN (set MAME=<dir>)"
 [ -f "$ORIG_PROM" ] || fail "original PROM not found: $ORIG_PROM"
 [ -f "$STOCK_DISK" ] || fail "stock disk not found: $STOCK_DISK"
-[ -f "$MAME_ROM" ] && cp "$MAME_ROM" "$PROM_BACKUP"
 
 # --- 1. build both sides' clang artifacts ------------------------------------
 say "Building clang autoload PROM"
@@ -102,12 +99,12 @@ declare -a ROWS
 overall=0
 run_boot() {
     local label="$1" prom="$2" disk="$3" s01="$4"
-    cp "$prom" "$MAME_ROM"
     rm -f "$RESULT"
     local pos; [ "$s01" = "1" ] && pos="Off" || pos="On"
     printf '  -> %-34s SW1-S01=%s ... ' "$label" "$pos"
     SW1_S01="$s01" BOOT_RESULT_FILE="$RESULT" BOOT_TIMEOUT_S="$BOOT_TIMEOUT_S" \
         "$MAME_BIN" rc702 -rompath "$MAME/roms" \
+        -rom1 "$prom" \
         -nothrottle -window -skip_gameinfo \
         -seconds_to_run "$((BOOT_TIMEOUT_S + 5))" \
         -autoboot_script "$LUA" \

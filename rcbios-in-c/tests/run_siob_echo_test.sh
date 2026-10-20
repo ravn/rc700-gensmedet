@@ -6,11 +6,14 @@ cd "$(dirname "$0")/.."
 HERE="$(pwd)"
 LABEL="$1"; COM_NAME="$2"; COM_CIM="$3"; WAIT="${4:-1400}"
 
-MAME_DIR="${MAME_DIR:-$HOME/git/mame}"
+MAME_DIR="${MAME_DIR:-$HERE/../../mame}"
 MAME_BIN="$MAME_DIR/regnecentralend"
 FLOPTOOL="$MAME_DIR/floptool"
 IMG_MAXI="${IMG_MAXI:-$HOME/Downloads/SW1711-I8.imd}"
 PATCH="python3 ../rcbios/patch_bios.py"
+BIOS_CIM="${BIOS_CIM:-clang/bios.clang.cim}"
+BIOS_ELF="${BIOS_ELF:-clang/bios.clang.elf}"
+AUTOLOAD_PROM="${AUTOLOAD_PROM:-$HERE/../autoload-in-c/clang/prom0.ic66}"
 CPMCP="${CPMCP:-cpmcp}"
 PORT=${PORT:-4002}
 
@@ -18,7 +21,7 @@ WORK="/tmp/siob_test/$LABEL"
 rm -rf "$WORK"; mkdir -p "$WORK"
 
 cp "$IMG_MAXI" "$WORK/disk.imd"
-$PATCH "$WORK/disk.imd" clang/bios.cim >/dev/null
+$PATCH "$WORK/disk.imd" "$BIOS_CIM" >/dev/null
 $CPMCP -f rc702-8dd "$WORK/disk.imd" "$COM_CIM" "0:$COM_NAME" >/dev/null
 $FLOPTOOL flopconvert auto mfi "$WORK/disk.imd" "$WORK/disk.mfi" >/dev/null 2>&1
 
@@ -27,14 +30,15 @@ TCP=$!
 sleep 0.3
 
 OBJDUMP=/Users/ravn/z80/llvm-z80/build-macos-asserts/bin/llvm-objdump
-KBHEAD_ADDR=$("$OBJDUMP" --triple=z80 -t clang/bios.elf 2>/dev/null | awk '/ _wb$/{print "0x"$1; exit}')
-KBBUF_ADDR=$("$OBJDUMP" --triple=z80 -t clang/bios.elf 2>/dev/null | awk '/ _kbbuf$/{print "0x"$1; exit}')
+KBHEAD_ADDR=$("$OBJDUMP" --triple=z80 -t "$BIOS_ELF" 2>/dev/null | awk '/ _wb$/{print "0x"$1; exit}')
+KBBUF_ADDR=$("$OBJDUMP" --triple=z80 -t "$BIOS_ELF" 2>/dev/null | awk '/ _kbbuf$/{print "0x"$1; exit}')
 export KBHEAD_ADDR KBBUF_ADDR
 
 SIOA_TRACE_LOG="$WORK/trace.csv" \
 SIOA_TRACE_CMD="${COM_NAME%.COM}"$'\r' \
 SIOA_TRACE_WAIT="$WAIT" \
 "$MAME_BIN" rc702 -rompath "$MAME_DIR/roms" \
+    -rom1 "$AUTOLOAD_PROM" \
     -flop1 "$WORK/disk.mfi" \
     -rs232b null_modem \
     -bitb2 "socket.127.0.0.1:$PORT" \
@@ -43,7 +47,7 @@ SIOA_TRACE_WAIT="$WAIT" \
     > "$WORK/mame.log" 2>&1 &
 MAME=$!
 
-( sleep 30 && kill $MAME 2>/dev/null ) &
+( sleep 60 && kill $MAME 2>/dev/null ) &
 KILL=$!
 wait $MAME 2>/dev/null
 kill $KILL 2>/dev/null

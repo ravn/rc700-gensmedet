@@ -15,7 +15,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-MAME_DIR="${HOME}/git/mame"
+MAME_DIR="${MAME_DIR:-$(cd "$SCRIPT_DIR/../../mame" && pwd)}"
 MAME="${MAME_DIR}/regnecentralen"
 
 # Use debug build if release not available

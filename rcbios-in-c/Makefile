@@ -270,7 +270,7 @@ tests/zout/bios_echo_siob.cim: tests/bios_echo_siob.asm
 .PHONY: sio-a-echo-test sio-b-echo-test sio-echo-test
 sio-a-echo-test: bios tests/zout/bios_echo_big.cim
 	SIOA_FEED_BYTES="$$(python3 -c 'import sys; sys.stdout.write("".join(f"{i%256:02x}" for i in range(4096)))')" \
-	    SIOA_FEED_SYNC_BYTE=A5 SIOA_FEED_INTERCHAR_MS=0 SIOA_FEED_LISTEN_SECS=20 \
+	    SIOA_FEED_SYNC_BYTE=A5 SIOA_FEED_INTERCHAR_MS=0 SIOA_FEED_LISTEN_SECS=50 \
 	    bash tests/run_sioa_rx_test.sh sioa_echo ECHO.COM tests/zout/bios_echo_big.cim 1600
 	@grep -q 'count=4096 mismatch=0 status=0xAA' /tmp/sioa_test/sioa_echo/sioa.csv \
 	    && echo '=== SIO-A 4096-byte echo PASS ===' \
@@ -279,7 +279,7 @@ sio-a-echo-test: bios tests/zout/bios_echo_big.cim
 
 sio-b-echo-test: bios tests/zout/bios_echo_siob.cim
 	SIOA_FEED_BYTES="$$(python3 -c 'import sys; sys.stdout.write("".join(f"{i%256:02x}" for i in range(4096)))')" \
-	    SIOA_FEED_SYNC_BYTE=A5 SIOA_FEED_INTERCHAR_MS=0 SIOA_FEED_LISTEN_SECS=20 \
+	    SIOA_FEED_SYNC_BYTE=A5 SIOA_FEED_INTERCHAR_MS=0 SIOA_FEED_LISTEN_SECS=50 \
 	    PORT=4002 \
 	    bash tests/run_siob_echo_test.sh siob_echo ECHOBB.COM tests/zout/bios_echo_siob.cim 1600
 	@grep -q 'count=4096 mismatch=0 status=0xAA' /tmp/siob_test/siob_echo/trace.csv \

@@ -14,13 +14,13 @@ set -u
 cd "$(dirname "$0")/.."
 HERE="$(pwd)"
 
-MAME_DIR="${MAME_DIR:-$HOME/git/mame}"
+MAME_DIR="${MAME_DIR:-$HERE/../mame}"
 MAME_BIN="$MAME_DIR/regnecentralend"
 FLOPTOOL="$MAME_DIR/floptool"
 IMG_MAXI="${IMG_MAXI:-$HOME/Downloads/SW1711-I8.imd}"
 PATCH="python3 rcbios/patch_bios.py"
 CPMCP="${CPMCP:-cpmcp}"
-BIOS_CIM="$HERE/rcbios-in-c/clang/bios.cim"
+BIOS_CIM="${BIOS_CIM:-$HERE/rcbios-in-c/clang/bios.clang.cim}"
 CPNET_DIST="${HOME}/git/cpnet-z80/dist"
 
 WORK=/tmp/cpnet_chksum
@@ -97,6 +97,7 @@ rm -f /tmp/chksum_trace.csv
 LOGIN_TRACE_LOG=/tmp/chksum_trace.csv \
 LOGIN_TRACE_SECS=60 \
 "$MAME_BIN" rc702 -rompath "$MAME_DIR/roms" \
+    -rom1 "$HERE/autoload-in-c/clang/prom0.ic66" \
     -flop1 "$WORK/disk.mfi" \
     -rs232a null_modem \
     -bitb1 "socket.127.0.0.1:4002" \

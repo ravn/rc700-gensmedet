@@ -10,7 +10,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-MAME_DIR="${HOME}/git/mame"
+MAME_DIR="${MAME_DIR:-$(cd "$SCRIPT_DIR/../../mame" && pwd)}"
 SOURCE_IMAGE="${HOME}/Downloads/SW1711-I8.imd"
 WORK_IMAGE="/tmp/cpm22_rel30_maxi.imd"
 SERIAL_PORT=4321

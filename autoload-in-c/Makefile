@@ -58,6 +58,7 @@ MAME ?= $(CURDIR)/../../mame
 MAME_ROM = $(MAME)/roms/rc702/roa375.ic66
 MAME_BOOT_TEST_LUA ?= $(CURDIR)/../scripts/mame_boot_test.lua
 MAME_RUN = BOOT_RESULT_FILE=$(CURDIR)/boot_test_result.txt $(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
+	-rom1 $(CURDIR)/$(COMPILER)/prom0.ic66 \
 	-nothrottle -window -skip_gameinfo \
 	-seconds_to_run 60 \
 	-autoboot_script $(MAME_BOOT_TEST_LUA) \
@@ -118,7 +119,6 @@ prom:
 	@{ cat $(PROM_BIN); \
 	   perl -e "print \"\\xff\" x (4096 - $$(wc -c < $(PROM_BIN) | tr -d ' '))"; \
 	 } > $(COMPILER)/prom0.ic66
-	cp $(COMPILER)/prom0.ic66 $(MAME_ROM)
 
 # ================================================================
 # MAME targets
@@ -133,25 +133,19 @@ SCRATCH_DIR ?= $(CURDIR)/../scratch
 # display_sw1_status() output after editing the formatting.
 SW1_DUMP    = $(SCRATCH_DIR)/autoload_sw1_dump.txt
 QR_DUMP     = $(SCRATCH_DIR)/autoload_qr_dump.txt
-SW1_PROM1   = $(MAME)/roms/rc702/prom1.ic65
-SW1_PROM1_BACKUP = $(SCRATCH_DIR)/autoload_prom1_backup.bin
 
 .PHONY: sw1-test
 sw1-test:
 	$(MAKE) prom DISPLAY_SW1_STATUS=1
-	@echo "=== preparing empty PROM1 (no signature) ==="
-	@if [ -f "$(SW1_PROM1)" ]; then cp "$(SW1_PROM1)" "$(SW1_PROM1_BACKUP)"; fi
-	@perl -e 'print "\xFF" x 2048' > "$(SW1_PROM1)"
 	@rm -f $(SW1_DUMP)
 	@echo "=== launching MAME for SW1 status check (~4 s) ==="
 	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
+	    -rom1 $(CURDIR)/$(COMPILER)/prom0.ic66 \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 6 \
 	    -autoboot_script mame_sw1_test.lua \
 	    -snapname autoload_sw1 \
 	    >$(SCRATCH_DIR)/autoload_sw1_mame.log 2>&1
-	@echo "=== restoring PROM1 ==="
-	@if [ -f "$(SW1_PROM1_BACKUP)" ]; then cp "$(SW1_PROM1_BACKUP)" "$(SW1_PROM1)"; rm -f "$(SW1_PROM1_BACKUP)"; fi
 	@echo "--- display rows 0..3 (base taken from DMA ch2, see dump header) ---"
 	@cat $(SW1_DUMP) 2>/dev/null || { echo "no dump produced"; exit 1; }
 	@grep -qE "^row00: .*SW1 12345678: [01]{8}" $(SW1_DUMP) \
@@ -166,19 +160,15 @@ sw1-test:
 #   3. the no-diskette error message is on screen.
 .PHONY: qr-test
 qr-test: prom
-	@echo "=== preparing empty PROM1 (no signature) ==="
-	@if [ -f "$(SW1_PROM1)" ]; then cp "$(SW1_PROM1)" "$(SW1_PROM1_BACKUP)"; fi
-	@perl -e 'print "\xFF" x 2048' > "$(SW1_PROM1)"
 	@rm -f $(QR_DUMP)
 	@echo "=== launching MAME for QR check (~4 s) ==="
 	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
+	    -rom1 $(CURDIR)/$(COMPILER)/prom0.ic66 \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 6 \
 	    -autoboot_script mame_qr_test.lua \
 	    -snapname autoload_qr \
 	    >$(SCRATCH_DIR)/autoload_qr_mame.log 2>&1
-	@echo "=== restoring PROM1 ==="
-	@if [ -f "$(SW1_PROM1_BACKUP)" ]; then cp "$(SW1_PROM1_BACKUP)" "$(SW1_PROM1)"; rm -f "$(SW1_PROM1_BACKUP)"; fi
 	@cat $(QR_DUMP) 2>/dev/null || { echo "FAIL: no dump produced"; exit 1; }
 	@grep -q "^attr: 84" $(QR_DUMP) \
 	    || { echo "FAIL: field attribute 0x84 (GPA0=1) not present before QR"; exit 1; }
@@ -238,6 +228,7 @@ fdc-log: prom
 	 FDC_LOG_SECONDS="$(FDC_LOG_SECONDS)" \
 	 FDC_LOG_LABEL="$(COMPILER) autoload-in-c | MAME $(notdir $(MAME)) | $(notdir $(FDC_FLOPPY))" \
 	 $(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
+	    -rom1 $(CURDIR)/$(COMPILER)/prom0.ic66 \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run $$(($(FDC_LOG_SECONDS) + 8)) \
 	    -autoboot_script mame_fdc_log.lua \
@@ -267,6 +258,7 @@ io-log: prom
 	@echo "=== MAME io-log: $(COMPILER) PROM, $(IO_LOG_SECONDS)s, floppy=$(notdir $(IO_FLOPPY)) ==="
 	-IO_LOG="$(IO_LOG)" IO_LOG_SECONDS="$(IO_LOG_SECONDS)" \
 	 $(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
+	    -rom1 $(CURDIR)/$(COMPILER)/prom0.ic66 \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run $$(($(IO_LOG_SECONDS) + 5)) \
 	    -sound none \

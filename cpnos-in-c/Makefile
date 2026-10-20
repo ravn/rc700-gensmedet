@@ -285,6 +285,9 @@ endif
 # cpnos-in-asm/Makefile (parked) includes the same fragment.
 include $(SHARED)/common.mk
 
+MAME_AUTOLOAD_PROM ?= $(CURDIR)/../autoload-in-c/clang/prom0.ic66
+MAME_ROM_ARGS = -rom1 $(MAME_AUTOLOAD_PROM) -rom2 $(PROM1LP_SRC)
+
 # Slave talks CP/NET 1.2 (DRI MP/M protocol) to the master via the
 # netboot_mpm() helper -- LOGIN / OPEN / READ / CLOSE against z80pack
 # mpm-net2.  The legacy `SERVER=proxy` / netboot.c / NETBOOT_LEGACY
@@ -1077,6 +1080,7 @@ sio-smoke:
 	 echo $$! > /tmp/cpnos_smoke_inject.pid
 	@sleep 0.3
 	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
+	    $(MAME_ROM_ARGS) \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 1200 \
 	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
@@ -1116,6 +1120,7 @@ pio-irq-netboot: cpnos-install _check-tag-pio-irq _check-mame-irq
 	@rm -f /tmp/cpnos_siob.raw /tmp/cpnos_screen.txt /tmp/cpnos_boot_marks.txt
 	@echo "=== 4/4 launching MAME (PIO-B -> mpm-net2 :4002) ==="
 	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
+	    $(MAME_ROM_ARGS) \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 30 \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
@@ -1167,6 +1172,7 @@ pio-irq-smoke: cpnos-install _check-tag-pio-irq _check-mame-irq
 	 echo $$! > /tmp/cpnos_smoke_inject.pid
 	@sleep 0.4
 	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
+	    $(MAME_ROM_ARGS) \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 1200 \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
@@ -1280,6 +1286,7 @@ cpnos-polypascal-test-no-mirror:
 	MAME_BIN=$(MAME)/regnecentralend \
 	$(CURDIR)/../scripts/mame_capture.sh polypascal_no_mirror_$(COMPILER)_$(TRANSPORT) -- \
 	    rc702 -rompath $(MAME)/roms \
+	    $(MAME_ROM_ARGS) \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run $(SECONDS_TO_RUN_POLYPASCAL) \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
@@ -1353,6 +1360,7 @@ ifeq ($(TRANSPORT),sio)
 	MAME_BIN=$(MAME)/regnecentralend \
 	$(CURDIR)/../scripts/mame_capture.sh dir_$(COMPILER)_$(TRANSPORT) -- \
 	    rc702 -rompath $(MAME)/roms \
+	    $(MAME_ROM_ARGS) \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 60 \
 	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
@@ -1364,6 +1372,7 @@ else
 	MAME_BIN=$(MAME)/regnecentralend \
 	$(CURDIR)/../scripts/mame_capture.sh dir_$(COMPILER)_$(TRANSPORT) -- \
 	    rc702 -rompath $(MAME)/roms \
+	    $(MAME_ROM_ARGS) \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 60 \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
@@ -1484,6 +1493,7 @@ cpnos-inir-baseline-gdb:
 	   MAME_BIN=$(MAME)/regnecentralend \
 	   $(CURDIR)/../scripts/mame_capture.sh inirgdb_$(COMPILER)_$(TRANSPORT) -- \
 	     rc702 -rompath $(MAME)/roms \
+	     $(MAME_ROM_ARGS) \
 	     -nothrottle -window -skip_gameinfo \
 	     -seconds_to_run 240 \
 	     -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
@@ -1622,6 +1632,7 @@ ifeq ($(TRANSPORT),sio)
 	MAME_BIN=$(MAME)/regnecentralend \
 	$(CURDIR)/../scripts/mame_capture.sh inirprobe_$(COMPILER)_$(TRANSPORT) -- \
 	    rc702 -rompath $(MAME)/roms \
+	    $(MAME_ROM_ARGS) \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run $(SECONDS_TO_RUN_POLYPASCAL) \
 	    -rs232a null_modem -bitb1 socket.127.0.0.1:$(CPNET_PORT) \
@@ -1632,6 +1643,7 @@ else
 	MAME_BIN=$(MAME)/regnecentralend \
 	$(CURDIR)/../scripts/mame_capture.sh inirprobe_$(COMPILER)_$(TRANSPORT) -- \
 	    rc702 -rompath $(MAME)/roms \
+	    $(MAME_ROM_ARGS) \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run $(SECONDS_TO_RUN_POLYPASCAL) \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
@@ -1733,6 +1745,7 @@ ifeq ($(TRANSPORT),sio)
 	MAME_BIN=$(MAME)/regnecentralend \
 	$(CURDIR)/../scripts/mame_capture.sh polypascal_$(COMPILER)_$(TRANSPORT) -- \
 	    rc702 -rompath $(MAME)/roms \
+	    $(MAME_ROM_ARGS) \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run $(SECONDS_TO_RUN_POLYPASCAL) \
 	    -rs232a null_modem -bitb1 socket.127.0.0.1:$(CPNET_PORT) \
@@ -1744,6 +1757,7 @@ else
 	MAME_BIN=$${MAME_BIN:-$(MAME)/rc702test} \
 	$(CURDIR)/../scripts/mame_capture.sh polypascal_$(COMPILER)_$(TRANSPORT) -- \
 	    rc702 -rompath $(MAME)/roms \
+	    $(MAME_ROM_ARGS) \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run $(SECONDS_TO_RUN_POLYPASCAL) \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
@@ -1985,6 +1999,7 @@ cpnos-bios-jt-trace:
 	       /tmp/cpnos_bios_jt_trace.log
 	@echo "=== 4/4 launching MAME with BIOS-JT trace lua (~30s) ==="
 	-$(MAME)/regnecentralend rc702 -rompath $(MAME)/roms \
+	    $(MAME_ROM_ARGS) \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run 30 \
 	    -rs232a null_modem -bitb1 /tmp/cpnos_sioa.raw \
