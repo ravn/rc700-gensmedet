@@ -849,6 +849,7 @@ MPM_PIDFILE = /tmp/mpm-net2.pid
 START_MPM   = cd $(MPM_DIR) && screen -dmS mpm ./mpm-net2 && sleep 0.3 && \
 	screen -ls | grep -oE '[0-9]+\.mpm' | head -1 | cut -d. -f1 > $(MPM_PIDFILE)
 SMOKE_PORT ?= 9001
+CPNET_PORT ?= 4002
 
 # WORKLOAD selects which CCP-driven program the bench harness runs.
 # Each value here is a key in WORKLOADS (testutil/smoke_inject.py)
@@ -1623,7 +1624,7 @@ ifeq ($(TRANSPORT),sio)
 	    rc702 -rompath $(MAME)/roms \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run $(SECONDS_TO_RUN_POLYPASCAL) \
-	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
+	    -rs232a null_modem -bitb1 socket.127.0.0.1:$(CPNET_PORT) \
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
 	    -autoboot_script $(SHARED)/mame/inir_probe.lua
 else
@@ -1734,7 +1735,7 @@ ifeq ($(TRANSPORT),sio)
 	    rc702 -rompath $(MAME)/roms \
 	    -nothrottle -window -skip_gameinfo \
 	    -seconds_to_run $(SECONDS_TO_RUN_POLYPASCAL) \
-	    -rs232a null_modem -bitb1 socket.127.0.0.1:4002 \
+	    -rs232a null_modem -bitb1 socket.127.0.0.1:$(CPNET_PORT) \
 	    -rs232b null_modem -bitb2 /tmp/cpnos_siob.raw \
 	    $(TRACE_ARGS) \
 	    -autoboot_script $(SHARED)/mame/$(TEST_LUA)

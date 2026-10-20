@@ -49,8 +49,12 @@ local function select_transport_dip()
         local f = dsw.fields["S03"] or dsw.fields["S03 cpnos transport (On=PIO, Off=SIO)"]
         if not f then error("S03 field not found") end
         -- S03: On=0x00=PIO, Off=0x04=SIO (rc702.cpp DSW port).
+        -- Assign field.user_value directly. Calling f:set_value() sets
+        -- m_digital_value (digital keypress impulse/toggle), which flips the
+        -- switch between settings on consecutive runs.
         local want = (transport == "sio") and 0x04 or 0x00
-        if f.set_value then f:set_value(want) else f.user_value = want end
+        f.user_value = want
+        if f.clear_value then f:clear_value() end
         local log = io.open("/tmp/cpnos_polypascal_log.txt", "a")
         if log then
             log:write(string.format("[transport] SW1 S03=0x%02X => %s (TRANSPORT=%s)\n",
