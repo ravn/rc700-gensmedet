@@ -339,7 +339,11 @@ static inline void intrinsic_ei  (void) { __builtin_z80_ei(); }
 static inline void intrinsic_halt(void) { __builtin_z80_halt(); }
 static inline void intrinsic_nop (void) { __builtin_z80_nop(); }
 static inline void intrinsic_im_2(void) { __builtin_z80_im2(); }
-static inline void intrinsic_ld_i_a(uint8_t page) { __builtin_z80_set_i(page); }
+/* Workaround for LLVM-Z80 issue #419: __builtin_z80_set_i(val) has dead-code
+ * elimination bug because LD_I_A lacks Uses = [A]. Use inline asm with "a" constraint. */
+static inline void intrinsic_ld_i_a(uint8_t page) {
+    __asm__ volatile("ld i, a" : : "a"(page));
+}
 
 
 #else
