@@ -1,5 +1,38 @@
 # RC700-SYSGEN Project Timeline
 
+## 2026-10-31 — Sequential H1 layout, no ORG or fixed table aliases
+
+At user request removed all 90 ORG directives from src/dd759h1.a86.
+Actual data holes and segment padding are now explicit RB reservations;
+table symbols sit directly at their data declarations instead of numeric
+EQU offsets. RASM requires OFFSET for immediate label addresses; added it
+to DEV_TAB/SIZ_TAB loads and fill_tiles arithmetic. EXTRA RB worked,
+contrary to the old source comment about an assembler crash.
+
+The final EXTRA declaration is `extra_segment_anchor rb 992`.
+Artifact scratch/emu2-current-20261031-233945/dd759h1.cmd:
+zero RASM errors, 8,576 bytes, identical header, CODE, DATA, EXTRA and
+relocation trailer. The original SYS remains unchanged. User requested
+a local commit of the verified label and layout changes; no push.
+
+## 2026-10-31 — Committed source oracles, aligned H1 symbols
+
+Committed oracle research as 9399574, then preserved original reference
+line endings in 1fe1626. Workspace tracking commits: 9eb8ba6 and 1870151.
+The first staged reference blobs had been normalized by core.autocrlf=input;
+reference/.gitattributes plus explicit add --renormalize restored archival
+bytes. DRI archive members were checked against Git blobs, not just worktree.
+
+Subsequently renamed 60 verified routine/state symbols in src/dd759h1.a86,
+corrected ESCAPE numbering and row/column descriptions, and introduced named
+fixed-offset table aliases. Skeleton names abline, concat and get_loc_key
+identify matching roles; vector glyph and RC759 pixel-LUT names stay distinct
+from the skeleton's bitmap renderer.
+Final artifact scratch/emu2-current-20261031-232627/dd759h1.cmd:
+zero RASM errors, 8,576 bytes, identical header/CODE/DATA/EXTRA/trailer via
+comparator and cmp. Label-alignment changes remain separate from the
+requested initial research commits; no push or graphics-runtime test.
+
 ## 2026-10-31 — Skeleton sources found; user-supplied GSX source history
 
 Located Retroarchive's mono.zip and color.zip developer skeleton packages.

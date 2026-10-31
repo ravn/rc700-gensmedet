@@ -1,5 +1,41 @@
 # DRI skeleton source as oracle: bounded symbol comparison vs H1
 
+## Applied H1 symbol alignment
+
+After committing the reference research, the rebuildable `src/dd759h1.a86`
+was aligned with the verified roles. Historical `sub_*`/`v_*` names cited
+below refer to the pre-rename source; CS/DATA offsets remain unchanged.
+
+| Previous label | Current label / role |
+|---|---|
+| sub_34Dh, sub_46Ah | abline, concat (DRI skeleton role names) |
+| sub_44Ah, sub_492h | plot_pixel, load_pixel_lut (RC759-specific mechanism) |
+| sub_5AEh, sub_623h | draw_vector_glyph, draw_glyph_stroke (not bitmap draw_char) |
+| sub_637h, sub_66Fh | transform_glyph_point, transform_text_advance |
+| sub_6D7h, sub_6EAh | sincos_degrees, sin_quadrant |
+| sub_DB3h | get_loc_key (DRI skeleton role name) |
+| sub_FF2h, sub_100Ch | get_gcb_mutex, free_gcb_mutex |
+| sub_1012h, sub_102Bh | init_graphics, exit_graphics |
+| v_init_flag, v_polyline_mask | writing_mode, pixel_lut |
+| v_cursor_vis, v_write_mode | draw_pattern, locator_step_offset |
+| v_dev_height family | text_sine/text_cosine, marker_sine/marker_cosine |
+| v_gfx_active, v_gcb_seg | gcb_mx, gcb_seg |
+
+ESCAPE handlers now use the guide's `escfn0..9` and `escf10..19` names,
+with the correct actual subfunction numbers and row/column descriptions.
+Declaration-site labels identify DEV_TAB, SIZ_TAB, sine_table, line_types,
+bit_masks and fill_tiles without fixed-address EQU aliases. All 90 ORG
+directives were subsequently removed: sections are sequential, with RB for
+actual gaps and trailing padding, including EXTRA. The previously documented
+EXTRA RB failure did not recur in the current toolchain.
+Numeric dispatch entries are intentionally retained to avoid new LINK fixups.
+
+RASM-86 reported zero errors; LINK-86 emitted 8,576 bytes.
+`scratch/emu2-current-20261031-233945/dd759h1.cmd` matches the original SYS
+in every byte, verified with comparator and independent cmp, including all
+groups and the relocation trailer. This establishes unchanged behavior through
+identical machine code/data; no new graphics-runtime validation was claimed.
+
 Per 2026-10-31 user directive, the retrieved DRI GSX-86 skeleton sources
 (`reference/dri-skeleton/{mono,color}/`, provenance and caveats in
 [`../reference/dri-skeleton/README.md`](../reference/dri-skeleton/README.md))

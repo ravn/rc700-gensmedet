@@ -1,5 +1,23 @@
 # Build all 13 CP/M BIOSes from source
 
+## Sequential H1 assembly layout (2026-10-31)
+
+- [x] Replace all 90 ORG directives with sequential layout and explicit RB
+  reservations for actual gaps and padding.
+- [x] Replace numeric table EQU aliases with labels on the actual data;
+  use OFFSET where an instruction needs the address.
+- [x] Rebuild with zero RASM errors and verify all 8,576 bytes, including
+  EXTRA and relocation trailer, match the original.
+
+## H1 oracle-aligned disassembly (2026-10-31)
+
+- [x] Commit source-oracle research and preserve historical reference bytes
+  in Git despite core.autocrlf=input.
+- [x] Align verified routine/state symbols, ESCAPE names and table aliases
+  in the rebuildable H1 source, keeping hardware-specific roles distinct.
+- [x] Rebuild: zero RASM errors, all 8,576 bytes equal the original SYS
+  including relocation records; no behavioral changes.
+
 ## DRI 1983 skeleton-guide comparison (2026-10-31)
 
 - [x] Retain CP/M-86 monochrome/color skeleton and test-suite documentation.

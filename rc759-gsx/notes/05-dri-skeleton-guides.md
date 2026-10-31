@@ -90,8 +90,9 @@ Likewise `esc04_cursor_up` at CS:01B7 exits graphics.
 This is an annotation error, **not a dispatch bug in the original binary**.
 The row/column comments in the CS:018E handler are also reversed.
 
-Labels have not been renamed in this documentation-only step. The table is
-the verified basis for a coherent later rename, including every call site.
+Labels were initially left unchanged. The subsequent oracle-alignment step
+renamed these handlers to escfn0..escfn9/escf10..escf19 and corrected comments;
+the table below remains the original CS-offset oracle, not a dispatch change.
 No claim is made that the RC759 routines retain the original skeleton's
 literal symbol names; the guide establishes roles, not a symbol table for H1.
 
