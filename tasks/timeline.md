@@ -8981,6 +8981,40 @@ Næste blocker: 82730-mailbox-handshake-loop (test 16). mame-branch rc750-rom-fo
   - `mame-test COMPILER=clang`: Booter direkte til `A>` på 2 sekunder.
   - `cross-version-boot-test.sh`: Alle 4 kryds-version kombinationer (både S01=On og S01=Off) PASS.
 
+## 2026-10-31 — RC759 GSX-86: current emu2 matches MAME (Hard)
+
+Verified current `emu2-cpm86` (`f1fe35c`) against MAME with identical
+normalized RASM-86 input. A controlling terminal from `pty.fork()` is required:
+non-TTY execution fails keyboard initialization, and early PTY EOF is Ctrl-D at
+RASM-86's `STOP RASM-86 (Y/N)?` prompt. Current emu2 produced an OBJ and linked
+CMD byte-identical to MAME (1,792 and 8,576 bytes). The older pinned `55806f2`
+still truncates the OBJ at record 72 and LINK-86 fails at record 73. Procedure
+and limitations: `tasks/memory/reference_rc759_gsx_emu2_verification.md`.
+
+## 2026-10-31 — RC759 GSX-86: first handler blocks match original SYS
+
+Continued H1 reconstruction using the original 8,576-byte SYS as the independent
+byte oracle. Fixed the POLYLINE pixel-loop target, then reconstructed the
+POLYMARKER entry; `CS:016E..02D6`, `CS:02D7..04BE`, and `CS:04BF..050E` now
+match exactly. The ESCAPE dispatch table at `DATA:0146` also matches. Current
+emu2 reports zero RASM-86 errors and LINK-86 produces an 8,576-byte CMD, but
+4,336 bytes still differ overall (CODE 2,668, DATA 1,657, relocation trailer
+11). Several handlers/helpers remain stubs; exact bytes in these ranges do not
+mean the full driver is reconstructed or behaviorally verified.
+
+## 2026-10-31 — RC759 GSX-86 H1: byte-identical rebuild
+
+Completed the remaining H1 code, reconstructed the DATA initializers and lookup
+tables, and restored all five load-time segment fixups. The final relocation
+records include `CS:1016 -> EXTRA`, `CS:101D -> DATA`, and `DATA:058D -> EXTRA`;
+the immediate bytes remain zero in the linked image, so byte comparison alone
+would not expose missing fixups. RASM-86 reported zero errors and LINK-86
+produced `scratch/emu2-current-20261031-222116/dd759h1.cmd` (8,576 bytes).
+`compare_sys_cmd.py` reported identical header, CODE (4,160 B), DATA (3,136 B),
+EXTRA (992 B), and relocation trailer (160 B); an independent `cmp -s` also
+confirmed the full files are identical. Running that CMD directly in current
+emu2 exited with status 0. This verifies load and return, not graphics behavior.
+
 ## 2026-10-19 — CPNOS: 2 KB PROM cap, SIO-B 38.400 baud & PolyPascal test PASS
 
 - **SIO-B baud rate alignment (38.400 baud)**:

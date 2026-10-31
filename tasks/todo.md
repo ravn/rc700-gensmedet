@@ -1,5 +1,42 @@
 # Build all 13 CP/M BIOSes from source
 
+## Plan: RC759 GSX-86 byte-identical reconstruction (2026-10-31)
+
+- [x] Add and run a persistent comparator for the H1 original SYS versus the
+  current RASM86/LINK86 CMD; report header, each group, trailer, and first
+  differing offsets. Preserve the current failing result as the baseline.
+- [x] Reconstruct the known ESCAPE block (`CS:016E..02D6`) and its
+  `DATA:0146` dispatch table; check emitted bytes against the original after
+  each edit. The original table begins with `017E`, not the source's `0248`.
+- [x] Reconstruct POLYLINE (`CS:02D7..04BE`) and POLYMARKER
+  (`CS:04BF..050E`); both emitted ranges now match the original byte-for-byte.
+- [x] Recover all remaining CODE bodies from the original disassembly and verify
+  the complete 4,160-byte CODE segment.
+- [x] Recover DATA initializers and lookup tables; the complete 3,136-byte DATA
+  segment matches the original.
+- [x] Decode and reproduce the five relocation records, including the three
+  segment fixups in the final graphics helpers.
+- [x] Rebuild H1 with current emu2 via a controlling PTY
+  (`tools/build_emu2_current.py`); RASM86 reports zero errors and LINK86
+  produces an 8,576-byte CMD.
+- [x] Require all 8,576 bytes to match the original SYS, then run the linked
+  driver as a separate emu2 load/return check (not a graphics behavior test).
+
+**Measured baseline (H1, before this plan's changes):** 8,576 bytes in both
+files; header 0/128, CODE 3,484/4,160, DATA 1,679/3,136, EXTRA 0/992, and
+relocation trailer 11/160 bytes differ (5,174 total). First CODE mismatch is
+`CS:01BD`: original `EB 4F`, rebuild `E9 57 00`; the RASM-86 manual specifies
+`JMPS` for short intra-segment jumps. This plan covers H1 first; other variants
+remain out of scope until H1 is exact.
+
+**Current measurement (2026-10-31):** exact match, all 8,576 bytes. Header
+128/128, CODE 4,160/4,160, DATA 3,136/3,136, EXTRA 992/992, and relocation
+trailer 160/160 bytes identical. `cmp -s` independently confirms equality.
+RASM-86 reports zero errors, LINK-86 produces an 8,576-byte CMD, and running
+that CMD directly in current emu2 exits with status 0. This verifies loading
+and return only; full graphics behavior remains untested. Latest artifact:
+`rc759-gsx/scratch/emu2-current-20261031-222116/dd759h1.cmd`.
+
 ## To do later
 - [ ] Opret `rc702-8ss` diskformat i `rcbios/diskdefs` — standard IBM 8" single-sided format (jf. `ibm-3740`: 128 B × 26 sekt × 77 spor, FM single density).
   - Bemærk: `ASSIGN.COM` skifter mellem om BIOS forventer at disketten i det pågældende drev er SS eller DD. Det er altså diskettens format, ikke drevet, der vælges — `rc702-8ss` er den SS-forventning ASSIGN kan sætte, komplement til `rc702-8dd`.

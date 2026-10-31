@@ -1,2 +1,3 @@
 - [No timeout on macOS](feedback_no_timeout_on_macos.md) — use `perl -e 'alarm shift; exec @ARGV' N cmd` to guard hangable ntvcm runs
 - **[const char* vs const byte* in comparisons](feedback_const_char_vs_byte_sign_extension.md) — HARD: mixed-sign byte loop → sign-extension → bloat; ALL comparison params must be `const byte *`**
+- [RC759 GSX-86 emu2 verification](reference_rc759_gsx_emu2_verification.md) — use `pty.fork()` (controlling TTY); current emu2 OBJ/CMD match MAME
