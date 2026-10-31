@@ -1,5 +1,5 @@
-; RC759 GSX-86 graphics driver (high-resolution monochrome, 1-plane, 1-console)
-; Original: scratch/zip-a-extract/dd759h1.sys  (8576 bytes)
+; RC759 GSX-86 graphics driver (H1 variant, high-resolution monochrome)
+; Original: bin/dd759h1.sys  (8576 bytes)
 ; Toolchain: RASM-86 1.2 + LINK-86 1.4
 ; Build:
 ;   rasm86 dd759h1.a86
@@ -21,7 +21,8 @@
 ;   PB+08  dd  far ptr ptsin[]
 ;   PB+0C  dd  far ptr intout[]
 ;   PB+10  dd  far ptr ptsout[]
-; (PB+12 is start of contrl[] array — 10 words copied to stack by STD/LODSW)
+; PB+12h is the ptsout segment word, not the contrl array.
+; Backward loads +12h..+00h push all five pointers in normal stack order.
 ; ----------------------------------------------------------------------------
 driver_entry:
 	mov	ax,sp
@@ -66,7 +67,7 @@ dispatch_done:
 ; ============================================================================
 ; OPEN WORKSTATION  CS:004E
 ; Sets contrl[2]=6 (nptsout), contrl[4]=45 (nintout).
-; Copies intout[] defaults then ptsin[] defaults from DATA tables.
+; Copies intout[] defaults then ptsout[] defaults from DATA tables.
 ; Reads intin[] for workstation attributes, clamps to valid ranges,
 ; stores to attribute state variables.
 ; ============================================================================
@@ -82,12 +83,12 @@ op01_OPEN_WORKSTATION:
 	mov	si,050Ch		; DATA: ptsout defaults table
 	mov	cx,00Ch			; 12 words
 	rep movsw
-	mov	word ptr v_init_flag,1	; init flag
+	mov	word ptr v_init_flag,1	; GSX writing mode = replace
 	mov	ax,0
-	call	sub_6D7h		; detect screen geometry -> CX=height, DX=width
-	mov	v_dev_height,cx		; save height (used by coordinate routines)
+	call	sub_6D7h		; angle 0 -> CX=sin=0, DX=cos=2048
+	mov	v_dev_height,cx		; text rotation sine
 	mov	v_dev_height3,cx
-	mov	v_dev_height2,dx		; save width
+	mov	v_dev_height2,dx		; text rotation cosine
 	mov	v_dev_height4,dx
 	mov	ax,8
 	shl	ax,1
@@ -572,6 +573,8 @@ sub_34d_walk_next:
 	jmps	sub_34d_done
 
 	org	044Ah
+; Toggle the pixel using a four-byte truth table selected by sub_492h.
+; Index = 2*pattern_bit + old_pixel; the byte is 00h or FFh.
 sub_44Ah:
 	xor	si,si
 	ror	word ptr v_cursor_vis,1
@@ -727,6 +730,8 @@ op07_POLYMARKER:		; CS:04BFh
 		jmp	sub_100Ch
 
 		org	05AEh
+	; Signed high/low nibbles encode x/y; 80h splits strokes, 88h ends.
+	; Marker 2 starts D0h,30h -> (-3,0),(3,0), then a separate stroke.
 	sub_5AEh:			; CS:05AEh
 		xor	ah,ah
 		shl	ax,1
@@ -850,6 +855,8 @@ sub_5AE_restart:
 		ret
 
 		org	06D7h
+	; AX is degrees: quadrant reflection/signs extend a 0..90 sine table.
+	; Example: AX=90 -> CX=2048 (sine), DX=0 (cosine).
 	sub_6D7h:			; CS:06D7h
 		xor	dx,dx
 		mov	bx,5Ah
@@ -2102,16 +2109,16 @@ v_line_error	dw	0		; DATA:01B2 Bresenham error accumulator
 
 	org	01B4h
 v_polyline_state dw	0		; DATA:01B4 single-point polyline marker
-v_gfx_state	db	0		; DATA:01B6 graphics mode selector
+v_gfx_state	db	0		; DATA:01B6 active pixel writing mode
 
 	org	01B7h
-v_init_flag	dw	0		; DATA:01B7 init done flag
+v_init_flag	dw	0		; DATA:01B7 GSX writing mode (1-4)
 
 	org	01B9h
-v_polyline_mask	dw	0		; DATA:01B9 pixel mask used by drawing
+v_polyline_mask	dw	0		; DATA:01B9 pixel truth-table pointer
 
 	org	01BFh
-v_cursor_vis	dw	0		; DATA:01BF cursor visibility (-1=visible)
+v_cursor_vis	dw	0		; DATA:01BF rotating line/fill bit pattern
 
 	org	01C1h
 	; Device patterns, workstation data, and terminal escape sequences.
@@ -2150,7 +2157,7 @@ v_key_mode	db	0		; DATA:02AE keyboard mode
 v_keyboard_mode	db	0		; DATA:02AF keyboard mode selector
 
 	org	02B0h
-v_write_mode	dw	0		; DATA:02B0 writing mode
+v_write_mode	dw	0		; DATA:02B0 locator movement-table selector
 	org	02B2h
 gdp_cursor_deltas:
 	dw	0,1,0,10,0,0FFFFh,0,0FFF6h
@@ -2180,12 +2187,12 @@ v_fill_pattern_offset	dw	0	; DATA:0314
 v_text_points	db	0		; DATA:0316 decoded glyph point buffer
 
 	org	03DEh
-v_dev_height	dw	0		; DATA:03DE device height (pixels)
-v_dev_height2	dw	0		; DATA:03E0 (duplicate)
-v_marker_sz_w	dw	0		; DATA:03E2 marker size w
-v_dev_height3	dw	0		; DATA:03E4 (duplicate)
-v_dev_height4	dw	0		; DATA:03E6 (duplicate)
-v_marker_sz_h	dw	0		; DATA:03E8 marker size h
+v_dev_height	dw	0		; DATA:03DE text sine, scaled by 2048
+v_dev_height2	dw	0		; DATA:03E0 text cosine, scaled by 2048
+v_marker_sz_w	dw	0		; DATA:03E2 text scale
+v_dev_height3	dw	0		; DATA:03E4 marker sine, scaled by 2048
+v_dev_height4	dw	0		; DATA:03E6 marker cosine, scaled by 2048
+v_marker_sz_h	dw	0		; DATA:03E8 marker scale
 v_marker_tmp_x	dw	0		; DATA:03EA polymarker scratch
 v_marker_tmp_y	dw	0		; DATA:03EC polymarker scratch
 v_marker_tmp_size	dw	0	; DATA:03EE polymarker scratch
@@ -2204,9 +2211,11 @@ v_text_x	dw	0		; DATA:03F8 text origin x
 v_text_y	dw	0		; DATA:03FA text origin y
 
 	org	03FEh
+	; DATA:03FC..04B1 = round(2048*sin(degrees)), 91 words, 0..90.
+	; The zero-degree word at 03FCh is supplied by the preceding gap.
 	db	024h,000h
 	org	0400h
-	; Font metrics, marker masks, and hatch patterns.
+	; Remaining sine values, DEV_TAB/SIZ_TAB, and 8x8 fill tiles.
 	db	047h,000h,06Bh,000h,08Fh,000h,0B2h,000h,0D6h,000h,0FAh,000h,01Dh,001h,040h,001h
 	db	064h,001h,087h,001h,0AAh,001h,0CDh,001h,0EFh,001h,012h,002h,035h,002h,057h,002h
 	db	079h,002h,09Bh,002h,0BCh,002h,0DEh,002h,0FFh,002h,020h,003h,041h,003h,062h,003h
@@ -2234,7 +2243,7 @@ v_text_y	dw	0		; DATA:03FA text origin y
 	db	055h,0AAh,011h,0AAh,0AAh,055h,0AAh,055h,0AAh,055h,0AAh,055h
 
 	org	058Ch
-v_gfx_active	db	0		; DATA:058C graphics mode active flag
+v_gfx_active	db	0		; DATA:058C XIOS gcb_mx semaphore
 		; This initial segment word is a LINK-86 fixup to EXTRA.
 	v_gcb_seg	dw	SEG extra_segment_anchor ; DATA:058D pixel memory segment
 v_gfx_init	dw	0		; DATA:058F init done (1 after first open)

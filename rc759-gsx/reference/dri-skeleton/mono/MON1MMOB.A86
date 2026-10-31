@@ -1,0 +1,1249 @@
+;******************************************************************************
+;*			     GSX Device Driver Skeleton 		      *
+;*				DIGITAL RESEARCH Inc.			      *
+;*									      *
+;******************************************************************************
+;
+;
+;
+;	HISTORY    
+;Day	Month	Year	Time	Author	Comments
+;
+;22	AUG	83		SR	Modification of Televideo driver
+;					completed 
+;					four files needed to assemble driver
+;					1.skelobj1.obj
+;					2.font.obj
+;					3.devspec.a86
+;					4.reasm.a86
+;30	AUG	83		SR	font reorganized
+;31	AUG	83		SR	valuator activated
+;31	AUG	83		DH	polyfill single edge bug fix
+;31	AUG	83		DH	polyfill edge shorten bug fix
+;2	SEP	83		SR	range checking on input indexes added
+;2	SEP	83		SR	byte_swap added to devspec
+;9	SEP	83		SR	arstl2 moved to reasm
+;12	SEP	83		SR	raster op calls added as externals
+;30	SEP	83		SR	choice sample mode terminator enabled
+;04	OCT	83		SR	color mapping for monochrome enabled
+;11	NOV	83		SR	bug fix for graph, check those color
+;					indexes for set color representation!
+;link86 devspec,skelobj1,font
+;
+EJECT 
+dgroup	group	data
+	cseg
+;THE FOLLOWING EQUATES ARE FOR INTEGER ARRAY INDEXING.
+W_1	EQU	WORD PTR 0
+W_2	EQU	WORD PTR 2
+W_3	EQU	WORD PTR 4
+W_4	EQU	WORD PTR 6
+W_5	EQU	WORD PTR 8
+W_6	EQU	WORD PTR 10	
+W_7	EQU	WORD PTR 12
+W_8	EQU	WORD PTR 14
+W_9	EQU	WORD PTR 16
+W_10	EQU	WORD PTR 18
+;
+max_function	equ	40
+;
+	public	entry		;main entry point for digital research gsx.
+;	
+	extrn	plyfill_rot:near
+	extrn	device_table:near
+	extrn	size_table:near
+	extrn	clearmem:near
+	extrn	escfn0:near,escfn1:near,escfn2:near,escfn3:near
+	extrn	escfn4:near,escfn5:near,escfn6:near,escfn7:near
+	extrn	escfn8:near,escfn9:near,escf10:near,escf11:near
+	extrn	escf12:near,escf13:near,escf14:near,escf15:near
+	extrn	escf16:near,escf17:near,escf18:near,escf19:near
+	extrn	check_escape:near
+	extrn	concat:near
+	extrn	draw_char:near
+	extrn	next_address:near
+	extrn	enable_cross:near
+	extrn	move_cross:near
+	extrn	clip_cross:near
+	extrn	get_loc_key:near
+	extrn	abline:near
+	extrn	valuator:near,choice:near,get_char:near
+	extrn	load_lut:near
+;	extrn	seed_fill:near
+;	extrn	getscr:near,putscr:near
+;	extrn	inqrsz:near,cpyscr:near
+EJECT
+;	*************************************************
+;	*						*
+;	*	MAIN ENTRY POINT FOR DRIVER		*
+;	*	( for Digital Research GSX )		*
+;	*	Entry					*
+;	*		return address on stack 	*
+;	*		ds:dx points at table of array	*
+;	*			ds:dx contrl		*
+;	*			ds:dx+4 intin		*
+;	*			ds:dx+8 ptsin		*
+;	*			ds:dx+12 intout 	*
+;	*			ds:dx+16 ptsout 	*
+;	*						*
+;	*	CALL					*
+;	*		return address on stack 	*
+;	*		ds points to data segment	*
+;	*		double word pointers		*
+;	*			contrl			*
+;	*			intin			*
+;	*			ptsin			*
+;	*			intout			*
+;	*			ptsout			*
+;	*	Exit					*
+;	*		callers bp and ds:dx restored	*
+;	*						*
+;	*************************************************
+entry:	
+	push	bp			
+	push	dx			
+	push	ds			;save callers stuff
+	mov	si,dx			;ds:si points to input array
+	mov	ax,seg function_table	;
+	mov	es,ax			;set es to top of dseg
+	mov	di,offset contrl	;es:di points to place to store pointers
+	mov	cx,10			;10 words to move
+	rep	movsw			;save pointers in our dseg
+	push	es
+	pop	ds			;get our data segment back
+	les	di,contrl		;es:di points to contrl array
+	mov	es:W_3[di],0		;zero points out so far
+	mov	bx,es:[di]		;get function number (contrl[1])
+	cmp	bx,max_function
+	jnc	no_action		;is bx too big?
+	shl	bx,1			;make function a word pointer
+	call	function_table[bx]	;find address to jump to in table
+no_action:
+	pop	ds
+	pop	dx
+	pop	bp
+	retf
+EJECT
+;************************************************************************
+;openws 								*
+; 1									*
+;	Sets default parameters 					*
+;	Returns device capabilities					*
+;									*
+;	Entry								*
+;		ds is our data segment					*
+;		contrl is segment and offset of control array		*
+;		intout is segment and offset of intout	array		*
+;		ptsout is segment and offset of ptsout	array		*
+;									*
+;		default_table contains default line style etc.		*
+;		device_table contains device information.		*
+;		size_table contains character size information		*
+;									*
+;************************************************************************
+openws: 
+	push	ds			;swap es and ds so that
+	pop	es			;es is our dseg
+	lds	si,intin		;ds:si points to intin array
+	mov	di,offset default_table ;es:di points to table in dseg
+	mov	cx,10
+	rep	movsw			;move words to dseg
+;
+	push	es			;get our dseg back
+	pop	ds			 
+	les	di,intout		;es:di points to intout
+	mov	si,offset device_table	;ds:si points to table
+	mov	cx,45
+	rep	movsw			;move table to intout
+;
+	les	di,ptsout		
+	mov	si,offset size_table
+	mov	cx,12
+	rep	movsw			;move size_table to ptsout
+;
+	les	di,contrl		;es:di points to contrl array
+	mov	es:W_3[di],6		;six points out
+	mov	es:W_5[di],45		;45 words describing device out
+	mov	writing_mode,0		; init wrmode to replace
+	mov	locator_mode,1		; init locator mode to request
+	mov	val_mode,1		; init valuator mode to request
+	mov	choice_mode,1		; init choice mode to request
+	mov	string_mode,1		; init string mode to request
+	mov	chup,0			; character up vector is zero
+	mov	back_bp_1,0
+	mov	bakcol,0
+	mov	cx,3
+	mov	ax,ds
+	mov	es,ax
+	mov	ax,1000
+	mov	di,offset realized_color_table + 6
+	rep	stosw			;set up color table index 0=1000
+	call	plncmd			; set the polyline attributes
+	call	pgncmd			; set the polygon attributes
+	call	txtcmd			; set the text attributes
+	call	mkrcmd			; set the marker attributes
+	call	escfn2			; get into graphics mode     
+	ret
+EJECT
+;************************************************************************
+;closews								*
+; 2									*
+;	Stop all graphic output 					*
+;									*
+;	Exit	Screen is in alpha mode, both screens cleared		*
+;									*
+;************************************************************************
+closews:
+	call	escfn3
+	ret
+;
+;************************************************************************
+;clear									*
+; 3									*
+;	Clears the graphics screen					*
+;									*
+;	Exit	graphics planes are zeroed				*
+;									*
+;************************************************************************
+clear:	
+	call	clearmem
+	ret
+;
+;************************************************************************
+;update 								*
+; 4									*
+;	Flush out graphic command buffers. NOT SUPPORTED FOR CRT'S	*
+;									*
+;									*
+;************************************************************************
+update:
+	ret
+EJECT
+;************************************************************************
+;escape 								*
+; 5									*
+;	Device dependent command handler				*
+;									*
+;									*
+;	Entry	control(6) has escape function number			*
+;									*
+;	Calls	check_escape to check for valid escape number		*
+;									*
+;************************************************************************
+escape:
+	les	di,contrl
+	mov	bx, es: W_6[di] 	; get escape function number
+	call	check_escape		;check escape number
+	shl	bx,1
+	call	esctbl[bx]
+	ret
+EJECT
+;************************************************************************
+;polline								*
+;									*
+; 6									*
+;	Draw a polyline 						*
+;									*
+;									*
+;	Entry	contrl(2) contains vertex count 			*
+;		ptsin has x,y coordinates of vertices			*
+;									*
+;	Call	abline with						*
+;			lstlin set to true if this is the last line	*
+;			x1,x2,y1,y2 set to segment endpoints		*
+;			line_mask contains current linestyle		*
+;			line_bp_1 contains current color		*
+;			line_mode specifys pixel operation to perform	*
+;************************************************************************
+polline:
+	les	di,contrl
+	mov	cx,es:W_2[di]		; get vertex count
+	cmp	cx, 1			; count must be at least 2.
+	jg	pline0				
+	ret				; return if count <= 1
+pline0: dec	cx			; make count=count-1
+	les	di,ptsin		; get seg and offset of ptsin.
+	mov	lstlin,0
+	mov	al,polyline_mode
+	mov	line_mode,al		;get operation to perform
+	mov	al,polyline_bp_1
+	mov	line_bp_1,al
+	mov	ax,l_style
+	cmp	polyline_mode,0 	;is it replace?
+	jne	maskdon
+	cmp	polyline_bp_1,0
+	jne	one_in_plane
+	mov	ax,0
+one_in_plane:
+	cmp	back_bp_1,0
+	je	maskdon
+	not	ax
+maskdon:mov	line_mask,ax
+pline1: push	cx			; save line count
+	cmp	cx, 1			; check if last line of polyline.
+	jnz	pline2
+	mov	lstlin, 0ffh		; set last line flag. 
+pline2: mov	si,offset x1
+	mov	cx,4
+pline3: mov	ax,es:[di]
+	mov	[si],ax
+	add	si,2
+	add	di,2
+	loop	pline3
+	sub	di,4
+	push	di			; save offset of ptsin
+	push	es
+	call	abline
+	pop	es
+	pop	di
+	pop	cx
+	loop	pline1
+	ret
+EJECT
+;************************************************************************
+;marker 								*
+; 7									*
+;	Draws current marker at x,y					*
+;									*
+;									*
+;	Entry	contrl(2) contains number of markers to write		*
+;		ptsin	  contains x,y coords of markers		*
+;									*
+;	Call	draw_char with						*
+;			si=offset of first byte to write		*
+;			cx=number of bytes to write			*
+;			di=physical address  x,y position		*
+;			bl=byte index					*
+;			char_mode contains pixels operation		*
+;************************************************************************
+marker:
+	les	di,contrl
+	mov	cx,es:W_2[di]		; get vertex count
+	cmp	cx, 1			; check marker count.
+	jae	mark6
+	ret				; return if count is less than one.
+mark6:	
+	mov	al,marker_mode
+	mov	char_mode,al
+	mov	al,mark_bp_1
+	mov	char_bp_1,al
+	mov	si,marker_index 	; get current marker index.
+	add	si,  0fh		; index into markers in font.
+	shl	si,1
+	shl	si,1
+	shl	si,1			; make it a word pointer
+	add	si,offset font
+	les	di,ptsin
+mark1:	
+	mov	bx,es:[di]		; get x coordinate.
+	mov	ax,es:W_2[di]		; get y coordinate.
+	push	di			; save offset into ptsin
+	add	ax, 3			; top is 3 from center
+	jns	mark2	
+	mov	ax, 0
+mark2:
+	sub	bx, 4			; x-offset to center marker.
+	jns	mark3
+	mov	bx, 0
+mark3:
+	push	es
+	push	si			; save offset of marker
+	push	cx			; save marker count
+	call	concat
+	mov	cx,7			; number of bytes per marker
+	call	draw_char		; draw marker using text routine.
+	pop	cx
+	pop	si
+	pop	es
+	pop	di
+	add	di, 4		
+	loop	mark1			; check if no more markers.	
+	ret
+eject		
+;************************************************************************
+;hrdtxt 								*
+; 8									*
+;	Draws text string at x,y					*
+;									*
+;	Entry	contrl(4) contains character count			*
+;		ptsin contains x,y coord of start of string		*
+;		chup contains character up vector			*
+;									*
+;	Call	drwtxt with						*
+;		si=offset of character in font table			*
+;		cx=number of bytes to write				*
+;		di=physical address to write to 			*
+;		bl=byte index to write to				*
+;		char_mode contains pixel operation code 		*
+;************************************************************************
+hrdtxt:
+	les	di,contrl
+	mov	cx,es:W_4[di]		; get x-coord of start point
+	cmp	cx,0
+	jg	text0
+	ret				; return if string count <= 0 
+text0:	les	di,ptsin
+	mov	bx,es:[di]			
+	mov	ax,es:W_2[di]
+	mov	dx,chup
+	cmp	dx,0
+	jne	isit_up
+	cmp	bx,0
+	je	dontdec
+	sub	bx,1
+dontdec:add	ax,6			;find address of top of character
+	jmps	chup_done
+isit_up:cmp	dx,900
+	jne	isit_left
+	sub	bx,6
+	add	ax,6
+	jmps	chup_done
+isit_left:
+	cmp	dx,1800
+	jne	its_down
+	sub	bx,6
+	add	ax,1
+	jmps	chup_done
+its_down:
+	sub	bx,1
+	add	ax,1
+chup_done:
+	push	cx			;save count
+	call	concat
+	pop	cx
+	les	si,intin
+	mov	al,text_mode
+	mov	char_mode,al
+	mov	al,text_bp_1
+	mov	char_bp_1,al
+textloop:
+	mov	ax, es:[si]		; get next character in string
+	push	si			; save offset of intin
+	mov	si,ax
+	shl	si,1
+	shl	si,1
+	shl	si,1
+	add	si,offset font		; address of 1st byte of char. 
+					; si - font byte adddress.	
+					; bl - byte index
+	push	es			; DI - physical address.	
+	push	cx			; save count
+	push	bx			; save bit index
+	push	di			; save physical address
+	cmp	chup,0
+	je	rotate_done
+	push	di
+	push	bx			
+	call	rotate_raster		;uses di and bl
+	pop	bx
+	pop	di
+rotate_done:
+	mov	cx,8			; number of bytes to write
+	call	draw_char		; draw a character.
+	pop	di
+	call	next_address		;get next address
+	pop	bx
+	pop	cx
+	pop	es
+	pop	si
+	add	si,2			; get next char
+	loop	textloop		; return to top of loop. 
+	ret
+EJECT
+;************************************************************************
+;*rotate_raster 							*
+;*	rotates an 8X8 cell pointed to by [si] in one of three ways	*
+;*									*
+;************************************************************************
+rotate_raster:
+	mov	di,offset scratch_char
+	mov	cx,8
+	mov	bl,0
+scratch_loop:
+	mov	[di],bl
+	inc	di
+	loop	scratch_loop
+	cmp	chup,1800
+	je	upside_down
+	cmp	chup,2700
+	je	rotate_right
+rotate_left:
+	mov	bl,1			;load up source mask
+	mov	dl,80h			;destination mask
+load_left:
+	mov	di,offset scratch_char
+	mov	bh,[si] 		;load a byte
+	inc	si
+left_loop:
+	test	bl,bh			;is there a 1
+	jz	left_nobit
+	or	[di],dl 		;yes then put a 1 in the destination
+left_nobit:
+	inc	di
+	rol	bl,1			;next bit of source
+	jnc	left_loop
+	ror	dl,1			;next bit of destination
+	jnc	load_left
+	mov	si,offset scratch_char	;leave si pointing to rotated char
+	ret
+rotate_right:
+	mov	bl,1			;load up source mask
+	mov	dl,1			;destination mask
+load_right:
+	mov	di,offset scratch_char + 7
+	mov	bh,[si] 		;load a byte
+	inc	si
+right_loop:
+	test	bl,bh			;is there a 1
+	jz	right_nobit
+	or	[di],dl 		;yes then put a 1 in the destination
+right_nobit:
+	dec	di
+	rol	bl,1			;next bit of source
+	jnc	right_loop
+	rol	dl,1			;next bit of destination
+	jnc	load_right
+	mov	si,offset scratch_char	;leave si pointing to rotated char
+	ret
+upside_down:
+	mov	di,offset scratch_char + 7
+	mov	cx,8
+rotate_upside:
+	mov	bl,1			;load up source mask
+	mov	dl,80h			;destination mask
+load_upside:
+	mov	bh,[si] 		;load a byte
+	inc	si
+upside_loop:
+	test	bl,bh			;is there a 1
+	jz	upside_nobit
+	or	[di],dl 		;yes then put a 1 in the destination
+upside_nobit:
+	ror	dl,1
+	rol	bl,1			;next bit of source
+	jnc	upside_loop
+	dec	di			;next bit of destination
+	loop	load_upside
+	mov	si,offset scratch_char	;leave si pointing to rotated char
+	ret
+EJECT
+;************************************************************************
+;plyfil 								*
+; 9									*
+;	Polygon Fill							*
+;									*
+;	Entry								*
+;		contrl = dword pointer to contrl			*
+;		ptsin  = dword pointer to ptsin 			*
+;		pattern_number is number of fill style in font		*
+;		polygon_color is current color				*
+;		polygon_mode is pixel operation to be performed 	*
+;************************************************************************
+plyfil: 
+	les	di,contrl
+	mov	cx,es:W_2[di]		; get vertex count
+	cmp	cx, 1
+	jbe	plyfld			; return if count <= 1.
+	les	di,ptsin
+iplyfl: 				; internal polyfill entry point
+					; cx=vertex count
+					; es:si=vertex array
+	mov	si,di
+	push	si			; save the index to polygon
+	push	cx			; save the count of verticies
+	mov	plycnt, cx
+	call	plyedg			; get the edge list into edgary
+	call	plysho			; shorten the edge list
+	call	plyswp			; swap the y values as required
+	call	plyptb			; build the parameter table
+	call	plyxbk			; scan the polygon out
+plyesc: 				; exit for single edge polygon
+	pop	cx
+	pop	si			; get the pointer to the array
+	call	plydpl			; draw the surrounding polyline
+plyfld: ret
+
+EJECT
+;***********************************************
+;plydpl
+;	Polygon fill Polyline draw subroutine
+;
+;***********************************************
+plydpl:
+	dec	cx			; count = n-1
+	mov	al,polygon_mode
+	mov	line_mode,al
+	mov	al,poly_bp_1
+	mov	line_bp_1,al
+	mov	ax,0ffffh
+	cmp	polygon_mode,0
+	jne	plydp2
+	cmp	poly_bp_1,0
+	jne	one_plane
+	mov	ax,0
+one_plane:
+	cmp	back_bp_1,0
+	je	plydp2
+	not	ax
+plydp2: mov	line_mask, ax		; set to solid line style.
+	mov	ax, es: [ si ]
+	push	ax
+	mov	ax, es: W_2[ si ]
+	push	ax			; save x1,y1
+plydp1:
+	mov	ax, es: [ si ]
+	mov	x1, ax
+	mov	ax, es: W_2[ si ]
+	mov	y1, ax
+	mov	ax, es: W_3[ si ]
+	mov	x2, ax
+	mov	ax, es: W_4[ si ]
+	mov	y2, ax
+	push	cx
+	push	si
+	mov	lstlin, 0ffh		; do not decrement count flag.(xor)
+	push	es
+	call	abline			; draw the line
+	pop	es
+	pop	si
+	pop	cx
+	add	si,4
+	loop	plydp1
+	pop	ax
+	mov	y1, ax
+	pop	ax
+	mov	x1, ax
+	mov	lstlin, 0ffh	
+	push	es
+	call	abline
+	pop	es
+	ret
+
+EJECT
+;***********************************************
+;Polygon fill edge list generation subroutine	
+;						
+;	Entry	si points at source array off es:
+;		plycnt = the count of verticies 
+;		CS = DS
+;	
+;	Exit	edgary contains the set of edges of the polygon
+;***********************************************
+plyedg:
+	mov	di, offset edgary	; point at the edge array
+	push	si			; save the pointer to the src
+	mov	bx, plycnt		; get the xy counter
+	mov	ax, es: [ si ]
+	mov	[ di ], ax
+	mov	ax, es: W_2[ si ]
+	mov	W_2[ di ], ax
+	add	di, 4
+	add	si, 4
+plyeg1: 
+	dec	bx			; count = count - 1
+	jz	plyeg4			; if count = 0 then exit
+	call	plyeg2
+	jmp	plyeg1
+;
+;move two word pairs from source to destination
+;
+plyeg2: 
+	mov	cx,2
+plyeg3: 				; move two sets of words from
+	mov	ax, es: [ si ]
+	mov	[ di ], ax		; source to dest
+	mov	ax, es: W_2[ si ]
+	mov	W_2[ di ], ax
+	add	di, 4
+	loop	plyeg3
+	add	si, 4
+	ret
+plyeg4: 
+	pop	si
+	call	plyeg2			; move the first pair of words
+	call	plyeg2			; move the second pair of words
+	ret				; have one extra pair of words
+EJECT
+;***********************************************
+;Polygon fill edge shortening subroutine	
+;	      and removal of single pixel edges
+;	      and removal of horizontal lines
+;		
+;	Entry	
+;		plycnt = the count of verticies
+;		CS = DS
+;
+;	Exit	edgary contains the set of edges of the polygon
+;		unnecessary edges are removed from list by setting msbit of
+;		x value
+;***********************************************
+plysho:
+	mov	si, offset edgary
+	mov	cx, plycnt		; count=vertex count
+plyshl: mov	bx, W_2[ si ]		; get y1
+	mov	ax, W_4[ si ]		; get y2
+	and	bx,7fffh
+	and	ax,7fffh
+	sub	ax, bx			; delta y 1 in ax
+	jnz	plysh0			; if deltay1 is not zero continue
+	dec	cx			; count=count-1
+	jz	ply_single_edge
+	add	si, 8			; increment the pointer
+	jmp	plyshl
+ply_single_edge:
+	pop	ax			;throw away return address
+	jmp	plyesc
+plysh0:
+	cmp	cx, 1			; is it the last test
+	jz	plysh5			; if so then change pointer
+plysh6:
+	mov	dx, W_6[ si ]		; get second y1
+	mov	bx, W_8[ si ]		; get second y2
+	sub	bx, dx			; delta y in bx
+	jz	plysh3			; if deltay2 = 0 then remove
+	mov	dh, ah
+	mov	dl, bh			; test if sign bit set in both
+	and	dh, 80h 
+	and	dl, 80h
+	xor	dh, dl
+	and	dh, dh
+	jnz	plysh2
+	or	W_6[si],8000h		;mark this end to be shortened
+	jmps	plysh2
+plysh5:
+	mov	si, offset edgary-8	; point at the first pair as second pair
+	jmp	plysh6
+plysh2: 
+	add	si, 8			; point to the next array entry
+	and	cx, cx
+	js	plysh7
+	loop	plyshl
+plysh7:
+	ret 
+plysh3:
+	mov	W_5[ si ], 0ffffh	; remove edge
+	add	si, 8			; point to the next array entry
+	dec	cx
+	jz	plysh4
+	jmp	plysh0
+plysh4:
+	mov	cx, -1			; set count negative
+	jmp	plysh0
+EJECT
+;***********************************************
+;Polygon fill edge swap subroutine		
+;	      and finding of minimum y value	
+;		
+;	Entry	
+;		plycnt = the count of verticies
+;		CS = DS
+;
+;	Exit	edgary contains the set of edges of the polygon
+;		miny = minimum value for y in array 
+;***********************************************
+plyswp:
+	mov	cx, plycnt
+	mov	si, offset edgary
+	mov	dx, 10000		; initialize the minimum y value
+plyswl: 
+	mov	ax, [ si ]		; get the x value
+	and	ax, ax
+	js	plysw2
+	mov	ax, W_2[ si ]
+	mov	bx, W_4[ si ]		; test if swap required
+	and	ax,7fffh		; dont care if edge to be shortened
+	and	bx,7fffh
+	sub	ax, bx
+	jc	plysw1			; if carry then y1<y2
+	mov	ax, W_2[ si ]
+	mov	bx, W_4[ si ]
+	mov	W_4[ si ], ax
+	mov	W_2[ si ], bx		; else swap y1 and y2
+	mov	ax, [ si ]
+	mov	bx, W_3[ si ]
+	mov	[ si ], bx
+	mov	W_3[ si ], ax
+plysw1:
+	mov	ax, W_2[ si ]
+	and	ax,7fffh
+	mov	bx, ax
+	sub	bx, dx			; find y1-miny
+	jnc	plysw2			; if no carry then y1>miny
+	mov	dx, ax			; else miny = y1
+plysw2:
+	add	si, 8			; point to the next edge
+	loop	plyswl
+	mov	minyply, dx		; save the minimum value
+	ret
+
+EJECT
+;*******************************************************
+;Polygon fill edge parameter table build  subroutine	
+;		
+;	Entry	edgary contains the set of edges of the polygon
+;		plycnt = the count of verticies
+;		CS = DS
+;
+;	Exit	edgtbl	contains the parameters the polygon scan
+;		plycnt = the count of edges to be scaned
+;		miny = minimum value for y in array 
+;*******************************************************
+plyptb:
+	mov	si, offset edgary	; point at the edge list
+	mov	di, offset edgtbl	; point at the edge table
+	mov	cx, plycnt		; initialize the count
+plyptl:
+	mov	ax, [ si ]		; test if a valid edge
+	and	ax, ax
+	js	plypt2
+	call	scnset			; set up the scan conversion
+	add	di, 20			; point to the next table entry
+plypt1:
+	add	si, 8			; point to the next edge
+	loop	plyptl
+	ret
+plypt2: dec	plycnt			; decrement the count
+	jmp	plypt1
+EJECT
+;**************************************************************
+;Scan conversion setup subroutine
+;		
+;	Entry	si points at the source edge list
+;		di points at the destination parameter list
+;		CS = DS
+;
+;**************************************************************
+scnset:
+	mov	ax, [ si ]		; get x1
+	mov	bx, W_3[ si ]		; get x2
+	mov	[ di ], ax		; save current x value in table
+	mov	W_10[ di ], bx		; save end x value in table
+	sub	bx, ax			; bx=deltax
+	call	scnst2
+	mov	ax,  W_2[ si ]		; get y1
+	mov	dx,  W_4[ si ]		; get y2
+	and	ax,7fffh		; get rid of edge shorten flag
+	and	dx,7fffh		; 
+	mov	W_4[ di ], dx		; save end y value
+	sub	dx, ax
+	mov	W_9[ di ], ax		; save current y value in table
+	mov	ax, bx			; save delta x in ax
+	sub	ax, dx			; find delta x - delta y
+	jc	scnst1
+	mov	W_3[ di ], 0		; set the delta x > delta y flag
+scnst4: 
+	shl	dx, 1			; find delta y * 2
+	mov	W_5[ di ], dx
+	sub	dx, bx
+	mov	W_6[ di ], dx
+	sub	dx, bx
+	mov	W_7[ di ], dx
+	mov	W_8[ di ], 0		; set the unused flag
+	test	W_4[si],8000h
+	jz	scnst5
+	dec	W_4[di] 		; shorten edge on end
+	ret
+scnst5:
+	test	W_2[si],8000h
+	jz	scnst6
+	push	di
+	push	si
+	xchg	si,di
+	call	scncnv
+	pop	si
+	pop	di
+	inc	W_9[di] 		;shorten edge on beginning
+scnst6: ret
+
+scnst1:
+	mov	W_3[ di ], -1
+	xchg	dx, bx			; swap x,y
+	jmp	scnst4	
+scnst2: 	
+	js	scnst3
+	mov	W_2[ di ], 1
+	ret
+scnst3: 
+	mov	W_2[ di ], -1
+	neg	bx			; negate delta x
+	ret
+
+EJECT
+;***********************************************
+;Polygon fill x bucket build subroutine 	
+;		
+;	Entry	edgtbl contains the parameters for the edges of polygon
+;		plycnt = the count of verticies
+;
+;***********************************************
+plyxbk:
+	cmp	barfil, 0ffh		;if Bar fill calling 
+	jnz	plyxb0
+	jmp	plyscl			;   then go just scan out line. 
+plyxb0: mov	di, offset edgary	; point at the x bucket dest
+	mov	si, offset edgtbl	; point at the parm table
+	mov	cx, plycnt		; get the count of parm blocks
+	mov	xbkcnt, 0		; init the x bucket count
+plyxb1:
+	mov	ax, W_8[ si ]		; test if this edge is done
+	mov	ah, al			; save the edge status
+	and	al, 2
+	jnz	plyxb3			; if done then pass it by
+	and	ah, 1
+	jnz	plyxb2			; is it being scanned
+	mov	ax, minyply
+	cmp	ax, W_9[ si ]		; is it time to start this edge
+	jnz	plyxb3
+	mov	W_8[ si ], 1		; else set the edge in process
+	mov	ax, [ si ]
+	mov	[ di ], ax		; move the first point over
+	inc	di
+	inc	di
+	inc	xbkcnt
+	jmp	plyxb3 
+plyxb2:
+	call	scncnv			; scan convert the edge
+plyxb3:
+	add	si, 20			; point at the next edge
+	loop	plyxb1
+	cmp	xbkcnt, 0		; test if any x buckets
+	jz	plyxb4
+	call	plysrt			; else sort and draw lines
+	inc	minyply 		; y=y+1
+	jmp	plyxbk
+plyxb4:
+	ret
+EJECT
+;
+;polygon scan conversion subroutine
+;
+scncnv: 
+	cmp	W_3[ si ], 0		; test if delta x >delta y
+	jnz	scnygx
+scnxgy: 				; dx>dy
+	mov	ax, W_6[ si ]		; get epsilon
+	and	ax, ax
+	js	sxgyne
+	add	ax, W_7[ si ]		; epsilon=epsilon+2dy-2dx
+	mov	W_6[ si ], ax
+	mov	ax, W_2[ si ]
+	add	[ si ], ax		; x=x+xinc
+	mov	ax, [ si ]		; move the new x over
+	mov	[ di ], ax
+	inc	xbkcnt
+	mov	ax, W_4[ si ]
+	cmp	ax, minyply		; see if done with edge
+	jz	scxgy1
+	jc	scxgy0			; test for special case
+	inc	di
+	inc	di
+	ret
+scxgy1:
+	mov	ax, W_10[ si ]		; get the end x
+	mov	[ di ], ax		; move it over
+	inc	di
+	inc	di
+	mov	W_8[ si ], 2		; terminate the edge
+	ret
+scxgy0: dec	xbkcnt
+	mov	W_8[si],2
+	ret
+sxgyne:
+	add	ax, W_5[ si ]
+	mov	W_6[ si ], ax		; epsilon=epsilon+2dy	
+	mov	ax, W_2[ si ]
+	add	[ si ], ax		; x=x+xinc
+	mov	ax, W_4[ si ]		; get the endy
+	cmp	ax, minyply		; test if done
+	jz	scxgyd			; if dx=0 terminate the edge
+	jc	scxgyd0
+	jmp	scnxgy
+scxgyd:
+	inc	xbkcnt
+	jmp	scxgy1			; now terminate the edge
+scxgyd0: mov	W_8[si],2
+	ret
+scnygx:
+	mov	ax, W_6[ si ]		; test if epsilon <0
+	and	ax, ax
+	js	sygxne
+	add	ax, W_7[ si ]
+	mov	W_6[ si ], ax		; epsilon = epsilon + 2dx - 2dy
+	mov	ax, W_2[ si ]
+	add	[ si ], ax		; x=x+xinc
+sygx2:	mov	ax, [ si ]
+	mov	[ di ], ax		; move the new x value over
+	inc	xbkcnt
+	mov	ax, W_4[ si ]		; test if endy = miny
+	cmp	ax,  minyply	
+	jz	sygx1
+	jc	sygx20
+	inc	di
+	inc	di
+	ret
+sygx20: dec	xbkcnt
+	mov	W_8[si],2		; terminate the edge
+	ret
+sygx1:
+	mov	ax, W_10[ si ]
+	mov	[ di ], ax		; move the end x over	
+	mov	W_8[ si ], 2
+	inc	di
+	inc	di
+	ret 
+sygxne:
+	add	ax, W_5[ si ]
+	mov	W_6[ si ], ax
+	jmp	sygx2
+EJECT
+;******************************************************************
+;
+;plysrt sorts the x buckets and draws lines between x pairs
+;
+;******************************************************************
+plysrt:
+	mov	si, offset edgary	; point at the table of x's
+	mov	cx, xbkcnt		; get the count of x's
+	dec	cx
+	jz	psrtdn			; if count = 1 then exit
+	
+plsrt0:
+	mov	bx,1			; init inner count
+plsrt1:
+	push	bx			; calculate index
+	dec	bx
+	shl	bx,1
+	mov	ax, [bx+si]
+	mov	dx, W_2[bx+si]
+	cmp	ax, dx
+	jc	plsrt2
+	mov	[bx+si], dx
+	mov	W_2[bx+si], ax		; swap x's
+plsrt2:
+	pop	bx
+	cmp	cx, bx			; test if inner = outer
+	jz	plsrt3
+	inc	bx
+	jmp	plsrt1
+plsrt3:
+	loop	plsrt0
+	mov	cx, xbkcnt
+	shr	cx,1			; get the count/2
+	mov	si, offset edgary	; point at the array
+	mov	ax, minyply
+plsrt4:
+	mov	bx, [ si ]
+	mov	dx,  W_2[ si ]
+	add	si, 4
+	call	plyscl
+	loop	plsrt4
+psrtdn:
+	ret
+EJECT
+;*********************************************************************
+;
+;plyscl
+;	scan out the horizontal line 
+;
+;	Entry	minyply= current y value
+;		bx= x1 value
+;		dx= x2 value
+;		cx = loop count
+;		CS = DS
+;
+;********************************************************************
+plyscl:
+	push	cx			; save the count
+	push	si			; save the pointer
+	mov	x1, bx
+	mov	x2, dx
+	mov	dx, minyply
+	mov	y1, dx
+	mov	y2, dx
+	mov	al, dl
+	and	al, 3
+	mov	ah, pattern_number
+	cmp	ah, 0ffh		; check if hollow fill
+	jne	plysl1
+	mov	ah, 56			; offset from arstl1 to "SPACE" 
+	jmp	porsch
+plysl1: cmp	ah, 8			; test if second 8 styles
+	jae	plysl2
+porsch: shl	ah, 1
+	shl	ah, 1
+	add	al, ah
+	mov	si, offset arstl1
+	xor	ah, ah
+	add	si, ax
+	mov	ah, [ si ]
+	and	bl, 3			; mask off the 3 lsbits of x
+	jz	plysl3
+	mov	cl, bl
+	call	plyfill_rot		; rotate the style the correct dir
+plysl3: mov	al, ah
+	cmp	polygon_mode,0
+	jne	magnum
+	cmp	poly_bp_1,0
+	jne	premag
+	mov	ax,0
+premag: cmp	back_bp_1,0
+	je	magnum
+	not	ax
+magnum: mov	line_mask, ax
+	mov	ax, y2
+	mov	y1, ax
+	mov	al, polygon_mode
+	mov	line_mode, al		; replace with fill writing mode index
+	mov	al,poly_bp_1
+	mov	line_bp_1,al
+	mov	lstlin, 0ffh		; flag used by XOR. 
+plysl5: push	es
+	call	abline
+	pop	es
+	pop	si
+	pop	cx
+	ret			;done and return
+plysl2:
+	mov	dx, minyply
+	and	dl, 7
+	mov	cl, 3
+	and	ah, 7	
+	sal	ah, cl
+	add	dl, ah
+	mov	si, offset arstl2
+	xor	dh, dh
+	add	si, dx
+	mov	ah, byte ptr[ si ]
+	and	bl, 7
+	mov	cl, bl
+	call	plyfill_rot			;rotate the style
+	jmp	plysl3
+EJECT
+;************************************************************************
+;cellar 								*
+; 10									*
+;	Raster Op primitive NOT SUPPORTED				*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+cellar:
+	ret
+;
+EJECT
+;************************************************************************
+;GDP									*
+; 11									*
+;	Generalized Drawing primitives					*
+;	GDP bar and seed fill are supported				*
+;	uses polygon fill						*
+;									*
+;									*
+;************************************************************************
+gdp:
+	les	di,contrl
+	mov	ax, es: W_6[di]
+	cmp	ax, 1
+	jz	gdpbar			; test if bar
+	cmp	ax,6
+	jnz	gdp_invalid		;test if seed fill
+;	call	seed_fill
+gdp_invalid:
+	ret				; else return
+gdpbar:
+	push	ds
+	pop	es
+	mov	si, offset gdpary
+	lds	di, ptsin		; point at the two cornters of the bar.
+	mov	bx, [ di ]		; get X1
+	mov	es: [ si ], bx
+	mov	es: W_7[ si ], bx
+	mov	ax, W_2[ di ]		; get Y1
+	mov	es:minyply, ax	
+	mov	es: W_2[ si ], ax
+	mov	es: W_4[ si ], ax
+	mov	dx, W_3[ di ]		; get X2
+	mov	es: W_3[ si ], dx
+	mov	es: W_5[ si ], dx
+	mov	cx, W_4[ di ]		; get Y2
+	mov	es: W_6[ si ], cx
+	mov	es: W_8[ si ], cx
+	push	es			; save ptr to gdpary.
+	pop	ds
+	push	es
+	push	si
+	sub	cx, ax
+	inc	cx
+barlp:	push	bx
+	push	dx
+	mov	barfil, 0ffh		; set Bar fill in progress.
+	call	plyxbk
+	mov	barfil, 0
+	pop	dx
+	pop	bx
+	inc	minyply 		; increment y
+	loop	barlp
+	pop	si			; get ptr to gdpary.
+	pop	es
+	mov	cx, 4			; vertex count.
+	call	plydpl			; draw polyline around bar.	
+	ret
+EJECT
+;************************************************************************
+;stchht 								*
+; 12									*
+;	Set text primitive height					*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+stchht:
+	les	di,ptsout
+	mov	es:W_1[ di ], 7
+	mov	es:W_2[ di ], 7 	; return the character size
+	mov	es:W_3[ di ], 8
+	mov	es:W_4[ di ], 8 	; return the cell size
+	les	di,contrl
+	mov	es: W_3[di], 2		; return the number of verticies
+	ret
+EJECT
+;************************************************************************
+;stchup 								*
+; 13									*
+;	Set text primitive baseline					*
+;									*
+;	sets rotation to 1 of four directions				*
+;	saves result in chup						*
+;									*
+;************************************************************************
+stchup: les	di,intin
+	mov	ax,es:[di]
+	cmp	ax,450
+	ja	ninety
+	mov	ax,0
+	jmps	stchupdone
+ninety: cmp	ax,1350
+	ja	one_eighty
+	mov	ax,900
+	jmps	stchupdone
+one_eighty:
+	cmp	ax,2250
+	ja	two_seventy
+	mov	ax,1800
+	jmps	stchupdone
+two_seventy:
+	cmp	ax,3150
+	ja	zero
+	mov	ax,2700
+	jmps	stchupdone
+zero:	mov	ax,0
+stchupdone:
+	mov	chup,ax
+	les	di,intout
+	mov	es:[di],ax		;return angle realized
+	les	di,contrl
+	mov	es:W_5[di],1		;one integer out
+	ret
+;
+include mon2mmob.a86
+

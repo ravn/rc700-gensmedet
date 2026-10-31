@@ -1,5 +1,26 @@
 # Build all 13 CP/M BIOSes from source
 
+## DRI 1983 skeleton-guide comparison (2026-10-31)
+
+- [x] Retain CP/M-86 monochrome/color skeleton and test-suite documentation.
+- [x] Check named package files against workspace and adjacent web indexes;
+  the A86/OBJ files themselves remain unfound.
+- [x] Independently decode original H1 ESCAPE targets and cursor sequences;
+  record verified skeleton-name mappings and incorrect current labels.
+- [x] Document MODETEST/pen-zero and boundary tests without claiming execution.
+  See `rc759-gsx/notes/05-dri-skeleton-guides.md`.
+
+## Plan: historical GSX-86 source comparison (2026-10-31)
+
+- [x] Retain original-driver reference files, dependencies and provenance;
+  distinguish GIOS11 disassembled sources from later ports and FreeGEM.
+- [x] Compare entry ABI, capability tables, fonts, trigonometry, pixel modes,
+  line masks, fill tiles and XIOS use with the reconstructed H1.
+- [x] Document verified facts and remaining uncertainty in
+  `rc759-gsx/notes/04-gsx11-source-comparison.md`; correct stale source/ABI notes.
+- [x] Rebuild the comment-only changes and verify all 8,576 bytes, including
+  relocations, still match the original; compare retained source copies.
+
 ## Plan: RC759 GSX-86 byte-identical reconstruction (2026-10-31)
 
 - [x] Add and run a persistent comparator for the H1 original SYS versus the

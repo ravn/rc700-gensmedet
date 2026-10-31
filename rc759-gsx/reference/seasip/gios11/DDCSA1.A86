@@ -1,0 +1,206 @@
+
+XRESMX		equ	1023	; X - maximum resolution
+YRESMX		equ	767	; Y - maximum resolution
+XSIZE		equ	227	; Pixel width
+YSIZE		equ	227	; Pixel height
+CROSSHAIR_W	equ	100	; Crosshair width
+CROSSHAIR_H	equ	100	; Crosshair height
+MARK2_SIZE	equ	4	; Marker 2 size
+
+NUM_COLORS	equ	16	; Colour depth
+TWOHEAD		equ	0	; Graphice and text are separate 'heads'?
+NEEDSFLUSH	equ	0	; 'Flush' function needs callling after draw?
+
+GRAPH_PLANE	equ	0B800h
+PLANE_SIZE	equ	02000h
+
+GDC_COMMAND	equ	02F1h	; NEC 7220 GDC command register
+GDC_PARAM	equ	02F0h	; NEC 7220 GDC parameter register
+
+;
+; NEC 7220 GDC commands 
+;
+CMD_BCTRL	equ	0Ch	; BCTRL command (blank / unblank screen)
+CMD_SYNC	equ	0Eh	; SYNC command 
+CMD_WDAT	equ	20h
+CMD_ZOOM	equ	46h	; ZOOM command (set scaling)
+CMD_PITCH	equ	47h
+CMD_CURS	equ	49h
+CMD_GMASK	equ	4Ah
+CMD_CCHAR	equ	4Bh
+CMD_FIGS	equ	4Ch
+CMD_GCHARD	equ	68h
+CMD_START	equ	6Bh
+CMD_FIGD	equ	6Ch
+CMD_VSYNCM	equ	6Fh
+CMD_PRAM	equ	70h
+CMD_RDAT	equ	0A0h	; RDAT: Read data
+
+
+;
+; WDAT modes
+;
+WDAT_REPLACE	equ	0
+WDAT_COMPLEMENT	equ	1
+WDAT_RESET	equ	2
+WDAT_SET	equ	3
+
+
+		include	macros.inc
+		include	csa10.inc
+		include	common1.inc
+
+		include	font0.inc
+
+		dseg
+
+xincrements	dw	1, 1, 0, -1, -1, -1,  0,  1
+yincrements	dw	0, 1, 1,  1,  0, -1, -1, -1
+MAP_COL		dw	0, 9, 12, 10, 14, 13, 11, 15
+		dw	8, 1,  4,  2,  6,  5,  3,  7
+RMAP_COL	dw	0, 9, 11, 14, 10, 13, 12, 15
+		dw	8, 1,  3,  6,  2,  5,  4,  7
+
+initreds	dw	   0, 1000,    0,    0,    0, 1000, 1000, 1000
+		dw	 333,  666,  333,  333,  333,  666,  666,  666 
+initgreens	dw	   0,    0, 1000,    0, 1000, 1000,    0, 1000
+		dw	 333,  333,  666,  333,  666,  666,  333,  666
+initblues	dw	   0,    0,    0, 1000, 1000,    0, 1000, 1000
+		dw	 333,  333,  333,  666,  666,  333,  666,  666
+
+
+fill_patterns	dw	0FFh, 0FFh, 000h, 000h, 000h, 000h, 0FFh, 0FFh 
+		dw	0C3h, 0C3h, 0C3h, 0C3h, 0C3h, 0C3h, 0C3h, 0C3h 
+		dw	0C3h, 0E1h, 0F0h, 078h, 03Ch, 01Eh, 00Fh, 087h
+		dw	087h, 00Fh, 01Eh, 03Ch, 078h, 0F0h, 0E1h, 0C3h
+		dw	099h, 099h, 066h, 066h, 099h, 099h, 066h, 066h
+		dw	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+		dw	000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h 
+
+line_patterns	dw	0FFh, 0FFh	;----------------
+		dw	0F0h, 00Fh	;----        ----
+		dw	088h, 088h	;-   -   -   -   
+		dw	0E1h, 00Fh	;---    -    ----
+		dw	0C3h, 0C3h	;--    ----    --
+		dw	0E2h, 047h	;---   -  -   ---
+		dw	099h, 099h	;-  --  --  --  -
+
+DEV_TAB		dw	XRESMX			; X resolution
+		dw	YRESMX			; Y resolution
+		dw	1			; Character scaling
+		dw	XSIZE			; Pixel	width
+		dw	YSIZE			; Pixel	height
+		dw	16			; Character sizes
+		dw	7			; Line styles
+		dw	1			; Line widths
+		dw	5			; Marker types
+		dw	16			; Marker sizes
+		dw	1			; Text fonts
+		dw	5			; Area patterns
+		dw	5			; Crosshatch patterns
+		dw	NUM_COLORS		; Number of colours
+		dw	1			; Number of GDPs
+		dw	1			; GDP 1	= bar
+		dw	0FFFFh, 0FFFFh, 0FFFFh
+		dw	0FFFFh, 0FFFFh, 0FFFFh
+		dw	0FFFFh, 0FFFFh, 0FFFFh
+		dw	3			; GDP attributes
+		dw	0FFFFh, 0FFFFh, 0FFFFh
+		dw	0FFFFh, 0FFFFh, 0FFFFh
+		dw	0FFFFh, 0FFFFh, 0FFFFh
+
+		if 	NUM_COLORS gt 2
+		 dw	1			; Colour capability
+		else
+		 dw	0			; Colour capability
+		endif
+		dw	1			; Text rotation?
+		dw	0			; Polygon fill?
+		dw	1			; Cell array?
+		dw	NUM_COLORS		; Palette size
+		dw	1			; Number of locators
+		dw	0			; Number of valuators
+		dw	1			; Number of choices
+		dw	1			; Number of strings
+		dw	2			; Workstation type
+SIZ_TAB		dw	0, 7			; DATA XREF: v_opnwk+55o
+					; Min char height
+		dw	0, 15		; Max char height
+		dw	1, 0			; Min line width
+		dw	1, 0			; Max line width
+		dw	0, 5			; Min marker height
+		dw	0, 75			; Max marker height
+
+init_scr	db	1Bh,	3Ah, 3Bh, 1Bh, 70h, 0, 1Bh, 3Ah, 3Ch, 1Bh, 71h,	0, 1Bh,	3Ah, 3Dh
+					; DATA XREF: v_opnwk+220o
+		db	1Bh,	72h, 0,	1Bh, 3Ah, 3Eh, 1Bh, 73h, 0, 1Bh, 3Ah, 3Fh, 1Bh,	74h, 0
+		db	1Bh,	3Ah, 40h, 1Bh, 75h, 0, 1Bh, 3Ah, 41h, 1Bh, 76h,	0, 1Bh,	3Ah, 42h
+		db	1Bh,	77h, 0,	1Bh, 3Ah, 43h, 1Bh, 78h, 0, 1Bh, 3Ah, 44h, 1Bh,	79h, 0
+		db	1Bh,	3Ah, 48h, 1Bh, 41h, 0, 1Bh, 3Ah, 4Bh, 1Bh, 44h,	0, 1Bh,	3Ah, 4Dh
+		db	1Bh,	43h, 0,	1Bh, 3Ah, 50h, 1Bh, 42h, 0, 1Bh, 3Ah, 52h, 1Bh,	52h, 0
+
+esc_a		db	1Bh,	'A'             ; DATA XREF: v_curup+1Co
+esc_b		db	1Bh,	'B'             ; DATA XREF: v_curdown+1Co
+					; v_eeos+57o
+esc_c		db	1Bh,	'C'             ; DATA XREF: v_curright+1Co
+esc_d		db	1Bh,	'D'             ; DATA XREF: v_curleft+1Co
+esc_h		db	1Bh,	'H'             ; DATA XREF: v_enter_cur+Bo
+					; v_curhomeo
+		db	1Bh,	'J'
+esc_k		db	1Bh,	'K'             ; DATA XREF: v_eeoso v_eeos+66o
+					; ...
+esc_y		db	1Bh,	'Y'             ; DATA XREF: v_eeos+1Bo v_eeos+81o
+					; ...
+esc_rvon	db	1Bh,	'b', '`'        ; DATA XREF: v_rvono
+		db	1Bh,	'c', 'g'
+esc_rvoff	db	1Bh,	'b', 'g'        ; DATA XREF: v_rvoffo
+		db	1Bh,	'c', '`'
+
+marker_asc	db	'.+*ox'
+marker_cx	dw	4,5,6,5,5
+marker_cy	dw	4,9,9,7,7
+
+		include	font.inc		; Yes, again!
+
+text_params	dw	-1, 7, 0, 6, 0, 6, 0
+getpix_params	dw	2, 1, 0
+		include	csa12.inc
+
+		cseg
+
+
+
+		include	csa13.inc
+
+		cseg
+
+	dseg
+		dw	0FFFFh
+text_cury	dw	1FFh
+text_curx	dw	100h
+registers	dw	0, 100h, 1000h, 100h, 0, 100h, 100h, 200h, 0
+		dw	700h, 0, 0F00h, 0, 0, 0, 0, 0, 0, 0, 0
+banner	db	'--------------------------------------------------'
+	db	0Dh,0Ah
+	db	'DDCSA1  Control Systems Artist I    18 Mar 83 V1.1',0Dh,0Ah
+	db	'Serial No. 1024-0000-003178    All Rights Reserved',0Dh,0Ah
+	db	'Copyright (c) 1983  Graphic Software Systems, Inc.',0Dh,0Ah
+	db	'--------------------------------------------------',0Dh,0Ah
+	db	1Ah
+
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh
+
+		end 

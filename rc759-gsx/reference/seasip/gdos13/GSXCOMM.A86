@@ -1,0 +1,406 @@
+	Title	'GSX_Comm  GSX-86 Character I/O Module (CP/M-86)'
+
+; Ch[7..4]	Layer number	1
+; Ch[3..0]	Function code	5 (GSX-86 Pass Through)
+; Dx	Dx	Datum to Send or Receive if appropriate subfunction and status
+; Bl		Channel number	0..MAXCHAN
+; Bh		Subfunction:
+;		  0:	Reset channel	(unimplemented)
+;		  1:	Immediately return receive READY status (Dx unchanged)
+;		  2:	Wait until receive channel READY, then return
+;			  receive status and datum
+;		  3:	Immediately return receive status; if receive channel
+;			  READY, then return datum also else Dx unchanged
+;		  4:	Reserved
+;		  5:	Immediately return send READY status
+;		  6:	Wait until send channel READY, then send datum
+;			  and return send status
+;		  7:	Immediately return send status; if send channel READY,
+;			  then send datum also
+;	Ax	Status of channel (bits):
+;		 On both send and receive subfunctions:
+;		  0000 0000 0000 0000	Channel not ready.  Dx unchanged.
+;		  1xxx xxxx xxxx xxxx	Ready.  Datum sent or received if
+;					 not status only subfunction.
+;		  1X.. .... .... ....	1:  No connection to channel
+;		 On receive subfunctions:
+;		  1.X. .... .... ....	1:  EOF received (if supported)
+;		  1... .... .... .X..	1:  Framing error on received datum
+;		  1... .... .... ..X.	1:  Overrun error on received datum
+;		  1... .... .... ...X	1:  Parity error on received datum
+;		 On send subfunctions:
+;		  1.X. .... .... ....	1:  On channels with send queuing in
+;					     either software or hardware, send
+;					     queue neither full nor empty;
+;					     i.e. not all data enqueued has
+;					     been sent
+;		  			0:  Send queue (if any) empty
+; Bh		Subfunction:
+;		  8:	Read buffer	(currently only works on Con:)
+;					Does Bdos 10 into Ds:Dx
+;	Flags	As if "Or Ax,Ax" had been done just before returning.
+
+; Send or receive the character (up to 16 bits) in Dx according to the
+; subfunction in Bx.
+
+; Note that no other registers than the ones specified above are changed.  In
+; particular, the direction flag is not changed.
+
+; By convention for 8-bit serial devices a BREAK is sent as 0fffeh (-2) in
+; Dx.  A received BREAK can be either 0fffeh (-2) in Dx or 0 in Dx with the
+; Framing Error bit set in Ax.
+
+; Note that if no device is assigned to the channel the status always returns
+; with READY and NO_ CONNECTION.  On Send, data sent goes away.  On receive,
+; data received is always 0001ah (^Z) and the EOF bit is set.
+
+; This routine entered as if Callf with above.  It returns with a Retf.
+; Approximately 28 words of stack space are required in the caller.
+
+	Eject
+
+Bdos_Int	Equ	224	; Bdos interrupt number
+
+MAXCHANNEL	Equ	7
+MAXFUNCTION	Equ	8
+
+Ready_Bit	Equ	08000h
+No_Conn_Bit	Equ	04000h
+EOF_Bit		Equ	02000h
+Framing_Bit	Equ	00004h
+Overrun_Bit	Equ	00002h
+Parity_Bit	Equ	00001h
+
+Queue_NotMT_Bit	Equ	02000h
+
+	Eject
+
+GSX_Comm_Code	CSeg	Para	Public
+
+Comm_Begin	Rb	0
+
+Nul_Bit		Equ	0	; Nul: is zero in map
+Con_Bit		Equ	1
+Aux_Bit		Equ	2
+Lst_Bit		Equ	4
+
+Channel_to_Device_Map	Dw	Con_Bit	; Channel 0 is Con:
+			Dw	Aux_Bit	; Channel 1 is Axi:/Axo:
+			Dw	Lst_Bit	; Channel 2 is Lst:
+			Dw	Con_Bit	; Channel 3 is Con: (graphics)
+			Dw	Aux_Bit	; Channel 4 is Axi:/Axo: (graphics)
+			Dw	Lst_Bit	; Channel 5 is Lst: (graphics)
+			Dw	Nul_Bit	; Channel 6 is not connected
+			Dw	Nul_Bit	; Channel 7 is not connected
+
+Vector	Dw	Offset Nul_TStat	; Return Ax[15] Ready
+	Dw	Offset Nul_TData	; Assume Ready; send Dx data
+	Dw	Offset Nul_RStat	; Return Ax[15] Ready
+	Dw	Offset Nul_RData	; Return Ax[15] Ready; Dx data if so
+
+	Dw	Offset Always_Ready
+	Dw	Offset Con_TData
+	Dw	Offset Con_RStat
+	Dw	Offset Con_RData
+
+	Dw	Offset Always_Ready
+	Dw	Offset Aux_TData
+	Dw	Offset Always_Ready
+	Dw	Offset Aux_RData
+
+	Dw	Offset Always_Ready
+	Dw	Offset Lst_TData
+	Dw	Offset Nul_RStat
+	Dw	Offset Nul_RData
+
+	Eject
+
+	Public	GSX_Comm
+GSX_Comm:
+	Pushf			; Save caller's flags
+	Push	Bx		;  & registers
+	Push	Cx
+	Push	Dx
+	Push	Si
+	Push	Di
+	Push	Ds
+	Push	Es
+	Push	Bp
+	Mov	Bp,Sp		; Make local frame
+
+Old_Bp		Equ	Ss:(Word Ptr 0)[Bp]	; Caller's registers
+Old_Es		Equ	Old_Bp+2
+Old_Ds		Equ	Old_Es+2
+Old_Di		Equ	Old_Ds+2
+Old_Si		Equ	Old_Di+2
+Old_Dx		Equ	Old_Si+2
+Old_Cx		Equ	Old_Dx+2
+Old_Bx		Equ	Old_Cx+2
+Old_Flags	Equ	Old_Bx+2
+
+	Eject
+
+Switch:
+	Mov	Ax,0ffffh	; Assume error in channel or function
+
+	Mov	Si,Bx		; Si <- channel #
+	And	Si,0ffh		; Mask to just channel
+	Cmp	Si,MAXCHANNEL	; Valid channel?
+	Ja	Error_Quit	; Quit if no
+
+	Mov	Bl,Bh		; Bx <- Subfunction
+	Mov	Bh,0
+	Cmp	Bl,MAXFUNCTION	; Valid function?
+	Ja	Error_Quit	; Quit if no
+
+	Shl	Si,1		; Channel is word index
+	Mov	Cx,Cs:Channel_to_Device_Map[Si]; Get device bit map
+
+	Shl	Bx,1		; Subfunction is word index
+
+	Sub	Di,Di		; Device index starts at 00000h
+
+	Sub	Ax,Ax		; Start with Not Ready assumed
+
+; Ax:	Not Ready assumed
+; Bx:	Subfunction*2
+; Cx:	Channel_to_Device bitmap
+; Si:	Channel*2
+; Di:	Device index (initially 00000h)
+
+	Call	Cs:Call_Vector[Bx]; Vector on subfunction
+
+Error_Quit:
+	Pop	Bp		; Restore caller's registers
+	Pop	Es		;   -- possibly changed
+	Pop	Ds
+	Pop	Di
+	Pop	Si
+	Pop	Dx
+	Pop	Cx
+	Pop	Bx
+	Popf
+
+	Or	Ax,Ax		; Set caller's flags
+	Retf			;  & return to caller
+
+	Eject
+
+; Scan status of devices connected to channel.  Return status of first one
+; found Ready, or, if none Ready, Not Ready.  If no devices connected,
+; return Ready via Nul_RStat.
+
+Rx_IStat:		;  1  Rx immediate status only
+	And	Ah,07fh		; Assume devs are Not Ready
+	Jcxz	Rx_IStat_Call	; Call for Nul: if nothing connected
+
+Rx_IStat_Loop:
+	Add	Di,8		; Point to next device table entry
+	Shr	Cx,1		; Shift next connection bit into carry
+
+	Ja	Rx_IStat_Loop	; Spin if ~C&~Z -- not this dev & more to try
+
+	Jnb	Rx_IStat_Ret	; Quit if ~C&Z -- out of devices
+
+Rx_IStat_Call:
+	Call	Cs:Vector+4[Di]	; Fetch this device status
+
+	Jns	Rx_IStat_Loop	; Next dev if this Not Ready
+
+Rx_IStat_Ret:
+	Or	Ax,Ax		; Set S flag to Ready
+	Ret			; Return Not Ready or first Ready
+
+; Use Rx_IStat to wait for first device ready.  Then get the character
+; from that device.
+
+Rx_WData:		;  2  Rx wait for data and status
+	Mov	Di,2		; Point at RData routine pointer
+	Push	Cx		; Save Channel_to_Device_Map
+	Call	Rx_IStat	; Get a character if Ready
+	Pop	Cx		; Restore Channel_to_Device_Map
+	Jns	Rx_WData	; Retry if not ready
+	Mov	Old_Dx,Dx	; Ready -- return character to caller
+	Ret			; Return Ready and Data
+
+; Use Rx_IStat to see if some device is Ready.  If so, read from the
+; device.
+
+Rx_IData:		;  3  Rx immediate status; data if available
+	Mov	Di,2		; Point at RData routine pointer
+	Call	Rx_IStat	; Get a character if Ready
+	Jns	Rx_IData_Return	; Quit if not ready
+	Mov	Old_Dx,Dx	; Ready -- return character to caller
+
+Rx_IData_Return:
+	Ret			; Return Ready and Data or Not Ready
+
+	Eject
+
+; Scan status of devices connected to channel.  Return status of Ready if all
+; are found Ready, of, if one or more is Not Ready, Not Ready.  If no device
+; is connected, return Ready via Nul_RStat.
+
+Tx_IStat:		;  5  Tx immediate status only
+	Jcxz	Tx_IStat_Call	; Call for Nul: if nothing connected
+
+Tx_IStat_Loop:
+	Add	Di,8		; Point to next device table entry
+	Shr	Cx,1		; Shift next connection bit into carry
+
+	Ja	Tx_IStat_Loop	; Spin if ~C&~Z -- not this dev & more to try
+
+	Jnb	Tx_IStat_Ret	; Quit if ~C&Z -- out of devices
+
+Tx_IStat_Call:
+	And	Ah,07fh		; Assume devs are Not Ready
+	Call	Cs:Vector[Di]	; Fetch this device status
+
+	Js	Tx_IStat_Loop	; Next dev if this Ready
+
+Tx_IStat_Ret:
+	Or	Ax,Ax		; Set S flag to Ready
+	Ret			; Return Not Ready or All Ready
+
+; Spin until all devices are Ready.  Then send each the character.
+
+Tx_WData:		;  6  Tx wait until ready, send, status
+	Push	Cx		; Save Channel_to_Device_Map
+	Sub	Di,Di		; Start with Nul:
+	Call	Tx_IStat	; Look at device status
+	Pop	Cx		; Restore original Channel_to_Device_Map
+	Jns	Tx_WData	; Spin until ALL Ready
+
+Tx_GData:
+	Mov	Di,2		; Start with Nul_TData
+	Call	Tx_IStat	; Poop out to all devices
+	Ret			;  & return
+
+; Use Tx_IStat to see if all devices are Ready.  If so, send the character.
+
+Tx_IData:		;  7  Tx immediate status; send if ready
+	Call	Tx_IStat	; See if all devices Ready
+	Js	Tx_GData	; If so, send to all
+	Ret			;  else return 
+
+Error:	Dec	Ax		; Return -1 in Ax if bad function
+
+Reset:	Ret			; Return with value in Ax
+
+; ********************* T E M P O R A R Y ************ (sure...)
+Get_Buffer:
+	Mov	Cl,10		; Bdos "Get Console Buffer" function
+	Int	Bdos_Int	; Get buffer
+	Jmps	Always_Ready	; Return Ready on
+
+	Eject
+
+Nul_RStat:			; Received status of Nul:
+	Or	Ax,EOF_Bit	; Receive from Nul: gives EOF
+
+Nul_TStat:
+	Or	Ax,No_Conn_Bit	; Nul: never connected
+
+Always_Ready:
+
+Nul_TData:
+	Or	Ax,Ready_Bit	; If no status avail from Bdos, always ready
+	Ret
+
+Nul_RData:
+	Mov	Dx,0001ah	; ^Z is only char received from Nul:
+	Jmps	Nul_TData	; Set Ready & return
+
+Con_RStat:
+	Push	Dx		; Save caller's Dx
+	Mov	Dh,6		; Bdos "Direct Console I/O" function
+	Mov	Dl,0feh		; Enquire status subfunction
+	Call	All_RData	; Use common Bdos caller
+
+	And	Dl,080h		; Dh <- ready ? 080h : 000h
+
+	Or	Ah,Dl		; Turn on Ready_Bit if Con: ready
+	Pop	Dx		; Restore caller's Dx
+	Ret
+
+	Eject
+
+Aux_RData:
+	Mov	Dh,3		; Bdos "Get Axi: Character" function
+	Call	All_RData	; Get data
+	Or	Ax,Ready_Bit	; Force status ready
+	Ret			;  & return
+
+Con_RData:
+	Mov	Dh,6		; Bdos "Direct Console I/O" function
+	Mov	Dl,0ffh		; Bdos "Get Console Character" subfunction
+	Call	All_RData	; Get status and data
+	Or	Dx,Dx		; Ready?
+	Jz	Con_RData_Return; Return if not
+	Or	Ax,Ready_Bit	; Set Ready in Ax
+
+Con_RData_Return:
+	Ret			; Return with Ready in Ax[15] and data in Dx
+
+All_RData:
+	Push	Ax		; Save registers
+	Push	Bx
+	Push	Cx
+	Push	Si
+	Push	Di
+
+	Mov	Cl,Dh		; Bdos function into Cl
+	Int	Bdos_Int	; Bdos Get Character from somewhere
+
+	Mov	Dl,Al		; Character into Dl
+	Mov	Dh,000h		; Clear high half
+
+	Pop	Di
+	Pop	Si
+	Pop	Cx
+	Pop	Bx
+	Pop	Ax
+	Ret
+
+	Eject
+
+Lst_TData:
+	Push	Dx		; Save caller's Dx
+	Mov	Dh,5		; Bdos "List Output" function
+	Jmps	All_TData	; Go to common put
+
+Aux_TData:
+	Push	Dx		; Save caller's Dx
+	Mov	Dh,4		; Bdos "Axo: Output" function
+	Jmps	All_TData	; Go to common put
+
+Con_TData:
+	Push	Dx		; Save caller's Dx
+	Mov	Dh,6		; Bdos "Direct Console I/O" function
+
+All_TData:
+	Call	All_RData	; Poop out a character
+	Or	Ax,Ready_Bit	; Flag device as Ready for looping
+	Pop	Dx		; Restore caller's Dx
+	Ret			;  & return
+
+	Eject
+
+Call_Vector	Rw	0	; Vectors to each subfunction
+	Dw	Offset Reset	;  0  Reset channel
+	Dw	Offset Rx_IStat	;  1  Rx immediate status only
+	Dw	Offset Rx_WData	;  2  Rx wait for data and status
+	Dw	Offset Rx_IData	;  3  Rx immediate status; data if available
+	Dw	Offset Error	;  4  (Reserved)
+	Dw	Offset Tx_IStat	;  5  Tx immediate status only
+	Dw	Offset Tx_WData	;  6  Tx wait until ready, send, status
+	Dw	Offset Tx_IData	;  7  Tx immediate status; send if ready
+	Dw	Offset Get_Buffer; 8  Bdos "Get Console Buffer" call
+
+Comm_Here	Rs	0
+
+			Public	GSX_Comm_Paragraphs
+GSX_Comm_Paragraphs	Equ	((Offset Comm_Here)-(Offset Comm_Begin)+15)/16
+
+	End
+

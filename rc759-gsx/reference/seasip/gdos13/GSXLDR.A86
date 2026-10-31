@@ -1,0 +1,893 @@
+
+GSX_Code	CSeg	Para	Public
+
+		Extrn	GSX_Entry_0	:Far
+		Extrn	Old_Vector_0	:DWord
+		Extrn	GSX_Entry_1	:Far
+		Extrn	Old_Vector_1	:DWord
+		Extrn	Load_GSX	:Far
+		Extrn	MAXPROC		:Abs
+		Extrn	Version		:Word
+ 		Extrn	ProcFCB		:Byte
+		Extrn	Assign_Table	:Byte
+		Extrn	HowBound	:Byte
+		Extrn	UnBound		:Abs
+		Extrn	BasePageSegment	:Word
+		Extrn	ModuleSize	:Word
+		Extrn	GSX_Size	:Abs
+		Extrn	GSX_Base	:word
+		Extrn	GSX_Length	:Word
+		Extrn	MRT_Ptr		:Dword
+		Extrn	MRT_Offset	:Word
+		Extrn	Bdos_Base	:Word
+                Extrn	M_Base		:Word
+	        Extrn	M_Length	:Word
+		Extrn	M_Ext		:Byte
+
+		Extrn	Q_ERROR_MSG	:Byte
+		Extrn	GSX_QD		:Word
+		Extrn	GSX_QD_NAME	:Byte
+		Extrn	GSX_QD_MSGLEN	:Word
+		Extrn	GSX_QD_NMSGS	:Word
+		Extrn	GSX_QPB		:Word
+		Extrn	GSX_QPB_NMSGS	:Word
+		Extrn	GSX_QPB_BUFFER	:Word
+		Extrn	GSX_QPB_NAME	:Byte
+		Extrn	Q_MSG_OFF	:Word
+		Extrn	Q_MSG_SEG	:Word
+		Extrn	WAIT_FLAG	:Byte
+		Extrn	RSXPCB		:Word
+		Extrn	No_Load		:Byte
+		Extrn	Loaded_GSX_Base	:Word	
+		Extrn	GSX_Paragraphs	:Word	
+		Extrn	Old_GSX_Base	:Word	
+		Extrn	Old_GSX_Paragraphs :Word
+		Extrn	All_Paragraphs	:Word
+
+GSX_Comm_Code	CSeg	Para	Public
+		Extrn	GSX_Comm	:Far
+		Extrn	GSX_Comm_Paragraphs	:Abs
+
+Graphics_Code	CSeg	Para	Public
+;
+;	GSX loader and initilizer
+;
+;	19 December 1983
+;
+	Pagewidth	132
+Bdos_Int	Equ	224		; Int value for Bdos
+Gdos_Int	Equ	Bdos_Int	; Int value for Gdos
+Gdos_Function	Equ	115		; Cl value for Gdos
+
+Gdos_V		Equ	Gdos_Int*4
+
+Gdos_Vector	Equ	DWord Ptr .Gdos_V	; Gdos interrupt vector
+
+CSeg_Base	Equ	Word Ptr .0003h	; Seg of code bucket base
+DSeg_Base	Equ	Word Ptr .0009h	; Seg of data bucket base
+ESeg_Base	Equ	Word Ptr .000fh	; Seg of extra bucket base
+SSeg_Base	Equ	Word Ptr .0015h	; Seg of stack bucket base
+
+AssignFCB	Equ	Byte Ptr .05CH  ; FCB Area in Base Page
+AssignBuff	Equ	Byte Ptr .80H	; DMA Area in Base Page
+AssignBuffLoc	Equ	Byte Ptr .100H 	; Pointer to current character being 
+
+CPM	equ	0
+MPM	equ	1
+CCPM	equ	4
+CPMPLUS	equ	30H
+
+CPM_Version	equ	0001
+CPMPLUS_Version equ	0002
+MPM_Version	equ	0003
+CCPM_Version	equ	0004
+
+SetupRSX	equ	192	; RSX subfunction code to intercept GDOS calls
+RSXTermret	equ	193	; RSX subfunction number to release GSX at
+RSXTermdie	equ	194	; segment and offset specified in RSXPCB block
+				; and release the RSX
+ErrorCode1	Equ	1
+ErrorCode2	Equ	2
+ErrorCode3	Equ	3
+ErrorCode4	Equ	4
+ErrorCode5	Equ	5
+ErrorCode6	Equ	6
+ErrorCode7	Equ	7
+ErrorCode8	Equ	8
+ErrorCode9	Equ	9
+ErrorCode10	Equ	10
+ErrorCode11	Equ	11
+
+; Graphics	Load and initialize GSX-86
+
+
+	Public	Graphics
+
+Graphics_Loader:
+Graphics:
+	Pushf				; Save flags
+	Pop	Si			;  in register
+	Cli				; Disable interrupt
+	Mov	Ss,SSeg_Base		; Get base of stack
+	Mov	Sp,Offset Top_Stack	;  & offset
+	Push	Si			; Put flags back
+	Popf				;  to leave interrupt enable unchanged
+	
+	Mov	Ax,Es
+	Mov	Es:GSX_Base,Ax
+
+	Mov	Cl,0CH			; Bdos "Return Version Number" funct
+	Push	Es
+	Int	Bdos_Int
+	And	Bh,1101B		; Turn off CPU nibble & networking bit
+	Cmp	bh,CPM
+	Je	Start_All_CPM
+	Cmp	bh,MPM
+	Je	Start_MPM
+	Cmp	bh,CCPM
+	Je	Start_CCPM
+Start_All_CPM:
+	Cmp	Bl,CPMPLUS
+	Jae	Start_CPMPlus
+	Mov	Ax,Es
+	Pop	Es
+	Mov	Es:Bdos_Base,Ax		; Save Bdos base (for CP/M-86)
+	Push	Es
+Start_CPM:
+	Mov	Bx,CPM_Version
+	Jmps	Common_Start
+Start_CPMPlus:
+	Mov	Bx,CPMPLUS_Version
+	Jmps	Common_Start
+Start_MPM:
+	Mov	Bx,MPM_Version
+	Jmps	Common_Start
+Start_CCPM:
+	Mov	Bx,CCPM_Version
+Common_Start:
+	Pop	Es
+	Mov	Es:Word Ptr Version,Bx; Save version number, OS type in GSX 
+	
+	Cmp	Bx,CPM_Version			;;CP/M ?
+	Je	DO_SIGN_ON			;;if CP/M then leap
+	Cmp	Bx,CPMPlus_Version			
+	Je	DO_SIGN_ON			;
+
+	Mov	CL,09CH				;;RETURN PD ADDRESS
+	Push	Es
+	Int	Bdos_Int			;;bang the button
+	Or	ES: byte ptr .6[BX],011B	;;turn on the KEEP and SYSTEM flags
+	Pop	Es
+
+DO_SIGN_ON:
+	Mov	Dx,Offset Sign_On	; Point to signon message
+	Mov	Cl,009h			; Bdos "Print String" function
+	Push	Es
+	Int	Bdos_Int		; Show signon message
+	Pop	Es
+	Mov	Bx,0			; Start at beginning of cmd line
+
+Skip_Command_Blanks:
+	Inc	Bx			; Bump to next character
+	Cmp	Bl,Byte Ptr .00080h	; Check against character count
+	Ja	Command_Done		; Quit if no command
+
+	Mov	Al,Byte Ptr .00080h[Bx]	; Get next command character
+
+	Cmp	Al,' '			; Blank?
+	Je	Skip_Command_Blanks	; Skip if so
+	Cmp	Al,8			; Tab?
+	Je	Skip_Command_Blanks	; Skip if so
+
+	Cmp	Al,';'			; Comment? i.e. null command?
+	Je	Command_Done		; Jump if yes
+
+	Cmp	Al,'A'			; Possible d:?
+	Jb	Not_Drive		; Jump if no
+
+	Cmp	Al,'P'			; Still possible d:?
+	Ja	Not_Drive		; Jump if no
+
+	Cmp	Byte Ptr .00081h[Bx],':'; Followed by ":"?
+	Jne	Not_Drive		; Jump if no
+
+; d: found
+	Sub	Al,'@'			; Force 1..16 from A..P
+	Mov	Default_Drive,Al	; Save default drive declared
+	Jmps	Command_Done		;  & go load GSX
+
+Not_Drive:
+	Cmp	Al,'N'			; "Graphics No"?
+	Jne	Command_Syntax_Error	; Jump if error in command
+
+	Mov	Es:No_Load,1		; Set switch so GSX won't load
+	Jmps	Command_Done		;  & go kill GSX if present
+
+Command_Syntax_Error:
+	Mov	Cl,Byte Ptr .00080h	; Get character count
+	Sub	Ch,ch			; Clear high half
+	Sub	Si,Si			; Start with index of zero
+
+Syntax_Error_Loop_0:
+	Mov	Dl,Byte Ptr .00081h[Si]	; Get a byte to show
+	Inc	Si			; Point to next
+	Call	ShowCh			; Show the character
+	Loop	Syntax_Error_Loop_0	;  & loop until all shown
+
+	Mov	Dl,13			; Show Cr
+	Call	ShowCh
+	Mov	Dl,10			;  & Lf
+	Call	ShowCh
+	Mov	Cx,Bx			; Need to put out (Bx) spaces
+	Jcxz	Syntax_Error_Show	; Jump if no spaces
+
+Syntax_Error_Loop_1:
+	Mov	Dl,' '			; Show a space
+	Call	ShowCh			;  via Bdos
+	Loop	Syntax_Error_Loop_1	;  & loop until proper number shown
+
+Syntax_Error_Show:
+	Mov	Dx,ErrorCode1		; Point to "^ syntax error"
+	Jmp	ErrorRoutine		; Show the error and quit
+
+Command_Done:
+	Cmp	Es:No_Load,0		; New GSX needed?
+	Je	$+8
+	Mov	Dx,ErrorCode2
+	Jmp	ErrorRoutine
+
+Open_Assign:					; open the Assign.SYS file
+	Mov	Si,Offset AssignName	; Point to ASSIGN.SYS drive, name, etc.
+	Mov	Cx,12			; Move 12 bytes of drive, name, ext
+	Lea	Di,AssignFcb+1		; Point to ASSIGN.SYS Fcb
+	Push	Es
+	Push	Ds			; set the ES to the DS value
+	Pop	Es
+	Rep Movsb
+	Mov	Al,Default_Drive	; get the drive into the assign fcb
+	Mov	AssignFCB,Al
+	Lea	Dx,AssignFCB
+	Mov	Cl,00fh			; Bdos "Open File" opcode
+	Int	BDos_Int
+	Pop	Es
+	Cmp	Al,0FFH			; error on open?
+	Jne	$+8
+	Mov	Dx,ErrorCode3
+	Jmp	ErrorRoutine		; yes
+	Lea	Bx,AssignFCB
+	Mov	Byte Ptr 32[Bx],0	; Clear "cr" for sequential read
+	Mov	Ax,128			; Force GetACH to get a record first
+	Mov	AssignBuffLoc,Al	; yime	
+	Mov	Al,' '			; Force FSkipBl to FGetCh first time
+	Sub	Bx,Bx			; start the index into the assign_table
+	Mov	FirstLine,0
+Parse_Assign:				; at zero
+Parse_Line:
+	Mov	NumFound,0
+Look_For_Number:
+	Cmp	Al,' '			; Space?
+	Je	$+6			; Jump if must FGetCh
+	Cmp	Al,008h			; Tab?
+	Jne	$+7			; Jump if not whitespace
+	Call	GetACh			; Get next character
+	Jmps	$-11			;  & loop until not whitespace
+; See if first non-whitespace is digit
+	Cmp	Al,'0'			; Is it a digit?
+	Jb	NParseQuit		; Quit if not digit
+	Cmp	Al,'9'+1		; In digit range?
+	Ja	NParseQuit		
+	Sub	Dx,Dx			; Start with a zero
+	Mov	NumFound,1				; clear the carry and push the flags
+; Ascii digit in Al; accumulated number in Dx
+NParseLoop:
+	Cbw				; 0 to Ah
+	Sub	Al,'0'			; Make digit into value
+	Mov	Cx,Ax			; New digit in Cx
+	Mov	Al,10			; 10 times previous accum
+	Mul	Dx			;  plus this digit
+	Add	Ax,Cx			;  makes new
+	Xchg	Ax,Dx			;  accumulated number
+	Call	GetACh			; Get possible next number byte
+	Cmp	Al,'0'			; Is it a digit?
+	Jb	NParseQuit		; Quit if not digit
+	Cmp	Al,'9'+1		; In digit range?
+	Jbe	NParseLoop		; Loop until digits accumulated
+NParseQuit:
+	Cmp	Al,1AH			; EOF?
+	Jne 	NotEOF
+	Cmp	FirstLine,1
+	Je	$+8
+	Mov	Dx,ErrorCode4
+	Jmp	ErrorRoutine
+	Cmp	Numfound,1
+	Jne	$+8
+	Mov	Dx,ErrorCode4
+	Jmp	ErrorRoutine
+	Jmp	Parse_Done
+NotEOF:
+	Cmp	NumFound,1
+	Je	Look_For_File
+NoNumFound:
+	Cmp	Al,';'			; Comment line?
+	Je	$+8
+	Mov	Dx,ErrorCode4
+	Jmp	ErrorRoutine
+	Call	Skip_Past_EOL	; Skip past end of this line
+	Jmps	Look_for_Number	;  & try for number again
+Look_for_File:
+	Mov	Es:Byte Ptr Assign_Table[Bx],Dl
+	Inc	Bx
+	Mov	NumFound,0
+	Mov	Dl,Default_Drive	; pu the default drive into the table
+	Mov	Es:Byte Ptr Assign_Table[Bx],Dl
+	Cmp	Al,' '			; Space?
+	Je	$+6			; Jump if must FGetCh
+	Cmp	Al,008h			; Tab?
+	Jne	$+7			; Jump if not whitespace
+	Call	GetACh			; Get next character
+	Jmps	$-11			;  & loop until not whitespace
+	Cmp	Al,1AH
+	Jne	$+8
+	Mov	Dx,ErrorCode4
+	Jmp	ErrorRoutine
+	Call	FUpCase			;  & upcase past whitespace
+	Cmp	Al,64			; Potential <drivechar>?  @ is logged
+	Jb	FTryFN			; No; try for filename
+	Cmp	Al,'P'			; Maybe still potential filename?
+	Ja	FTryFN			; Jump if not in range '@'..'P'
+	Push	Ax			; Save possible <drivechar>
+	Cmp	Byte Ptr AssignBuffLoc,128; Beyond end of buffer?
+	Jb	$+5			; Jump if not beyond end of buffer
+	Call	GetARec			; Get next record
+	Push	Bx
+	Mov	Bl,AssignBuffLoc
+	Sub	Bh,Bh
+	Cmp	Byte Ptr AssignBuff[Bx],1AH
+	Jne	$+8
+	Mov	Dx,ErrorCode5
+	Jmp	ErrorRoutine
+	Cmp	Byte Ptr AssignBuff[Bx],':' 
+	Pop	Bx
+					; Drive specified?
+	Jne	FNDriv			; Jump if drive not specified
+	Pop	Ax			; Get <drivechar> back
+	Sub	Al,'@'			; 'A' => 1 .. 'P' => 16 drive code
+	Mov	Es:Assign_Table[bx],Al		; Stuff drive code
+	Call	GetACh			; Real GetCh of ':'
+	Call	GetACh			; GetCh first filename char
+	Cmp	Al,1AH
+	Jne	$+8
+	Mov	Dx,ErrorCode4
+	Jmp	ErrorRoutine
+	Call	FUpCase			;  & upcase it
+	Push	Ax			; Compensate for following pop
+FNDriv:	Pop	Ax			; Restore first filename char
+FTryFN:					; Point to first filename char in Fcb
+	Inc	Bx			; Point Bx at location of filename
+	Mov	Cx,8			; Name is 8 characters long
+	Lea	Di,Assign_Table		; point Di where the name should go
+	Add	Di,Bx
+	Call	FPName			; Parse and fetch name, if present
+	Cmp	Al,1AH
+	Jne	$+8
+	Mov	Dx,ErrorCode4
+	Jmp	ErrorRoutine
+	Or	ES:Byte Ptr Assign_Table + 5[BX],080H	;; turn on the shared bit
+	Or	ES:Byte Ptr Assign_Table + 6[BX],080H	;; turn on the readonly bit
+	Add	Bx,8			; adjust pointer into assign_table
+	Push	Ax			; save the next character
+	Mov	Al,'S'
+	Mov	Es:Byte Ptr Assign_Table[Bx],Al ; stuff in the default exten
+	Mov	Al,'Y'
+	Mov	Es:Byte Ptr Assign_Table + 1[Bx],Al 
+	Mov	Al,'S'
+	Mov	Es:Byte Ptr Assign_Table + 2[Bx],Al 
+	Pop	Ax
+	Cmp	Al,'.'			; Extension follows?
+	Jne	FAftExt			; Jump if no extension
+	Call	GetACh			; Skip the '.'
+	Cmp	Al,1AH
+	Jne	$+8
+	Mov	Dx,ErrorCode4
+	Jmp	ErrorRoutine
+	Call	FUpCase			;  & upcase next character
+	Mov	Cl,3			; Extension is 3 chars long
+	Lea	Di,Assign_Table		; point Di Where the extension goes
+	Add	Di,Bx
+	Call	FPName			; Parse and fetch extension
+	Cmp	Al,1AH
+	Jne	$+8
+	Mov	Dx,ErrorCode4
+	Jmp	ErrorRoutine
+FAftExt:
+	Add	Bx,3
+	Cmp	Cl,8	
+	Jb	$+8
+	Mov	Dx,ErrorCode4
+	Jmp	ErrorRoutine
+	Push	Ax
+	Inc	Bx
+	Mov	Es:Assign_Table[Bx],0
+	Pop	Ax
+	Cmp	Al,01ah			; EOF?
+	Je	Parse_Done
+	Call	Skip_Past_EOL		; Skip past EOL for next line
+	Mov	FirstLine,1
+	Jmp	Parse_Assign
+Parse_Done:
+Close_Assign:			; Close the assign.sys file 
+	Lea	Dx,AssignFCB	
+	Mov	Cl,010h		; Bdos "Close File" opcode
+	Push	Es
+	Int	Bdos_Int
+	Pop	Es
+	Cmp	Al,0FFH		; is there an error on the close?
+	Jne	$+8
+	Mov	Dx,ErrorCode6
+	Jmp	ErrorRoutine
+Open_Driver:
+	Sub	Bx,Bx		; load into the ProcFCB the name of the
+	Push	Es		; first driver in the assign table
+	Push	Ds
+	Push	Es
+	Pop	Ds
+	Lea	Si,Assign_Table+1
+	Pop	Es
+	Push	Es
+	Lea	Di,AssignFCB
+	Mov	Cl,13
+	Rep Movsb 
+	Pop	Ds
+	Pop	Es
+	Lea	Dx,AssignFCB
+	Mov	Cl,00fh			; Bdos "Open File" opcode
+	Push	Es
+	Int	BDos_Int
+	Pop	Es
+	Cmp	Al,0FFH			; is there an error on the open
+	Jne	$+8
+	Mov	Dx,ErrorCode7	
+	Jmp	ErrorRoutine
+Size_Driver:
+	Lea	Bx,AssignFCB
+	Mov	Byte Ptr 32[Bx],0
+	Mov	Dx,Bx
+	Mov	Cl,014h			; Bdos "Read Sequential" opcode
+	Push	Es
+	Int	Bdos_Int		; Get next record from file
+	Pop	Es
+	Cmp	Al,1
+	Jne	$+8
+	Mov	Dx,ErrorCode8
+	Jmp	ErrorRoutine
+	Lea	Bx,AssignBuff		; Get base & offset of buffer structure
+	Mov	Byte Ptr AssignBuffLoc,0; Unless EOF, pt to 1st byte of rec
+	Xor	Di,Di			; Start with zero size
+	Mov	Cx,8			; Scan 8 buckets
+	Mov	Al,6			; Assume syntax error
+
+SizeLoop:
+	Test	byte ptr [Bx],00fh	; Bucket present?
+	Jz	NextBucket		; Jump if nope
+
+	Test	word ptr 3[Bx],0ffffh	; Absolute bucket?
+	Jnz	SizeQuit		; Jump if yes
+
+	Add	Di,word ptr 5 [Bx]		; Include this bucket
+
+NextBucket:
+	Add	Bx,9		; Point to next bucket
+	Loop	SizeLoop		;  & loop until all buckets looked at
+
+	Sub	Al,Al		; No errors found
+SizeQuit:
+	Jz	$+8
+	Mov	Dx,ErrorCode9
+	Jmp	ErrorRoutine
+	Mov	Cx,MAXPROC+1		; Initialize table of 0..MAXPROC
+	Mov	Bx,0			; Initial index of 0
+	Mov	Dx,Unbound		; Flag for no driver bound
+InitLoop:
+	Mov	Es:HowBound[Bx],Dl	; No layer is bound
+	Mov	Es:ModuleSize[Bx],0	;  nor of any size
+	Add	Bx,16			; Bump to next entry
+	Loop	InitLoop		; Loop until all entries initialized
+	Mov	Es:ModuleSize,Di 
+Close_Driver:			; Close the Driver file 
+	Lea	Dx,AssignFCB	; point bx to the assign.sys file name if
+	Mov	Cl,010h			; Bdos "Close File" opcode
+	Push	Es
+	Int	Bdos_Int
+	Pop	Es
+	Cmp	Al,0FFH		; is there an error on the close?
+	Jne	$+8
+	Mov	Dx,ErrorCode10
+	Jmp	ErrorRoutine
+	Call	Remove_GSX
+	Push	Es
+	Mov	Ax,offset load_gsx
+	Mov	word ptr Load_gsx_1,ax
+	mov	ax,es
+	mov	word ptr load_gsx_1 + 2,ax
+	db	0eaH		; jump far op code
+load_GSX_1	rd 1
+
+FPName:	
+FPNameS:
+; See if this char is valid name char
+FNameCh:
+	Push	Di
+	Push	Es
+	Cmp	Al,080h			; If char >= 080h then carry is clear,
+	Jnb	FNamChC			;  so return invalid character
+	Mov	Di,Offset FNamChs	; Point to valid character table
+	Push	Ds
+	Pop	Es
+FNamChL:
+	Scas	(Byte Ptr 0)[Di]	; Compare with bottom of range, bump Di
+	Jb	FNamChQ			; Quit if below; not valid
+	Scas	(Byte Ptr 0)[Di]	; Compare with top+1 of range, bump Di
+	Jnb	FNamChL			; Loop if not in range
+FNamChC:
+	Cmc				; Complement carry
+FNamChQ:
+	Pop	Es
+	Pop	Di
+	Jc	FPNameQ			; Quit if not valid name char
+	Jcxz	FPNameN			; Bypass store if field full
+	Stos	Es:Byte Ptr[Di]		; Stuff & increment field ptr
+	Dec	Cx			; Decrement char count
+
+FPNameN:
+	Call	GetACh			; Get next char
+	Call	FUpCase			;  & upcase it
+	Jmps	FPNameS			; Loop until name exhausted
+
+FPNameQ:
+	Push	Cx			; Save indicator of num chars found
+	Push	Ax			; Save next character
+	Mov	Al,' '			; Clear the rest of the field
+    Rep	Stos	Es:Byte Ptr[Di]		;  to spaces; note Rep is a While
+	Pop	Ax			; Restore next character
+	Pop	Cx			; Restore num chars found indicator
+	Ret				;  & return
+; Return carry reset if valid name character in Al
+Skip_Past_EOL:
+
+	Cmp	Al,01ah			; EOF?
+	Je	SPE_Ret		; Jump if end
+
+	Cmp	Al,00ah			; Lf?
+	Je	Skip_EOL		; Skip EOL if so
+	Cmp	Al,00dh			; Cr?
+	Je	Skip_EOL		; Skip EOL if so
+
+	Call	GetACh			; Skip a character
+
+	Jmps	Skip_Past_EOL	;  & go try again for EOL
+
+Skip_EOL:
+	Call	GetACh			; Skip an EOL character
+
+	Cmp	Al,13			; Skip again if Cr
+	Je	Skip_EOL
+	Cmp	Al,10			; Skip again if Lf
+	Je	Skip_EOL
+
+SPE_Ret:
+	Ret				; Return; Al has first char past EOL
+
+
+GetACh:	
+	Push	Bx
+	Cmp	Byte Ptr AssignBuffLoc,128 ; Beyond end of buffer?
+	Jb	$+5			; Jump if not beyond end of buffer
+	Call	GetARec			; Get next record
+	Sub	Bx,Bx
+	Mov	Bl,AssignBuffLoc
+	Mov	Al,Byte Ptr AssignBuff[Bx] ; Get next character
+	Inc	Bl
+	Mov	AssignBuffLoc,Bl
+	Pop	Bx
+	Ret				;  & return to caller
+
+GetARec:
+	Push	Dx
+	Push	Cx
+	Lea	Dx,AssignFCB		; Point to Fcb
+	Mov	Cl,014h			; Bdos "Read Sequential" opcode
+	Push	Es
+	Int	Bdos_Int		; Get next record from file
+	Pop	Es
+	Cmp	Al,1
+	Jne	$+7
+	Mov	Byte Ptr AssignBuff,1AH
+	Mov	Byte Ptr AssignBuffLoc,0 ; Unless EOF, pt to 1st byte of rec
+	Pop	Cx
+	Pop	Dx
+	Ret	
+
+FUpCase:
+	Cmp	Al,'a'			; Lowercase char?
+	Jb	UpCaseQ			; Jump if no
+	Cmp	Al,'z'			; Lowercase range?
+	Jae	UpCaseQ			; Jump if no
+	Sub	Al,'a'-'A'		; UpCase the character in Al
+UpCaseQ:
+	Ret				;  & return to caller
+
+ShowCh:	Push	Bx			; Save ptr to Fcb
+	Push	Cx			; Save loop count
+	And	Dl,07fh			; Turn off high bit
+	Mov	Cl,002h			; Bdos "Show Character" function
+	Push	Es
+	Int	Bdos_Int		; Show the character
+	Pop	Es
+	Pop	Cx			; Restore registers
+	Pop	Bx
+	Ret				;  & return
+
+Remove_GSX:
+	Mov	Ax,Es:Version
+	Cmp	Ax,MPM_Version
+	Jz	Remove_MPM
+	Cmp	Ax,CPMPlus_Version
+	Jz	Remove_CPMPlus
+	Cmp	Ax,CCPM_Version
+	Jz	Remove_CCPM
+	Jmp	Remove_CPM
+Remove_CPMPlus:
+	Mov	Ax,Es:Basepagesegment
+	Mov	Es:M_Base,ax
+	Mov	Dx,Offset M_Base
+	Push	Ds
+	Push	Es
+	Pop	Ds
+	Mov	Cl,57
+	Int	Bdos_int
+	Pop	Ds
+	Mov	Al,RSXTermret
+	Mov	Ah,0
+	Mov	Es:RSXPCB,ax
+	Mov	Cl,60
+	Mov	Dx,Offset RSXPCB
+	Int	BDOS_int
+	Ret
+Remove_MPM:
+Remove_CCPM:
+; try to open the queue any potential GSX is hung on
+
+	Mov	CL,099H			;;return console number
+	Int	BDos_Int		;;get our console number
+	Add	AL,030H			;;make it a number
+	Mov	Es:GSX_QD_NAME+3,AL	;;
+	Mov	Es:GSX_QPB_NAME+3,AL	;;drop into the Q structure
+	Mov	DX,offset GSX_QPB	;;point
+	Mov	CL,087H			;;open Q
+	Push	Ds			;; Save Ds
+	Push	Es			;; point Ds to the q
+	Pop	Ds
+	Int	Bdos_Int		;;
+	Pop	Ds			;; recover the ds	
+	Cmp	AX, 0FFFFh		;; See if the Queue could be opened
+	Jne	$+3			;; No Q => No GSX previously loaded
+	Ret
+	Mov	Es:WAIT_FLAG,0		;;clear the flag
+	Mov	AX,offset WAIT_FLAG	;;
+	Mov	Es:Q_MSG_OFF,AX		;;set up the offset field
+	Mov	Es:Q_MSG_SEG,ES		;;set up the segment field
+	Mov	AX,offset Q_MSG_OFF	;;point to message
+	Mov	Es:GSX_QPB_BUFFER,AX	;;
+	Mov	Es:GSX_QPB_NMSGS,1		;;one message
+	Mov	DX,offset GSX_QPB	;;point to QPB
+	Push	Ds			;; Point Ds tio the Que
+	Push	Es
+	Pop	Ds
+	Mov	CL,08BH			;;Q write
+	Int	BDos_Int		;;release the sleeping GSX
+	Pop	Ds
+CCPM_WAIT:
+	Cmp	Es:WAIT_FLAG,0		;;gone yet
+	Jz	CCPM_WAIT		;;no then loop
+	Ret
+REMOVE_CPM:
+	Mov	Cl,032h			; Bdos "Direct Bios Call" function
+	Mov	Dx,Offset Get_Mem_Map	; Point to Bios func and regs
+	Push	Es
+	Int	BDos_Int		; Get offset of Mem Region Table
+	Pop	Es
+	Mov	Es:MRT_Offset,Bx		; Save offset of MRT
+	Mov	cx,0673h		; See if there is an installed GSX
+	Push	Es
+	Int	Bdos_Int		; to remove
+	Mov	Dx,Es
+	Pop	Es
+	Cmp	bx,offset howbound
+	Je	$+3
+	Ret				; No, so return
+	Mov	Es:Old_GSX_Base,Dx		; Save base of old GSX
+	Push	Es
+	Mov	Es,Dx
+	Mov	Ax,Es:All_Paragraphs	; Paragraphs in old GSX
+	Pop	Es
+	Mov	Es:Old_GSX_Paragraphs,Ax	;  to saver
+
+	Push	Ds			; Save my Ds
+
+	Sub	Ax,Ax			; Need int vect access
+	Mov	Ds,Ax
+	Push	Es
+	Mov	Es,Dx
+	Mov	Ax,Es:(Word Ptr Old_Vector_0+2); Restore vectors
+	Mov	Ds:(Word Ptr Gdos_Vector+2),Ax
+	Mov	Ax,Es:(Word Ptr Old_Vector_0)
+	Mov	Ds:(Word Ptr Gdos_Vector),Ax
+
+	Mov	Ax,Es:(Word Ptr Old_Vector_1+2)
+	Mov	Ds:(Word Ptr Gdos_Vector+6),Ax
+	Mov	Ax,Es:(Word Ptr Old_Vector_1)
+	Mov	Ds:(Word Ptr Gdos_Vector+4),Ax
+	Pop	Es
+	Pop	Ds			; Restore my Ds
+	Mov	Ax,Es:Old_GSX_Base		; Base of old GSX
+	Add	Ax,Es:Old_GSX_Paragraphs	; Paragraph AFTER old GSX
+	
+	Push	Es
+	Les	Bx,Es:MRT_Ptr		; Point to Memory Region Table
+	Mov	Di,1			; Start at first region
+	Mov	Cl,Es:(Byte Ptr 0)[Bx]	; Get number of regions
+	Mov	Ch,0			; High byte zero
+
+Search_MRT_Loop:
+	Cmp	Ax,Es:(Word Ptr 0)[Bx+Di]; GSX memory stolen from this entry?
+	Je	MRT_Entry_Found		; Jump if entry found
+
+	Add	Di,4			; Bump to next MRT entry
+	Loop	Search_MRT_Loop		;  & loop until all scanned
+
+	Pop	Es
+	Pop	Dx			; Trash return address
+	Mov	Dx,ErrorCode11
+	Jmp	ErrorRoutine
+
+MRT_Entry_Found:
+	Pop	Es
+	Mov	Ax,Es:Old_GSX_Paragraphs	; Get length of old GSX
+	Push	Es
+	Les	Bx,Es:MRT_Ptr
+	Sub	Es:(Word Ptr 0)[Bx+Di],Ax; Bump down base of region
+	Add	Es:(Word Ptr 2)[Bx+Di],Ax; Bump up length of region
+	Pop	Es
+	Ret				; Return to caller
+ErrorRoutine:
+Mov	Bx,Dx
+Shl	Bx,1
+	Jmp	Cs:ErrorTable[Bx]
+ErrorTable:
+	Dw	Offset Error0
+	Dw	Offset Error1
+	Dw	Offset Error2
+	Dw	Offset Error3
+	Dw	Offset Error4
+	Dw	Offset Error5
+	Dw	Offset Error6
+	Dw	Offset Error7
+	Dw	Offset Error8
+	Dw	Offset Error9
+	Dw	Offset Error10
+	Dw	Offset Error11
+Error0:
+Error1:
+	Mov	Dx,Offset ErrorMesg1
+	Jmp	CommonError1
+Error2:
+	Call	Remove_GSX
+	Mov	Dx,Offset ErrorMesg2
+	Jmp	CommonError1
+Error3:	
+	Mov	Dx,Offset ErrorMesg3
+	Jmp	CommonError1
+Error4:	
+	Mov	Dx,Offset ErrorMesg4
+	Jmp	CommonError1
+Error5:	
+	Mov	Dx,Offset ErrorMesg4
+	Pop	Bx
+	Jmp	CommonError1
+Error6:	
+	Mov	Dx,Offset ErrorMesg6
+	Jmp	CommonError1
+Error7:	
+	Mov	Dx,Offset ErrorMesg7
+	Jmp	CommonError1
+Error8:	
+	Mov	Dx,Offset ErrorMesg8
+	Jmp	CommonError1
+Error9:	
+	Mov	Dx,Offset ErrorMesg9
+	Jmp	CommonError1
+Error10:	
+	Mov	Dx,Offset ErrorMesg10
+	Jmp	CommonError1
+Error11:	
+	Mov	Dx,Offset ErrorMesg11
+	Jmp	CommonError1
+CommonError1:
+	Mov	Cl,009h			; Bdos "Print String" function
+	Push	Es
+	Int	Bdos_Int
+	Pop	Es
+	Mov	Es:No_Load,1		; don't keep this GSX resident
+	Push	Es
+	Mov	Ax,offset Load_GSX
+	mov	word ptr Load_Gsx_2,ax
+	mov	ax,es
+	mov	word ptr load_gsx_2 + 2,ax
+	db	0eaH			; jump far op code
+Load_GSX_2	rd 1	
+;
+
+	
+Graphics_Data	DSeg	Para	Public
+
+BufferParts		Rb	1	; required to complete dma buffer
+					; structure
+
+
+
+AssignName		Db	'ASSI',0C7H,0CEH,'  SYS',0
+
+Default_Drive		db	0
+
+FNamChs Db	'!',')'+1		; Ranges of valid name characters
+	Db	'+','+'+1		; <firstvalid>,<lastvalid>+1
+	Db	'-','-'+1
+	Db	'/','9'+1
+	Db	'@','Z'+1
+	Db	'\','\'+1
+	Db	'^','~'+1
+	Db	0ffh			; Stopper
+
+NumFound	Dw	0
+
+FirstLine	Dw	0
+
+; CP/M-86 only
+Get_Mem_Map		Db	18	; Get memory map direct bios call
+			Dw	0,0
+
+
+Sign_On	Db	'--------------------------------------------------',13,10
+	Db	'GSX-86  Graphics System Extension  14 Feb 84  V1.3',13,10
+	Db	'For CP/M-86 and Concurrent CP/M-86                ',13,10
+	Db	'Serial No. 0000-0000-654321    All Rights Reserved',13,10
+	Db	'Copyright (c) 1983          Digital Research, Inc.',13,10
+	Db	'--------------------------------------------------',13,10
+	Db	'$'
+
+ErrorMesg1	Db	'^ syntax error$'
+
+ErrorMesg2	Db	'GSX-86 is not installed$'
+
+ErrorMesg3	Db	'Unable to Open Assign.Sys$'
+
+ErrorMesg4	Db	'Syntax Error in Assign.Sys$'
+
+ErrorMesg6	Db	'Unable to Close Assign.Sys$'
+
+ErrorMesg7	Db	'Unable to Open Default Driver file$'
+
+ErrorMesg8	Db	'Error on Reading Default Driver file$'
+
+ErrorMesg9	Db	'Absolute segment within Default Driver file$'
+
+ErrorMesg10	Db	'Unable to Close Default Driver file$'
+
+ErrorMesg11	Db	'Unable to delete old GSX-86$'
+
+Stack		SSeg	Word
+		Rb	768
+Top_Stack	Rb	0
+
+		End 
+

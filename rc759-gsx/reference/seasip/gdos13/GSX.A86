@@ -1,0 +1,1862 @@
+GSX_Code	CSeg	para	Public
+
+		Public	GSX_Entry_0
+		Public	GSX_Entry_1
+		Public	GSX_Entry
+		Public	Old_Vector_0
+		Public	Old_Vector_1
+		Public	UnBound
+		Public	BoundIndirect
+		Public	BoundFcb
+		Public	BoundDirect
+		Public	Load_GSX
+
+
+CPM_Version	equ	0001
+CPMPLUS_Version equ	0002
+MPM_Version	equ	0003
+CCPM_Version	equ	0004
+
+SetupRSX	equ	192	; RSX subfunction code to intercept GDOS calls
+RSXTermret	equ	193	; RSX subfunction number to release GSX at
+RSXTermdie	equ	194	; segment and offset specified in RSXPCB block
+				; and release the RSX
+
+; Values for HowBound
+
+UnBound		Equ	-1		;  Nothing bound to this layer
+BoundIndirect	Equ	0		;  Proc Bound Indirect
+BoundFcb	Equ	1		;  Proc Bound by Fcb
+BoundDirect	Equ	2		;  Proc Bound Direct
+
+
+Minimum_Stack	Equ	20H
+Stack_Height	Equ	200H
+
+Bdos	Equ	224			; Int code for Bdos
+Gdos	Equ	Bdos			; Int code for Gdos
+Gdos_Int	Equ	Bdos		; Int value for Gdos
+Gdos_Function	Equ	115		; Cl value for Gdos
+
+Gdos_V		Equ	Gdos_Int*4
+
+Gdos_Vector	Equ	DWord Ptr .Gdos_V	; Gdos interrupt vector
+
+ErrorCode1	Equ	1
+ErrorCode2	Equ	2
+ErrorCode3	Equ	3
+ErrorCode4	Equ	4
+ErrorCode5	Equ	5
+ErrorCode5a	Equ	5
+ErrorCode6	Equ	6
+ErrorCode7	Equ	7
+ErrorCode8	Equ	8
+ErrorCode9	Equ	9
+ErrorCode10	Equ	10
+ErrorCode11	Equ	11
+ErrorCode12	Equ	12
+ErrorCode13	Equ	13
+ErrorCode14	Equ	14
+ErrorCode15	Equ	15
+ErrorCode16	Equ	16
+ErrorCode17	Equ	17
+ErrorCode18	Equ	18
+ErrorCode19	Equ	19
+ErrorCode20	Equ	20
+ErrorCode21	Equ	21
+ErrorCode22	Equ	22
+Hacksize	equ	4
+	Mov	Ax,Cs			; figure the starting paragraph
+	Mov	Es,Ax
+	Add	Ax,GSX_Size		; of the loader code
+	Add	Ax,GSX_Comm_Paragraphs
+	Mov	Cx,Hacksize		; not sure why
+	Add	Ax,Cx
+	Mov	Dx,Ax
+	Mov	Cl,0CH			; Bdos "Return Version Number" funct
+	Push	Es
+	Int	Bdos
+	Pop	Es
+	And	Bh,0FH
+	Cmp	bh,0
+	Je	Start_CPM
+	Cmp	bh,1
+	Je	Start_MPM
+	Cmp	bh,4
+	Je	Start_CCPM
+Start_CPM:
+Start_MPM:
+Start_CCPM:
+Common_Start:
+	Mov	Ax,Dx
+	Mov	Word Ptr Graphics_jump + 2,Ax
+	Mov	Word ptr Graphics_Jump,0
+	Db	0EAH			; and jump there
+Graphics_Jump  rd 1
+
+GSX_Entry_0:			; Int 224 entry
+	Cmp	Cl,115		; Gdos function code?
+	Je	GSX_Entry	; Jump if yes
+
+;	Jmpf	Far Ptr Old_Vector_0
+	Db	0eah		; Jmpf opcode
+
+Old_Vector_0	Rd	1
+
+GSX_Entry_1:			; Int 225 entry
+	Cmp	Cl,115		; Gdos function code?
+	Je	GSX_Entry	; Jump if yes
+
+;	Jmpf	Far Ptr Old_Vector_1
+	Db	0eah		; Jmpf opcode
+
+Old_Vector_1	Rd	1
+
+
+GSX_Entry:
+	Sub	Sp,4			; Room for Far Ptr to layer
+	Push	Bp			; Save caller's Bp
+	Mov	Bp,Sp			; Need access into stack
+
+; Right now:	[Bp]		Caller's Bp
+;		6[Bp]		Caller's Ip
+;		8[Bp]		Caller's Cs
+;		10[Bp]		Caller's Flags
+
+	Push	Word Ptr 10[Bp]		; Push caller's flags
+	Popf				; Restore interrupt state
+
+; After futzing:
+OldCs		Equ	Ss:(Word Ptr 10)[Bp]; Caller's Cs
+OldIp		Equ	Ss:(Word Ptr 8)[Bp] ; Caller's Ip
+ProcCs		Equ	Ss:(Word Ptr 6)[Bp] ; Layer Cs if PassThru or RetPtr
+ProcIp		Equ	Ss:(Word Ptr 4)[Bp] ; Layer Ip if PassThru or RetPtr
+OldPtsInSegment Equ	Ss:(Word Ptr 6)[Bp] ; Caller's original Dword Ptr to
+OldPtsInOffset	Equ	Ss:(Word Ptr 4)[Bp] ;	PtsIn if InvokeDriver
+OldFlags	Equ	Ss:(Word Ptr 2)[Bp] ; Caller's flags
+OldBp		Equ	Ss:(Word Ptr 0)[Bp] ; Caller's Bp
+OldAx		Equ	Ss:(Word Ptr (-2))[Bp]; Caller's Ax
+OldBx		Equ	Ss:(Word Ptr (-4))[Bp]; Caller's Bx
+OldCx		Equ	Ss:(Word Ptr (-6))[Bp]; Caller's Cx
+OldDx		Equ	Ss:(Word Ptr (-8))[Bp]; Caller's Dx
+OldSi		Equ	Ss:(Word Ptr (-10))[Bp]; Caller's Si
+OldDi		Equ	Ss:(Word Ptr (-12))[Bp]; Caller's Di
+OldDs		Equ	Ss:(Word Ptr (-14))[Bp]; Caller's Ds
+OldEs		Equ	Ss:(Word Ptr (-16))[Bp];Caller's Es
+LayerIndex	Equ	Ss:(Word Ptr (-18))[Bp]; Pointer into Layer table
+
+	Push	Ax			; Preserve caller's registers
+	Push	Bx
+	Push	Cx
+	Push	Dx
+	Push	Si
+	Push	Di
+	Push	Ds
+	Push	Es
+
+
+	Mov	Bx,Ss:(Word Ptr 10)[Bp]	; Get caller's flags
+	Mov	OldFlags,Bx		;  to where they belong
+	Mov	Bx,Ss:(Word Ptr 8)[Bp]	; Get caller's Cs
+	Mov	OldCs,Bx		;  to where it belongs
+	Mov	Bx,Ss:(Word Ptr 6)[Bp]	; Get caller's Ip
+	Mov	OldIp,Bx		;  to where it belongs
+
+
+	Mov	Bl,Ch			; Layer number *16 to Bl
+	Mov	Bh,0			; High byte 0
+	Mov	Si,Bx			; Layer & function to Si
+	And	Bl,0f0h			; Mask to just layer number
+	Cmp	Bx,MAXPROC_Paragraphs	; Illegal layer?
+	Ja	IllLayer		; Jump if yes
+	Push	Bx			; To Tos
+
+	And	Si,00fh			; Mask to just function code
+	Cmp	Si,MAXFUNC		; Illegal function?
+	Ja	IllFunc			; Jump if yes
+	Shl	Si,1			; Times 2 for function code table index
+	Mov	Di,Dx			; Put param block offset into Di
+	Jmp	Cs:Function[Si]		; Dispatch to specialists
+
+; Ds:Di points to parameter block, if any
+; Bx contains layer index
+
+Function	Dw	Offset KillLayer	; Function 0
+KillLayerOp	Equ	0
+		Dw	Offset BindIndirect	;	   1
+BindIndirectOp	Equ	1
+		Dw	Offset BindFcb		;	   2
+BindFcbOp	Equ	2
+		Dw	Offset BindDirect	;	   3
+BindDirectOp	Equ	3
+		Dw	Offset InvokeDriver	;	   4
+InvokeDriverOp	Equ	4
+		Dw	Offset PassThrough	;	   5
+PassThroughOp	Equ	5
+		Dw	Offset ReturnPtr	;	   6
+ReturnPtrOp	Equ	6
+		Dw	Offset ReturnMaxProc	;	   7
+ReturnMaxProcOp Equ	7
+
+
+IllLayer:
+	Mov	Bx,ErrorCode1
+	Jmp	ErrorRoutine4
+IllFunc:
+	Mov	Bx,ErrorCode2
+	Jmp	ErrorRoutine4
+
+
+; Di and Dx contain the Procedure Id
+; Bx contains the layer index
+BindIndirect:
+	Call	PushDmaAddress		; Save Dma Segment & Offset
+	Mov	Al,0			; Assume proc gets loaded
+	Cmp	Cs:HowBound[Bx],BoundIndirect; Current resident Bound Indirect?
+	Jne	Search			; If not Bound Indirect must search
+	Cmp	Di,Cs:ProcId[Bx]	; Asking for same proc again?
+	Je	Quit			; Jump if already there and alive
+
+Search:				; Search the Assign_Table for the entry 
+	Push	Bx		; which matches DI.  Push Bx, which is the 
+	Push	Di		; Layer number, and DI which is the LUN
+	Push	Cx		; and CX, which is the function and layer
+	Mov	Cx,MaxProc	; let CX hold the Number of entries in Assign_T
+	Xor	Bx,Bx		; start BX at 0, for first entry in AT
+	Mov	Ax,Di		; move the lun into ax
+Assign_Loop:
+	Cmp	Cs:Assign_Table[Bx],Al ; Does the Lun  in Al match the 1st byte
+	Je	ProcFound	; in the Assign Table, if so jump to found
+	Add	Bx,14		; else increment to the next entry
+	Loop	Assign_Loop
+	Pop	Cx	; the number wasn't found, so return with Ax holding
+	Pop	Di	; the Error
+	Pop	Bx
+	Mov	Bx,ErrorCode3
+	Jmp	ErrorRoutine3			; Error in ASSIGN.SYS scan
+Quit:
+	Jmp	PopDmaAddress		; Restore caller's Dma & return w err
+ProcFound:
+	Mov	Cx,13			;13 bytes of the assign table are to be
+	Lea	Di,ProcFCB		;moved into the PROCFCB in the CS 
+	Lea	Si,Cs:Assign_Table+1[Bx]; the source is the assign_table in CS
+	Push	Es			;save Es and DS
+	Push	Ds			
+	Push	CS			; put Cs into ES and DS
+	Pop	Ds
+	Push	Cs
+	Pop	Es
+	Rep	Movsb			; the ProcFCB is set up
+	Pop	Ds
+	Pop	Es
+	Pop	Cx			; the stack is clean
+	Pop	Di			; Al is zero, meaning no errors
+	Pop	Bx		
+	Mov	Al,0
+Load:
+	Mov	Cx,OldCx		; Get caller's function code
+	And	Ch,0f0h			; Preserve layer number
+	Add	Ch,BindFcbOp		;  & change function to Bind by Fcb
+	Push	Bx			; save the layer pointer
+	Int	Gdos			; Bind the program by Fcb
+	Pop	Bx			; recall the layer pointer
+	Jnz	Quit			; Quit if error in load
+
+	Mov	Cs:(Byte Ptr HowBound)[Bx],BoundIndirect; Flag how bound
+
+	Mov	Dx,OldDx		; Get ProcId
+	Mov	Cs:(Word Ptr ProcId)[Bx],Dx;  into layer table
+
+	Jmps	Quit			;  & return with Al from BindFcbOp
+
+BindFcb:
+	Call	PushDmaAddress		; Save caller's Dma Segment & Offset
+	Lea	Dx,ProcFCB		; Point to Fcb
+	Push	Ds
+	Push	Cs
+	Pop	Ds
+	Mov	Cl,00fh			; Bdos "Open File" opcode
+	Int	Bdos			; Let Bdos open the file
+	Pop	Ds
+	Cmp	Al,0FFH			; did Bdos return with an error
+	Jne	$+8
+	Mov	Bx,ErrorCode4
+	Jmp	ErrorRoutine3
+	Mov	Cs:ProcFCB+32,0		; Clear "cr" for sequential read
+					; Read header record 
+	Mov	Dx,Cs		; Get segbase of buffer
+	Mov	Cl,033h			; Bdos "SetDMA Base" opcode
+	Int	Bdos			; Tell Bdos our DMA buffer base
+
+	Lea	Dx,DMABuff
+	Mov	Cl,01ah			; Bdos "Set DMA Address" opcode
+	Int	Bdos			; Tell Bdos our DMA offset
+
+	Lea	Dx,ProcFCB		; Point to Fcb
+	Push	Ds
+	Push	Cs
+	Pop	Ds
+	Mov	Cl,014h			; Bdos "Read Sequential" opcode
+	Int	Bdos			; Get next record from file
+	Pop	Ds
+	Cmp	Al,0FFH
+	Jne	$+8
+	Mov	Bx,ErrorCode5
+	Jmp	ErrorRoutine3
+	Mov	Cs:DMABuffLoc,0
+	Mov	Al,Cs:DMABuff
+	Lea	Bx,DMABuff
+	Xor	Di,Di			; Start with zero size
+	Mov	Cx,8			; Scan 8 buckets
+	Mov	Ax,ErrorCode5
+SizeLoop:
+	Test	Cs:Byte Ptr [Bx],00fh	; Bucket present?
+	Jz	NextBucket		; Jump if nope
+
+	Test	Cs:Word Ptr 3[Bx],0ffffh	; Absolute bucket?
+	Jnz	SizeQuit		; Jump if yes
+
+	Add	Di,Cs:word ptr 5[Bx]	; Include this bucket
+
+NextBucket:
+	Add	Bx,9			; Point to next bucket
+	Loop	SizeLoop		;  & loop until all buckets looked at
+	Sub	Al,Al
+SizeQuit:
+	Cmp	Al,0
+	Je	$+8
+	Mov	Bx,ErrorCode5
+	Jmp	ErrorRoutine3
+	Mov	Si,LayerIndex		; point SI to the proper Layer
+	Cmp	Di,Cs:ModuleSize[Si]	; Will it fit in space available?
+	Jbe	$+8
+	Mov	Bx,ErrorCode6
+	Jmp	ErrorRoutine3
+					; Load the module
+	Push	Ds			; establish a second DMA area
+	Push	Cs
+	Pop	Ds
+	Mov	Dx,Cs		; Get segbase of buffer
+	Mov	Cl,033h			; Bdos "SetDMA Base" opcode
+	Int	Bdos			; Tell Bdos our DMA buffer base
+
+	Lea	Dx,DMABuff2
+	Mov	Cl,01ah			; Bdos "Set DMA Address" opcode
+	Int	Bdos			; Tell Bdos our DMA offset
+	Pop	Ds
+
+PLoad:	
+	Mov	Bx,CS:BasePageSegment[si] ; Get base address of place to put prog
+	Mov	Si,Bx
+	Lea	Bx,DMABuff		; Point to header record
+	Mov	Cx,8			; Look through 8 groups
+
+FindFirstToAllocate:
+	Mov	Al,Cs:Byte Ptr [Bx]	; Get Group Format code
+	And	Al,00fh			; Only right 4 bits matter
+	Cmp	Al,2			; Data bucket?
+	Jne	FindFirstLoop		; Jump if nope
+
+	Mov	Cs:Word Ptr 3[Bx],Si	; Allocate first DSeg first
+	Add	Si,Cs:Word Ptr 5[Bx]	;  with length G-min
+	Jmps	AllocateMemory		;  then allocate the rest
+
+FindFirstLoop:
+	Add	Bx,9		; Bump to next possible group
+	Loop	FindFirstToAllocate	;  & loop until 8 groups scanned
+
+AllocateMemory:
+	Lea	Bx,DMABuff		; Point to beginning of header again
+	Mov	Cl,8			; Look through 8 groups
+
+AllocateGroup:
+	Cmp	Cs:Word Ptr 3[Bx],0	; Already allocated?
+	Jne	AllocateLoop		; Jump if yes
+
+	Test	Cs:Byte Ptr [Bx],00fh	;No group present?
+	Jz	AllocateLoop		; Jump if group absent
+
+AllocateIt:
+	Mov	Cs:Word Ptr 3[Bx],Si	; Allocate memory for group
+	Add	Si,Cs:Word Ptr 5[Bx]	;  at current base
+
+AllocateLoop:
+	Add	Bx,9			; Bump to next group
+	Loop	AllocateGroup		; Loop until 8 groups looked at
+
+	Mov	DMABuffLoc2,128		; force getrecord on first getchar call
+
+	Lea	Bx,DMABuff		;Point to header yet again
+	Mov	Cl,8			; 8 groups to load
+
+LoadGroup:
+	Push	Bx
+	Test	Cs:Byte Ptr [Bx],00fh		; Group present?
+	Jz	LoadNextGroup		; Jump if nope
+
+	Push	Cx			; Save group count
+	Mov	Cx,Cs:Word Ptr 1[Bx]	; Get number of paragraphs in group
+	Jcxz	LoadGroupDone		; Jump if empty
+
+	Mov	Es,Cs:Word Ptr 3[Bx]	; Point to first place to load
+
+LoadParagraph:
+	Sub	Di,Di			; Point Es:Di at byte to load
+	Push	Cx			; Save paragraph count
+	Mov	Cx,16			; 16 bytes in a paragraph
+
+LoadByte:
+	Push	Cx
+	Call	LoadGetCh		; Get a byte
+	Pop	Cx
+	Jnc	StuffByte		; Jump if no unexpected Eof
+	Mov	Bx,ErrorCode7
+	Jmp	ErrorRoutine4
+StuffByte:
+	Stos	Es:(Byte Ptr 0)[Di]	; Put it here
+	Loop	LoadByte		; Loop until paragraph moved
+	Mov	Ax,Es			; Bump Es to next paragraph
+	Inc	Ax
+	Mov	Es,Ax
+	Pop	Cx			; Get paragraph count
+	Loop	LoadParagraph		; Loop until group loaded
+LoadGroupDone:
+	Pop	Cx			; Restore group counter
+LoadNextGroup:
+	Pop	Bx
+	Add	Bx,9		; Point to next group in header
+	Loop	LoadGroup		;  & loop until all groups loaded
+	; Get pointer to layer table entry
+	Mov	Si,LayerIndex
+	Mov	Es,BasePageSegment[Si]	; Get base page paragraph pointer
+	Mov	Di,0			; 48 bytes of base page locate groups
+	Mov	Ax,0			;  & start clear
+	Mov	Cl,24			; Clear 24 words
+    Rep	Stos	Es:(Byte Ptr 0)[Di]	; Clear group locators in base page
+
+	Lea	Bx,DMABuff		; Point once again to header
+	Mov	Cl,8			; Once again scan 8 groups
+
+FixGroupBase:
+	Mov	Al,Cs:byte ptr [bx]	; Get G-Form
+	And	Ax,0000fh		;  as word
+; Note no provision for MP/M shared code
+	Add	Ax,Ax			; *2:  Group present?
+	Jz	FixGroupNext		; Jump if nope
+
+	Mov	Di,Ax			; Save *2
+	Add	Ax,Ax			; *4
+	Add	Di,Ax			; Di has G-Form*6
+
+	Mov	Ax,Cs:Word Ptr 3[Bx]	; Get base paragraph
+	Mov	Es:(Word Ptr (-3))[Di],Ax;  into base page
+
+	Mov	Ax,Cs:word Ptr 5 [Bx]	; Get number of paragraphs
+	Mov	Dx,16			; 16 bytes per paragraph
+	Mul	Dx			; To number of bytes
+	Sub	Ax,1			; Less 1 for address of last
+	Sbb	Dx,0
+	Mov	Es:(Word Ptr (-6))[Di],Ax; Low two bytes to base page
+	Mov	Es:(Byte Ptr (-4))[Di],Dl; High byte to base page
+
+FixGroupNext:
+	Add	Bx,9	
+	Loop	FixGroupBase		;  & loop until all groups scanned
+
+	; Point to layer table entry
+	Mov	Bx,LayerIndex
+	Mov	Ax,Es:(Word Ptr .3)	; Get code group base
+	Mov	Cs:(Word Ptr ProcPtr+2)[Bx],Ax	;  into ProcPtr
+	Mov	Cs:(Word Ptr ProcPtr)[Bx],0	; Assume not 8080 model
+
+	Cmp	Es:(Word Ptr .9),0	; DSeg present?
+	Jne	FixupReloc		; Jump if yes -- not 8080 model
+
+	Mov	Al,1			; 8080 model:
+	Mov	Cs:(Byte Ptr ProcPtr+1)[Bx],Al	; Set ProcPtr offset to 00100h
+	Mov	Es:(Byte Ptr .5),Al	; Set M80 byte
+
+FixupReloc:	
+	Mov	Cs:DMABuffLoc2,128		; Force FGetRec for reloc
+
+; Es still points at base page
+
+RelocateLoop:
+	Call	LoadGetCh		; Get Location|Target byte, if any
+	Jc	RelocateDone		; Quit if Eof
+	Or	Al,Al			; Zero means no more relocate poop
+	Jz	RelocateDone		; Quit if done relocating
+
+	Mov	Si,Ax			; Location!Target to Si
+	And	Si,0000fh		; Mask to Target
+	Mov	Di,Si			; Save *1 for *3
+	Add	Si,Si			; *2
+	Add	Si,Di			; *3
+	Add	Si,Si			; *6 index into base page for Target
+
+	And	Ax,000f0h		; Mask Ax to Location
+	Shr	Ax,1			; *8
+	Shr	Ax,1			; *4
+	Mov	Di,Ax			; *4 to Di
+	Shr	Ax,1			; *2
+	Add	Di,Ax			; *6 index into base page for Location
+
+	Call	LoadGetCh		; Get low byte of segment offset
+	Jc	RelocateDone		; Quit if Eof
+	Xchg	Al,Ah			; Save low byte in Ah
+	Call	LoadGetCh		; Get high byte of segment offset
+	Jc	RelocateDone		; Quit if Eof
+	Xchg	Al,Ah			; Low to low, high to high
+
+	Add	Ax,Es:(Word Ptr (-3))[Di]	; Add base of segment to reloc
+	Mov	Ds,Ax			; Ds <- segbase of word to reloc
+
+	Call	LoadGetCh		; Get byte offset from segbase
+	Jc	RelocateDone		; Quit if Eof
+
+	Xchg	Bx,Ax			; Bl is byte offset
+	Mov	Bh,0			; Bx is byte offset
+
+	Mov	Ax,Es:(Word Ptr (-3))[Si]	; Get base of Target bucket
+
+	Add	Ds:(Word Ptr 0)[Bx],Ax	; Relocate Location word by Target seg
+
+	Jmps	RelocateLoop		; Loop until done relocating
+
+Relocatedone:
+	Jz	RelocateOk
+	Jnc	$+8
+	Mov	Bx,ErrorCode7
+	Jmp	ErrorRoutine4
+RelocateOk:
+	Lea	Dx,ProcFCB		; Point to Fcb
+	Push	Ds
+	Push	Cs
+	Pop	Ds
+	Mov	Cl,010h			; Bdos "Close File" opcode
+	Int	Bdos			; Let Bdos close the file
+	Pop	Ds
+	Cmp	Al,0FFH
+	Jne	$+8
+	Mov	Bx,ErrorCode7
+	Jmp	ErrorRoutine4
+	Mov	Si,LayerIndex
+	Mov	Cs:HowBound[Si],BoundFcb; Flag layer as bound by Fcb
+	Mov	Ax,0			; success, no errors
+BFQuit:
+	Jmp	PopDmaAddress		; Return, restoring Dma	
+
+BindDirect:
+	Mov	Cs:(Word Ptr ProcPtr+2)[Bx],Ds	; Point to procedure
+	Mov	Cs:(Word Ptr ProcPtr)[Bx],Dx	;  as Far pointer
+
+	Mov	Cs:(Byte Ptr HowBound)[Bx],BoundDirect	; Flag as Bound Direct
+
+	Jmp	GSXQuit			; Return to Gdos caller
+
+InvokeDriver:
+
+; Ds:Di points to parameter block.  Bx holds Layer Index.
+
+	Les	Si,Ds:(Dword Ptr 8)[Di]	; Es:Si <- Ptr to PtsIn
+	Mov	OldPtsInSegment,Es	; Save for after driver invocation
+	Mov	OldPtsInOffset,Si
+
+	Call	TransformToRaster	; Transform any PtsIn to raster space
+
+	Les	Si,Ds:(Dword Ptr 0)[Di]	; Get pointer to Contrl array
+
+	Cmp	Es:(Word Ptr 0)[Si],1	; Open WorkStation?
+	Jne	IDNotOpenWS		; Jump if not Open WorkStation
+
+; Open Workstation driver invocation
+
+; Ds:Di point to parameter block
+; Es:Si point to Contrl array
+
+	Les	Si,Ds:(Dword Ptr 4)[Di]	; Get pointer to IntIn
+	Mov	Si,Es:(Word Ptr 0)[Si]	; Get IntIn(1), Device Id
+
+	Cmp	Cs:HowBound[Bx],UnBound	; Layer holds proc?
+	Je	IDLoad			; Jump if no proc in layer
+
+	Cmp	Si,Cs:ProcId[Bx]	; Device already loaded?
+	Je	IDLoaded		; Jump if device driver already in
+
+; Load the driver -- Device Id in Si
+IDLoad:
+	Mov	Dx,Si			; Device Id to Dx
+	And	Ch,0f0h			; Mask to just layer number
+	Add	Ch,BindIndirectOp	; Bind Indirect opcode
+	Int	Gdos			; Try to load in the new driver
+
+	Mov	Byte Ptr OldAx,Al	; Flag to caller if ok
+	Jz	IDLoaded		; Jump if ok
+
+	Mov	OldAx,Ax		; Flag bad load if bad load
+
+IDLoaded:
+	Cmp	Cs:HowBound[Bx],UnBound	; Driver present?
+	Jne	$+8
+	Mov	Bx,ErrorCode9
+	Jmp	ErrorRoutine4
+
+	Push	OldFlags		; Get caller's original flags
+	Popf				; Restore them
+	Or	Al,Al			; Set status on Al value
+	Pushf				; Save flags
+	Pop	OldFlags		;  back for caller
+
+	Call	Driver			; Invoke the driver
+
+	Les	Si,Ds:(Dword Ptr 12)[Di]; Es:Si <- ptr to IntOut
+	Mov	Bx,LayerIndex
+	Mov	Ax,Es:(Word Ptr 0)[Si]	; Get highest X pixel address
+	Inc	Ax			; Now number of pixels in X
+	Mov	Cs:XPixels[Bx],Ax	; Save number of pixels in X
+
+	Mov	Ax,Es:(Word Ptr 2)[Si]	; Get highest Y pixel address
+	Inc	Ax			; Now number of pixels in Y
+	Mov	Cs:YPixels[Bx],Ax	; Save number of pixels in Y
+
+	Jmps	IDTransformOutPts	;  & go transform any output points
+
+IDNotOpenWS:
+	Cmp	Cs:HowBound[Bx],UnBound	; Driver present?
+
+	Jne	$+8
+	Mov	Bx,ErrorCode9
+	Jmp	ErrorRoutine4
+
+	Call	Driver			; Invoke the driver
+
+IDTransformOutPts:
+
+	Les	Si,Dword Ptr OldPtsInOffset	; Restore caller's PtsIn ptr
+	Mov	Ds:(Word Ptr 8)[Di],Si
+	Mov	Ds:(Word Ptr 10)[Di],Es
+
+	Call	TransformTo32K		; Transform any PtsOut to 32K space
+
+GSXQuit:
+	Lea	Sp,OldEs		; Trash LayerIndex
+
+	Pop	Es			; Restore registers
+	Pop	Ds
+	Pop	Di
+	Pop	Si
+	Pop	Dx
+	Pop	Cx
+	Pop	Bx
+	Pop	Ax
+
+	Pop	OldPtsInSegment		; Orig Bp to just below return address
+	Popf				; Restore driver's flags
+	Pop	Bp			; Trash old PtsIn offset
+	Pop	Bp			; Restore driver's Bp
+	Retf				; Return to caller
+
+PopDmaAddress:
+	Push	Ax			; Save return code
+	Mov	Dx,ProcCs		; Get caller's Dma Segment Base
+	Mov	Cl,033h			; Bdos "Set Dma Segment Base" function
+	Int	Bdos
+	Mov	Dx,ProcIp		; Get caller's Dma Offset
+	Mov	Cl,01ah			; Bdos "Set Dma Offset" function
+	Int	Bdos
+	Pop	Ax			; Restore return code
+
+GSXQuitStuffAx:
+	Mov	OldAx,Ax		; Return Al and maybe Ah to caller
+
+	Push	OldFlags		; Get caller's flags back
+	Popf
+
+	Or	Al,Al			; Set caller's flags
+
+	Pushf
+	Pop	OldFlags
+
+	Jmps	GSXQuit			;  & return to caller
+
+KillLayer:
+	Mov	Cs:(Byte Ptr HowBound)[Bx],UnBound	; Make layer unbound
+	Jmps	GSXQuit			; & return to caller
+
+
+
+PassThrough:
+	Cmp	Cs:(Byte Ptr HowBound)[Bx],UnBound	; Layer empty?
+	Jne	$+8
+	Mov	Bx,ErrorCode10
+	Jmp	ErrorRoutine4
+
+	Mov	Si,Cs:(Word Ptr ProcPtr+2)[Bx]	; Get layer Cs
+	Mov	ProcCs,Si			;  to place for Retf
+	Mov	Si,Cs:(Word Ptr ProcPtr)[Bx]	; Get layer Ip
+	Mov	ProcIp,Si			;  to place for Retf
+
+	Pop	Bx			; Trash LayerIndex
+
+	Pop	Es			; Restore caller's registers
+	Pop	Ds
+	Pop	Di
+	Pop	Si
+	Pop	Dx
+	Pop	Cx
+	Pop	Bx
+	Pop	Ax
+	Pop	Bp
+	Popf				; Restore caller's flags
+
+; Invoke the layer's procedure with a Retf so that it will appear as if
+; the caller had done a Callf of the layer.
+	Retf				; Invoke proc via Retf
+
+
+ReturnPtr:
+	Mov	Al,Cs:(Byte Ptr HowBound)[Bx]	; Return how proc was bound
+
+	Push	Cs			; Base of Layer Table
+	Pop	OldEs			;  to caller's Es
+
+	Lea	Bx,(Byte Ptr HowBound)[Bx]; Bx <- offset of entry
+	Mov	OldBx,Bx		;  to caller's Bx
+
+	Jmp	GSXQuitStuffAx		; Quit, returning proc's Cs:Ip in Es:Bx
+
+ReturnMaxProc:
+	Mov	Ax,MAXPROC		; Return maximum layer number
+	Jmp	GSXQuitStuffAx		;  & return to caller
+
+
+
+ShowCsIpString:
+	Push	Cs			; Ds must point to code base
+	Pop	Ds			;  for Bdos
+PoopCsIp:
+	Mov	Dx,Offset GSX_String	; Point to "GSX-86 "
+	Mov	Cl,9			; Bdos "Print String" function
+	Int	Bdos
+	Mov	Dx,OldCs		; Get Gdos caller's Cs
+	Call	PoopDx			; Show it
+
+	Mov	Dl,':'			; Show ':' between Cs & Ip
+	Call	ShowChar		;  like "xxxx:yyyy"
+
+	Mov	Dx,OldIp		; Get Gdos caller's Ip
+	Call	PoopDx			;  & show it
+
+	Mov	Dl,' '			; Show a space
+	Call	ShowChar		;  after Ip
+	Ret				;  & return
+
+ShowChar:
+	Mov	Cl,2			; Bdos "Console Output" function
+	Push	Cs			; Far call
+	Call	GSX_Bdos		; Show the character
+	Ret				;  & return
+
+PoopDx:
+	Call	Poop2Hex		; Show high-order digits
+
+Poop2Hex:
+	Call	PoopHex			; Show high-order digit
+
+PoopHex:
+	Mov	Cl,4			; Rotate left by 4
+	Rol	Dx,Cl			;  so digit desired is on right
+	Push	Dx			; Save unaffected rotated Dx
+
+	And	Dl,00fh			; Mask to single digit
+	Cmp	Dl,9			; a..f?
+	Jbe	NotAF			; Jump if not a..f
+	Add	Dl,7			; Bump a..f to 11..15
+
+NotAF:	Add	Dl,'0'			; 0..9,a..f -> '0'..'9','A'..'F'
+
+	Call	ShowChar		; Show the hex digit
+
+	Pop	Dx			; Restore rotated value to show
+
+	Ret				; Return with rotated value
+
+
+; Save caller's Dma Segment Base and Dma Offset in ProcCs and ProcIp
+
+PushDmaAddress:
+	Push	Ax			; Save caller's registers
+	Push	Bx
+	Push	Cx
+	Push	Es
+
+	Mov	Cl,034h			; Bdos "Get Dma Base & Offset" function
+	Push	Cs			; Far call
+	Call	GSX_Bdos		; Get Dma Base and Offset in Es:Bx
+
+	Mov	ProcCs,Es		; Save caller's Dma base
+	Mov	ProcIp,Bx		;  & offset
+
+	Pop	Es			; Restore registers
+	Pop	Cx
+	Pop	Bx
+	Pop	Ax
+	Ret				;  & return
+
+; Input Cx, Ds, Dx (preserved), output Es, Bx, Ax from Bdos function
+
+GSX_Bdos:
+	Push	Cx			; Preserve registers from Bdos
+	Push	Dx
+	Push	Bp
+	Push	Si
+	Push	Di
+	Push	Ds
+
+	Int	Bdos
+
+	Pop	Ds
+	Pop	Di
+	Pop	Si
+	Pop	Bp
+	Pop	Dx
+	Pop	Cx
+	Retf
+
+
+
+; Register context should be such that both the driver and the person who
+; emitted the Int Gdos think GSX is not there.  In other words, the driver
+; should see the Gdos caller's register context and the Gdos caller should,
+; upon return, see the driver's context.
+
+Driver:	Push	Bx			; Preserve caller's Ds:Di & Bx
+	Push	Di
+	Push	Ds
+
+	Push	Bp			; Preserve Bp just prior to driver call
+
+	Push	Cs			; Fake a Callf
+	Call	CallDriver		; Invoke the driver
+
+	Push	Bp			; Driver's Bp at [Bp]
+	Mov	Bp,Sp			; Point into stack
+	Pushf				; Driver's flags below driver's Bp
+
+	Mov	Bp,Ss:(Word Ptr 2)[Bp]	; Get GSX's Bp
+
+	Mov	OldAx,Ax		; Driver's Ax for Gdos caller
+
+	Pop	OldFlags		; Get driver's flags for Gdos caller
+
+	Pop	OldBp			; Get driver's Bp for Gdos caller
+
+	Mov	OldBx,Bx		; Arrange such that caller sees
+	Mov	OldCx,Cx		;  driver's registers
+	Mov	OldDx,Dx
+	Mov	OldSi,Si
+	Mov	OldDi,Di
+	Mov	OldDs,Ds
+	Mov	OldEs,Es
+
+	Pop	Bp			; Get GSX's Bp again
+
+	Pop	Ds			; Get caller's registers
+	Pop	Di
+	Pop	Bx
+	Ret				; Return to InvokeDriver level
+
+
+CallDriver:
+	Push	Cs:(Word Ptr ProcPtr+2)[Bx]; Segment of driver
+	Push	Cs:(Word Ptr ProcPtr)[Bx]; Offset of driver
+	Mov	Ax,OldAx		; Set up registers for driver
+	Mov	Bx,OldBx
+	Mov	Cx,OldCx
+	Mov	Dx,OldDx
+	Mov	Si,OldSi
+	Mov	Di,OldDi
+;	Mov	Ds,OldDs
+	Mov	Es,OldEs
+	Mov	Bp,OldBp
+	Retf				; Call driver via Retf
+
+
+; Ds:Di points to parameter block
+; OldPtsInSegment:OldPtsInOffset points to PtsIn array
+TransformToRaster:
+	Les	Si,Ds:(Dword Ptr 0)[Di]	; Point Es:Si to Contrl array
+
+	Mov	Si,Es:(Word Ptr 2)[Si]	; Contrl(2) vertices in PtsIn
+	Shl	Si,1			; Times 4 for x,y pair each
+	Jz	TtRQuit			; Quit if no vertices
+
+	Mov	Cx,Si			; Twice # of vertices is # of points
+
+	Shl	Si,1			; 2 bytes each point is 4 each vertex
+	Sub	Sp,Si			; Enough room in stack for all vertices
+
+	Mov	Ds:(Word Ptr 8)[Di],Sp	; Replace ptr to PtsIn with
+	Mov	Ds:(Word Ptr 10)[Di],Ss	;  ptr to transformed PtsIn
+
+	Push	Word Ptr LayerIndex-2	; Push return address
+
+	Push	Bx			; Save caller's registers
+	Push	Di
+	Push	Ds
+
+	Push	Bp			; Bp used as temp in loop
+
+	Mov	Di,Ds:(Word Ptr 8)[Di]	; Offset from Ss to transformed PtsIn
+
+	Push	Ss			; Transformed PtsIn is in stack
+	Pop	Es
+
+	Lds	Si,Dword Ptr OldPtsInOffset	; Point to caller's PtsIn
+
+	Mov	Bp,Cs:(Word Ptr YPixels)[Bx]; Bp holds YPixels at loop begin
+	Mov	Bx,Cs:(Word Ptr XPixels)[Bx]; Bx holds XPixels at loop begin
+
+	Cld				; Work up in address
+
+
+; In transform loop:
+;  Bp and Bx swap number of pixels in X and Y, 0..65534 maximum
+;  Ds:Si points to caller's PtsIn
+;  Es:Di points into stack at transformed PtsIn
+;  Cx contains point count; Ax and Dx used in multiply
+
+TtRLoop:
+	Lods	Ds:(Word Ptr 0)[Si]	; Get an X or Y
+	Shl	Ax,1			; Transform 32K -> 64K space
+	Mul	Bx			; Transform 64K -> raster space
+	Mov	Ax,Dx			; High-order result is raster space
+	Stos	Es:(Word Ptr 0)[Di]	; Stuff in transformed PtsIn
+
+	Xchg	Bx,Bp			; Swap number of pixels in Y or X to Bx
+
+	Loop	TtRLoop			; Loop until all points transformed
+
+	Pop	Bp			; Restore caller's registers
+	Pop	Ds
+	Pop	Di
+	Pop	Bx
+
+TtRQuit:
+	Ret				; Return to caller
+
+
+; Ds:Di point to parameter block
+
+TransformTo32K:
+	Les	Si,Ds:(Dword Ptr 0)[Di]	; Get pointer to Contrl array
+	Mov	Cx,Es:(Word Ptr 4)[Si]	; Get output vertex count
+	Jcxz	Tt32KQuit		; Quit if nothing to transform
+
+	Push	Bx			; Save caller's registers
+	Push	Di
+	Push	Ds
+
+	Shl	Cx,1			; Twice # vertices is # points
+
+	Lds	Si,Ds:(Dword Ptr 16)[Di]; Ds:Si <- ptr to PtsOut array
+
+	Mov	Di,Cs:(Word Ptr XPixels)[Bx]; Di <- number of pixels in X
+	Mov	Bx,Cs:(Word Ptr YPixels)[Bx]; Bx <- number of pixels in Y
+
+	Cld				; Work up in address
+
+; In transform loop:
+;  Ds:Si points to PtsOut array
+;  Cx holds point count
+;  Di and Bx swap number of pixels in X and Y
+
+Tt32KLoop:
+	Lods	Ds:(Word Ptr 0)[Si]	; Get a raster-space X or Y
+	Mov	Dx,Ax			; Dividend into Dx
+	Lea	Ax,-1[Di]		;  with almost divisor on right
+	Add	Ax,Di			; Must be almost twice divisor
+	Adc	Dx,0			;  on right
+	Cmp	Dx,Di			; Would divide overflow?
+	Jae	Tt32KOflow		; Jump if yes -- pin to max
+	Div	Di			; Transform raster point to 64K space
+	Shr	Ax,1			;  to 32K space
+
+Tt32KStuff:
+	Mov	Ds:(Word Ptr (-2))[Si],Ax; Back into PtsOut
+
+	Xchg	Bx,Di			; Di <- number of pixels in Y or X
+
+	Loop	Tt32KLoop		; Loop until all vertices transformed
+
+	Pop	Ds			; Restore caller's registers
+	Pop	Di
+	Pop	Bx
+
+Tt32KQuit:
+	Ret				;  & return
+
+Tt32KOFlow:
+	Mov	Ax,32767		; Pin returned 32k point at max
+	Jmps	Tt32KStuff		; Return maximum value
+
+
+; Get a byte via FGetCh
+LoadGetCh:
+					; Get a byte
+	Push	Bx			; peek at next character
+	Lea	Bx,DMABuff2		; Point to buffer structure
+
+	Cmp	Cs:DMABuffLoc2,128		;Beyond end of buffer?
+	Jb	PeekChG			; Jump if not beyond end of buffer
+					; Get next record
+	Push	Ds
+	Push	Cs
+	Pop	Ds
+	Lea	Dx,ProcFCB		; Point to Fcb
+	Mov	Cl,014h			; Bdos "Read Sequential" opcode
+	Push	Es
+	Int	Bdos			; Get next record from file
+	Pop	Es
+	Pop	Ds
+	Cmp	Al,0H
+	Jne	EOFTIme
+	Mov	Cs:DMABuffLoc2,0
+	Mov	Cs:DMABuffChar2,al
+
+PeekChG:
+	Sub	Bx,Bx
+	Mov	Bl,Cs:DMABuffLoc2
+	Mov	Al,Cs:Byte Ptr DMABuff2[Bx]; Get next character	
+	Inc	Bx
+	Mov	Cs:DMABuffLoc2,Bl
+	Pop	Bx
+	Ret
+EOFTime:
+	Or	Al,Al
+	Stc
+	Pop	Bx
+	Ret				;  & return with it
+; Show Dx:Ax in decimal. Maximum value is 655359.
+ShowDecimal:
+	Mov	Bx,10			; Decimal is base 10
+
+Show_Left_Digits:
+	Div	Bx			; Ax <- Dx:Ax/10, Dx <- rem
+
+	Or	Ax,Ax			; More digits left?
+	Jz	ShowDQ			; Jump if not
+
+	Push	Dx			; Save digit
+	Mov	Dx,0			; High half zero
+	Call	Show_Left_Digits	; Show the remainder first
+	Pop	Dx			; Restore digit this recurse found
+
+ShowDQ:	Add	Dl,'0'			; Make it Ascii
+	Call	ShowChar	; Show this recurse digit
+	Ret				;  then return
+
+Load_GSX:
+	Cmp	Cs:No_Load,0
+	Je 	$+5
+	Jmp 	No_Keep
+Get_Mem:
+	Cmp	Cs:Version,CPM_Version  ; check the OS version
+	Je	Get_CPM_Mem
+	Cmp	Cs:Version,MPM_Version
+	Jne	$+5
+	Jmp	Get_MPM_Mem
+	Cmp	Cs:Version,CPMPLUS_Version
+	Jne	$+5
+	Jmp	Get_CPMPLUS_Mem
+	Cmp	Cs:Version,CCPM_Version
+	Jne	$+5
+	Jmp	Get_CCPM_Mem
+Get_CPM_Mem:
+	Mov	Ax,GSX_Size
+	Add	Ax,GSX_Comm_Paragraphs
+	Add	Ax,Minimum_Stack
+	Add	Ax,Hacksize
+	Add	Ax,Cs:ModuleSize
+	Mov	Cs:All_Paragraphs,ax
+	Les	Bx,MRT_Ptr
+	Mov	Di,1
+	Sub	Ch,Ch
+	Mov	Cl,Es:(byte ptr 0)[Bx]
+
+Find_GSX_Place:
+	Cmp	Ax,Es:(word ptr 2)[Bx+Di]
+	Ja	GSX_Place_Not_Found
+
+	Mov	Dx,Es:(Word Ptr 0)[Bx+Di]; Get base of MRT entry
+	Mov	Cs:Moved_GSX_Base,Dx	; Save for possible move
+	Cmp	Dx,Cs:Old_GSX_Base		; Same place as before?
+	Jne	Not_Same_Place		; Jump if a different place
+
+	Add	Dx,Cs:Old_GSX_Paragraphs	; If same, start grabbing above old
+	Sub	Ax,Cs:Old_GSX_Paragraphs	;  for shorter length
+	Mov	Cs:M_Length,Ax		; Save delta in length
+	Jbe	Move_GSX	; Jump if new shorter than old
+
+Not_Same_Place:
+	Mov	Cs:M_Base,Dx		; New GSX base into MCB
+	Mov	Cs:M_Length,Ax		; Size required
+
+	Push	Ax
+	Push	Bx			; Preserve registers from Bdos
+	Push	Cx
+	Push	Di
+	Push	Es
+	Mov	Dx,Offset M_Base	; Point to MCB
+	Mov	Cl,038h			; Bdos "Alloc Abs Mem" function
+	Push	Cs
+	Pop	Ds
+	Int	Bdos		; Get additional memory just above old
+	Pop	Es			; Restore registers from Bdos
+	Pop	Di
+	Pop	Cx
+	Pop	Bx
+
+;	Inc	Al			; Successful allocate?
+	pop	ax
+	Jnz	Move_GSX	; Jump if yes
+GSX_Place_Not_Found:
+	Add	Di,4			; Point to next MRT entry
+	Loop	Find_GSX_Place		;  & try it
+
+NO_MEMORY:				;;
+	Mov	Dx,ErrorCode11
+	Mov	cl,9
+	Int	Bdos
+	Jmp	No_Keep
+
+	
+Move_GSX:
+	Mov	Ax,Cs:All_Paragraphs	; Delta to MRT entry
+	Add	Es:(Word Ptr 0)[Bx+Di],Ax; Bump base of MRT entry up
+	Sub	Es:(Word Ptr 2)[Bx+Di],Ax;  & length down
+
+	Push	Ds			; Save pointer to my DSeg
+	Mov	Ax,Cs:moved_GSX_Base
+	Mov	Es,Ax			; Point to place to put GSX
+
+	Mov	Si,0			; First word to move
+	Mov	Di,0			; Place to put it
+
+	Mov	Cx,Cs:All_Paragraphs	; Number of paragraphs in everything
+	Sub	Cx,Cs:ModuleSize	; Number of paragraphs in GSX + Comm
+	Sub	Cx,Minimum_Stack
+	Shl	Cx,1			; *2
+	Shl	Cx,1			; *4
+	Shl	Cx,1			; *8 is number of words
+	Mov	Ax,Cs
+	Mov	Ds,Ax	; Move from GSX code
+
+	Cld				; Increasing address
+   Rep Movs	Es:(Word Ptr 0)[Di],Ds:(Word Ptr 0)[Si]; Move GSX-86 (& comm)
+
+	Pop	Ds			; Point back to my DSeg
+	Mov	Ax,Es
+	Mov	Word Ptr Jump_CPM_GSX + 2,Ax
+	Mov	Ax, Offset NEW_CPM_ENTRY
+	Mov	Word Ptr JUMP_CPM_GSX,Ax
+	Db	0eaH
+Jump_CPM_GSX	Rd 1
+New_CPM_Entry:	
+	Mov	Ax,Cs
+	Add	Ax,GSX_Size
+	Add	Ax,GSX_Comm_Paragraphs
+	Add	Ax,Hacksize
+	Pushf
+	pop	Bx
+	Cli
+	Mov	SS,Ax
+	Mov	Sp,Stack_Height
+	Push	Bx
+	Popf
+	Jmp	Fix_Interrupts
+
+Get_MPM_Mem:
+Get_CPMPlus_Mem:
+Get_CCPM_Mem:
+	Mov	CL,09CH				;;RETURN PD ADDRESS
+	Int	Bdos			;;bang the button
+	And	ES: byte ptr .6[BX],00FCH ;;turn Off the KEEP and SYSTEM flags
+	Mov	Ax,Cs
+	Add	Ax,GSX_Size
+	Add	Ax,GSX_Comm_Paragraphs
+	Add	Ax,Minimum_Stack
+	Mov	SS,Ax
+	Mov	Sp,Stack_Height
+	Inc	Ax
+	Mov	Cs:M_Base,Ax
+	Mov	Cs:M_Ext,0
+	Mov	Cl,39H
+	Lea	Dx,M_Base
+	Push	Cs
+	Pop	Ds
+	Int	Bdos
+	Mov	CL,09CH				;;RETURN PD ADDRESS
+	Int	Bdos			;;bang the button
+	Or	ES: byte ptr .6[BX],011B	;;turn on the KEEP and SYSTEM flags
+	Mov	Ax,Cs:ModuleSize
+	Mov	Cs:M_Length,Ax
+	Lea	Dx,M_Base
+	Mov	Cl,37H
+	Int	Bdos
+	Mov	Bx,Cs:M_Base
+	Mov	Cs:BasePageSegment,Bx
+	Cmp	Al,0
+	Je	Fix_Interrupts
+	Mov	Dx,Offset ErrorMesg11
+	Mov	Cl,9
+	Int	Bdos
+	Jmp	No_Keep
+Fix_Interrupts:
+
+	Cmp	Cs:Version,CPMPlus_Version	; is it plus?
+	Jne	$+5
+	Jmp	Init_Layer_TAble			; don't patch vectors if it is
+	Push	Ds			; Save my Ds
+	Pushf				;;save interrupt state
+	Cli				;;
+	Sub	Ax,Ax			; Need access to interrupt vectors
+	Mov	Ds,Ax
+
+	Mov	Ax,Word Ptr Gdos_Vector	; Old vector
+	Mov	Cs:(Word Ptr Old_Vector_0),Ax;  into save area
+
+	Mov	Ax,Word Ptr Gdos_Vector+2; Get old interrupt 224 vector
+	Mov	Cs:(Word Ptr Old_Vector_0+2),Ax;  into save area
+
+	Mov	Ax,Word Ptr Gdos_Vector+4 ; Old ve
+	Mov	Cs:(Word Ptr Old_Vector_1),Ax;  into save area
+
+	Mov	Ax,Word Ptr Gdos_Vector+6; Get old interrupt 225 vector
+	Mov	Cs:(Word Ptr Old_Vector_1+2),Ax;  into save area
+
+	Mov	Ax,Cs
+	Mov	Word Ptr Gdos_Vector+2,Ax; New vector to new GSX
+	Mov	Word Ptr Gdos_Vector,Offset GSX_Entry_0		; Int 224 vect
+	Mov	Word Ptr Gdos_Vector+6,Ax; New vector to new GSX
+	Mov	Word Ptr Gdos_Vector+4,Offset GSX_Entry_1	; Int 225 vect
+
+	Popf					;;restore interrupt state
+	Pop	DS
+	Cmp	CS:Version,CPM_Version			;;CPML,09CH				;;RETURN PD ADDRESS
+	Jne	Patch_CCPM_Parents
+	Jmp	Init_Layer_Table
+Patch_CCPM_PArents:
+	Mov	Cl,09CH
+	Int	Bdos			;;bang the button
+	Pushf					;;
+	Cli					;;
+PATCH_NEXT_PARENT:				;;
+	Mov	BX,ES:01EH[BX]			;;get pointer to next parent
+	Or	BX,BX				;;null ?
+	Jz	NO_MORE_PARENTS			;;yes then leap
+	Push	Es
+	Mov	ES,ES:010H[BX]			;;get segment of parents UDA
+	Mov	AX,Cs				;;get the segment
+	Mov	ES:.05AH,AX			;;set parents 224
+	Mov	ES:.05EH,AX			;; and 225
+	Mov	AX,offset GSX_ENTRY_0		;; get the offset
+	Mov	ES:.058H,AX			;;
+	Mov	AX,offset GSX_ENTRY_1		;;
+	Mov	ES:.05CH,AX			;;
+	Pop	Es
+	Jmps	PATCH_NEXT_PARENT		;;go look for the next
+NO_MORE_PARENTS:
+	Popf					;;restore the interrupts
+INIT_LAYER_TABLE:			;;
+	Mov	Ax,GSX_Size		; Get length of just GSX
+	Mov	Bx,Cs
+	Add	Ax,Bx			;  plus base of moved GSX
+	Add	Ax,Hacksize		; see hacksize in top of code
+	Mov	Cs:BasePageSegment+16,Ax;  is base of Comm to layer 1
+	Mov	Bx,GSX_Comm_Paragraphs	; Length of comm
+	Mov	Cs:ModuleSize+16,Bx	;  to size slot in layer 1
+	Cmp	Cs:Version,CPM_Version
+	Jne	Bind_Default_Drivers
+	Mov	Ax,Cs:BasePageSegment+16
+	Add	Ax,GSX_Comm_Paragraphs	; Ax <- base of driver
+	Add	Ax,Minimum_Stack
+	Mov	Cs:BasePageSegment,Ax	;  to layer 0
+
+
+BIND_DEFAULT_DRIVERS:
+	Cmp	CS:Version,CPMPLUS_Version
+	Jne	B_D_D
+	Mov	Al,SetupRSX
+	Mov	Ah,3
+	Mov	Cs:RSXPCB,ax
+	Mov	Ax,gsx_base
+	Mov	Cs:RSXPCB+4,ax
+	Sub	Ax,ax
+	Mov	Cs:RSXPCB+2,ax
+	Mov	Ax,cs
+	Mov	Cs:RSXPCB+6,ax
+	Mov	Cl,60
+	Mov	Dx,offset RSXPCB
+	Int	Bdos
+B_D_D:
+	Push	DS
+	Mov	Ds,Cs:BasePageSegment+16; Base of Comm in layer 1
+	Mov	Dx,Offset GSX_Comm	; Offset in segment
+	Mov	Cx,01373h		; Gdos "Bind Layer 1 Direct" function
+	Int	Gdos_Int		; Bind the Comm driver to layer 1
+
+	Pop	Ds			; Restore my Ds
+
+	Sub	Dx,Dx
+	Mov	Dl,Cs:Byte Ptr Assign_Table	; Load default driver
+	Mov	Cx,00173h		; Gdos "Bind Layer Indirect" function
+	Int	Gdos_Int		; Bind default driver to layer 0
+
+	Jz	$+8
+	Mov	Bx,ErrorCode12
+	Jmp	ErrorRoutine2
+GSX_Installed:
+	Push	Ds
+	Push	Cs
+	Pop	Ds
+	Mov	Dx,Offset Installed_Msg_0; Point to "GSX-86 installed" message
+	Mov	Cl,009h			; Bdos "Print String" function
+	Int	Bdos
+	Sub	Bx,Bx
+	Sub	Dx,Dx
+	Mov	Dl,Cs:Byte Ptr Assign_Table+1[bx]
+	Cmp	Dl,0
+	Je	ShowNoDrive
+	Add	Dl,'@'
+	And	Dl,07FH
+	Mov	Cl,2
+	Int	Bdos
+	Mov	Dl,':'
+	Mov	Cl,2
+	Int	Bdos
+ShowNoDrive:
+	Mov	Bx,1
+	Mov	Dl,Cs:Byte Ptr Assign_Table+1[Bx]
+	Mov	Cx,8
+LoopName:
+	Push	Cx
+	Cmp	Dl,' '
+	Je	FileNameDone
+	And	Dl,07FH
+	Mov	Cl,2
+	Push	Bx
+	Int	Bdos
+	Pop	Bx
+	Inc	Bx
+	Mov	Dl,Cs:Byte Ptr Assign_Table+1[Bx]
+	Pop	Cx	
+	Loop	LoopName
+	Push	Cx
+FileNameDone:	
+	Mov	Dl,'.'
+	Mov	Cl,2
+	Push	Bx
+	Int	Bdos
+	Pop	Bx
+	Pop	Cx
+	Add 	Bx,Cx
+	Mov	Cx,3
+ShowExtension:
+	Push	Cx
+	Mov	Dl,Cs:Byte Ptr Assign_Table+1[Bx]
+	And	Dl,07FH
+	Mov	Cl,2
+	Push	Bx
+	Int	Bdos
+	Pop	Bx
+	Inc	Bx
+	Pop	Cx
+	Loop ShowExtension
+	Mov	Dx,Offset Installed_Msg_1; Point to " is "
+	Mov	Cl,009h			; Bdos "Print String" function
+	Int	Bdos
+	Mov	Ax,Cs:ModuleSize	; Number of paragraphs in GIOS
+	Mov	Dx,16			;  * 16 for number of bytes
+	Mul	Dx			; Dx|Ax <- # bytes in driver
+	Call	ShowDecimal		; Show dddddd digits
+	Mov	Dx,Offset Installed_Msg_2; Point to " bytes long at " message
+	Mov	Cl,009h			; Bdos "Print String" function
+	Int	Bdos
+	Mov	Dx,Cs:BasePageSegment	; Get base of GIOS
+	Call	PoopDx			; Show xxxx GIOS base address
+
+	Mov	Dx,Offset Installed_Msg_3; Point to ":0000" message
+	Mov	Cl,009h			; Bdos "Print String" function
+	Int	Bdos
+	Cmp	Cs:Version,CCPM_Version		;;CCPM ?
+	Je	STALL_ON_Q		;;yes the leap
+	Jmp	Keep
+STALL_ON_Q:
+	Mov	CL,099H			;;get console number
+	Int	Bdos
+	Add	AL,030H			;;make it a number
+	Mov	Cs:GSX_QD_NAME+3,AL	;;drop it into the que structure
+	Mov	Cs:GSX_QPB_NAME+3,AL	;;
+	Push	Cs
+	Pop	Ds
+	Mov	DX,offset GSX_QD	;;point at the que descriptor
+	Mov	CL,086H			;;make que
+	Int	Bdos
+	Inc	AL			;;
+	Jnz	STALL_OPEN		;;if ok then try next
+Q_ERROR:
+	Mov	DX,offset Q_ERROR_MSG	;;point to message
+	Mov	CL,09H			;;
+	Int	Bdos
+	Mov	Bx,ErrorCode13
+	Jmp	ErrorRoutine2
+
+STALL_OPEN:
+	Mov	DX,offset GSX_QPB	;;point at que parameter block
+	Mov	CL,087H			;;open que
+	Int	Bdos
+	Inc	AL			;;
+	Jz	Q_ERROR			;;
+
+	Mov	CL,093H			;;detach the console
+	Int	Bdos
+
+	Mov	AX,offset Q_MSG_OFF	;;point at where to put message
+	Mov	Cs:GSX_QPB_BUFFER,AX	;;
+	Mov	Cs:GSX_QPB_NMSGS,1		;;one message to read
+	Mov	DX,offset GSX_QPB	;;point
+	Mov	CL,089H			;;and
+	Int	Bdos
+;
+	Mov	CL,09AH			;;return sysdat address
+	Int	Bdos
+	Mov	BX,ES:72H[BX]		;;get thread list root
+	Push	DS			;;stack DS
+	Mov	Ax,Seg GSX_Entry_0
+	Mov	DS,Ax			;;get GSX segment into DS
+	Mov	CX,DS			;;copy into CX
+	Pushf				;;
+	Cli				;;no interrupts please
+UNPATCH_NEXT_PROCESS_LOOP:		;;ES:BX -> at PD
+	Push	ES			;;save the system segment
+	Mov	ES,ES:10H[BX]		;;ES -> to UDA
+	Cmp	ES:.5AH,CX		;;segment match ?
+	Jnz	UNPATCH_NEXT_PROCESS	;;no then leap
+	Mov	AX,DS:(word ptr OLD_VECTOR_0)	;;get old 224 IP
+	Mov	ES:.58H,AX			;;
+	Mov	AX,DS:(word ptr OLD_VECTOR_0+2)	;;old 224 CS
+	Mov	ES:.5AH,AX			;;
+	Mov	AX,DS:(word ptr OLD_VECTOR_1)	;;old 225 IP
+	Mov	ES:.5CH,AX			;;
+	Mov	AX,DS:(word ptr OLD_VECTOR_1+2)	;;old 225 CS
+	Mov	ES:.5EH,AX			;;
+UNPATCH_NEXT_PROCESS:
+	Pop	ES			;;recover the system segment
+	Mov	BX,ES:.2[BX]		;;point to the next PD
+	Or	BX,BX			;;null ?
+	Jnz	UNPATCH_NEXT_PROCESS_LOOP	;;loop
+
+	Popf				;;recover the interupt state
+	Pop	DS			;;recover our segment
+
+	Mov	BX,Cs:Q_MSG_OFF		;;get the offset
+	Mov	ES,Cs:Q_MSG_SEG		;;get the segment of the lock flag
+	Mov	ES: byte ptr [BX],0FFH	;;tell the other guy it OK
+	Push	Cs
+	Pop	DS
+	Mov	DX,offset GSX_QPB	;;point at que parameter block
+	Mov	CL,088H			;;delete Q
+	Int	Bdos
+	Jmp	N_K_CCPM
+Keep:
+	Mov	Ax,Cs:Version
+	Cmp	Ax,CPM_Version
+	Jz	Keep_CPM
+	cmp	Ax,MPM_Version
+	Jz	Keep_MPM
+Keep_Plus:
+	Mov	cl,0
+	Mov	dx,1
+	Int	Bdos
+Keep_MPM:
+Keep_CPM:
+	Mov	Cl,0
+	Mov	Dx,0
+	Int	Bdos
+
+No_Keep:
+	Mov	Ax,Cs:Version
+	Cmp	Ax,CPM_Version
+	Je	Keep_CPM
+	Cmp	Ax,MPM_Version
+	Je	Keep_MPM
+	Cmp	Ax,CPMPlus_Version
+	Je	N_K_CPMPlus
+N_K_CCPM:	
+	Mov	CL,09CH				;;RETURN PD ADDRESS
+	Int	Bdos			;;bang the button
+	And	ES: byte ptr .6[BX],11111100B	;;turn off the keep flag
+	Jmp	Keep_CPM
+
+N_K_CPMPlus:	
+	Mov	Al,SetupRSX
+	Mov	Ah,3
+	Mov	Cs:RSXPCB,Ax
+	Mov	Ax,Cs	
+	Mov	Cs:RSXPCB+4,Ax
+	Sub	Ax,Ax
+	Mov	Cs:RSXPCB+2,Ax
+	Mov	Ax,Cs
+	Mov	Cs:RSXPCB+6,Ax
+	Mov	Cl,60
+	Mov	Dx,Offset RSXPCB
+	Int	Bdos
+	Mov	Al,RSXTermdie
+	Mov	Ah,0
+	Mov	Cs:RSXPCB,Ax
+	Mov	Cl,60
+	Mov	Dx,Offset RSXPCB
+	Int	Bdos
+	Jmp	Keep_CPM
+
+
+ErrorRoutine2:
+	Sub	Bx,12
+	Shl	Bx,1
+	Jmp	Cs:ER2Table[Bx]
+Er2Table	Dw	Offset	Error12
+		Dw	Offset	Error13
+Error12:
+	Mov	Dx,Offset ErrorMesg12
+	Mov	Cl,9
+	Int	Bdos
+	Jmp	Keep_CPM
+Error13:
+	Jmp	Keep_CPM
+
+ErrorRoutine3:
+	Sub	Bx,3
+	Shl	Bx,1
+	Jmp	Cs:ER3Table[Bx]
+Er3Table	Dw	Offset	Error3
+		Dw	Offset	Error4
+		Dw	Offset	Error5
+		Dw	Offset	Error5a
+		Dw	Offset Error6
+
+Error3:
+	Mov	Ax,2FFH
+	Jmp	GSXQuitStuffAx
+Error4:
+	Mov	Ax,4FFH
+	Jmp	GSXQuitStuffAx
+Error5:
+	Mov	Ax,5FFH
+	Jmp	GSXQuitStuffAx
+Error5a:
+	Mov	Ax,6FFH
+	Jmp	GSXQuitStuffAx
+Error6:
+	Mov	Ax,7FFH
+	Jmp	GSXQuitStuffAx
+
+ErrorRoutine4:
+	Cmp	Bx,3
+	Jb	ER4A
+	Sub	Bx,4
+	Cmp	Bx,3
+	Je	Er4a
+	Sub	Bx,1
+ER4a:	Sub	Bx,1
+	Shl	Bx,1
+	Jmp	Cs:ER4Table[Bx]
+Er4Table	Dw	Offset	Error1
+		Dw	Offset	Error2
+		Dw	Offset	Error7
+		Dw	Offset	Error9
+		Dw	Offset	Error10
+
+Error1:
+	Call	PoopCsIp
+	Mov	Dx,Offset ErrorMesg1
+	Mov	Cl,9
+	Int	Bdos
+	Mov	Dx,OldCx
+	Call	PoopDx
+	Mov	Dx,Offset HexString
+	Mov	Cl,9
+	Int	Bdos
+	Jmp	Delete_This_CCPMGSX
+Error2:
+	Call	PoopCsIp
+	Mov	Dx,Offset ErrorMesg1
+	Mov	Cl,9
+	Int	Bdos
+	Mov	Dx,LayerIndex
+	Call	PoopDx
+	Mov	Dx,Offset HexString
+	Mov	Cl,9
+	Int	Bdos
+	Jmp	Delete_This_CCPMGSX
+Error7:
+	Call	PoopCsIp
+	Mov	Dx,Offset ErrorMesg7
+	Mov	Cl,9
+	Int	Bdos
+	Mov	Dx,LayerIndex
+	Call	PoopDx
+	Mov	Dx,Offset HexString
+	Mov	Cl,9
+	Int	Bdos
+	Jmp	Delete_This_CCPMGSX
+Error9:
+	Call	PoopCsIp
+	Mov	Dx,Offset ErrorMesg9
+	Mov	Cl,9
+	Int	Bdos
+	Mov	Dx,LayerIndex
+	Call	PoopDx
+	Mov	Dx,Offset HexString
+	Mov	Cl,9
+	Int	Bdos
+	Jmp	Delete_This_CCPMGSX
+Error10:
+	Call	PoopCsIp
+	Mov	Dx,Offset ErrorMesg10
+	Mov	Cl,9
+	Int	Bdos
+	Mov	Dx,LayerIndex
+	Call	PoopDx
+	Mov	Dx,Offset HexString
+	Mov	Cl,9
+	Int	Bdos
+	Jmp	Delete_This_CCPMGSX
+Delete_This_CCPMGSX:
+	Push	Cs
+	Pop	Ds
+	Mov	Dx,Offset RemoveGSXMesg
+	Mov	Cl,9
+	Int	Bdos
+	Mov	CL,099H			;;return console number
+	Int	BDos			;;get our console number
+	Add	AL,030H			;;make it a number
+	Mov	Cs:GSX_QD_NAME+3,AL	;;
+	Mov	Cs:GSX_QPB_NAME+3,AL	;;drop into the Q structure
+	Mov	DX,offset GSX_QPB	;;point
+	Mov	CL,087H			;;open Q
+	Push	Cs			;; point Ds to the q
+	Pop	Ds
+	Int	Bdos		;;
+	Cmp	AX, 0FFFFh		;; See if the Queue could be opened
+	Jne	$+5			;; No Q => Error on loading gsx first time
+	Jmp	Release_FIrst_GSX
+	Mov	Cs:WAIT_FLAG,0		;;clear the flag
+	Mov	AX,offset WAIT_FLAG	;;
+	Mov	Cs:Q_MSG_OFF,AX		;;set up the offset field
+	Mov	Cs:Q_MSG_SEG,ES		;;set up the segment field
+	Mov	AX,offset Q_MSG_OFF	;;point to message
+	Mov	Cs:GSX_QPB_BUFFER,AX	;;
+	Mov	Cs:GSX_QPB_NMSGS,1		;;one message
+	Mov	DX,offset GSX_QPB	;;point to QPB
+	Push	Cs
+	Pop	Ds
+	Mov	CL,08BH			;;Q write
+	Int	BDos		;;release the sleeping GSX
+	Mov	Dx,0
+	Mov	Cl,0
+	Int	Bdos
+Release_First_GSX:
+	Mov	CL,09AH			;;return sysdat address
+	Int	Bdos
+	Mov	BX,ES:72H[BX]		;;get thread list root
+	Push	DS			;;stack DS
+	Mov	Ax,Seg GSX_Entry_0
+	Mov	DS,Ax			;;get GSX segment into DS
+	Mov	CX,DS			;;copy into CX
+	Pushf				;;
+	Cli				;;no interrupts please
+UNPATCH_NEXT_PROCESS_LOOP2:		;;ES:BX -> at PD
+	Push	ES			;;save the system segment
+	Mov	ES,ES:10H[BX]		;;ES -> to UDA
+	Cmp	ES:.5AH,CX		;;segment match ?
+	Jnz	UNPATCH_NEXT_PROCESS2	;;no then leap
+	Mov	AX,DS:(word ptr OLD_VECTOR_0)	;;get old 224 IP
+	Mov	ES:.58H,AX			;;
+	Mov	AX,DS:(word ptr OLD_VECTOR_0+2)	;;old 224 CS
+	Mov	ES:.5AH,AX			;;
+	Mov	AX,DS:(word ptr OLD_VECTOR_1)	;;old 225 IP
+	Mov	ES:.5CH,AX			;;
+	Mov	AX,DS:(word ptr OLD_VECTOR_1+2)	;;old 225 CS
+	Mov	ES:.5EH,AX			;;
+UNPATCH_NEXT_PROCESS2:
+	Pop	ES			;;recover the system segment
+	Mov	BX,ES:.2[BX]		;;point to the next PD
+	Or	BX,BX			;;null ?
+	Jnz	UNPATCH_NEXT_PROCESS_LOOP2	;;loop
+
+	Popf				;;recover the interupt state
+	Pop	DS			;;recover our segment
+
+	Jmp	N_K_CCPM
+
+
+
+; Data area for GSX-86
+
+MAXPROC		Equ	15		; Largest layer number
+MAXPROC_Paragraphs Equ	MAXPROC*16	; Largest layer number * 16
+MAXFUNC	Equ	7			; Maximum valid Gdos function
+
+		Public  Assign_Table
+		Public	MAXPROC
+		Public	HowBound
+		Public	ProcPtr
+		Public	BasePageSegment
+		Public	ModuleSize
+		Public	ProcId
+		Public	XPixels
+		Public	YPixels
+		Public	GSX_Base
+		Public	GSX_Size
+		Public	M_Base			
+		Public	M_Length
+		Public	M_Ext
+		Public	GSX_Length
+		Public	GSX_CPM86_Size
+		Public	Version
+		Public	ProcFCB
+		Public	Loaded_GSX_Seg
+		Public	Q_ERROR_MSG	
+		Public	GSX_QD		
+		Public	GSX_QD_NAME	
+		Public	GSX_QD_MSGLEN	
+		Public	GSX_QD_NMSGS	
+		Public	GSX_QPB		
+		Public	GSX_QPB_NMSGS	
+		Public	GSX_QPB_BUFFER	
+		Public	GSX_QPB_NAME	
+		Public	Q_MSG_OFF	
+		Public	Q_MSG_SEG	
+		Public	WAIT_FLAG	
+		Public	RSXPCB		
+		Public	No_Load
+		Public	Mrt_Ptr 
+		Public	Mrt_Offset 
+		Public	Bdos_Base 
+		Public	Loaded_GSX_Base		
+		Public	GSX_Paragraphs		
+		Public	Old_GSX_Base		
+		Public	Old_GSX_Paragraphs	
+		Public	All_Paragraphs
+; Layer Table
+
+HowBound	Rb	1		; How this layer is bound
+
+ProcPtr		Rd	1		; Dword Ptr to proc in layer
+
+BasePageSegment Rw	1		; Segment of Base Page Table for Proc
+
+ModuleSize	Rw	1		; Total paragraphs allocated
+
+ProcId		Rw	1		; Proc or Device Id of proc now bound
+
+XPixels		Rw	1		; Number of pixels in X from driver
+YPixels		Rw	1		; Number of pixels in Y from driver
+
+		Rs	1		; Filler to make 16 bytes
+
+		Rs	MAXPROC*16	; Rest of the layers
+
+; Assignment table
+Assign_Table    rb	308
+
+GSX_Base	Rw	1		; Segment value where
+GSX_CPM86_Size	Rw	1
+
+MD_Base		dw	0
+MD_Length	dw	0
+MD_Ext		db	0	
+
+M_Base			Dw	0	; Memory control block for Bdos
+M_Length		Dw	0
+M_Ext			Db	0
+
+Version		Dw	0
+
+Loaded_GSX_Seg	Dw	0	
+HexString	Db	'h (hex)',0Ah,0DH,'$'
+GSX_String	Db	'GSX-86 $'
+Installed_Msg_0	Db	'GSX-86 installed',13,10,'$'
+Installed_Msg_1	Db	' is $'
+Installed_Msg_2	Db	' bytes long at $'
+Installed_Msg_3	Db	':0000$'
+ErrorMesg1	Db	'GIOS invalid$'
+ErrorMesg2	Db	'Illegal function:  $'
+ErrorMesg7	Db	'GIOS load error on Id $'
+ErrorMesg9	Db	'Invalid Gios$'
+ErrorMesg10	Db	'Empty Layer$'
+ErrorMesg11	Db	'Not Enough Memory for GSX-86$'
+ErrorMesg12	Db	'Unable to Bind Default Driver$'
+RemoveGSXMesg 	Db	'GSX Removed',0DH,0AH,'$'
+ProcFCB		rb	23H	; temporary file control block
+DMABuff   	rb	128	; temporary DMA Buffer area
+DMABuFFLoc	db	0
+DMABuffChar	Db	0	
+DMABuff2	rb	128	; 2nd temporary DMA Buffer area
+DMABuFFLoc2	db	0
+DMABuffChar2	Db	0	
+Q_ERROR_MSG	DB	13,10,'System Que error$'
+
+GSX_QD		DW	0
+		DW	0
+		DW	04H			;flags, SYSTEM PROCESS only
+GSX_QD_NAME	DB	'GSX     '
+GSX_QD_MSGLEN	DW	4			;4 byte long message
+GSX_QD_NMSGS	DW	1			;one message
+		DW	0
+		DW	0
+		DW	0
+		DW	0
+		DW	0			;buffer address
+;
+GSX_QPB		DW	0
+		DW	0
+GSX_QPB_NMSGS	DW	1
+GSX_QPB_BUFFER	DW	0			;buffer address
+GSX_QPB_NAME	DB	'GSX     '
+
+Q_MSG_OFF	DW	0			;message buffer
+Q_MSG_SEG	DW	0
+
+WAIT_FLAG	DB	0			;magic location
+
+RSXPCB			dw	0
+			dw	0
+			dw	0
+
+No_Load			Db	0	; 1 if "Graphics No"
+
+Mrt_Ptr Rd 0	; Ptr to Bios Memory Region Table  
+Mrt_Offset Dw 0	; Offset in OS of MRT
+Bdos_Base Dw 0	; Seg base of Bdos and Bios
+
+All_paragraphs	Dw	0
+Moved_GSX_Base  Dw	0
+Old_GSX_BAse	Dw	0
+Old_GSX_Paragraphs DW	0
+Loaded_GSX_Base		Dw	0	; Seg of GSX as loaded
+GSX_Paragraphs		Dw	0	; Paragraphs in GSX only
+
+GSX_Length	DW	0
+GSX_Size	Equ	((Offset GSX_Length-Offset GSX_Entry_0)+15)/16
+GSX_Comm_Code	CSeg	Para	Public
+		Extrn	GSX_Comm	:Far
+		Extrn	GSX_Comm_Paragraphs	:Abs
+
+Graphics_Code   CSeg	Para	Public
+
+		Extrn	Graphics	:Far
+
+	End
+

@@ -1,0 +1,417 @@
+<html>
+<head>
+<title>
+                         ^D^BGIOS TEST SUITE^M
+^M
+                          DOCUMENTATION^M
+^M
+                         November 1,1983^B^D^M
+</title>
+</head>
+<body>
+<pre>
+
+
+
+                         GIOS TEST SUITE
+
+                          DOCUMENTATION
+
+                         November 1,1983
+.pa
+                        Table of Contents
+
+
+     Who is this for     .    .    .    .    .    .    .    1
+
+
+
+     Using TESTGIOS      .    .    .    .    .    .    .    2
+
+
+     Using MODETEST      .    .    .    .    .    .    .    5
+
+
+     Using TEST SUITE    .    .    .    .    .    .    .    6
+
+.PA
+.PN 1
+.he                                     Who is this for
+WHO IS THIS FOR
+
+                         This  document describes how to use  the 
+                         GSX   86  test  suite.   The  suite  has 
+                         versions  covering CP/M-86  or  CCP/M-86 
+                         and  PC-DOS or MS-DOS.  There are  three 
+                         major  sections  to the suite of  tests. 
+                         They are 
+
+                                   TESTGIOS.CMD        CP/M
+                                   TESTGIOS.EXE        MS-DOS
+
+                                   MODETEST.CMD        CP/M
+                                   MODETEST.EXE        MS-DOS
+
+                                   Test suite          CP/M
+                                                       MS-DOS
+                         There are three disks for each operating 
+                         system.   The  first  two  are  for  the 
+                         test  suite.  The last is for  the  test 
+                         suite and TESTGIOS and MODETEST.
+.pa
+.he                                     USING TESTGIOS
+USING TESTGIOS
+
+                         Testgios   is   broken  into   seventeen 
+                         frames.  This  program is the oldest  of 
+                         the   entire  suite  of  tests  and   is 
+                         commonly used when first debugging  your 
+                         gios (device driver). The gios developer 
+                         should  NOT  assume that when  the  gios 
+                         appears  to  be fully  functional  under 
+                         testgios  that  no  further  testing  is 
+                         required. 
+
+                         To  run TESTGIOS under cp/m or ccp/m you 
+                         must type the following command.
+                            RUN TESTGIOS<return>
+                         To  run  under pc or ms-dos  you  simply 
+                         type TESTGIOS<return>.
+
+          Frame 1        This  displays horizontal  and  vertical 
+                         polylines,  with  color  attributes,  It 
+                         displays lines with various styles also. 
+                         Markers  with various colors,  sizes and 
+                         types are also displayed.  Non  rotated, 
+                         scaled text is also displayed.
+
+          Frame 2        This tests the devices escape functions. 
+                         There  are five parts to this frame each 
+                         separated by a pause for a <return>. The 
+                         first   screen   displays   a   diagonal 
+                         composed of 23 letter A's,  which  begin 
+                         in  the  upper left hand corner  of  the 
+                         display  surface.  Once  a  <return>  is 
+                         struck  a column of B's in reverse video 
+                         (if  the device supports it) is sent  to 
+                         the display. Then the cursor is moved to 
+                         the  middle of the display  surface  and 
+                         the  remainder  of  the line  is  erased 
+                         using the erase to end of line function. 
+                         Once a <return> is struck the cursor  is 
+                         moved down two rows,  then erases to the 
+                         end of the display.  The cursor  address 
+                         is  then inquired.   Once a <return>  is 
+                         struck  the screen is cleared and a C is 
+                         placed  at the home position and at  the 
+                         previously inquired upon position.  Once 
+                         a  <return>  is struck  the  display  is 
+                         placed  into graphics mode and  displays 
+                         the   number  of  mice  or  tablet  type 
+                         devices supported in the gios.
+.pa
+          Frame 3        This provides a partial test for writing 
+                         modes for polylines only.  A left column 
+                         of numbers representing the index of the 
+                         mode requested is displayed. A column of 
+                         numbers  to the right of  that  indicate 
+                         the  modes supported by the driver.  Two 
+                         lines  are drawn for each of the  modes. 
+                         They  are draw on top of each  other  so 
+                         that    modes   1,2   appear   solid   3 
+                         dissappears  altogether.  Four does  not 
+                         appear  since  it  is  specified  as  an 
+                         undraw mode.
+
+          Frame 4        These  frames partially test the various 
+                         GDP   (GENERALIZED  DRAWING   PRIMITIVE) 
+                         opcodes.  Only  supported GDP's will  be 
+                         tested.  More  complete test`s  will  be 
+                         found in the larger test suite.
+
+          Frame 5        This  frame  tests  text  rotation.   It 
+                         rotates   the  string  90  degrees  four 
+                         times.  If  the device does not  support 
+                         text   rotation,   only  the  0   degree 
+                         rotation is shown.
+
+          Frame 6        This   frame   test   text   size    and 
+                         positioning. Eleven A's are displayed on 
+                         a  baseline,  their size is attempted to 
+                         be  scaled.  If no scaling is  available 
+                         they  will  all be  the  same  size.  An 
+                         letter  A is also drawn at the center of 
+                         the marker symbol X.
+
+          Frame 7        This frame tests cell array  output.  On 
+                         color devices,  two identical grids, one 
+                         on top of the other,  will be displayed. 
+                         The  grid  colors will  be  red,  green, 
+                         blue,  yellow,  cyan,  and  magenta.  On 
+                         grey-scale  devices  the colors will  be 
+                         represented  by  varing  intensities  of 
+                         grey.  On monochrome devices,  the  cell 
+                         will appear solid filled. 
+
+          Frame 8        This frame tests cell array inquiry. One 
+                         cell,  identical in every respect to the 
+                         top cell in frame 7 will be displayed on 
+                         the device surface.
+
+          Frame 9        This  frame  tests  line  widths.  Three 
+                         lines   of  differing  widths  will   be 
+                         output.  If the device supports only one 
+                         width only one line will be ouput.
+.pa
+          Frame 10       This    frame   displays   the   devices 
+                         available  font's.  Characters  from  an 
+                         ascii  SPACE  through ascii  C  will  be 
+                         displayed.
+
+          Frame 11-13    These  frames partially test the setting 
+                         and inquiring color representation.  The 
+                         color indexes will be displayed and  the 
+                         three frames will attempt to set them to 
+                         different  colors.  Additional tests for 
+                         this are contained in the test suites.
+
+          Frame 14       This  frame  test request  mode  locator 
+                         input  by  allowing 5 input  points  and 
+                         then drawing a polygon between them.
+
+          Frame 15       This  frame  test  request  mode  choice 
+                         input.  The choice key selected will  be 
+                         displayed.
+
+          Frame 16       This  frame  tests request  mode  string 
+                         input with echo off.
+
+          Frame 17       This  frame  tests request  mode  string 
+                         input with echo on.
+.pa
+.HE                      USING MODETEST
+USING MODETEST
+
+                         Modetest  is  a  single  screen  program 
+                         which displays all the output primitives 
+                         in  gsx  in  each of  the  four  writing 
+                         modes.  To run it in either cp/m or  ms-
+                         dos  or  pc-dos  simply  type   MODETEST 
+                         <return>.
+                         Modetest   only   displays  two    color 
+                         indecies which it calls pen 0,  and  pen 
+                         1.  The four writing modes are displayed 
+                         as mode 1 through mode 4. The primitives 
+                         are  displayed  once for each pen  value 
+                         and for each writing mode or a total  of 
+                         8 times.  The order of the primitives is 
+                         text, polyline, bar, polygon, marker. On 
+                         low resolution displays some wrapping of 
+                         the  markers occurs,  as is shown in the 
+                         accompaning picture.  We feel even  with 
+                         this  minor  problem  that  the  program 
+                         displays so much information in a single 
+                         test that it is useful.
+.pa
+.he                                USING the TEST SUITE
+USING the TEST SUITE
+                         The  remaining suite of tests.  Are  the 
+                         newest  and most comprehensive tests for 
+                         gsx.  It  is  made of  of  twenty  eight 
+                         programs with a total of 42 screens. The 
+                         programs  will be discussed in the order 
+                         of their file names.  The test diskettes 
+                         may  not  contain  them  in  the   order 
+                         described  here.  To run any of the test 
+                         programs under cp/m you must use the RUN 
+                         FILENAME   command  as  was   used   for 
+                         testgios.  Under pc or ms dos you simply 
+                         type the filename.
+
+scrn01  Open Workstation This  returns the data about the  driver 
+                         and  displays it in a tabular form.  The 
+                         data is presented using graphic text and 
+                         thus this program can be run only  after 
+                         graphic  text is functional.  There  are 
+                         two screens to this test.
+
+scrn02  Polyline         This   shows   the  available   polyline 
+                         linetypes,  and  tests for out of  range 
+                         behavior  of the driver.  It then  tests 
+                         for  line  width and color with  out  of 
+                         range values for each.
+
+scrn03  Polymarker       This   displays  the  available   marker 
+                         symbols,  and  tests  for out  of  range 
+                         symbol  values.  It  then  displays  the 
+                         available  sizes of marker symbols  with 
+                         out of range values also tested. It then 
+                         tests  the marker  color  representation 
+                         with  out  of range color  index  values 
+                         displayed.
+
+scrn04  Polygon          This   displays  the  various   interior 
+                         styles  available,  with  out  of  range 
+                         values  displayed.  It  then  shows  the 
+                         colors available on polygons with out of 
+                         range   indexes   displayed.   It   then 
+                         displays  the  available pattern  styles 
+                         and  the  available  hatch  styles  with 
+                         testing   for   out  of   range   values 
+                         displayed.
+.pa
+scrn05  Text             This  displays  the  various   character 
+                         sizes available with out of range values 
+                         displayed.  It  then  shows the  various 
+                         rotations  available.   It  then   shows 
+                         characters   with  the  available  color 
+                         range,  testing for out of range  values 
+                         is also performed. The next screen shows 
+                         the  maximum text size,  as per the data 
+                         returned at open workstation.  The  next 
+                         screen  shows the effect of out of range 
+                         text sizes by a size of max+10. The next 
+                         several  screens show the various  fonts 
+                         available with out of range values being 
+                         tested also.
+ 
+scrn07  GDP GRAPHIC CHAR This  screen  displays the  gdp  graphic 
+                         ruling characters.
+ 
+scrn08  GDP BARS         This   displays  the  various   interior 
+                         styles  available,  with  out  of  range 
+                         values  tested.  It  next  displays  the 
+                         available  pattern  styles with  out  of 
+                         range  values tested.  It next  displays 
+                         the  available hatch styles with out  of 
+                         range  values tested.  It next  displays 
+                         the  available colors with out of  range 
+                         indexes tested.
+
+scrn09  GDP ARC          This  screen  displays the  gdp  arc  if 
+                         supported by the driver.
+
+scrn10  GDP PIE          This  screen  displays  the gdp  pie  if 
+                         supported by the driver.
+
+scrn11  GDP CIRCLE       This  screen displays the gdp circle  if 
+                         supported by the driver.
+
+scrn12  0 Length Prim    This screen displays 0 length polylines, 
+                         polygons, text, markers, bars, pie, arc, 
+                         circle and cell array. This shows if any 
+                         off by one errors may exist in the gios.
+
+scrn13  Writing Mode     This screen is essentially identical  to 
+                         mode  test except that it does not  wrap 
+                         and is smaller is size.
+
+scrn14  Cell Array       This screen test the cell array function 
+                         if implemented.
+
+scrn15  Open Work/Clear  This series of screens tries a number of 
+                         combinations   of  openworkstation   and 
+                         clearscreen  to  see if a  sequence  can 
+                         cause problems.
+.pa
+scrn19  Set Color Rep    This  screen draws  the number of colors 
+                         available in the form of bars.  It  then 
+                         sets  color  representation,  displaying 
+                         the  rgb contents of each index.  If the 
+                         display hardware supports color  mapping 
+                         then  the colors will dynamically change 
+                         on the screen.
+
+scrnx0  Work Init        This screen uses open workstation to set 
+                         the  default values for  the  attributes 
+                         etc.
+
+scrnx1  Vector Display   This  series of screens makes sure  that 
+                         the  generation of lines (vectors) works 
+                         with  all slopes of  lines.  You  should 
+                         recieve displays like the three pictures 
+                         which accompany this description.
+ 
+scrn20a Locator Request  This  screen tests request mode  locator 
+                         input.  You  may  verify  that  the  ndc 
+                         numbers displayed are correct by finding 
+                         the  size of your pixel in ndc space and 
+                         computing  the values at the corners  of 
+                         the  display  surface  are  correct.  In 
+                         addition  if  you are using a  mouse  or 
+                         tablet, you may test the values returned 
+                         for button presses.  The decimal  values 
+                         are  displayed  near  the  base  of  the 
+                         arrow.
+ 
+scrn20b Locator Sample   This  screen tests that your sample mode 
+                         locator is tracking correctly.  Your may 
+                         wind  your way through the maze  to  the 
+                         cheese.
+
+scrn21  Choice           This   screen  tests  both  request  and 
+                         sample mode choice input. The first test 
+                         is  in request mode where you may  input 
+                         10 choice presses. The second test is in 
+                         sample   mode  where  10   samples   are 
+                         performed and the result is displayed.
+
+scrn22  String           This   screen  tests  both  request  and 
+                         sample  mode text input.  It also  tests 
+                         both echo and non echo modes.
+.pa
+scrn23  Valuator         This  screen  tests  both  request   and 
+                         sample mode valuator input.  The request 
+                         mode  test asks you to set the  valuator 
+                         lower.  Since  it  is request  mode  you 
+                         terminate it by striking a key or button 
+                         or   whatever   event   terminates   you 
+                         valuator.  You  next  set  the  valuator 
+                         higher  using  the same  procedure.  You 
+                         next  set the valuator lower and  higher 
+                         in  sample  mode with  7  samples  being 
+                         shown for each. 
+
+scrn24  Long Vect Perf   This  test displays a very large  number 
+                         of  vectors which range from a  diagonal 
+                         in  length to the length of the x and  y 
+                         axes.   A  bell  code  is  sent  at  the 
+                         beginning  and at the end allowing  easy 
+                         timing.
+
+scrn25  Shrt Vect Perf   This  test  displays a large  number  of 
+                         short   vectors  with  a  bell  at   the 
+                         beginning  and  a bell at the end for  a 
+                         timing mark.
+
+scrn26  Polygon Perf     This  test  fills a  number  of  polygon 
+                         shapes  with  a variety of  styles.  The 
+                         shapes run from very simple to the  last 
+                         with a large number of verticies. A bell 
+                         sounds  at  the  beginning  and  another 
+                         bell at the end as a timing mark.
+
+scrn27  Small Chr Perf   This  test fills the displays with  rows 
+                         of   characters  at  the  minimum   text 
+                         height  of the device.  This is repeated 
+                         several  times.  A  bell sounds  at  the 
+                         beginning and another at the end.
+ 
+scrn28  Big Char Perf    This test fills the display with rows of 
+                         the largest characters available on  the 
+                         device.  A  bell sounds at the beginning 
+                         and another at the end.
+
+scrn29  Bar Fill Perf    This  test draws a random set  of  sizes 
+                         and  shapes of bars with various  colors 
+                         and   styles.   If   the  bar  fill   is 
+                         implemented   well,   this can be a very 
+                         dramatic demonstration program.  A  bell 
+                         sounds  at the beginning and another  at 
+                         the end.
+
+ 
+</pre>
+</body>
+</html>
+

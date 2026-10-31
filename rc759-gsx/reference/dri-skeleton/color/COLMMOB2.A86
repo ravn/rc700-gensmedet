@@ -1,0 +1,985 @@
+EJECT
+;************************************************************************
+;stlut									*
+; 14									*
+;	Set color representation					*
+;									*
+;	Supported for color index zero only				*
+;									*
+;	calls load lut with						*
+;			ax=color index					*
+;			si=pointer to color table entry 		*
+;************************************************************************
+stlut:
+	les	di,intin
+	mov	ax, es:[di]		; get the requested index
+	cmp	ax,8
+	jb	index_ok
+	mov	ax,7
+index_ok:
+	push	ax
+	mov	cx,6			;six byte per entry
+	mul	cl			;index into table
+	mov	cx,3			;three words per index
+	mov	si,offset requested_color_table
+	add	si,ax
+	add	di,2
+set_loop:
+	mov	ax,es:[di]
+	mov	[si],ax 		;store values in table
+	add	si,2
+	add	di,2
+	loop	set_loop
+	pop	ax
+	sub	si,6			;point to top of table
+	call	load_lut		;try to implement it
+	ret
+EJECT
+;************************************************************************
+;stline 								*
+; 15									*
+;	Set the line style attribute					*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+stline:
+	les	di,intin
+	mov	ax, es:[di]		; get the style word
+	mov	line_style_index,ax
+	call	plncmd			; range check linestyle
+	mov	ax,line_style_index
+	les	di,intout
+	mov	es:[di],ax		; return the style set
+	ret
+;			     
+EJECT
+;************************************************************************
+;stplwd 								*
+; 16									*
+;	Set the line width attribute	NOT SUPPORTED			*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+stplwd:
+	les	di,ptsout		; set line width to 1
+	mov	es: W_1[di], 1
+	mov	es: W_2[di], 0
+	les	di,contrl
+	mov	es: W_3[di], 1		; set ptsout count = 1
+	ret		    
+;
+EJECT
+;************************************************************************
+;stplcx 								*
+; 17									*
+;	Set the polyline color attribute				*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+stplcx:
+	les	di,intin
+	mov	ax,es:[di]
+	mov	line_color,ax		; store requested color index.
+	call	plncmd
+	mov	ax,line_color
+	les	di,intout
+	mov	es:[di],ax		;store index actually set
+	ret
+
+plncmd: 				;external entry from openwk
+	mov	ax,line_color
+	cmp	ax, 8
+	jb	plncm2			; if line color is not zero 
+	mov	ax,7			;   then color is white
+plncm2: mov	line_color,ax	
+	mov	bx,line_style_index
+	cmp	bx,0			; is linestyle greater than zero?
+	ja	plncm5
+	mov	bx,1			; no, then make it one
+	jmps	plncm6
+plncm5: cmp	bx,9			; is it less than 9?
+	jb	plncm6
+	mov	bx,1			; no, then make it one
+plncm6: mov	line_style_index,bx
+	dec	bx			; make zero relative
+	shl	bx,1			;make it a word pointer
+	add	bx, offset style_table
+	mov	ax,[bx] 		;get line style
+	mov	l_style,ax
+plncm3: mov	bx, writing_mode	; get the value 0-3
+	add	bx, offset mode_table
+	mov	al,[ bx ]		; get the operation index from table
+	mov	polyline_mode, al	; save the pixel operation index
+	mov	bx,line_color
+	and	bx,1
+	mov	polyline_bp_1,bl
+	mov	bx,line_color
+	and	bx,2
+	mov	polyline_bp_2,bl
+	mov	bx,line_color
+	and	bx,4
+	mov	polyline_bp_3,bl
+	ret
+;
+EJECT
+;************************************************************************
+;stmrkr 								*
+; 18									*
+;	Sets the polymarker type					*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+stmrkr: les	di,intin
+	mov	ax, es:[di]		; get requested marker type
+	mov	marker_index,ax
+	call	mkrcmd
+	mov	ax,marker_index
+	les	di,intout
+	mov	es:[di], ax		; return marker type selected 
+	ret
+;
+EJECT
+;************************************************************************
+;stmrks 								*
+; 19									*
+;	Sets the marker size	NOT SUPPORTED				*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+stmrks:
+	les	di,contrl
+	mov	es: W_3[di], 1		; ptsout count = 1
+	les	di,ptsout
+	mov	es: W_1[di], 0		; ptsout[1] = 0
+	mov	es: W_2[di], 7		; ptsout[2] = marker height Dev. Units
+	ret
+;
+EJECT
+;************************************************************************
+;stmkcx 								*
+; 20									*
+;	Sets the marker color index					*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+stmkcx: les	di,intin
+	mov	ax, es:[di]		
+	mov	marker_color,ax 	; save requested color
+	call	mkrcmd
+	mov	ax,marker_color
+	les	di,intout
+	mov	es:[di],ax
+	ret
+;
+mkrcmd:
+	mov	ax,marker_color
+	mov	bx,marker_index
+	cmp	ax,8
+	jb	stmrk1
+	mov	ax,7			;make it white
+stmrk1: cmp	bx, 9			; check if marker type out of range
+	jb	stmrk2
+	mov	bx, 3			; marker 3 is used if out of range.
+stmrk2: cmp	bx,0			; check if marker type is 0.
+	ja	stmrk3
+	mov	bx, 3			; marker 3 is used if 0 type requested
+stmrk3: mov	marker_color,ax
+	mov	marker_index,bx
+	mov	bx, writing_mode	; get the current mode
+	add	bx, offset mode_table
+	mov	al,[ bx ]		; get the operation from table
+	mov	marker_mode,al
+	mov	bx,marker_color
+	and	bx,1
+	mov	mark_bp_1,bl
+	mov	bx,marker_color
+	and	bx,2
+	mov	mark_bp_2,bl
+	mov	bx,marker_color
+	and	bx,4
+	mov	mark_bp_3,bl
+	ret
+;
+EJECT
+;************************************************************************
+;sttxtf 								*
+; 21									*
+;	Sets the text font	NOT SUPPORTED				*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+sttxtf: les	di,intout
+	mov	es:W_1[ di ],1		; always returns font #1
+	ret
+;
+EJECT
+;************************************************************************
+;stxtcx 								*
+; 22									*
+;	Sets the text color index					*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+stxtcx: les	di,intin
+	mov	ax, es:[di]		
+	mov	text_color,ax		; save requested color
+	call	txtcmd
+	mov	ax,text_color
+	les	di,intout
+	mov	es:[di],ax
+	ret
+;
+txtcmd:
+	cmp	text_color,8
+	jb	sttxt1
+	mov	text_color,7		;map index to white
+sttxt1:
+	mov	bx, writing_mode	; get the current mode
+	add	bx, offset mode_table
+	mov	al,[ bx ]		; get the operation from table
+	mov	text_mode,al
+	mov	bx,text_color
+	and	bx,1
+	mov	text_bp_1,bl
+	mov	bx,text_color
+	and	bx,2
+	mov	text_bp_2,bl
+	mov	bx,text_color
+	and	bx,4
+	mov	text_bp_3,bl
+	ret
+;
+EJECT
+;************************************************************************
+;stflis 								*
+; 23									*
+;	Sets the Polygon Interior Style 				*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+stflis: les	di,intin
+	mov	ax, es:[di]		; get the fill style
+	mov	fill_style,ax		; save requested fill style
+	call	pgncmd
+	les	di,intout
+	mov	ax,fill_style	
+	mov	es:[di],ax		; return the style
+	ret
+;
+EJECT
+;************************************************************************
+;stflsi 								*
+; 24									*
+;	Sets the Polygon Interior Style Index	 (1-8)			*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+stflsi: les	di,intin
+	mov	ax, es:[di]
+	mov	fill_index,ax
+	call	pgncmd
+	mov	ax,fill_index
+	les	di,intout
+	mov	es:[di], ax		; return style selected in intout[1]
+	ret
+;
+EJECT	   
+;************************************************************************
+;stfclx 								*
+; 25									*
+;	Sets the Polygon Fill Color Index				*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+stfclx: les	di,intin
+	mov	ax, es:[di]		
+	mov	polygon_color,ax	; save requested color
+	call	pgncmd			; range check color and load operation
+	les	di,intout
+	mov	ax,polygon_color
+	mov	es:[di], ax		; return the selected color -intout[1]
+	ret
+pgncmd:
+	cmp	polygon_color,8
+	jb	pgncl1
+	mov	polygon_color,7
+pgncl1: mov	bx,fill_index
+	cmp	bx,0			; range check interior style
+	ja	pgncmd1
+	mov	bx,1
+pgncmd1:cmp	bx,9
+	jb	pgncmd2
+	mov	bx,1
+pgncmd2:mov	fill_index,bx		; save index
+	mov	ax, fill_style		; get fill interior style
+	cmp	ax, 0		
+	jne	solid			; test if hollow
+	mov	pattern_number,0ffh	; hollow fill.
+	jmps	pattern_done
+solid:	cmp	ax, 1			; check if solid interior style.
+	jne	dither
+	mov	pattern_number,7
+	jmps	pattern_done
+dither: cmp	ax, 2			; check if dithered pattern interior.
+	jne	hatch
+	mov	bx,fill_index
+	dec	bx			;make zero relative
+	mov	pattern_number,bl
+	jmps	pattern_done
+hatch:	cmp	ax,3
+	jne	fillbig
+	mov	bx, fill_index
+	add	bx, 7			; else make 8-15 to signify crosshatch.
+	mov	pattern_number,bl
+	jmps	pattern_done
+fillbig:mov	pattern_number,0ffh	;its hollow
+	mov	ax,0
+pattern_done:
+	mov	fill_style,ax
+	mov	bx,writing_mode 	; get the writing mode
+	add	bx,offset mode_table	; index into the color table
+	mov	al,[ bx ]
+	mov	polygon_mode,al
+	mov	bx,polygon_color
+	and	bx,1
+	mov	poly_bp_1,bl
+	mov	bx,polygon_color
+	and	bx,2
+	mov	poly_bp_2,bl
+	mov	bx,polygon_color
+	and	bx,4
+	mov	poly_bp_3,bl
+	ret
+;
+EJECT
+;************************************************************************
+;inqclr 								*
+; 26									*
+;	Inquire Color Representation (Get LUT)				*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+inqclr: les	di,intin
+	mov	ax, es:W_2[di]
+	mov	si,offset requested_color_table
+	cmp	ax,0
+	je	inq2
+	mov	si,offset realized_color_table
+inq2:	mov	ax, es:[di]		; get color index
+	cmp	ax,8
+	jb	index_range
+	mov	ax,7
+index_range:
+	les	di,intout
+	mov	es:[di],ax		; return the index
+	mov	cx,6			; six bytes per entry
+	mul	cl
+	add	si,ax			;access correct table
+	add	di,2
+	mov	cx, 3			;three words
+	rep	movsw			;move from table to intout[2-4]
+	ret
+;
+EJECT
+;************************************************************************
+;inqcla 								*
+; 27									*
+;	Inquire Cell Array (Raster Op) NOT SUPPORTED			*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+inqcla:
+	ret
+;
+EJECT
+;************************************************************************
+;getloc 								*
+; 28									*
+;	Return Locator Position 					*
+;									*
+;	Entry								*
+;									*
+;	Exit	none							*
+;	NOTE: FOR SAMPLE MODE						*
+;					Contrl[3]	Contrl[5]	*
+;	      Coordinate has changed	    1		    1		*
+;	      Key has been pressed	    0		    1		*
+;	      Nothing has happened	    0		    0		*
+;************************************************************************
+getloc: cmp	locator_mode, 1 	; if request mode input 
+	jnz	sampmode		;   then leave cursor off
+reqmode:
+	les	di,ptsin
+	mov	ax, es:[di]		; initial  X-coord. of locator
+	mov	gcurx, ax
+	mov	ax, es: W_2[di] 	; initial Y-coord. of locator  
+	mov	gcury, ax
+	call	enable_cross		; cursor on
+req_loop:
+;
+;get_loc_key subroutine returns
+;			al=0 if nothing happened
+;			al=1 button press
+;			al=2 coordinate information
+;
+;			ah=character information
+;			bx=delta x value
+;			cx=delta y value
+	call	get_loc_key
+	and	al,al
+	jz	req_loop
+	cmp	al,1			; test if locator terminated
+	jz	req_loc_done
+	add	bx,gcurx
+	add	cx,gcury		; add in the delta x,y values
+	call	move_cross
+	jmps	req_loop
+req_loc_done:
+	les	di,intout		; return the terminating character
+	mov	al,ah
+	xor	ah,ah
+	mov	es:[di],ax
+	les	di,ptsout		; return the x,y coordinate
+	mov	ax,gcurx
+	mov	es:[di],ax
+	mov	ax,gcury
+	mov	es:W_2[di],ax
+	call	enable_cross		; turn off locator
+	jmp	locator_success
+;
+;
+sampmode:
+;
+;get_loc_key subroutine returns
+;			al=0 if nothing happened
+;			al=1 button press
+;			al=2 coordinate information
+;
+;			ah=character information
+;			bx=delta x value
+;			cx=delta y value
+	les	di,intout
+	mov	es: W_1[di],0		; return a null key if none pressed
+	les	di,ptsin
+	mov	ax,es:[di]		; get input x,y
+	mov	bx,es:W_2[di]
+	les	di,ptsout
+	mov	es:[di],ax
+	mov	es:W_2[di],ax		; set ptsout to ptsin
+	push	ax
+	push	bx			; save x,y input
+	call	get_loc_key		; go to devspec and do sample mode
+	and	al,al			; test if nothing happened
+	jz	samp_mode_none
+	cmp	al,2
+	jz	samp_mode_coord
+samp_mode_key:
+	pop	bx
+	pop	bx			; get rid of stack data
+	les	di,intout
+	mov	al,ah
+	xor	ah,ah
+	mov	es:[di],ax		;return the key pressed
+	mov	ax,0
+	mov	bx,1
+	jmps	locator_done
+samp_mode_none:
+	pop	bx
+	pop	bx
+	xor	ax,ax
+	mov	bx,ax
+	jmps	locator_done		; return status that nothing happened
+samp_mode_coord:
+	pop	ax
+	add	cx,ax			; find new x
+	pop	ax
+	add	bx,ax			; find new y
+	call	clip_cross
+	les	di,ptsout
+	mov	es:[di],bx
+	mov	es:W_2[di],cx		; return in ptsout
+locator_success:
+	mov	ax,1
+	mov	bx,ax
+locator_done:
+	les	di,contrl
+	mov	es:W_3[di],ax
+	mov	es:W_5[di],bx
+	ret
+EJECT
+;************************************************************************
+;getval 								*
+; 29									*
+;	Return Valuator Scalar						*
+;									*
+;	Entry  Intin[2] contains initial value				*
+;									*
+;	Exit								*
+;	For Request mode						*
+;		Contrl[5] contains length of intout (2) 		*
+;		Intout[1] contains output value 			*
+;		Intout[2] contains terminating character		*
+;									*
+;	For Sample mode 						*
+;						    Contrl[5]		*
+;		Nothing happened			0		*
+;		Valuator changed			1		*
+;		Terminating character			2		*
+;		New value returned in Intout[1] 			*
+;		Terminating character in Intout[2] if available 	*
+;************************************************************************
+getval:
+	les	di,intin
+	mov	ax, es:W_2[di]		; initial  value
+	les	di,intout
+	mov	es:[di],ax		;put it in intout[1]
+	cmp	val_mode, 1		; if request mode input 
+	jnz	val_samp_mode		;   then leave cursor off
+val_req_loop:
+;
+;get_val subroutine returns
+;			al=0 if nothing happened
+;			al=1 button press
+;			al=2 coordinate information
+;
+;			ah=character information
+;			bx=delta value
+	call	valuator
+	and	al,al
+	jz	val_req_loop
+	cmp	al,1			; test if locator terminated
+	jz	req_val_done
+	les	di,intout
+	add	es:[di],bx		; update value
+	jmps	val_req_loop
+req_val_done:
+	mov	al,ah
+	xor	ah,ah
+	les	di,intout
+	mov	es:W_2[di],ax
+	les	di,contrl
+	mov	es:W_5[di],2
+	ret
+;
+;
+val_samp_mode:
+	call	valuator		; go to devspec and do sample mode
+	cmp	al,0			; test if nothing happened
+	jz	valuator_samp_done
+	cmp	al,2
+	jz	samp_mode_value
+	les	di,intout
+	mov	es:W_2[di],ax		;return the key pressed
+	mov	ax,2			;say we got a key
+valuator_samp_done:
+	les	di,contrl
+	mov	es:W_5[di],ax
+	ret
+samp_mode_value:
+	les	di,intout
+	add	es:[di],bx		;get new output value in intout[1]
+	mov	ax,1
+	jmps	valuator_samp_done
+;
+EJECT
+;************************************************************************
+;getchc 								*
+; 30									*
+;	Return Choice							*
+;									*
+;									*
+;************************************************************************
+getchc:
+	cmp	choice_mode,1		; see if sample or request
+	jz	getchc_req
+;
+;call choice 
+;	returns al=0 if nothing happened
+;	returns al=1 if choice available
+;		bx=choice number 1-number of choice keys
+;
+getchc_samp:
+	call	choice
+	cmp	al,1
+	jnz	no_terminator
+	cmp	ah,0
+	jz	no_terminator
+	mov	al,2
+	mov	bl,ah
+	xor	bh,bh
+	xor	ah,ah
+no_terminator:
+	les	di,contrl
+	mov	es:W_5[di],ax
+	les	di,intout
+	mov	es:[di],bx
+	mov	es:W_2[di],bx
+	ret
+getchc_req:
+	call	choice
+	and	al,al
+	jz	getchc_req		; loop til choice found
+	and	ah,ah
+	jnz	getchc_req
+	xor	ah,ah
+	les	di,contrl
+	mov	es:W_5[di], ax		; return status
+	les	di,intout
+	mov	es:[di],bx		; return choice if any
+	ret
+EJECT
+;************************************************************************
+;getstr 								*
+; 31									*
+;	Get String							*
+;									*
+;									*
+;************************************************************************
+getstr: 
+	les	di,intin
+	mov	cx, es: W_2[di] 	; get maximum character count.
+	xor	dx, dx			; init the returned character count
+	les	di,intout		; point at destination
+	cmp	string_mode,1		; test if request or sample
+	jz	getstr_req
+	jmp	getstr_samp
+getstr_req:
+	push	dx			; current number
+	push	cx			; maximum number of chars
+	push	es			; segment of intout
+	push	di			; current offset of intout
+	call	get_char		;get a character in bx ,status in al
+	pop	di
+	pop	es
+	pop	cx
+	pop	dx
+	and	al, al
+	jz	getstr_req		; loop till done
+	cmp	bl, 0dh 		; test if cr
+	jz	getstr_req_done
+	mov	es:[di], bx
+	add	di,2			; next available location in intout
+	inc	dx
+	cmp	dx, cx			; is buffer full?
+	jnz	getstr_req
+getstr_req_done:
+	les	di,contrl
+	mov	es: W_5[di], dx 	; return string length
+	ret
+EJECT
+;sample mode string code
+;
+getstr_samp:
+	push	dx			; current number
+	push	cx			; maximum number of chars
+	push	es			; segment of intout
+	push	di			; current offset of intout
+	call	get_char		;get a character in bx,status in al
+	pop	di
+	pop	es
+	pop	cx
+	pop	dx
+	and	al, al
+	jz	getstr_samp_done	; loop till done
+	mov	es:[di], bx
+	add	di,2			; next available location in intout
+	inc	dx
+	cmp	dx, cx			; is buffer full?
+	jnz	getstr_samp
+getstr_samp_done:
+	les	di,contrl
+	mov	es: W_5[di], dx 	; return string length
+	ret
+EJECT
+;************************************************************************
+;stwrmd 								*
+; 32									*
+;	Set Writing Mode						*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+stwrmd: les	di,intin
+	mov	ax, es:[di]		; get the requested mode
+	cmp	ax,0
+	ja	stwrmd1
+	mov	ax,1
+stwrmd1:
+	cmp	ax,5
+	jb	stwrmd2
+	mov	ax,1
+stwrmd2:
+	dec	ax			; make zero relative
+	mov	writing_mode,ax 	; store writing mode 0-3.
+	inc	ax
+	les	di,intout
+	mov	es:[di], ax		; return the mode set
+	call	plncmd
+	call	pgncmd
+	call	txtcmd
+	call	mkrcmd
+	ret
+EJECT
+;************************************************************************
+;stinmd 								*
+; 33									*
+;	Set Input Mode							*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+stinmd: les	di,intin
+	mov	bx, es:[di]		; get logical device index (1-4).
+	mov	ax, es: W_2[di] 	; get input mode. 1/request 2/sample
+	mov	si, offset inp_mode	; input mode flags area.
+	mov	byte ptr[si+bx], al	; store input mode flag.
+	les	di,intout
+	mov	es:[di],ax		; return mode selected
+	ret
+EJECT
+;************************************************************************
+;extinq 								*
+; 34									*
+;	extended inquire						*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+extinq: ret
+EJECT
+;************************************************************************
+;retval 								*
+; 35									*
+;	return pixel value						*
+;									*
+;	Entry								*
+;									*
+;************************************************************************
+retval: ret
+EJECT
+;************************************************************************
+;*				DATA AREA				*
+;*		     the place to put your variables			*
+;************************************************************************
+;
+dseg			       ;this stuff is accessed off of ds
+	public	text_color,text_mode
+	public	chup
+	public	writing_mode
+	public	polygon_color,polygon_mode
+	public	pattern_number,fill_style
+	public	realized_color_table
+	public	requested_color_table
+	public	contrl,intin,ptsin,intout,ptsout
+	public	upstack,downstack
+;
+	extrn	font:byte
+	extrn	arstl1:byte,arstl2:byte 	;polygon fill style tables
+	extrn	x1:word,x2:word,y1:word,y2:word ;endpoints for abline
+	extrn	gcurx:word,gcury:word
+	extrn	lstlin:byte
+	extrn	line_bp_1:byte
+	extrn	line_bp_2:byte
+	extrn	line_bp_3:byte
+	extrn	line_mode:byte,line_mask:word
+	extrn	char_bp_1:byte
+	extrn	char_bp_2:byte
+	extrn	char_bp_3:byte
+	extrn	char_mode:byte
+;
+;function_table
+;	This table stores the address of each subroutine
+;
+function_table	dw     offset update   ;0      entry 0 is a nop
+	dw	offset openws	;1	the initialization routine
+	dw	offset closews	;2	the driver termination routine
+	dw	offset clear	;3	clear display surface
+	dw	offset update	;4	nop
+	dw	offset escape	;5	alpha escape routines
+	dw	offset polline	;6	draw a polyline sequence
+	dw	offset marker	;7	draw a polymarker sequence
+	dw	offset hrdtxt	;8	draw a text string
+	dw	offset plyfil	;9	draw a filled polygon
+	dw	offset cellar	;10	draw a rectangular pixel array
+	dw	offset gdp	;11	generalized drawing primitives
+	dw	offset stchht	;12	set text height
+	dw	offset stchup	;13	set text baseline
+	dw	offset stlut	;14	set contents of lut 
+	dw	offset stline	;15	set poly line linestyle attribute
+	dw	offset stplwd	;16	set poly line width attribute
+	dw	offset stplcx	;17	set poly line color attribute
+	dw	offset stmrkr	;18	set poly marker type
+	dw	offset stmrks	;19	set poly marker size  attribute
+	dw	offset stmkcx	;20	set poly marker color attribute
+	dw	offset sttxtf	;21	set the current text font
+	dw	offset stxtcx	;22	set the current text color attribute
+	dw	offset stflis	;23	set polygon interior style attribute
+	dw	offset stflsi	;24	set polygon style index    attribute
+	dw	offset stfclx	;25	set polygon color attribute
+	dw	offset inqclr	;26	inquire lut
+	dw	offset inqcla	;27	return cell array
+	dw	offset getloc	;28	return locator value x,y
+	dw	offset getval	;29	return valuator scalar
+	dw	offset getchc	;30	return choice
+	dw	offset getstr	;31	return text string
+	dw	offset stwrmd	;32	set the current writing mode for output
+	dw	offset stinmd	;33	set the current input mode
+	dw	offset extinq	;34	extended inquire function
+	dw	offset retval	;35	return pixel value
+;	dw	offset getscr	;36	screen to memory raster op
+;	dw	offset putscr	;37	memory to screen raster op
+;	dw	offset inqrsz	;38	inquire raster size requirements
+;	dw	offset cpyscr	;39	copy screen to screen raster op
+EJECT
+esctbl	dw	offset escfn0
+	dw	offset escfn1
+	dw	offset escfn2
+	dw	offset escfn3
+	dw	offset escfn4
+	dw	offset escfn5 
+	dw	offset escfn6 
+	dw	offset escfn7
+	dw	offset escfn8
+	dw	offset escfn9
+	dw	offset escf10
+	dw	offset escf11
+	dw	offset escf12
+	dw	offset escf13
+	dw	offset escf14
+	dw	offset escf15
+	dw	offset escf16
+	dw	offset escf17
+	dw	offset escf18
+	dw	offset escf19
+;
+;storage for segment and offset of pointers to input arrays
+;
+contrl	rd	1	;pointer to control array
+intin	rd	1	;pointer to intnt array
+ptsin	rd	1	;pointer to ptsin array
+intout	rd	1	;pointer to intout array
+ptsout	rd	1	;pointer to ptsout array
+;
+;default attributes for driver
+;These are modified when openws is called
+;
+default_table		dw	0	;workstation id 
+line_style_index	dw	1	;polyline current linestyle
+line_color		dw	1	;polyline color index
+marker_index		dw	1	;polymarker type
+marker_color		dw	1	;polymarker color index
+curfnt			dw	0	;current text font
+text_color		dw	1	;text color index
+fill_style		dw	1	;polygon interior style
+fill_index		dw	1	;polygon style index
+polygon_color		dw	1	;polygon color index
+;
+writing_mode	dw	0		;writing mode
+;
+;operation storage
+;stores current operation for output primitives
+;
+polyline_mode	db	0	;default set to replace
+marker_mode	db	0	;default marker set to replace mode
+text_mode	db	0	;replace mode
+polygon_mode	db	0	;replace mode
+polyline_bp_1	db	0
+polyline_bp_2	db	0
+polyline_bp_3	db	0
+mark_bp_1	db	0
+mark_bp_2	db	0
+mark_bp_3	db	0
+text_bp_1	db	0
+text_bp_2	db	0
+text_bp_3	db	0
+poly_bp_1	db	0
+poly_bp_2	db	0
+poly_bp_3	db	0
+pattern_number	db	1	;default area style attribute
+;
+;this table matches a color and writing mode to a pixel operation
+;
+mode_table	db	0		; replace mode flag.
+		db	3		; mode 1 pen 1 = or
+		db	1		; xor(complement)
+		db	2		; mode 3 pen 0 = or
+;
+;hrdtxt variables
+;   (function #8)
+;
+chup		dw	0		;character up vector
+scratch_char	rb	8		;place to rotate character
+;
+;(Function #9)
+;PLYFIL variables
+;
+plycnt		dw	0
+minyply 	dw	0
+xbkcnt		dw	0
+
+
+;(Function #11)
+;GDP Bar fill
+;
+barfil	db	0			;Bar fill routine in progress flag
+					;  - 0ffh  in progress.
+					;  - 0	   not in progress.
+;(OPCODE #14)
+;STLUT
+requested_color_table	rw	24	;requested representations
+realized_color_table	rw	24	;realized representations
+;
+;(OPCODE #28)
+;INPUT LOCATOR
+;
+coord_change	dw	0	; coordinate change flag used in sample mode.
+;		 
+;(OPCODE #33)
+;SET INPUT MODE
+;
+inp_mode	db	0		; nop	
+locator_mode	db	1		; Locator  input mode
+val_mode	db	1		; Valuator input mode	
+choice_mode	db	1		; Choice   input mode
+string_mode	db	1		; string   input mode		
+;
+;line style lookup table
+;contains 16 bit linestyle patterns
+;
+style_table	dw	0ffffh		; solid
+		dw	0ffc0h		; dashed
+		dw	0c0c0h		; dotted
+		dw	0ff18h		; dash-dot
+		dw	0fffch		; long dash
+		dw	0f0f0h		; short dash
+		dw	0f3cch		; dot dot dash
+		dw	08888h		; short dot 
+;
+l_style 	dw	0ffffh		;line style storage 
+;
+;polygon and seedfill buffers
+;
+upstack 	rb	1
+gdpary		dw	0
+		rb	8
+;
+edgary		dw	0
+		rb	896
+;
+edgtbl		dw	0
+		rb	512
+downstack	rb	1408
+
