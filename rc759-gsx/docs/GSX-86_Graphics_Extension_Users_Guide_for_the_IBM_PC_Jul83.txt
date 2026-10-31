@@ -1,0 +1,1645 @@
+
+===== PAGE 1 =====
+GSX-86™ 
+Graphics Extension 
+User's Guide 
+for the 
+IBM ® Personal Computer 
+===== PAGE 2 =====
+GSX-86™ 
+Graphics Extension 
+User's Guide 
+for the 
+IBM® Personal Computer 
+Copyright ~ 1983 
+Digital Research 
+P.O. Box 579 
+160 Central Avenue 
+Pacific Grove, CA 93950 
+TWX 910 360 5001 
+All Rights Reserved 
+===== PAGE 3 =====
+COPYRIGHT 
+Copyright © 1983 by Digital Research. All rights 
+reserved. No part of this publication may be 
+reproduced, transmitted, transcribed, stored in a 
+retrieval system, or translated into any language or 
+computer language, in any form or by any means, 
+electronic, mechanical, magnetic, optical, chemical, 
+manual or otherwise, without the prior written 
+permission of Digital Research, Post Office Box 579, 
+Pacific Grove, California, 93950. 
+Readers are granted permission to include the 
+example programs, either in whole or in part, in 
+their own program. 
+DISCLAIMER 
+Digital Research makes no representations or 
+warranties with respect to the contents hereof and 
+specifically disclaims any implied warranties of 
+merchantability or fitness for any particular 
+purpose. Further, Dig i tal Research reserves the 
+right to revise this publication and to make changes 
+from time to time in the content hereof without 
+obligation of Digital Research to notify any person 
+of such revision or changes. 
+TRADEMARKS 
+CP/M-86 is a registered trademark of Digital 
+Research. Concurrent CP/M-86, DR Draw, DR Graph, 
+GSX-86, and TEX are trademarks of Digital Research. 
+Anadex is a registered trademark of Anadex, Inc. 
+DEC is a registered trademark of Digital Equipment 
+Corporation. Epson is a registered trademark of 
+Epson America, Incorporated. FX-80, FX-lOO, MX-80 
+and MX-lOO, and GRAFTRAX PLUS are trademarks of 
+Epson America, Incorporated. Hewlett-Packard is a 
+registered trademark of Hewlett-Packard Company. 
+IBM is a reg istered trademark of International 
+Business Machines. Micro PRISM is a trademark of 
+Integral Data Systems. MVP is a trademark of 
+Printronix, Incorporated. Microline is a trademark 
+of OKIDATA Corporation. Printronix is a registered 
+trademark of Printronix, Incorporated. 
+The GSX-86 Graphics Extension User's Guide for the 
+IBM Personal Computer was prepared using the Digital 
+Research TEX™ Text Formatter and printed in the 
+United States of America. 
+******************************* 
+* First Edition: July 1983 * 
+******************************* 
+===== PAGE 4 =====
+Foreword 
+ABOUT THIS 
+BOOK 
+WHO IT IS FOR 
+WHAT GSX-86 DOES 
+This guide explains the features and 
+operating procedures of GSX-86~ , the Graphics 
+System Extension for the CP/M-86 ® operating 
+system family. The CP/M-86 family includes two 
+operating systems: 
+• CP/M-86, a single user, single task operating 
+system 
+• Concurrent CP/M-86~ , a single user, multi­
+task operating system 
+If you plan to use GSX-86 wi th Concurrent CP/M-
+86, refer to Appendix B for additional 
+information. 
+This guide is for you if you are a new user of 
+GSX-86 on an IBM® Personal Computer. It will 
+help you set-up your system to run your GSX-86 
+graphic application programs on any printer, 
+plotter, or monitor you select. 
+If you are a systems or an applications 
+programmer familiar with the CP/M-86 operating 
+system family, this guide provides you with a 
+list of device drivers. 
+GSX-86 is a program that adds graphic capability 
+to your CP/M-86 or Concurrent CP/M-86 operating 
+system. with GSX-86 installed, the following 
+features are added to your system • 
+• GSX-86 provides a device-independent software 
+interface for application programs written 
+for GSX-86. This means that all graphic 
+output devices look the same to your GSX-86 
+application program. Thus, if you decide to 
+use a printer instead of a plotter, you do 
+not need to alter your GSX-86 application 
+program. 
+iii 
+===== PAGE 5 =====
+HOW IT IS 
+ORGANIZED 
+• GSX-86 promotes software portability. By 
+using the same architecture as the CP/M-86 
+operating system family, GSX-86 allows you to 
+easily transfer GSX-86 graphic application 
+programs from one computer to another • 
+• GSX-86 supports DR Graph™ and DR Draw™ • DR 
+Graph allows you to graph and plot data by 
+making simple menu selections. DR Draw 
+allows you to draw complex graphics with your 
+computer. 
+This guide is divided into four sections. 
+Section 1 is an overview of GSX-86 that 
+describes GSX-86 and how your system uses it. 
+Section 2 explains set-up procedures for the 
+first time you use GSX-86, and for changing the 
+graphic devices on your system. 
+Section 3 describes how to install GSX-86 
+before you use a graphic application program. 
+It also contains an operation checklist. 
+Section 4 lists device-dependent information 
+for all the graphic devices supported by this 
+release of GSX-86. 
+iv 
+===== PAGE 6 =====
+Table of Contents 
+1 Overview 
+Introduction 
+GSX-86 Functions • 
+Coordinate Transformation • • 
+Servicing Graphics Requests 
+Device Drivers • • • •••• 
+2 Set-up Procedures 
+Introduction • • • • 
+Starting Your System • • 
+Checking Your GSX-86 Distribution Disk 
+ASSIGN.SYS File ••••• 
+GRAPHICS.CMD File ••••••• 
+Device Driver Files • • • • • • 
+Duplicating Your Distribution Disk • 
+Creating a Working Disk 
+Listing the ASSIGN.SYS File 
+Logical Device Number • • 
+Device Driver Filename 
+Syntax Rule • • • • 
+Modifying the ASSIGN.S¥S file 
+3 GSX-86 GRAPHICS Mode 
+Introduction • • • • 
+Installing GSX-86 
+Disabling GSX-86 Mode 
+Warm and Cold Starts • 
+Error Messages • • • • 
+Operation Checklist 
+v 
+.\ . 
+1-1 
+1-1 
+1-1 
+1-2 
+1-3 
+2-1 
+2-1 
+2-1 
+2-2 
+2-2 
+2-2 
+2-3 
+2-3 
+2-4 
+2-4 
+2-5 
+2-5 
+2-6 
+3-1 
+3-1 
+3-2 
+3-3 
+3-3 
+3-4 
+===== PAGE 7 =====
+Table of Contents (continued) 
+4 Device-specific Information 
+Introduction • • 
+Printer Drivers 
+Anadex DP-9501 • 
+Centronics Printers 
+C.ITOH Model 8510A Printer • 
+Datasouth DS-180 • 
+Digital Equipment LA50-Series Printer 
+Digital Equipment LA100-Series Printer • 
+Epson MX-80 Printer with GRAFTRAX PLUS • 
+Introduction • • • • 
+Epson Low Resolution 
+Epson High Resolution 
+Integral Data Systems Monochrome Printers 
+OKIDATA Microline Printers 
+Printronix MVP Printer 
+Plotter Driver 
+Hewlett-Packard 7470A Graphics Plotter • 
+Monitor Drivers 
+IBM PC (Medium Resolution Color) 
+IBM PC (High Resolution Monochrome) 
+vi 
+4-1 
+4-2 
+4-6 
+4-7 
+4-8 
+4-9 
+4-10 
+4-11 
+4-12 
+4-12 
+4-12 
+4-13 
+4-14 
+4-15 
+4-16 
+4-17 
+4-17 
+4-19 
+4-23 
+4-24 
+===== PAGE 8 =====
+Appendixes 
+A GSX-86 Error Messages 
+BUsing GSX-86 with Concurrent CP/M-86 • 
+Introduction 
+Use of Run Command 
+Plotter Support 
+Monitor Connections 
+Use with DR Graph 
+Unloading Operating System Extensions 
+Tables and Figures 
+Tables 
+2-1. Logical Device Number Assignments 
+4-1. 
+4-2. 
+4-3. 
+4-4. 
+4-5. 
+4-6. 
+4-7. 
+4-8. 
+4-9. 
+4-10. 
+4-11. 
+Device Driver Quick Reference Table 
+Printer Linestyles •••••••••••• 
+Printer Marker Sizes ••••••••••• 
+Printer Hatch Pattern • • • • • • • • • • • 
+Plotter Linestyles • • • • • • • 
+Plotter Marker Sizes • • • • • • • • • • • 
+Monitor Linestyles •••••••••••••• 
+Monitor Marker Sizes • • • • • • • 
+Monitor Hatch Patterns • • • • • • 
+IBM PC Color Index • • • • • • • • • • 
+IBM PC Monochrome Index • • • • • • 
+A-I. GSX-86 Error Messages 
+Figures 
+1-1. GSX-86 Provides Device-independent Graphics 
+2-1. 
+2-2. 
+4-1. 
+4-2. 
+4-3. 
+4-4. 
+Display of ASSIGN.SYS File in Drive A 
+Display of ASSIGN.SYS File in Drive B 
+Printer Hatch Patterns • • 
+Printer Halftone Patterns 
+Monitor Hatch Patterns •• 
+Monitor Halftone Patterns 
+vii 
+A-I 
+B-1 
+B-1 
+B-1 
+B-1 
+B-1 
+B-2 
+B-2 
+2-5 
+4-1 
+4-2 
+4-2 
+4-3 
+4-17 
+4-18 
+4-19 
+4-20 
+4-20 
+4-23 
+4-24 
+A-I 
+1-2 
+2-4 
+2-7 
+4-3 
+4-4 
+4-21 
+4-21 
+===== PAGE 9 =====
+
+===== PAGE 10 =====
+Section t 
+OVERVIEW 
+INTRODUCTION 
+GSX-86 FUNCTIONS 
+Coordinate 
+Transformation 
+This section describes GSX-86 and how it 
+operates with your computer system. The 
+concepts in this section provide background 
+information for the operating procedures in the 
+next two sections. 
+All graphic devices (monitors, printers, and 
+plotters) draw lines, fill in areas, and 
+produce text differently. GSX-86, the Graphic 
+System Extension to CP/M-86 and Concurrent 
+CP/M-86, manages these device differences and 
+ensures that your GSX-86 graphic application 
+prog rams can communicate with a var iety of 
+graphic output devices. 
+When you communicate to your graphic device 
+through GSX-86, all graphic images are 
+represented in a two-dimensional, cartesian 
+coordinate system. GSX-86 transforms the 
+coordinates of lines and text from the GSX-86 
+application program into the coordinates used 
+by the selected output device. With GSX-86, 
+your application program produces the same 
+graphic image on your printer that appears on 
+your monitor; the linestyles, characters, and 
+so forth appear the same on both devices. 
+1-1 
+===== PAGE 11 =====
+GSX-86 User's Guide GSX-86 Functions 
+Figure 1-1. GSX-86 Provides Device-independent Graphics 
+Servicing 
+Graphic 
+Requests 
+Application programs written for GSX-86 work 
+with GSX-86 through a standard graphic 
+interface. GSX-86 translates the calls 
+generated by the application program to fit the 
+peculiari ties of each output device. This 
+means that GSX-86 graphic application programs 
+can run on a wide range of monitors, plotters, 
+and printers. 
+1-2 
+===== PAGE 12 =====
+GSX-86 User's Guide 
+Device 
+Drivers 
+GSX-86 Functions 
+Because each graphic device is mechanically 
+and electronically different, each device 
+requires a special program to establish 
+communication between it and GSX-86. This 
+program is called a device driver. 
+The device drivers define the types of graphic 
+output devices your computer can operate. The 
+GSX-86 ASSIGN.SYS file, described in Section 2, 
+contains the device driver filename for each 
+output device attached to your computer. If 
+you decide to connect another type of printer 
+to your system, simply change the printer 
+device driver in your ASSIGN.SYS file. Section 
+4 lists the device drivers that you receive 
+with GSX-86. 
+End of Section 1 
+1-3 
+===== PAGE 13 =====
+
+===== PAGE 14 =====
+Section 2 
+SET-UP PROCEDURES 
+INTRODUCTION 
+STARTING 
+YOUR SYSTEM 
+CHECKING YOUR 
+GSX-86 
+DISTRIBUTION DISK 
+This section describes the procedures for the 
+following: 
+o installing GSX-86 the first time you use GSX-
+86 with your system 
+o modifying the ASSIGN.SYS file when you change 
+the type of devices attached to your computer 
+Set up the printer, plotter, monitor, and any 
+other hardware for your system. Your IBM Guide 
+to Operations manual explains how to install 
+and start your system. 
+Insert the GSX-86 distribution disk into one 
+of your computer's disk drives. Use the DIR 
+command documented in your CP/M-86 Operating 
+System User's Guide to list the contents of the 
+disk. 
+Your disk should contain the following files: 
+• ASSIGN.SYS 
+• GRAPHICS.CMD 
+• at least one device driver file for each 
+monitor, printer, or plotter connected to 
+your computer 
+2-1 
+===== PAGE 15 =====
+GSX-86 User's Guide 
+ASSIGN.SYS File 
+GRAPHICS.CMD File 
+Device Driver 
+Files 
+Checking Your Distribution Disk 
+ASSIGN.SYS is the device driver assignment file. 
+It contains the list of device drivers that 
+operate your computer's graphic output devices. 
+GRAPHICS.CMD is the file containing GSX-86. 
+As explained in Section 1, device drivers are 
+programs that allow your computer to operate 
+with the specific graphic output devices 
+connected to it. Ensure that all of the 
+following dev ice dr iver files are on your 
+distribution disk: 
+• DDIDSM.SYS 
+• DDOKI84.SYS 
+• DDPMVP.SYS 
+• DDFXLR8.SYS 
+• DDFXHR8.SYS 
+• DDCNTXM.SYS 
+• DDLAIOO.SYS 
+• DDLASO.SYS 
+• DDCITOLR.SYS 
+• DDDS180.SYS 
+• DDANADXM.SYS 
+• DDHP7470.SYS 
+• DDIBM.SYS 
+• DDIBMC.SYS 
+If any files are missing, ask your distributor 
+for a new disk. 
+2-2 
+===== PAGE 16 =====
+GSX-86 User's Guide Duplicating Your Distribution Disk 
+DUPLICATING YOUR If all of the device driver files are 
+DISTRIBUTION DISK present, use the Disk Maintenance command, 
+DSKMAINT, to make a duplicate copy of your 
+distribution disk. See your CP/M-86 or 
+Concur ren t CP /M-86 Operating System User's 
+Guide for instructions on the use of DSKMAINT. 
+CREATING A 
+WORKING DISK 
+After making a duplicate disk, store your 
+distribution disk in a safe place, away from 
+extreme heat, temperature changes, humidity, 
+and dust. 
+Turn to the Device Driver Quick Reference 
+Table in Section 4 and look up the device dr iver 
+filename for each graphic output device 
+connected to your computer. Use the PIP 
+utili ty in your CP/M-86 Operating System User's 
+Guide to copy these specific device driver 
+files, along with ASSIGN.SYS and GRAPHICS.CMD, 
+from your duplicate disk to a working disk. 
+For example, if you have a Centronics 351 
+printer and an IBM color monitor, you would 
+copy the following files from your duplicate 
+disk to your working disk: 
+• DDCNTXM.SYS 
+• DDIBMC.SYS 
+• ASSIGN.SYS 
+• GRAPHICS.CMD 
+If your computer is equipped with a fixed disk 
+drive (hard disk), copy the necessary device 
+driver files, GRAPHICS.CMD, ASSIGN.SYS, CP/M-86 
+and your application programs onto the fixed 
+disk. 
+Note: Always use your duplicate disk to make 
+copies of GSX-86 files. Do not use the 
+distribution disk for routine operations. 
+2-3 
+===== PAGE 17 =====
+GSX-86 User's Guide Listing the ASSIGN.SYS File 
+LISTING THE Insert your working disk into your computer's 
+ASSIGN.SYS FILE currently logged disk drive. and list the 
+ASSIGN.SYS file by entering 
+A>TYPE ASSIGN.SYS 
+The letter preceding the system prompt denotes 
+the currently logged disk drive. In the 
+example above, drive A is the currently logged 
+drive. 
+A list similar to the following appears on the 
+screen. 
+21 DDFXHR8.SYS 
+01 DDIBM.SYS 
+11 DDHP7470.SYS 
+Figure 2-1. Display of ASSIGN.SYS File in Drive A 
+Logical Device Look at the specific entries in your 
+Number ASSIGN .SYS file. The number at the beg inning of 
+each line is the logical device number; it must 
+contain two digits. The range of logical 
+device numbers is fixed for various types of 
+devices as shown in the following table. 
+2-4 
+===== PAGE 18 =====
+GSX-86 User's Guide Listing the ASSIGN.SYS File 
+Device Driver 
+Filename 
+Syntax Rule 
+Table 2-1. Logical Device Number Assignments 
+Output 
+Device 
+Monitor 
+Plotter 
+Printer 
+I 
+Logical Device 
+Number Range 
+01-10 
+11-20 
+21-30 
+The device numbers you assign to the device 
+drivers in your ASSIGN.SYS file must match 
+those used in your GSX-86 graphics application 
+program. As a general rule, assign 01 to your 
+moni tor, 11 to your plotter and 21 to your 
+printer. However, this may vary depending on 
+the GSX-86 application program you have. 
+Following the logical device number is the 
+filename of the device driver. See Section 4 
+for a list of device drivers and their 
+filenames. 
+Each ASSIGN.SYS entry consists of a two-digit 
+logical device number, a blank space, and a 
+device driver filename. If no filetype 
+extension is specified after the device driver 
+filename, GSX-86 assumes the filetype is SYS. 
+2-5 
+===== PAGE 19 =====
+GSX-86 User's Guide Modifying the ASSIGN.SYS File 
+MODIFYING THE Before GSX-86 can be used, you must ensure 
+ASSIGN.SYS FILE that the device drivers listed in the ASSIGN.SyS 
+file are the correct ones for your computer 
+system. Turn to the Device Driver Quick 
+Reference Table in Section 4 and look up the 
+device driver filename for each graphic output 
+device connected to your computer. If the 
+device driver filenames listed in the 
+ASSIGN.SYS file do not match those listed in 
+Section 4, you must modify the ASSIGN.SYS file 
+before you use GSX-86. 
+D 
+To alter logical device numbers or device 
+driver filenames in the ASSIGN.SYS file, use a 
+text editor to edit the ASSIGN.SYS file. For 
+editing instructions, see the user's guide for 
+the editor you are using. 
+Follow these guidelines when you edi t your 
+ASSIGN.SYS file. 
+Ensure that the largest device driver is listed 
+first in your ASSIGN .SYS file. The device 
+drivers are loaded into memory in the order 
+listed in the ASSIGN.SYS file. Loading the 
+largest device dr iver first ensures enough room 
+is reserved for any of the other drivers in the 
+ASSIGN.SYS file. 
+Typically, the device driver file used for your 
+pr inter is the largest; the driver file for 
+your plotter is the next largest; and the 
+driver file for your monitor is the smallest. 
+If in doubt, see your CP/M-86 Operating System 
+User's Guide for the command used to determine 
+the size of your files. 
+[] If your disk does not have sufficient storage 
+space for the ASSIGN.SYS file and the device 
+driver files, you can put them on separate 
+disks. If you do put your device driver files 
+on a different disk than your ASSIGN.SYS file, 
+you must modify the ASSIGN.SYS file to specify 
+which drive contains the disk with the device 
+driver files. This is done using the following 
+format: 
+<Device Number> <Disk Drive>:<Filename> 
+2-6 
+===== PAGE 20 =====
+GSX-S6 User's Guide 
+Figure 2-2. 
+o 
+Modifying the ASSIGN.SYS File 
+For example, if the disk containing the 
+ASSIGN .SYS file is in drive A and the disk 
+containing the device driver files is in drive 
+B, your ASSIGN .SYS file would look like the 
+following: 
+21 B:DDFXHRS.SYS 
+01 B:DDIBM.SYS 
+11 B:DDHP7470.SYS 
+Display of ASSIGN.SYS File in Drive B. 
+You can include up to five device drivers in 
+your ASSIGN.SYS file. 
+End of Section 2 
+2-7 
+===== PAGE 21 =====
+
+===== PAGE 22 =====
+Section 3 
+GSX-86 GRAPHICS MODE 
+INTRODUCTION 
+INSTALLING 
+GSX-86 
+This section explains how to install GSX-86 
+before you use a graphic application program. 
+The GRAPHICS command installs GSX-86. 
+Before you can use a graphic application 
+program, you must load GSX-86 and the first 
+device driver from your ASSIGN.SYS file into 
+your computer's memory. Typing GRAPHICS loads 
+both into memory. 
+After you start your system and receive the 
+system prompt, type a command of the form: 
+<d>:GRAPHICS 
+The <d> symbol represents the letter of the 
+dr ive in which the GSX-86 working disk is 
+located. 
+For example, if you type 
+A>A:GRAPHICS 
+the computer searches dr ive A for the disk 
+containing GRAPHICS .CMD and the ASSIGN .SYS 
+file. 
+3-1 
+===== PAGE 23 =====
+GSX-86 User's Guide 
+DISABLING GSX-86 
+Installing GSX-86 
+If you type 
+A>B:GRAPHICS 
+the system searches dr i ve B for the disk 
+containing GRAPHICS.CMD and the ASSIGN.SYS 
+file. 
+If you type 
+B>GRAPHICS 
+without specifying a drive, the system searches 
+the disk in the currently logged-in drive. The 
+letter before the ">" prompt indicates which 
+disk drive is currently logged in and being 
+accessed. The B>GRAPHICS command tells the 
+system to search drive B for the disk 
+containing GRAPHICS.CMD and the ASSIGN.SYS 
+file. 
+When you install GSX-86 correctly, you receive 
+the message: 
+GSX-86 installed; <filename> is dddd bytes long 
+at XXXX.OOOO 
+Here, <filename> is the filename of the first 
+device driver in the ASSIGN.SYS file and dddd 
+is its size, which you should note for making 
+any changes to the ASSIGN .SYS file. For 
+details on the ASSIGN.SYS file, see Section 2, 
+Modifying The ASSIGN.SYS File. 
+When you are not using graphics, you can disable 
+GSX-86 by typing: 
+A>GRAPHICS NO 
+This command frees the memory space formerly 
+used by GSX-86 and the device driver. 
+3-2 
+===== PAGE 24 =====
+GSX-86 User's Guide 
+WARM AND 
+COLD STARTS 
+ERROR MESSAGES 
+Disabling GSX-86 
+When you disable GSX-86 correctly, you receive 
+the message: 
+GSX-86 not installed 
+You might also receive this message if 
+something prevents you from installing GSX-86. 
+If you are running an application program and 
+you decide to terminate the run, you can 
+exit the program by 
+• Pressing both the CTRL key and C key at the 
+same time. This is called a warm start of 
+your computer and it will not disturb the 
+GSX-86 installation • 
+• Restarting your computer by ei ther turning it 
+off and back on again, or pressing its,reset 
+button. This is called a cold start, which 
+disables both CP/M-86 and GSX-86. To 
+reinstall GSX-86, you must reboot CP/M-86 or 
+Concurrent CP/M-86 and reenter the GRAPHICS 
+command. 
+If you type the GRAPHICS command incorrectly, 
+what you originally typed appears on the screen 
+followed by a question mark (?). If you 
+receive such a message, check the exact 
+command syntax and type the command again. If 
+you continue to receive this error message, use 
+the DIR command to list the contents of your 
+currently logged disk. If the GRAPHICS .CMD 
+file is not on the disk, locate the correct 
+disk, insert it into the currently logged 
+drive, and reenter the GRAPHICS command. 
+If you make an error after entering GSX-86, an 
+error message appears on your screen. Refer to 
+Appendix A for a definition of the error 
+messages and the recommended action for 
+recovery. 
+3-3 
+===== PAGE 25 =====
+GSX-86 User's Guide 
+OPERATION 
+CHECKLIST o 
+o 
+o 
+o 
+o 
+o 
+D 
+o 
+Operation Checklist 
+Are the hardware components properly 
+attached to your computer? 
+Does the distribution disk contain the 
+files you need? 
+Did you duplicate the distribution disk 
+and store it safely away from heat, 
+extreme temperature changes, dust, and 
+humidity? 
+Is the disk containing GRAPHICS.CMD, 
+ASSIGN. SYS, and the correct device dr ivers 
+on the drive you specify in the GRAPHICS 
+command? 
+If you have your device drivers and your 
+ASSIGN.SYS file on a separate disk, does 
+your ASSIGN.SYS file specify which drive 
+contains the disk with your device 
+drivers? 
+Is the logical device number 01 assigned 
+to your monitor, 11 to the plotter, and 21 
+to the printer? 
+Is the largest device driver listed first 
+in the ASSIGN.SYS file? 
+Have you typed the GRAPHICS command to 
+load GSX-86 and the first dr iver into 
+memory? 
+End of Section 3 
+3-4 
+===== PAGE 26 =====
+Section 4 
+DEVICE-SPECIFIC INFORMATION 
+INTRODUCTION This section describes the graphics device 
+drivers available for GSX-86. 
+The first part of this section discusses the 
+printer drivers, the second part discusses the 
+HP 7470A plotter driver, and the third part 
+discusses the monitor drivers. 
+For quick reference of the device driver types 
+and the filenames associated with them, see the 
+table below. 
+Tab1e 4-1. Device Driver Quick Reference Tab1e 
+I I 
+Device 
+Printers Filename Number Range 
+Anadex ® DP-950l and DP-900lA DDANADXM.SY5 
+Centronics 351, 352 and 353 DDCNTXM.SYS 
+C.ITOH 85l0A Low Resolution DDCITOLR.SYS 
+Datasouth DS180 DDDS180.SYS 
+DEC ® LA50 DDLA50.SYS 
+DEC LAlOO DDLAlOO.SYS 21-30 
+Epson® Low Resolution (8 bit) DDFXLR8.SYS 
+Epson High Resolution (8 bit) DDFXHR8.SYS 
+IDS Monochrome DDIDSM.SYS 
+OKIDATA Microline DDOKI84.SYS 
+Printronix ® MVpT" DDPMVP.SYS 
+I I 
+Device 
+Plotter Filename Number Range 
+HP 7470A DDHP7470.SYS 11-20 
+I I 
+Device 
+Monitors Filename Number Range 
+IBM Color DDIBMC.SYS 01-10 
+IBM Monochrome DDIBM.SYS 
+4-1 
+===== PAGE 27 =====
+GSX-86 User's Guide 
+PRINTER DRIVERS 
+Introduction 
+Device Number 
+Linestyle 
+Markers 
+Printer Drivers 
+The following information applies to all of the 
+printer drivers listed in this section. 
+The logical device numbers for printers range 
+from 21 to 30. When you use only one printer, 
+assign it device number 21. 
+The pr inters support six linestyles. Each 
+linestyle is identified by an index number (see 
+the following table). The driver uses 
+linestyle 1, a solid line, when you specify a 
+linestyle index number outside the 1-6 range. 
+Table 4-2. Printer Linestyles 
+Index 
+1 
+2 
+3 
+4 
+5 
+6 
+I Linestyle 
+Solid 
+Short Dash 
+Dot 
+Dash-Dot 
+Long Dash 
+Dash-Dot-Dot 
+The printers support 12 marker sizes and 5 
+marker types • 
+• Marker sizes range from 7 to 84 pixels in 
+height, in 7-pixel increments • 
+• Each marker type is identified by an index 
+number (see the following table). The driver 
+uses marker type 3 (*) when you specify a 
+marker index number outside the 1-5 range. 
+Table 4-3. Printer Marker Sizes 
+Number 
+1 
+2 
+3 
+4 
+5 
+4-2 
+I 
+Marker 
++ 
+* o 
+X 
+===== PAGE 28 =====
+GSX-86 User's Guide Printer Drivers 
+Text The printers support 12 character sizes, from 7 
+to 84 pixels in height, in 7-pixel increments. 
+Text can be rotated in gO-degree increments. 
+Fill Area The area in a polygon can be filled with a hatch 
+or halftone pattern. 
+Fill Styles The printers support the following two fill 
+patterns. 
+Table 4-4. 
+Index I 
+1 
+2 
+3 
+4 
+5 
+6 
+4 
+Printer Hatch Pattern 
+Hatch Patterns 
+Vertical lines 
+Horizontal lines 
++45 degree lines 
+-45 degree lines 
+Both vertical and 
+horizontal crosshatch 
+Both 45 and -45 degree 
+crosshatch 
+2 3 
+5 6 
+Figure 4-1. Printer Hatch Patterns 
+4-3 
+===== PAGE 29 =====
+GSX-86 User's Guide 
+Cell Array 
+Generalized 
+Drawing 
+Primitives (GDPS) 
+Color 
+Printer Drivers 
+Halftone Patterns: 
+The pr inter dr ivers have six halftone fill 
+patterns that simulate six differ~nt levels of 
+the gray scale. 
+2 3 
+4 5 6 
+Figure 4-2. Printer Halftone Patterns 
+Printers outline the cell array in the current 
+line color with a solid line. 
+Printer Drivers support only the GSX-86 BARGDP; 
+its identifier is 1. 
+The MONOCHROME printers support two colors: 
+o White (background color) 
+1 Black 
+All color indexes other than 0 are displayed as 
+index 1 (black). You cannot redefine the 
+pr inter's color indexes with the GSX-86 Set 
+Color Representation function. 
+4-4 
+===== PAGE 30 =====
+GSX-86 User's Guide 
+Escapes 
+Word Length 
+'\ 
+Graphic Input 
+Printer Drivers 
+The only escape function available on the 
+pr inter is the GSX-86 Inquire Addressable 
+Character Cells function~ its identifier is 1. 
+Computers communicate with printers using either 
+7 or 8 data bits for each transmitted 
+character. The number of data bits used for 
+each character is called the "word length." 
+If your computer is connected through a 
+parallel port to your printer, the word length 
+your printer uses is not important. However, 
+if your computer is connected to your printer 
+through a serial RS-232C port, you must 
+determine the word length used by both your 
+computer and your printer. The CONFIG command, 
+documented in your CP/M-86 or Concurrent CP/M-
+86 for the IBM Personal Computer Operating 
+System manual, allows you to determ~ne the 
+current word length used by your computer and, 
+if necessary, allows you to change it. The 
+word length used by your printer should be 
+documented in your printer's hardware manual. 
+If your printer uses a word length of 7, your 
+computer and the printer driver you select must 
+also use a word length of 7. If your printer 
+uses a word length of 8, your computer and the 
+selected printer driver must also use a word 
+length of 8. 
+Printers do not support graphic input. 
+4-5 
+===== PAGE 31 =====
+GSX-86 User's Guide 
+ANADEX PRINTERS: 
+MODEL DP-9501 
+MODEL DP-9001A 
+Printers: Anadex DP-950l and DP-900lA 
+Fi1ename DDANADXM.SYS 
+Reso1ution Horizontal: 75 dots per inch 
+Vertical: 72 dots per inch 
+Maximum P10t Size 8 x 9.5 inches (600 x 672 dots) 
+Word Length 7 bits per byte from the computer 
+4-6 
+===== PAGE 32 =====
+GSX-86 User's Guide 
+CENTRONICS PRINTERS 
+MODEL 351 
+MODEL 352 
+MODEL 353 
+Filename 
+Printers: Centronics 353 
+DDCNTXM.SYS 
+Resolution Horizontal: 66 dots per inch 
+Vertical: 72 dots per inch 
+Maximum Plot Size 8 x 9.5 inches (528 x 672 dots) 
+Word Length 7 bits per byte from the computer 
+4-7 
+===== PAGE 33 =====
+GSX-86 User's Guide Printers: C.lTOH 8510A 
+C.ITOH MODEL 85l0A PRINTER 
+Filename DDClTOLR.SYS 
+Resolution Horizontal: 136 dots per inch (17 cpi pitch) 
+vertical: 72 dots per inch 
+Maximum Plot Size 8 x 9.5 inches (1088 x 672 dots) 
+Word Length 8 bits per byte from the computer. 
+4-8 
+===== PAGE 34 =====
+GSX-86 User's Guide Printers: Datasouth DS-180 
+DATASOUTH DS-l80 PRINTER 
+Filename 
+Resolution 
+Maximum Plot Size 
+Word Length 
+DDDS180.SYS 
+Horizontal: 75 dots per inch 
+Vertical: 72 dots per inch 
+8 x 9.5 inches (600 x 672 dots) 
+7 bits per byte from the computer 
+4-9 
+===== PAGE 35 =====
+GSX-86 User's Guide Printers: DEC LA50 
+DIGITAL EQUIPMENT CORPORATION LASO PRINTER 
+Filename DDLA50.SYS 
+Resolution Horizontal: 144 dots per inch 
+Vertical: 72 dots per inch 
+Maximum Plot Size 8 x 9.5 inches (1152 x 672 dots) 
+Word Length 7 bits per byte from the computer 
+4-10 
+===== PAGE 36 =====
+GSX-86 User's Guide Printers: DEC LA100 
+DIGITAL EQUIPMENT CORPORATION LAlOO PRINTER 
+Filename 
+Resolution 
+Maximum Plot Size 
+Word Length 
+DDLA100.SYS 
+Horizontal: 132 dots per inch 
+Vertical: 72 dots per inch 
+8 x 9.5 inches (1056 x 672 dots) 
+7 bits per byte from the computer 
+4-11 
+===== PAGE 37 =====
+GSX-86 User's Guide Printers: Epson FX-80 and MX-80 
+EPSON PRINTERS: 
+MX-80
+Tl
+' WITH GRAFTRAX PLUS
+T
+• 
+MX-IOO
+T
+• 
+FX-80™ 
+FX-IOO™ 
+Introduction Two drivers exist for the Epson printers. The 
+first supports low resolution graphics and the 
+second supports high resolution graphics. 
+The low resolution driver prints at over twice 
+the speed of the high resolution driver. 
+Generally, the low resolution driver is best 
+suited for draft output and the high resolution 
+driver for final copy. 
+Epson Low Resolution 
+Filename 
+Resolution 
+Maximum Plot Size 
+Word Length 
+DDFXLR8.SYS 
+Horizontal: 60 dots per inch 
+Vertical: 72 dots per inch 
+8 x 9.5 inches (480 x 672 dots) 
+8 bits per byte from the computer. 
+Note: When this driver is used for the FX-100 
+or the MX-100 printer, only the left eight 
+inches of the printer are used. 
+4-12 
+===== PAGE 38 =====
+GSX-86 User's Guide Printers: Epson FX-80 and MX-80 
+Epson High Resolution 
+Filename 
+Resolution 
+Maximum Plot Size 
+Word Length 
+DDFXHR8.SYS 
+Horizontal: 120 dots per inch 
+Vertical: 144 dots per inch 
+8 x 9.5 inches (960 x 1368 dots) 
+8 bits per byte from the computer. 
+Note: When this driver is used for the FX-100 
+or the MX-IOO printer, only the left eight 
+inches of the printer are used. 
+4-13 
+===== PAGE 39 =====
+GSX-86 User's Guide Printers: IDS Monochrome 
+INTEGRAL DATA SYSTEMS MONOCHROME PRINTERS: 
+MICRO PRISMN MODEL 480 
+PRISM 80 
+PRISM 132 
+Filename DDIDSM.SYS 
+Resolution Horizontal: 84 dots per inch 
+Vertical: 84 dots per inch 
+Maximum Plot Size a x 9.5 inches (672 x 800 dots) 
+Word Length 7 bits per byte from the computer 
+4-14 
+===== PAGE 40 =====
+GSX-86 User's Guide 
+OKIDATA PRINTERS: 
+MICROLINE 92 
+MICROLINE 84 STEP 2 
+Printers: OKIDATA Microline 92 and 84 
+Filename DDOKI84.SYS 
+Resolution Horizontal: 103 dots per inch (17 cpi pitch) 
+Vertical: 72 dots per inch 
+Maximum Plot Size 8 x 9.5 inches (824 x 672 dots) 
+Word Length 7 bits per byte from the computer 
+4-15 
+===== PAGE 41 =====
+GSX-86 User's Guide Printers: Printronix MVP 
+PRINTRONIX MVP PRINTER 
+Filename 
+Resolution 
+Maximum Plot Size 
+Word Length 
+DDPMVP.SYS 
+Horizontal: 60 dots per inch 
+Vertical: 75 dots per inch 
+8 x 8 inches (480 x 600 dots) 
+7 bits per byte from the computer 
+4-16 
+===== PAGE 42 =====
+GSX-86 User's Guide Plotter: Hewlett-Packard 7470A 
+PLOTTER DRIVER 
+BEWLETT-PACKARD®7470A GRAPHICS PLOTTER 
+Filename 
+Device Number 
+Graphic Input 
+Text 
+Linestyle 
+DDHP7470.SYS 
+Logical device numbers for plotters range from 
+11 to 20. When you use only one plotter, 
+assign it device number 11. 
+The pen holder is the graphic input device. The 
+initial position of the pen holder indicates to 
+your applications program the starting position 
+for the graphic image to be drawn. To move the 
+pen holder, press the arrow keys on the front 
+panel. When the pen holder is at the desired 
+location, press the ENTER button. The 
+coordinates of the pen holder are then 
+transmitted to your applications program. 
+The HP 7470A has continuous scaling of character 
+sizes. Text can be rotated in one-degree 
+increments. 
+The plotter supports six linestyles. Each 
+linestyle is identified by an index number (see 
+the following table). The driver uses 
+linestyle 1, a solid line, when you specify a 
+linestyle index number outside the 1-6 range. 
+Table 4-5. Plotter Linestyles 
+Index 
+1 
+2 
+3 
+4 
+5 
+6 
+4-17 
+I Linestyle 
+Solid 
+Dot 
+Short Dash 
+Long Dash 
+Dash-Dot 
+Dash-Dot-Dot 
+===== PAGE 43 =====
+GSX-86 User's Guide 
+Markers 
+Color 
+Plotter: Hewlett-Packard 7470A 
+The plotter supports five marker types. Each 
+marker type is identified by an index number 
+(see the following table). The driver uses 
+marker 3 (*) when you specify a marker index 
+number outside the 1-5 range. 
+Table 4-6. Plotter Marker Sizes 
+Number I Marker 
+I 
+2 + 
+3 * 4 0 
+5 X 
+The number of the pen, not the number of the pen 
+holder, indicates the color. This allows you 
+to use more than two colors on the plotter. By 
+default, index I is held in pen holder I and 
+index 2 is held in pen holder 2. If you are 
+using more than these two colors, your 
+applications program will prompt you to insert 
+the third colored pen in a pen holder and enter 
+the pen holder number. No limit exists for the 
+number of pen indexes available on the plotter. 
+4-18 
+===== PAGE 44 =====
+GSX-86 User's Guide 
+MONITOR DRIVERS 
+Introduction 
+Device Number 
+Linestyle 
+Markers 
+Monitor Drivers 
+The following information applies to all moni tor 
+drivers listed in this section. 
+The logical device numbers for monitors range 
+from 01 to 10. If you use only one monitor, 
+assign it device number 01. 
+The monitors support six 1inesty1es. Each 
+1inesty1e is identified by an index number (see 
+the following table). The driver will use 
+1inesty1e 1, a solid line, when you specify a 
+1inesty1e index number outside the 1-6 range. 
+Table 4-7. Monitor Linestyles 
+Index 
+1 
+2 
+3 
+4 
+5 
+6 
+I Linesty1e 
+Solid 
+Short Dash 
+Dot 
+Dash-Dot 
+Long Dash 
+Dash-Dot-Dot 
+The monitors support 182 marker sizes and 5 
+marker types • 
+• Marker sizes range from 8 to 190 pixels, in 1 
+pixel increments • 
+• Each marker type is identified by an index 
+number (see list below). The driver will use 
+marker 3 (*) when you specify a marker index 
+number outside the 1-5 range. 
+4-19 
+===== PAGE 45 =====
+GSX-86 User's Guide Monitor Drivers 
+Text 
+Pill Area 
+Pill Styles 
+Table 4-8. Monitor Marker Sizes 
+Number 
+1 
+2 
+3 
+4 
+5 
+I Marker 
++ 
+* o 
+X 
+The IBM PC supports 182 character sizes from 8 
+to 190 pixels, in 1 pixel increments. Text can 
+be rotated in 90 degree increments. 
+The area within a polygon can be filled with a 
+hatch or halftone pattern. 
+The monitors support the following two fill 
+patterns. 
+Table 4-9. Monitor Hatch Patterns 
+Index I Hatch Patterns 
+1 vertical lines 
+2 Horizontal lines 
+3 +45 degree lines 
+4 -45 degree lines 
+5 Both vertical and 
+horizontal crosshatch 
+6 Both 45 and -45 degree 
+crosshatch 
+,4-20 
+===== PAGE 46 =====
+GSX-86 User's Guide Monitors: IBM PC 
+2 3 
+4 5 6 
+tigure 4-3. Monitor Hatch Patterns 
+4 
+Halftone Patterns: 
+The monitor drivers have six halftone fill 
+patterns that simulate six different levels of 
+the gray scale. 
+2 3 
+5 6 
+Figure 4-4. Monitor Halftone Patterns 
+4-21 
+===== PAGE 47 =====
+GSX-86 User's Guide 
+Generalized 
+Drawing 
+Primitives (GDPS) 
+Escapes 
+Graphic Input 
+Monitors: IBM PC 
+Monitor drivers support the GSX-86 BAR GDP 
+only; its identifier is 1. 
+All standard GSX-86 escapes are supported by the 
+monitor drivers. 
+Some GSX-86 application programs require you to 
+select specific coordinates on your monitor 
+screen. GSX-86 allows you to move the graphic 
+cursor on the screen to a desired location and 
+input its coordinates to the application 
+program. When GSX-86 Graphic Input (GIN) is 
+invoked on the I~M PC, a graph ic cur sor 
+resembling a plus sign (+) appears on the 
+screen. You can move the graphic cursor up, 
+down, left, and right by pressing one of the 4 
+arrow keys on the numeric keypad at the right­
+hand side of the keyboard. You can also move 
+the graph ic cursor in 45 degree angles by· 
+pressing the 7, 9, 1, and 3 keys on the numeric 
+keypad. Initially, the cursor moves in large 
+increments. Pressing the INS key changes the 
+distance between large and small movements. 
+When the cursor is at the desired location, you 
+can select the point by pressing any 
+alphanumeric key (other than return) on the 
+keyboard. This transmits the coordinates of 
+the point to the current program. 
+4-22 
+===== PAGE 48 =====
+GSX-86 User's Guide Monitors: IBM PC (Color) 
+IBM PC (Medium Resolution Color) 
+Filename 
+Resolution 
+Color 
+DDIBMC.SYS 
+Horizontal: 320 dots 
+Vertical: 200 dots 
+The IBM PC in medium resolution color mode 
+supports four colors. The color indexes cannot 
+be redefined to other colors. The default 
+assoc iation of color indexes wi th color is 
+listed in the following table. 
+Table 4-10. IBM PC Color Index 
+Index I Color 
+0 Black 
+1 Red 
+2 Green 
+3 Yellow 
+4-23 
+===== PAGE 49 =====
+GSX-86 User's Guide Monitors: IBM PC (Monochrome) 
+IBM PC (High Resolution Monochrome) 
+Filename 
+Resolution 
+Color 
+DDIBM.SYS 
+Horizontal: 640 dots 
+Vertical: 200 dots 
+In high resolution monochrome mode, the IBM PC 
+supports only two colors: black and white. 
+Color indexes cannot be redefined. The default 
+association of color indexes with monochrome 
+intensity is listed in the following table. 
+Table 4-11. IBM PC Monochrome Index 
+Index I Intensity I Color 
+o 
+1 
+End of Section 4 
+4-24 
+0% 
+100% 
+Black 
+White 
+===== PAGE 50 =====
+Appendix A 
+GSX-86 ERROR MESSAGES 
+Message 
+The following error messages might appear when 
+you use GSX-86. 
+Table A-l. GSX-86 Error Messages 
+Meaning 
+d:ASSIGN.SYS not found 
+The ASSIGN .SYS file cannot be found on the 
+disk in the currently logged drive. Use 
+the DIR command to list the contents of 
+the disk. If the ASSIGN.SYS file is not 
+on the disk, locate the disk containing 
+the ASSIGN.SYS file: insert it into the 
+drive; and type the GRAPHICS command. 
+d:ASSIGN.SYS syntax error 
+An entry in the ASSIGN.SYS file does not 
+follow the syntax rule. The entry does 
+not contain a two digit logical device 
+number, a blank space, and a device driver 
+filename. Edit the ASSIGN.SYS file and 
+make the necessary corrections. Type the 
+GRAPHICS command again. 
+d:ASSIGN.SYS close error 
+The system cannot find the file to close 
+it. Th i s some time s happens when you 
+exchange the disk that was previously in 
+the drive with another disk. Insert the 
+correct disk in the drive and try again. 
+d:ffffffff.SYS not found 
+One of the device driver files listed in 
+the ASSIGN.SYS file is not on the working 
+disk. Use the DIR command to list the 
+contents of the working disk. Ensure that 
+A-I 
+===== PAGE 51 =====
+GSX-86 User's Guide GSX-86 Error Messages 
+Message 
+Table A-I. (continued) 
+Meaning 
+all of the device driver files listed in 
+the ASSIGN .SYS file are present on the 
+disk. If a device driver file listed in 
+the ASSIGN .SYS file is on the working 
+disk, copy the missing device driver file 
+onto it. 
+d:ffffffff.SYS empty 
+The system found the specified device 
+driver, but it contains no data. Delete 
+the empty file from your working disk and 
+recopy the or iginal file from your 
+duplicate disk to your working disk. For 
+details, see Creating a Working Disk in 
+Section 2. 
+d:ffffffff.SYS contains absolute segment 
+The specified device driver file attempted 
+to address an absolute segment and it 
+cannot be loaded. This is probably the 
+result of a corrupted driver file. Recopy 
+the original file from your duplicate disk 
+to your working disk. 
+d:ffffffff.SYS close error 
+An error occurred when the system closed 
+the specified file. This probably 
+happened because you exchanged the disk 
+that was previously in the drive with 
+another disk. Insert the correct disk in 
+the drive and try again. 
+d:ffffffff.SYS load error 
+An error occurred while the system was 
+reading the device driver file. This 
+occurs if you fail to list the largest 
+device driver first in the ASSIGN.SYS 
+file. Reedit the ASSIGN .SYS file and list 
+the largest driver first. 
+A-2 
+===== PAGE 52 =====
+GSX-86 User's Guide GSX-86 Error Messages 
+Table A-I. (continued) 
+Message Meaning 
+Not enough memory for GSX-86 
+Your computer does not have enough memory 
+for GSX-86 and the default device driver. 
+Disable unnecessary programs to free 
+memory or add more RAM memory to your 
+system. 
+End of Appendix A 
+A-3 
+===== PAGE 53 =====
+
+===== PAGE 54 =====
+Appendix B 
+OPERATING GSX-86 WITH CONCURRENT CP/M-86 
+INTRODUCTION 
+USE OF RUN 
+COMMAND 
+PLOTTER SUPPORT 
+MONITOR 
+CONNECTIONS 
+Concurrent CP/M-86 allows you to simultaneously 
+run mul tiple progr ams from four separate 
+virtual consoles. However, when you use 
+Concurrent CP/M-86 with GSX-86, the following 
+restrictions exist. 
+Note the version number on the label of your 
+Concurrent CP/M disk. 
+o If you use GSX-86 with the 2.0 version of 
+Concurrent CP/M, do not use the RUN command 
+when you initiate your GSX-86 application 
+programs. For example, to initiate DR GRAPH, 
+type the command: 
+A>GRAPH 
+o If you use GSX-86· under the 1.0 or 1.1 
+ver s ion of Concur rent CP/M, use the RUN 
+command when you initiate your GSX-86 
+application programs. For example, to 
+initiate DR GRAPH, type the command: 
+A>RUN GRAPH 
+When your computer is running the Concurrent 
+CP/M-86 operating system, GSX-86 does not 
+support the HP 7470A Plotter. 
+Before running your graphics application 
+program on your IBM computer, you must have both 
+the standard IBM PC monochrome monitor and a 
+graphics monitor connected to your computer. 
+o Connect your graphics monitor to the output 
+port of the Color/Graphics Moni tor Adapter at 
+the rear of your computer. 
+B-1 
+===== PAGE 55 =====
+GSX-86 User's Guide 
+USE WITH DR GRAPH 
+UNLOADING 
+OPERATING 
+SYSTEM 
+EXTENSIONS 
+Monitor Connections 
+• Connect your monochrome moni tor to the output 
+po r t of the Monochrome Display /p r in ter 
+Adapter at the rear of your computer. 
+Although Concurrent CP/M-86 allows you to run 
+multiple programs simultaneously, you can run 
+only one DR Graph program at a time. 
+GSX-86 is a system extension of the CP/M-86 
+and Concurrent CP/M-86 operating systems. If 
+another system extension and GSX-86 are both 
+loaded for concurrent operation, they must be 
+unloaded (or disabled) in the reverse order 
+that they were loaded. For example, if GSX-86 
+was loaded before the other system extension, 
+you would unload that system extension before 
+GSX-86. 
+End of Appendix B 
+B-2 
+===== PAGE 56 =====
+A 
+Anadex printer, 4-6 
+ASSIGN.SYS, 2-1, 2-4 
+ASSIGN.SYS file, 2-4 
+c 
+entry, 2-5 
+listing, 2-4 
+modifying, 2-6 
+syntax, 2-4 
+C.ITOH printer, 4-8 
+cell array, 4-4 
+Centronics, 4-7 
+character sizes, 4-20 
+cold start, 3-3 
+command syntax, 3-2 
+CONFIG command, 4-5 
+coordinate system, 1-1 
+CTRL-C, 3-3 
+D 
+Datasouth printer, 4-9 
+DDANADXM.SYS, 4-6 
+DDCITOLR.SYS, 4-8 
+DDCNTXM.SYS, 4-7 
+DDDS180.SYS, 4-9 
+DDFXHR8.SYS, 4-13 
+DDFXLR8.SYS, 4-12 
+DDHP7470.SYS, 4-17 
+DDIBM.SYS, 4-24 
+DDIBMC.SYS, 4-23 
+DDIDSM.SYS, 4-14 
+DDLAlOO.SYS, 4-11 
+DDLA50.SYS, 4-10 
+DDOKI84.SYS, 4-15 
+DDPMVP.SYS, 4-16 
+device driver, 2-2, 2-4, 
+3-1, 4-1 
+file, 2-4 
+filenames, 2-5, 2-6 
+size of, 3-2 
+DEC LAIOO-Series 
+printer, 4-11 
+DEC LA50-Series 
+printer, 4-10 
+distribution disk, 2-3 
+files, 2-1 
+Index 
+E 
+Epson printers, 4-12 
+error messages, 3-3, A-I 
+escape function, 4-22 
+F 
+fill, 4-3 
+area, 4-3 
+G 
+halftone patterns, 4-20 
+hatch patterns, 4-20 
+styles, 4-3 
+Generalized Drawing 
+Primitives, 4-4, 4-22 
+graphic cursor, 4-22 
+GRAPHICS command, 3-1 
+graphics devices, 1-1 
+differences in, 1-1 
+GRAPHICS.CMD, 2-1 
+GSX-86 distribution disk, 2-1 
+GSX-86, 
+H 
+disabling, 3-2 
+installing, 3-1 
+halftone fill patterns, 4-4 
+hatch fill patterns, 4-3 
+Hewlett-Packard Graphics 
+Plotter, 4-17 
+I 
+IBM PC (high resolution 
+monochrome), 4-24 
+IBM PC (medium resolution 
+color), 4-23 
+IDS printers, 4-14 
+L 
+linestyles, 
+monitor, 4-17, 4-19 
+printer, 4-2 
+logical device number, 2-4, 
+4-2, 4-17, 4-19 
+Index-l 
+===== PAGE 57 =====
+M 
+marker sizes, 4-19 
+monitor, 4-20 
+printer, 4-2 
+marker type, 4-19 
+marker types~ 4-2, 4-18, 4-19 
+memory space, 
+freeing, 3-2 
+Micro PRISM, 4-14 
+monitor drivers, 4-19 
+monitor, 1-1, 2-3, 2-5, 4-19 
+o 
+character sizes, 4-20 
+escape function, 4-22 
+linestyles, 4-19 
+marker sizes, 4-20 
+OKIDATA Microline 
+printer, 4-15 
+p 
+parallel port, 4-5 
+pen holder, 4-17 
+plotter, 2-1, 4-17, 4-18 
+plotter driver, 4-17 
+printer, 2-1, 2-3 
+s 
+escape function, 4-5 
+linestyles, 4-2 
+marker sizes, 4-2 
+serial port, 4-5 
+w 
+warm start, 3-3 
+word length, 4-5 
+working disk, 2-3 
+Index-2 
+===== PAGE 58 =====
+Reader Comment Card 
+We welcome your comments and suggestions. They help us provide you with better 
+product documentation. 
+Date _____ First Edition: July 1983 
+1. What sections of this manual are especially helpful? 
+2. What suggestions do you have for improving this manual? What information 
+is missing or incomplete? Where are examples needed? 
+3. Did you find errors in this manual? (Specify section and page number.) 
+GSX-86™Graphics Extension User's Guide for the IBM® Personal Computer 
+COMMENTS AND SUGGESTIONS BECOME THE PROPERlY OF DIGITAL RESEARCH. 
+===== PAGE 59 =====
+From: ______________________ _ 
+BUSINESS REPLY MAIL 
+FIRST CLASS / PERMIT NO. 182 / PACIFIC GROVE. CA 
+POSTAGE WILL BE PAID BY ADD~ESSEE 
+[Q] DIGITAL RESEARCHTW 
+P.o. Box 579 
+Pacific Grove, California 
+93950 
+NO POSTAGE 
+NECESSARY 
+IF MAILED IN THE 
+UNITED STATES 
+===== PAGE 60 =====
+
+===== PAGE 61 =====

@@ -1,0 +1,5 @@
+; smoke test for asm86 under emu2
+	cseg
+start:	mov	ax,0
+	ret
+	end

@@ -1,0 +1,4493 @@
+
+===== PAGE 1 =====
+GSXTM 
+Graphics Extension 
+Programmer's Guide 
+, 
+-_ --"," _. _I. ,-= :--,"' ..... ': .~_. ~I':"~-: .. -.:~. -~~=-- .- ,.< .'''- ... ;;..- -~~=.-=" .',.. ~ Y .. ~ ~ .,-. ~ 
+. ." .... , ., .. .. _ " • ,_ _ _ _ _ _ ._'J 
+- --:--.-r- I' II I '" .. .. _ _ _ __ ~ ••• _. 
+~ - -.=--- .. . - .~-,-r'.'- I -.-:- I - .. r", 
+===== PAGE 2 =====
+GSXTM 
+Graphics Extension 
+Programmer's Guide 
+Copyright ~ 1983 
+Digital Research 
+P.O. Box 579 
+160 Central Avenue 
+Pacific Grove, CA 93950 
+TWX 910 360 5001 
+All Rights Reserved 
+===== PAGE 3 =====
+COPYRIGHT 
+Copyright © 1983 by Digital Research Inc. All 
+rights reserved. No part of this publication may be 
+reproduced, transmitted, transcribed, stored in a 
+retrieval system, or translated into any language or 
+compu te r language in any form or by any means, 
+electronic, mechanical, magnetic, optical, chemical, 
+manual, or otherwise, without the prior written 
+permission of Digital Research, Post Office Box.579, 
+Pacific Grove, California, 93950. 
+Readers are granted permission to include the 
+example programs, either in whole or in part, in 
+their own programs. 
+DISCLAIMER 
+Digital Research makes no representations or 
+warranties with respect to the contents hereof and 
+specifically disclaims any implied warranties of 
+merchantability or fitness for any particular 
+purpose. Further, Digital Research reserves the 
+right to revise this publication and to make changes 
+from time to time in the content hereof without 
+obligation of Digital Research to notify any person 
+of such revision or changes. 
+TRADEMARK 
+CP/M and CP/M-86 are registered trademarks of 
+Digital Research. DR Draw, DR Graph, GSX, and TEX 
+are trademarks of Digital Research. IBM is a 
+registered trademark of International Business 
+Machines. MS-DOS is a trademark of Microsoft 
+Corporation. 
+The GSX Graphics Extension Programmer's Guide was 
+prepared using the Dig i tal Research TEXTI. Text 
+Formatter and printed in the United States of 
+America. 
+*********************************** 
+* Second Edition: September 1983 * 
+*********************************** 
+===== PAGE 4 =====
+Foreword 
+MANUAL OBJECTIVE 
+INTENDED AUDIENCE 
+MANUAL DESIGN 
+This document describes the features and 
+operation of the Graphics System Extension 
+(GSX'" ), Release 1.2. The manual explains what 
+GSX does and how you can use its graphics 
+capabilities. It also explains how GSX 
+interfaces to your hardware environment and how 
+you can adapt GSX for your own unique graphics 
+devices. 
+This manual is intended for microcomputer 
+programmers as well as for system and 
+application programmers who are familiar with 
+operating system and graphics programming 
+concepts. 
+This manual contains five sections, three 
+append ixes, a glossary, and an index. The 
+following descriptions will help you determine 
+a reading path through the manual. 
+Section 1 is an introduction to GSX. It 
+describes the features you need to know to run 
+graphics application programs. 
+Section 2 is a programmer's overview of GSX. 
+It explains the GSX archi tecture and introduces 
+the components of GSX. It also describes how 
+to use GSX with application programs. 
+Section 3 describes the Graphics Device 
+Operating System (GDOS). 
+Section 4 describes the Graphics Input/Output 
+System (GIOS). It tells how to interface 
+particular graphics devices to GSX to provide 
+dev ice independence for your appl ica t ion 
+program. 
+Section 5 provides details about operating GSX 
+and how to integrate your application program 
+with the GSX facilities. 
+iii 
+===== PAGE 5 =====
+Appendixes contain the following reference 
+information: 
+Append ix A - G S X con v e n t ion s for the 
+CP/M® operating system for 8080 
+microprocessors 
+Appendix B - GSX conventions for the CP/M-
+86®, IBM® PC DOS, and MS-DOS~ 
+operating systems for 8086 
+microprocessors 
+Appendix C - The Virtual Device Interface (VOl) 
+specification 
+The glossary follows wi th terminology unique to 
+GSX. Finally, an extensive index helps you use 
+this document more effectively. 
+iv 
+===== PAGE 6 =====
+Table of Contents 
+1 Introduction 
+About This Manual 
+GSX Benefits • 
+GSX Functions 
+Transforming Points • • 
+Servicing Graphics Requests • 
+Loading Device Drivers 
+2 Programmer's Overview 
+Introduction 
+Graphics System Extension Architecture • 
+Graphics Device Operating System (GDOS) 
+Graphics Input/Output System (GIOS) 
+Enabling Graphics . •• ••••.• 
+Graphics Mode Initialization • 
+Application Programs • • • • 
+3 GOOS 
+Introduction • 
+GDOS Functions . 
+-Graphics Calls 
+Dynamic Loading • 
+Transforming Points • 
+GDOS Calling Sequence 
+GDOS Opcodes 
+Loading GIOS Files • 
+Assignment Table Format . 
+Memory Management • • • 
+v 
+1-1 
+1-1 
+1-2 
+1-2 
+1-4 
+1-4 
+2-1 
+2-1 
+2-2 
+2-2 
+2-3 
+2-3 
+2-6 
+3-1 
+3-1 
+3-1 
+3-1 
+3-2 
+3-2 
+3-2 
+3-6 
+3-7 
+3-8 
+===== PAGE 7 =====
+Table of Contents (continued) 
+4 GIOS 
+Introduction 
+Purpose of GIOS 
+GIOS Functions • 
+4-1 
+4-1 
+4-2 
+Virtual Device Interface Specification • •••• 4-2 
+Creating GIOS File • ••••• • • • • • • • 4-4 
+5 Operating Procedures 
+Introduction • • 
+GSX Distribution Files • 
+Running Graphics Applications under GSX 
+Determining Memory Requirements ••• • 
+Debugging Graphics Applications under GSX 
+Writing a New Device Driver 
+Appendixes 
+A GSX Calling Conventions for CP/M 
+Introduction 
+GSX Skeleton Device Driver • 
+FORMAT • • • 
+GDOS Calling Conventions • 
+vi 
+5-1 
+5-1 
+5-1 
+5-2 
+5-3 
+5-3 
+A-I 
+A-I 
+A-I 
+A-3 
+===== PAGE 8 =====
+Appendixes (continued) 
+B GSX Calling Conventions for CP/M-86, IBM PC DOS, 
+and MS-DOS 
+Introduction 
+GDOS Calling Sequence 
+Invoking Device Drivers 
+Error Messages 
+C Virtual Device Interface (VDI) Specification 
+Introduction • • • 
+Format • • • 
+Open Workstation • 
+Close Workstation 
+Clear Workstation 
+Update Workstation • 
+Escape • 
+ESCAPE: Inquire Addressable Character Cells . 
+ESCAPE: Enter Graphics Mode . 
+ESCAPE: Exit Graphics Mode 
+ESCAPE: Cursor Up . · . . . . 
+ESCAPE: Cursor Down · 
+ESCAPE: Cursor Right 
+ESCAPE: Cursor Left · . 
+ESCAPE: Home Cursor · . . . . . 
+ESCAPE: Erase to End of Screen 
+ESCAPE: Erase to End of Line 
+ESCAPE: Direct Cursor Address . 
+ESCAPE: Output Cursor Addressable Text 
+vii 
+B-1 
+B-1 
+B-3 
+B-S 
+C-l 
+C-l 
+C-4 
+C-9 
+C-9 
+C-lO 
+C-lO 
+C-12 
+C-13 
+C-13 
+C-14 
+C-14 
+C-lS 
+C-lS 
+C-16 
+C-l6 
+C-l7 
+C-17 
+C-lS 
+===== PAGE 9 =====
+Appendixes (continued) 
+ESCAPE: Reverse Video On 
+ESCAPE: Reverse Video Off • 
+ESCAPE: Inquire Current Cursor Address . 
+ESCAPE: Inquire Tablet Status 
+ESCAPE: Hard Copy 
+ESCAPE: Place Graphic Cursor at Location • 
+ESCAPE: Remove Last Graphic Cursor • 
+Polyline • 
+Polymarker • 
+Text • 
+Filled Area 
+Cell Array • • 
+Generalized Drawing Primitive (GOP) 
+Set Character Height • • • 
+Set Character Up Vector 
+Set Color Representation • 
+Set Polyline Line Width 
+Set Polyline Color Index • 
+Set Polymarker Type 
+Set Polymarker Scale • 
+Set Polymarker Color Index 
+Set Text Font . 
+Set Text Color Index 
+Set Fill Interior Style . 
+Set Fill Style Index . 
+Set Fill Color Index . . 
+· · · . 
+· · · 
+· · · . 
+viii 
+. . 
+. . . 
+. . 
+· 
+· · · 
+· · · . · · · . · 
+· 
+· 
+· 
+· 
+· 
+· 
+· 
+C-19 
+C-19 
+C-20 
+C-20 
+C-21 
+C-21 
+C-22 
+C-23 
+C-24 
+C-25 
+C-26 
+C-27 
+C-29 
+C-33 
+C-34 
+C-35 
+C-37 
+C-37 
+C-38 
+C-39 
+C-40 
+C-41 
+C-42 
+C-43 
+C-44 
+C-45 
+===== PAGE 10 =====
+Appendixes (continued) 
+Inquire Color Representation 
+Inquire Cell Array • • • • • 
+Input Locator 
+Input Valuator • 
+Input Choice • • 
+Inpu t Str ing • • 
+Set Writing Mode • 
+Set Inpu t Mode • • • • • 
+Required Opcode CRT Devices 
+Required Opcode for Plotters and Printers 
+Tables and Figures 
+Tables 
+3-1. GSX Operation Codes 
+C-l. Sample Mode Status Returned 
+C-2. Opcode for CRT Devices • • • • 
+C-3. Opcode for Plotters and Printers • 
+Figures 
+1-1. 
+2-1. 
+GSX Provides Device-Independent Graphics • 
+GSX Memory Map • • • • • • • • • • • • • 
+ix 
+C-46 
+C-47 
+C-48 
+C-5l 
+C-53 
+C-55 
+C-57 
+C-59 
+C-60 
+C-6l 
+3-3 
+C-49 
+C-60 
+C-6l 
+1-3 
+2-5 
+===== PAGE 11 =====
+
+===== PAGE 12 =====
+Section 1 
+INTRODUCTION 
+ABOUT THIS MANUAL 
+GSX BENEFITS 
+Section 1 identifies the features of GSX, the 
+Graphics System Extension for your operating 
+system. It explains what GSX does and how to 
+use its graphics functions. 
+This section is for you if you are a new user 
+of GSX. It assumes that your goal is to 
+quickly hook up your application programs to 
+your system's graphics capability. 
+If you are a system or an application 
+programmer familiar with operating system 
+concepts, this section introduces you to GSX. 
+Section 2 through Section 5 provides all the 
+details you need to use GSX with your own 
+unique graphics devices. 
+GSX adds graphics to your operating system, as 
+follows: 
+• GSX supports DR Graph •• and DR Draw., two 
+products that extend your graphics 
+capabili ty. DR Graph allows you to graph and 
+plot data by making simple menu selections. 
+DR Draw lets you draw complex graphics 
+images. 
+• GSX opens a world of application software. 
+You can run any graphics application program 
+that uses GSX with several 8080 and 8086 
+microcomputer operating systems. 
+• GSX promotes user por tabili ty. The inter face 
+between you and GSX is identical to the 
+inter face between you and your operating 
+system. 
+• GSX provides a device-independent software 
+inter face for your application programs. You 
+will not need to rewrite your programs if you 
+decide to use a printer instead of a plotter, 
+for example. 
+1-1 
+===== PAGE 13 =====
+GSX Programmer's Guide GSX Functions 
+GSX FUNCTIONS 
+Transforming 
+Points 
+All graphics devices are not alike. Terminals, 
+printers, and plotters draw lines, fill in 
+areas, and produce text differently. 
+Wi th the Graphics System Extension for your 
+operating system, you do not have to worry 
+about device differences, because GSX handles 
+all the differences and lets you talk to the 
+devices through your application program as if 
+the devices were all the same. GSX handles 
+graphics requests and supplies the right 
+program to run the device you are using. 
+All computer graphics are displayed on a 
+coordinate system. GSX's job is to make sure 
+the coordinate system that one device uses 
+matches the coordinate system used by another. 
+For example, with GSX your application program 
+produces the same graphics image on your 
+printer that it does on your CRT. The 
+linetypes and character sizes are the same. 
+1-2 
+===== PAGE 14 =====
+GSX Programmer's Guide GSX Functions 
+fr~~~~~~~.// 
+:Jr-J il 
+Figure 1-1. GSX Provides Device-Independent Graphics 
+1-3 
+===== PAGE 15 =====
+GSX Programmer's Guide GSX Functions 
+Servicing 
+Graphics 
+Requests 
+Loading Device 
+Drivers 
+Your application programs work with GSX 
+through a standard calling sequence. GSX 
+translates these standard calls to fi t the 
+peculiarities of each graphics device (a 
+printer or plotter, for example). The 
+translation process makes your application 
+programs device-independent. The programs can 
+run on your system with the graphics device you 
+are using. 
+For details about using GSX, refer to the GSX 
+user's guide for your system. 
+Each graphics device is mechanically and 
+electrically different, and requires a special 
+program to run it. These programs· are called 
+device drivers. GSX makes sure the right 
+driver is loaded into memory so you can use the 
+device you specify. 
+End of Section 1 
+1-4 
+===== PAGE 16 =====
+Section 2 
+PROGRAMMER'S OVERVIEW 
+INTRODUCTION 
+GRAPHICS SYSTEM 
+EXTENSION 
+ARCHITECTURE 
+Th is section introduces the Graphics System 
+Extension architecture with its components and 
+their functions. Later sections describe each 
+of these parts in detail. 
+GSX is the Graphics System Extension for 
+microcomputer operating systems. It 
+incorporates graphics capability into the 
+operating system and provides a host and 
+device-independent interface for your 
+application programs. Graphics primitives are 
+provided for implementing graphics applications 
+with reduced programming effort. In addition, 
+GSX enhances program portability by allowing an 
+application to run on any operating system wi th 
+the GSX option. GSX also promotes programmer 
+portability by providing a common programming 
+interface to graphics that is compatible with 
+the most widely used operating systems. 
+GSX is an integral part of your operating 
+system. Application programs interface to GSX 
+through a standard calling sequence. Drivers 
+for specific graphics devices translate the 
+standard GSX calls to the unique 
+characteristics of the device. In this way, 
+GSX provides device independence, and the 
+peculiarities of the graphics device are not 
+visible to the application program. 
+GSX consists of two parts that work together to 
+give your system graphics capability: 
+• Graphics Device Operating System (GDOS) 
+• Graphics Input/Output System (GIOS) 
+2-1 
+===== PAGE 17 =====
+GSX Programmer's Guide GSX Architecture 
+Graphics 
+Device Operating 
+System (GOOS) 
+Graphics 
+Input/Output 
+System (GIOS) 
+The Graphics Device Operating System (GDOS) 
+contains the basic host and device­
+independent graphics functions that can be 
+called by your application program. GDOS 
+provides a standard interface to graphics that 
+is constant regardless of specific devices or 
+host hardware, just as the disk operating 
+systems standardize disk interfaces. Your 
+application program accesses GDOS in much the 
+same way that it accesses the disk operating 
+system. . 
+GDOS performs coordinate scaling so that your 
+program can specify points in a normalized 
+coordinate space. It uses device-specific 
+information to translate the normalized 
+coordinates into the corresponding values for 
+your particular graphics device. 
+Multiple graphics devices can be supported 
+under GSX within a single application. By 
+referring to devices with a workstation 
+identification number, an application program 
+can send graphics information to anyone of 
+several disk-resident devices. GDOS 
+dynamically loads a specific device dr iver when 
+requested by the application program, 
+over laying the previous dr iver. This technique 
+minimizes memory size requirements since only 
+one driver is resident in memory at any time. 
+For details see "LOADING GIOS FILES" in Section 
+3. 
+The Graphics Input/Output System (GIOS) is 
+similar to any I/O system. It contains the 
+device-specific code required to interface your 
+particular graphics devices to the GDOS. GIOS 
+consists of a set of device drivers that 
+communicate directly with the graphics devices 
+through the appropriate means. GSX requires a 
+unique device driver for each different 
+graphics device on your system. The term GIOS 
+refers to the functional layer in GSX that 
+holds the collection of available device 
+drivers. The particular driver that is loaded 
+into memory when required by your application 
+is called a GIOS file. Al though a single 
+program can use several graphics devices, GDOS 
+loads only one GIOS file at a time. 
+2-2 
+===== PAGE 18 =====
+GSX Programmer's Guide GSX Architecture 
+Enabling Graphics 
+GRAPHICS MODE 
+INITIALIZATION 
+GIOS performs the graphics primitives of GSX 
+consistent with the inherent capabilities of 
+your graphics device. In some cases, a device 
+driver emulates standard GOOS capabilities that 
+are not provided by the graphics device 
+hardware. For example, some devices require 
+that dashed lines be simulated by a series of 
+short vectors generated in the device driver. 
+The GSX package contains drivers for many of 
+the most popular graphics devices for 
+microcomputer systems. However, you can 
+install your own custom device driver if 
+necessary. We provide information in Section 
+4, "GIOS," to help you write your driver. The 
+Virtual Oevice Interface (VOl) Specification in 
+Appendix C defines all the required functions 
+and parameter conventions. 
+A spec ial command allows you to enable and 
+disable graphics functions from the command 
+level of the operating system. This command 
+enables GSX by loading GOOS and the default 
+device dr iver and establishing the proper links 
+to the operating system to allow an application 
+program to access graphics devices. When GSX 
+is disabled, it relinquishes all system memory 
+space, leaving the maximum memory for 
+nongraphics programs. 
+You must initialize GSX with a graphics command 
+before running an application that uses GSX. 
+Refer to your GSX user's guide for the GSX 
+command that your system uses. 
+Upon entering the graphics mode, the 
+operating system performs several actions. 
+First, it brings GOOS-into memory along with 
+the default driver, the first device driver 
+listed in the Assignment Table. 
+Next, it calls the GOOS, which intercepts GDOS 
+calls but passes operating system calls to the 
+operating system. 
+2-3 
+===== PAGE 19 =====
+GSX Programmer's Guide Graphics Mode Initialization 
+Finally, control returns to the operating 
+system command interface module, which waits 
+for the next operator command. Note that a 
+warm start (usually invoked by CTRL-Z) does not 
+disturb the graphics mode initialization. 
+However, a cold start, or hardware reboot, 
+disables GSX, which requires you to execute the 
+GSX command after you reboot the system. 
+Figure 2-1 shows the location of the components 
+of GSX after GSX graphics mode initialization. 
+When graphics mode is disabled, the memory used 
+by GDOS and the GIOS file is made available to 
+user programs, and control is returned to the 
+operating system user interface module. 
+2-4 
+===== PAGE 20 =====
+GSX Programmer's Guide Graphics Mode Initialization 
+AVAILABLE 
+MEMORY 
+GIOS 
+GOOS 
+OPERATING 
+SYSTEM 
+Figure 2-1. GSX Memory Map 
+2-5 
+===== PAGE 21 =====
+GSX Programmer's Guide Application Programs 
+APPLICATION 
+PROGRAMS 
+with appropriate calls to GDOS, you can write 
+your application programs in assembly language 
+or a high-level language that supports the GSX 
+call i ng conventions. You can compile or 
+assemble and link programs containing GSX calls 
+in the normal manner. 
+End of Section 2 
+2-6 
+===== PAGE 22 =====
+Section 3 
+GDOS 
+INTRODOCTION 
+GOOS FUNCTIONS 
+Graphics Calls 
+Dynamic Loading 
+This section describes the Graphics Oevice 
+Operating System (GOOS) in detail, including 
+GOOS functions, the GOOS calling sequence, and 
+how device drivers are loaded. 
+GOOS per forms three functions dur ing the 
+execution of a graphics application program: 
+• responds to GSX requests 
+• loads device drivers as required 
+• converts normalized coordinates to device 
+coordinates 
+An application program accesses GOOS by making 
+calls to the operating system. Refer to 
+Appendixes A and B for GSX conventions for 
+specific operating systems. 
+Each time an application program opens a 
+workstation, GOOS determines whether the 
+required device driver is resident in memory. 
+If not, GOOS loads the driver from disk and 
+services the graphics request. 
+3-1 
+===== PAGE 23 =====
+GSX Programmer's Guide GDOS Functions 
+Transforming 
+Points 
+GDOS CALLING 
+SEQUENCE 
+GDOS OPCODES 
+The application program passes all graphics 
+coordinates to GDOS as Normalized Device 
+Coordinates (NDC) in a range from a to 32,767 
+in both axes. Using information passed from 
+the device driver when the workstation, or 
+device, was opened, GDOS scales the, NDC units 
+to the device coordinates. The full scale NDC 
+space is always mapped to the full dimensions 
+of your graphics device in each axis. This 
+ensures that all your graphics information 
+appears on the display surface regardless of 
+the dimensions of the device. 
+GSX gives you a standard way to access 
+graphics capabili ties. This accessing method is 
+called the Virtual Device Interface (VOl) 
+because it makes all graphics devices appear 
+"virtually" identical. 
+The implementation of the VDI employs the 
+conventional disk operating system calling 
+sequence. The application program calls GDOS 
+by calling the operating system. For specific 
+operating system calls, refer to Appendixes A 
+and B. The program passes arguments to GDOS in 
+a parameter list, which consists of five 
+arrays: a control array, an array of input 
+parameters, an array of input point 
+coordinates, an array of output parameters, and 
+an array of output point coordinates. The 
+specific graphics function to be performed by 
+GDOS is indicated by an operation code in the 
+parameter list. 
+Table 3-1 summarizes the GDOS opcodes. See 
+Appendix C for a detailed description of all 
+the operation codes including parameters. 
+3-2 
+===== PAGE 24 =====
+GSX Programmer's Guide GDOS Opcodes 
+Table 3-1. GSX Operation Codes 
+Opcode Description 
+1 OPEN WORKSTATION initializes a graphics device (load 
+driver if necessary). 
+2 CLOSE WORKSTATION stops graphics output to this 
+workstation. 
+3 CLEAR WORKSTATION clears display device. 
+4 UPDATE WORKSTATION displays all pending graphics on 
+workstation. 
+5 ESCAPE enables special device-dependent operation. 
+ID I Definition 
+1 INQUIRE ADDRESSABLE CHARACTER CELLS returns 
+number of addressable rows and columns. 
+2 ENTER GRAPHICS MODE enters graphics mode. 
+3 EXIT GRAPHICS MODE exits graphics mode. 
+4 CURSOR UP moves cursor up one row. 
+5 CURSOR DOWN moves cursor down one row. 
+6 CURSOR RIGHT moves cursor right one column. 
+7 CURSOR LEFT moves cursor left one column. 
+8 HOME CURSOR moves cursor to home position. 
+9 ERASE TO END OF SCREEN erases from current 
+cursor position to end of screen. 
+10 ERASE TO END OF LINE erases from current 
+cursor position to end of line. 
+11 DIRECT CURSOR ADDRESS moves alpha cursor to 
+specified row and column. 
+3-3 
+===== PAGE 25 =====
+GSX Programmer's Guide GDOS Opcodes 
+Table 3-1. (continued) 
+Opcode Description 
+ID I Definition 
+12 OUTPUT CURSOR ADDRESSABLE TEXT outputs text 
+at the current alpha cursor position. 
+13 REVERSE VIDEO ON displays subsequent text in 
+reverse video. 
+14 REVERSE VIDEO OFF displays subsequent text 
+in standard video. 
+15 INQUIRE CURRENT CURSOR ADDRESS returns 
+location of alpha cursor. 
+16 INQUIRE TABLET STATUS 
+graphics tablet. 
+17 HARDCOPY makes hardcopy. 
+returns status of 
+18 PLACE GRAPHIC CURSOR AT LOCATION moves 
+cursor directly to specified location. 
+19 REMOVE GRAPHIC CURSOR does not display 
+cursor. 
+20-50 RESERVED (for future expansion). 
+51-100 UNUSED (and available). 
+6 POLYLINE outputs a polyline. 
+7 POLYMARKER outputs markers. 
+8 TEXT outputs text starting at specified position. 
+9 FILLED AREA displays and fills a polygon. 
+10 CELL ARRAY displays a cell array. 
+3-4 
+===== PAGE 26 =====
+GSX Programmer's Guide GDOS Opcodes 
+Table 3-1. (continued) 
+Opcode Description 
+11 GENERALIZED DRAWING PRIMITIVE displays a generalized 
+drawing primitive. 
+ID I Definition 
+1 BAR 
+2 ARC 
+3 PIE SLICE 
+4 CIRCLE 
+5 PRINT GRAPHIC CHARACTERS 
+6-7 RESERVED (for future use) 
+8-10 UNUSED (and available) 
+12 SET CHARACTER HEIGHT sets text size. 
+13 SET CHARACTER UP VECTOR sets text direction. 
+14 SET COLOR REPRESENTATION defines the color associated 
+with a color index. 
+15 SET POLYLINE LINETYPE sets linestyle for polylines. 
+16 SET POLYLINE LINEWIDTH sets width of lines. 
+17 SET POLYLINE COLOR INDEX sets color for polylines. 
+18 SET POLYMARKER TYPE sets marker type for polymarkers. 
+19 SET POLYMARKER SCALE sets size for polymarkers. 
+20 SET POLYMARKER COLOR INDEX sets color for 
+polymarkers. 
+21 SET TEXT FONT sets device-dependent text style. 
+22 SET TEXT COLOR INDEX sets color of text. 
+3-5 
+===== PAGE 27 =====
+GSX Programmer's Guide GDOS Opcodes 
+Table 3-1. (continued) 
+Opcode Description 
+23 SET FILL INTERIOR STYLE sets 
+polygon fill (hollow, solid, 
+hatch) • 
+inter ior style for 
+halftone pattern, 
+24 SET FILL STYLE INDEX sets fill style index for 
+polygons. 
+25 SET FILL COLOR INDEX sets color for polygon fill. 
+26 INQUIRE COLOR REPRESENTATION returns color 
+representation values of index. 
+27 INQUIRE CELL ARRAY returns definition of cell array. 
+28 INPUT LOCATOR returns value of locator. 
+29 INPUT VALUATOR returns ~alue of valuator. 
+30 INPUT CHOICE returns value of choice device. 
+31 INPUT STRING returns character string. 
+32 SET WRITING MODE sets current writing mode (replace, 
+overstrike, complement, erase). 
+33 SET INPUT MODE sets input mode (request or sample). 
+LOADING GIOS FILES The GSX Virtual Device Interface refers to 
+graphics devices as workstations. Before a 
+graphics device can be used, it must first be 
+initialized wi th an OPEN WORKSTATION operation. 
+Th is oper a t ion initializes the dev ice with 
+selected attr ibutes, such as linetype and 
+color. It also returns information about the 
+device to GDOS. 
+When the OPEN WORKSTATION operation is 
+performed, GDOS determines whether the correct 
+GIOS file, or device driver, is currently in 
+memory. It does this by comparing the 
+workstation 10 specified in the OPEN 
+WORKSTATION call with the workstation 10 of the 
+device whose driver is currently loaded. If 
+there is a match (if the correct GIOS file is 
+in memory), the OPEN WORKSTATION request is 
+serviced immediately. 
+3-6 
+===== PAGE 28 =====
+GSX Programmer's Guide Loading GIOS Files 
+Assignment Table 
+Format 
+If a match does not occur, the GDOS must load 
+the correct GIOS file. To find it, GOOS refers 
+to a data structure called the Assignment 
+Table, which contains information about the 
+available device drivers and their location. 
+GOOS searches the Assignment Table for the 
+first device driver entry with a driver number 
+that matches the workstation 10 requested in 
+the OPEN WORKSTATION call. If it finds the 
+correct driver entry, GDOS loads the new GIOS 
+file where the previous one was located. When 
+the load is complete, GOOS finishes the OPEN 
+WORKSTATION operation and returns to the 
+calling program. 
+If there is no match in the Assignment Table 
+when a new driver is required, GOOS returns 
+wi thou t loading a dr i ver, and the prev ious 
+graphics device continues to operate as the 
+open workstation. 
+The Assignment Table consists entirely of 
+text and can be created or modified with any 
+text editor. It must reside in a file named 
+ASSIGN.SYS on the drive specified in the GSX 
+graphics mode command or on the current default 
+drive if none is specified in the command when 
+GSX is operating. For each deV'ice dr i ver , 
+there is an entry containing the driver number, 
+wh ich spec i f ies the workstation 10 of the 
+associated device, and the name of the file 
+containing the associated graphics device 
+driver. The name of the device driver file can 
+be any legal unambiguous filename. Any device 
+used during a graphics session must have an 
+entry in the Assignment Table corresponding to 
+the name of its associated driver. 
+3-7 
+===== PAGE 29 =====
+GSX Programmer's Guide Loading GIOS Files 
+The format for entries in the Assignment Table 
+is as follows: 
+DDXd:filenameicomments 
+DD = logical driver number 
+X = space 
+d = disk drive code 
+filename = driver filename (valid unambiguous 
+filename of up to eight characters 
+and filetype, .SYS extension 
+assumed as default) 
+comments any text string 
+For example, valid entries in the Table would 
+be as follows: 
+21 A:PRINTR i printer 
+11 A:DDPLOT i plotter 
+1 B:CRTDRV i system console 
+2 E:DRlVER.ABC 
+14 DRlVER2.SYS 
+Note: The driver filename can have any 
+filetypei however, .SYS is assumed if the 
+filetype field is blank. The drive specified 
+in the GSX graphics mode command is used as the 
+default for driver filenames that do not have 
+an explicit drive reference. Extra spaces can 
+be inserted. 
+The following convention for assigning device 
+driver numbers, or workstation IDs, to graphics 
+devices ensures the maximum degree of device 
+independence within application programs. The 
+convention for driver numbers is as follows: 
+Device Number 
+1-10 
+11-20 
+21-30 
+31-40 
+41-50 
+Device Type 
+CRT 
+Plotter 
+Printer 
+Metafile 
+Other devices 
+Assign the lowest device number wi thin a device 
+type when you use only one device. 
+3-8 
+===== PAGE 30 =====
+GSX Programmer's Guide Loading GIOS Files 
+Memory Management When graphics mode is enabled, GSX allocates 
+memory for the first device driver in the 
+Assignment Table. This driver is referred to 
+as the default dev ice dr iver. Subsequently, 
+GDOS causes all new drivers to be loaded into 
+the same area where memory was allotted for the 
+origJnal device driver. Ensure that the first 
+driver in the Assignment Table is the largest 
+driver to be loaded so that ample memory space 
+is allocated by the GSX loader for all 
+subsequent drivers. GSX returns an error to 
+the caller and the new driver is not loaded if 
+an attempt is made to load a driver larger than 
+the default driver. 
+End of Section 3 
+3-9 
+===== PAGE 31 =====
+
+===== PAGE 32 =====
+Section 4 
+GIOS 
+INTRODUCTION 
+PURPOSE OF GIOS 
+This section describes the Graphics Input/ 
+Output System, or GIOS. With this information 
+you can wr i te and install your own custom 
+drivers for unique graphic devices. 
+As we discussed earlier, GSX is composed of 
+two components: the Graphics Device Operating 
+System (GOOS) and the Graphics Input/Output 
+System (GIOS). GOOS contains the device­
+independen t graphics functions, while GIOS 
+con ta ins the dev ice-dependent code. This 
+division is consistent with the philosophy of 
+isolating device dependencies so that the 
+principal parts of the operating system are 
+tr anspor table to many systems. This also 
+allows applications to run independent of the 
+specific devices connected to the system. In 
+this context, GIOS is analogous to the I/O 
+systems but pertains to graphics devices only. 
+GIOS contains a GIOS file, or device driver, 
+for each of the graphics devices on the system. 
+Each GIOS file contains code to communicate 
+with a single specific graphics device. 
+A difference between GIOS and I/O systems is 
+tha t whereas all dev ice dr ivers contained 
+wi th in I/O systems are resident in memory 
+simul taneously, only one graphics device dr iver 
+is resident at any time. That is, only one 
+graphics device is active at a time, although 
+the active device can be changed by a request 
+from the application program. GOOS ensures 
+that the correct driver is in memory when 
+required. . 
+4-1 
+===== PAGE 33 =====
+GSX Programmer's Guide GIOS Functions 
+GIOS FUNCTIONS 
+VIRTUAL DEVICE 
+INTERFACE 
+SPECIFICATION 
+Each of the GIOS files uses the intr insic 
+graphics capabilities of devices to implement 
+graphics primitives for GDOS. In some cases, 
+the graphics device does not support all the 
+GDOS operations directly, and the driver must 
+emulate the capability in software. For 
+example, if a plotter cannot produce a dashed 
+line, the driver must emulate it by converting 
+a single dashed line into a series of short 
+vectors and transmitting them to the plotter, 
+giving the same end result. 
+Device drivers must conform to the GSX 
+Virtual Device Interface (VOl) Specification. 
+The VOl specifies the calling sequence to access 
+device driver functions as well as the syntax 
+and semantics of the data structures that 
+communicate across the interface. 
+The application program passes arguments to 
+device drivers in a parameter list pointed to 
+by the contents of specific registers. The 
+parameter list is in the form of five arrays, 
+as follows: 
+• control array 
+• array of input parameters 
+• array of input point coordinates 
+• array of output parameters 
+• array of output point coordinates 
+The application program specifies the graphics 
+function to be performed by a device driver 
+with an operation code in the control array. 
+All array elements are type INTEGER (2 bytes). 
+All arrays are I-based; that is, the double­
+word address at Parameter Block (PB) points to 
+the first element of the control array 
+(contrl (1)) • The meaning of the input and 
+output parameter arrays is dependent on the 
+opcode. See Appendix C, "Virtual Device 
+Interface Specification," for details. 
+4-2 
+===== PAGE 34 =====
+GSX Programmer's Guide Virtual Device Specification 
+The application program passes all graphics 
+coordinates to the device driver as device 
+coordinates. Using information passed from the 
+device driver when the workstation, or device, 
+was opened, GDOS scales the NDC coordinates, 
+passed from the application to the coordinates 
+of the specific device. 
+The full-scale NDC space is always mapped to 
+the full dimensions of your graphics device in 
+each axis. This ensures that all your graphics 
+information is visible on the display surface 
+regardless of the actual device dimensions. 
+However, NDC space is larger than device space. 
+For example, the NDC space for a device is 32K 
+by 32K NDC units. The target device measures 
+640 by 200 pixels. The size of an NDC pixel is 
+51 by 164 NDC units. When GSX returns the 
+value of the pixel to an application, the value 
+of the bottom left corner of the NDC pixel is 
+returned by GSX. Therefore, to avoid 
+cumulative errors caused by round-off 
+procedures in your application, you should add 
+an offset of one-half an NDC pixel to the value 
+returned by GSX when you are transforming 
+coordinates up and down GSX. 
+If your device has an aspect ratio that is not 
+1: 1 (tha t is, the display surface is not 
+square) and you wish to prevent distortion 
+between your world coordinate system and the 
+device coordinate system, your application must 
+use different scaling factors in the X and Y 
+axes to compensate for the asymmetry of your 
+dev ice. For example, if you are using a 
+typical CRT device with an aspect ratio of 3:4 
+(vertical:horizontal) to produce a perfect 
+square on the display, you would draw a figure 
+with 4000 NDC units vertically and 3000 NDC 
+units horizontally. That is, the scaling 
+factor for the vertical dimension is 4/3 of the 
+hor izontal direction. For most noncritical 
+applications you need not make this adjustment. 
+Details of the Virtual Device Interface, 
+including required and optional functions and 
+arguments, are included in Appendix C, "Virtual 
+Device Interface Specification." 
+4-3 
+===== PAGE 35 =====
+GSX Programmer's Guide Creating a GIOS File 
+CREATING A GIOS 
+FILE 
+Device driver files that are part of GIOS 
+must be in standard executable command format so 
+they can be loaded by GDOS. These files may be 
+renamed to .SYS, the default filetype for 
+GSX GIOS files. You can write a device driver 
+in any language as long as the functions and 
+parameter passing conventions conform to the 
+Virtual Device" Interface Specification given 
+above. After assembling or compiling your 
+dr iver source, link it wi th any required 
+external subroutines and run-time support 
+libraries to produce a load module. 
+The name of a GIOS file can consist of eight 
+characters or less with a .SYS filetype. In 
+addition, the driver must be included in the 
+Assignment Table, which is a text file named 
+ASSIGN.SYS on the current default drive. 
+Refer to "Assignment Table Format" in Section 3 
+for more details about the ASSIGN.SYS and the 
+correct format for each entry. 
+End of Section 4 
+4-4 
+===== PAGE 36 =====
+Section 5 
+OPERATING PROCEDURES 
+INTRODUCTION 
+GSX 
+DISTRIBUTION 
+FILES 
+RUNNING GRAPHICS 
+APPLICATIONS 
+UNDER GSX 
+This section explains how to use GSX in your 
+graphics applications. 
+When you receive your GSX distribution disk, 
+first check that all required files have been 
+included. 
+Refer to your GSX user's guide for procedures 
+that check and duplicate the distribution disk. 
+If any files are missing, contact your 
+distributor to receive a new disk. If all 
+files are present, duplicate the distribution 
+disk using the PIP utility and store your 
+distribution disk in a safe place. Then, using 
+the duplicate disk, transfer the GSX files to a 
+working system disk. Always use the duplicate 
+disk to generate any new copies of GSX. Do not 
+use the distribution disk for routine 
+operations. 
+To use the graphics features provided by 
+GSX, you must ensure that several conditions 
+are met: 
+1. In your application program you must conform 
+to the GSX calling convention to access 
+graphics primitives. This involves making a 
+call to the operating system, which points 
+to a parameter list. This list provides 
+information to GSX and also returns 
+information to the calling program. The 
+details of this procedure are contained in 
+Section 3, "GDOS," 'Section 4, "GIOS," and 
+the appendixes. 
+2. Enough stack space must be available for GSX 
+operations. This includes a buffer area for 
+points passed to GSX and some fixed overhead 
+space. The formula to determine the 
+required stack space is discussed below. 
+5-1 
+===== PAGE 37 =====
+GSX Programmer's Guide Running Graphics Applications 
+DETERMINING MEMORY 
+REQUIREMENTS 
+3. The required device drivers must be present 
+on the disk specified in the GSX graphics 
+mode command, or in the current default 
+drive if no drive is specified, when your 
+program is executed. Also, the Assignment 
+Table (ASSIGN.SYS) must contain the names of 
+your device drivers and a logical device 
+number or workstation ID that corresponds to 
+the correct device driver. The details of 
+device driver and Assignment Table 
+requ i r emen ts are included in Section 3, 
+"GDOS," and Section 4, "GIOS." 
+4. -After successfully compiling or assembling 
+and linking your application program you can 
+run it just like any other program, but 
+first you must ensure that GSX is active. 
+You can enable GSX graphics with the GSX 
+graphics mode command documented in the GSX 
+user's guide for your system. 
+To determine the amount of stack space 
+required to run a given application, make the 
+following calculation: 
+GSX stack requirements: 
+Open workstation call approximately 500 
+bytes 
+All others = ptsin size + 128 
+ptsin is the point array passed to the device 
+driver from the application program (two words 
+for each point). 
+The stack requirement is the largest of the two 
+re s ul ting values. This stack space must be 
+ava ilable in the application program stack 
+area. 
+The memory required by GDOS is less than 3 
+kilobytes. This is allocated when the GSX 
+graphics mode command is executed. Space for 
+the default device driver is also allocated at 
+this time. The default device dr iver should be 
+the largest device driver so that sufficient 
+space is allocated for other dr ivers loaded 
+during execution of your application. 
+5-2 
+===== PAGE 38 =====
+GSX Programmer's Guide Debugging Graphics Application under GSX 
+DEBUGGING GRAPHICS 
+APPLICATIONS 
+UNDER GSX 
+WRITING A NEW 
+DEVICE DRIVER 
+Graphics programs can be debugged with a 
+debugger, as can any GSX application. The 
+default device driver and GDOS are loaded after 
+the command has been executed. Your graphics 
+application program is loaded in the normal 
+manner for applications on your operating 
+system. 
+GSX is distributed with a number of device 
+drivers for popular graphics devices. If your 
+devices are included (refer to your GSX user's 
+guide for a summary of the supported devices) , 
+you only need to edit the Assignment Table file 
+with a text editor to ensure that it reflects 
+the logical device number assignments that you 
+desire. However, if your device is not 
+supported, you must create a driver program 
+that conforms to the VOl specification. You 
+can write a driver in any language, but at 
+least part of it is usually implemented in 
+assembler due to the low-level hardware 
+interface required. 
+Your driver must provide the functions listed 
+as required in the VOl specification and must 
+observe the VDI parameter passing conventions. 
+In some cases the capability specified by VOl 
+is not available in the graphics device and the 
+func tion must be emulated by the dr iver 
+software. For example, dashed lines can be 
+generated by the dr iver if they are not 
+directly available in the device. The complete 
+VDI specification is in Appendix C, and the 
+parameter passing conventions are discuss~d in 
+Section 3, "GDOS," and Section 4, "GIOS." 
+End of Section 5 
+5-3 
+===== PAGE 39 =====
+
+===== PAGE 40 =====
+Appendix A 
+GSX CALLING CONVENTIONS FOR CP/M 
+INTRODUCTION 
+GS& SKELETON 
+DEVICE DRIVER 
+FORMAT 
+Input Parameters 
+Output Parameters 
+This appendix br iefly outlines the components of 
+a skeleton device driver for GSX on CP/M for 
+8080 microprocessors. It also summarizes the 
+GSX GDOS calling conventions for CP/M. 
+The GSX skeleton dev ice dr i ver . descr ibes the 
+components required for a CP/M system. 
+Function: 
+contrl(l) 
+contrl(2) 
+contrl(4) 
+contrl(6-n) 
+intin 
+ptsin 
+contrl(3) 
+contrl(S) 
+contrl(6-n) 
+intout 
+ptsout 
+GSX skeleton device driver 
+A-l 
+Opcode for driver function 
+Number of vertices in array 
+pts in. Each vertex cons ists 
+of an x and a y coordinate so 
+the length of this array is 
+twice as long as the number of 
+vertices specified. 
+Length of integer array intin 
+Opcode dependent information 
+Array of 
+parameters 
+Array of 
+data 
+integer input 
+input coordinate 
+Number of vertices in array 
+ptsout. Each vertex consists 
+of an x and a y coordinate so 
+the length of this array is 
+twice as long as the number of 
+vertices specified. 
+Length of integer array 
+intout 
+Opcode dependent information 
+Array of integer output 
+parameters 
+Array of output coordinate data 
+===== PAGE 41 =====
+GSX Programmer's Guide Format 
+All data passed to the device driver is assumed 
+to be 2-byte INTEGERS. 
+All coordinates passed to GSX are in Normalized 
+Device Coordinates (0-32767 along each axis). 
+These units are mapped to the actual device 
+units (for example, rasters for CRTs or steps 
+for plotters and printers) by GSX so that all 
+coordinates passed to the device driver are in 
+device units. 
+Because both input and output coordinates are 
+converted by GSX, both the calling routine and 
+the device driver must ensure that the input 
+vertex count (contrl (2)) and output vertex 
+count (contrl(3)) are set. The calling routine 
+must set contrl(2) to 0 if no x,y coordinates 
+are being passed to GSX. Similarly, the device 
+dr i ver must set contrl (3) to 0 if no x ,y 
+coordinates are being returned through GSX. 
+Because 0-32767 maps to the full extent on each 
+axis, coordinate values are scaled differently 
+on the x and y axes of devices that do not have 
+a square display. 
+The BOOS call to access GSX and the GIOS in 
+CP/M is as follows: 
+BOOS opcode (in C register) for GSX call = 115 
+Parameter Block (address is passed in DE) : 
+PB Address of contrl 
+PB+ls Address of intin 
+PB+2s Address of ptsin 
+PB+3s Address of intout 
+PB+4s Address of ptsout 
+s is the number of bytes used for each argument 
+in the parameter block. For CP/M, this is 2 
+bytes. 
+All opcodes must be recognized, whether they 
+produce any action or not. A list of required 
+opcodes for CRT devices, plotters, and pr inters 
+follows the specification. These opcodes must 
+be present and perform as specified. All 
+opcodes should be implemented whenever possible 
+because this gives better quality graphics. 
+A-2 
+===== PAGE 42 =====
+GSX Programmer's Guide Format 
+GooS CALLING 
+CONVENTIONS 
+For CP/M, device driver I/O is done through 
+BDOS (Basic Disk Operating System) calls. CRT 
+devices are assumed to be the console device. 
+Plotters are assumed to be connected as the 
+reader or punch device. Printers are assumed 
+to be connected as the list device. 
+The GDOS calling 
+below. 
+sequence is summarized 
+Function code (in register C) = 115 
+Parameter block address in register DE 
+Parameter Block Contents: 
+PB 
+PB+2 
+PB+4 
+PB+6 
+PB+8 
+Address of control array 
+Address of input parameter array 
+Address of input point coordinate 
+array 
+Address of output parameter array 
+Address of output point coordinate 
+array 
+Control Array on Input: 
+contrl(l) 
+contrl(2) 
+contrl(4) 
+contrl(6-n) 
+Opcode for driver function 
+Number of vertices in input 
+point array 
+Length of input parameter array 
+Opcode dependent 
+Input Parameter Array: 
+intin Array of input parameters 
+Input Coordinate Array: 
+ptsin Array of input coordinates 
+(each point is specified by an 
+X and Y coordinate given in 
+Normalized Device Coordinates 
+between 0 and 32,767) 
+End of Appendix A 
+A-3 
+===== PAGE 43 =====
+
+===== PAGE 44 =====
+Appendix B 
+GSX CALLING CONVENTIONS 
+FOR CP/M, IBM PC DOS, AND MS-DOS 
+INTRODUCTION 
+GDOS CALLING 
+SEQUENCE 
+This appendix outlines the GSX calling sequence 
+for the GDOS, the procedure for invoking device 
+drivers, and error messages when you use GSX on 
+CP/M-86, IBM PC DOS, and MS-DOS. 
+The GDOS calling sequence is outlined below. 
+Access via interrupt 224 
+Function code (in register Cx) = 0473h (hex) 
+Parameter block address in registers Os-segment 
+and Ox-offset 
+Parameter Block Contents: 
+PB 
+PB+4 
+PB+8 
+PB+12 
+PB+16 
+Double-word address of control array 
+Double-word address of input 
+parameter array 
+Double-word address of input point 
+coordinate array 
+Double-word address of output 
+parameter array 
+Double-word address of output point 
+coordinate array 
+Control Array on Input: 
+contrl(l} 
+contrl(2} 
+contrl(4} 
+contrl (6-n) 
+B-1 
+Opcode for driver function 
+Number of vertices (not 
+coordinates) in input 
+coordinate point array 
+(ptsin) 
+Length of input parameter 
+array 
+Opcode dependent (intin) 
+===== PAGE 45 =====
+GSX Programmer's Guide GDOS Calling Sequence 
+Input Parameter Array: 
+intin Array of input parameters 
+(length of array is opcode 
+dependen t and specif ied in 
+contrl (4)) 
+Input Point Coordinate Array: 
+ptsin Array of input coordinates 
+(each point is specified by 
+an X and Y coordinate pair 
+given in Normalized Device 
+Coordinates between 0 and 
+32,767, with length 
+contrl(2)*2) 
+Control Array on Output: 
+contrl(3) 
+contrl(5) 
+contrl{6-n) 
+Number of vertices (not 
+coordinates) in output point 
+array (ptsout) 
+Number of elements in output 
+parameter array (intout) 
+Opcode dependent 
+Output Parameter Array: 
+intout Array of output parameters 
+(length of array is opcode 
+dependent) 
+Output Point Coordinate Array: 
+ptsout 
+B-2 
+Array of output coordinates 
+(each point is specified by 
+an X and Y coordinate pair 
+given in Normalized Device 
+Coordinates between 0 and 
+32,767) must be greater than 
+the largest possible value of 
+contrl(5)*2. 
+===== PAGE 46 =====
+GSX Programmer's Guide GDOS Calling Sequence 
+All array elements are type INTEGER (2 bytes) • 
+All arrays are I-based; that is, the double­
+word address at PB points to the first element 
+of the control array (contrl(l)). The meaning 
+of the input and output parameter arrays is 
+dependen t on the opcode. See Appendix C, 
+"Virtual Device Interface Specification," for 
+details. 
+GDOS preserves the BP (base pointer) and DS 
+(data segment) registers. All other registers 
+are subject to change when returned from GDOS. 
+INVOKING DEVICE 
+DRIVERS 
+Device drivers are invoked with a CalIf from 
+GSX and should return with a Retf. The driver 
+must switch to its own stack for internal use, 
+except for an allowed overhead for a few pushes 
+to save the caller's context. The following 
+entry procedure is recommended to provide an 
+error free calling sequence: 
+CGroup Group Driver _Code 
+Driver _Code CSeg 
+Public Driver 
+Driver: Mov Ax,Sp Save caller's stack pointers 
+Mov Bx,Ss 
+Note that Mov Ss,xxx Mov Sp,xxx is not interruptible on 8086/8088. 
+Mov Ss,StackBase Switch to driver's stack 
+Mov Sp,Offset Top_Stack 
+Push Bx Push caller's stack pointer 
+Push Ax 
+Push Bp Save caller's frame 
+Push Ds Save parameter pointer 
+Push Dx 
+Pushf Save caller's direction flag 
+B-3 
+===== PAGE 47 =====
+GSX Programmer's Guide Invoking Device Drivers 
+Invoke the driver. Ds:Dx points to the parameter block. 
+It returns with a Retf. 
+CalIf Dd_Driver 
+Popf 
+Pop Dx 
+Pop Ds 
+Pop Bp 
+Pop Ax 
+Pop Bx 
+Mov Ss,Bx 
+Mov Sp,Ax 
+Retf 
+StackBase Dw Seg Top_Stack 
+Dd Driver_Code CSeg 
+Extrn Dd Driver 
+Stack SSeg 
+Rs 16 
+Invoke the driver with Ds:Dx 
+Restore caller's direction flag 
+Restore caller's Ds:Dx 
+Restore caller's stack frame 
+Restore caller's Ss:Sp 
+via 
+Bx 
+and Ax 
+:Far 
+This module pushes 8 words 
+~ Top_Stack is defined in the' last module linked in. 
+Extrn 
+End 
+:Byte 
+After coding, assembling and linking your 
+device driver, you have a .CMD file if you use 
+CP/M. First change the filetype to .SYS using 
+the CP/M RENAME command or a similar command 
+for your operating system: 
+A>REN GIOSXX.SYS=GIOSXX.CMD 
+Then, to make this driver known to GSX, include 
+its name in the Assignment Table. This table 
+is located in file ASSIGN.SYS and is simply a 
+text file with a specific format containing the 
+names of driver files and the logical device 
+numbers or workstation IDs that you wish to 
+associate with particular devices. Refer to 
+Section 3, "GDOS," or Section 4, "GIOS," for 
+details. 
+B-4 
+===== PAGE 48 =====
+GSX Programmer's Guide Error Messages 
+ERROR MESSAGES In general, registers and flags (including the 
+direction flag) are not restored upon returning 
+from a call to GSX. The GIOS file will 
+preserve the DS, SS and CS registers and BP and 
+SP, but it is not required to preserve any 
+others. GSX does not change any registers as 
+returned from the GIOS except during an OPEN 
+WORKSTATION command. In this case Ax is 
+modified to return status information (the 
+flags are also modified by this command). 
+The meaning of the contents of Ax on returning 
+from the OPEN WORKSTATION call is as follows: 
+AL=O 
+AL=255 
+AH 
+o 
+I 
+2 
+3 
+4 
+5 
+6 
+7 
+workstation opened successfully 
+error condition--device driver not 
+loaded. In th is case AH has a 
+further meaning: 
+ASSIGN.SYS not found 
+Syntax error in ASSIGN.SYS 
+Device ID not found in ASSIGN.SYS 
+Close error on ASSIGN.SYS 
+Device driver file specified in 
+ASSIGN.SYS not found 
+Device driver file specified in 
+ASSIGN.SYS empty 
+Syntax error on file specified in 
+ASSIGN.SYS (that is, absolute code 
+segment or not .CMD format) 
+Not enough room for file specified 
+If a read error occurs during the transfer of a 
+GIOS file when an OPEN WORKSTATION call is in 
+progress, the application .program is 
+terminated, a message is displayed, and control 
+is returned to the operating system user 
+inter face module. The following error messages 
+can be displayed in response to GSX calls: 
+GSX CS:IP GIOS load error on Id xxxxh (hex) 
+An error occurred while transfer ring the device 
+driver from disk. The value of the CS:IP and 
+the device ID are also shown. 
+B-5 
+===== PAGE 49 =====
+GSX Programmer's Guide Error Messages 
+GSX CS:IP GIOS invalid 
+The currently loaded device driver is invalid. 
+This error probably occurred after a load error 
+when the application does not perform an OPEN 
+WORK.STATION command as the first graphics 
+operation. 
+GSX CS:IP Illegal function: (Cx) 
+An invalid function code (~0473h) was 
+specified in Cx. The erroneous code is 
+displayed. 
+Refer to the GSX user's guide for your system 
+for additional error messages output by GSX. 
+End of Appendix B 
+B-6 
+===== PAGE 50 =====
+Appendix C 
+VIRTUAL DEVICE INTERFACE (VOl) SPECIFICATION 
+INTRODUCTION 
+FORMAT 
+Input Parameters 
+Output Parameters 
+This appendix contains the specification of the 
+Virtual Device Interface (VDI). The VDI 
+defines how device drivers interface to GDOS, 
+the device-independent portion of GSX. The 
+context for this document is from the DEVICE 
+DRIVER point of view. All coordinate 
+information is assumed to be in device 
+coordinate space. 
+Function: 
+contrl(l} 
+contrl (2) 
+contrl(4} 
+contrl(6-n} 
+intin 
+ptsin 
+contrl(3} 
+contrl(5} 
+contrl(6-n} 
+GSX graphics operation 
+C-I 
+Opcode for driver function. 
+Number of vertices in array 
+ptsin. Each vertex consists 
+of an x and a y coordinate 
+pair so the length of this 
+array is twice as long as the 
+number of vertices specified. 
+Length of integer array intin. 
+Opcode dependent information. 
+Array of integer input 
+parameters. 
+Array of input point 
+coordinate data. 
+Number of vertices in array 
+ptsout. Each vertex consists 
+of an x and a y coordinate 
+pair so the length of this 
+array is twice as long as the 
+number of vertices specified. 
+Other data may be passed back 
+here depending on the opcode. 
+Length of integer array 
+intout. 
+Opcode dependent information. 
+===== PAGE 51 =====
+GSX Programmer's Guide Format 
+Notes 
+intout 
+ptsout 
+Array of integer output point 
+parameters. 
+Array of output point 
+coordinate data. 
+All data passed to the device driver is assumed 
+to be 2-byte INTEGERS, including individual 
+characters in character strings. 
+All coordinates passed to GSX are in Normalized 
+Device Coordinates (0-32767 along each axis). 
+These units are then mapped to the actual 
+device units (for example, rasters for CRTs or 
+steps for plotters and printers) by GSX so that 
+all coordinates passed to the device dr iver are 
+in device units. 
+Because both input and output coordinates are 
+converted by GSX, both the calling routine and 
+the device driver must make sure that the input 
+vertex count (contrl(2)) and output vertex 
+count (contrl(3)) are set. The calling routine 
+must set contrl(2) to 0 if no x,y coordinates 
+are are being passed to GSX. Similarly, the 
+device driver must set contrl(3) to 0 if no x,y 
+coordinates are being returned through GSX. 
+Coordinates returned by GSX are assumed to be 
+the bot tom le ft edge of the pixel. As a 
+consequence, points at the top and right edges 
+of the device coordinate system will not be at 
+the edge of the Normalized Device Coordinates 
+(NDC) system. Exactly how far away they will 
+be is device dependent. 
+Because 0-32767 maps to the full extent on each 
+axis, coordinate values are scaled differently 
+on the x and y axes of devices that do not have 
+a square display. 
+All references to arrays are l-based; that is, 
+subscripted element I is the first element in 
+the array. 
+On calls to the GDOS the number of arguments 
+passed in the intin array (contrl(4)), and the 
+maximum size of the intout array (contrl(S)) 
+should be set by the application. On return to 
+the GDOS by the GIOS the number of arguments in 
+the intout array should be set by the GIOS. 
+Refer to Appendixes A and B for GDOS calling 
+conventions for specific operating systems. 
+C-2 
+===== PAGE 52 =====
+GSX Programmer's Guide Format 
+All opcodes must be recognized, whether or not 
+they produce any action. If an opcode is out 
+of range then no action is performed. A list 
+of required opcodes for CRT devices, plotters, 
+and printers follows the specification. These 
+opcodes must be present and perform as 
+specified. All opcodes should be implemented 
+whenever possible since full implementation 
+gives better quality graphics. 
+Device driver I/O (that is, communication 
+between the device driver and the device via 
+the system hardware ports) is done through 
+operating system calls. 
+C-3 
+===== PAGE 53 =====
+GSX Programmer's Guide Open Workstation 
+OPEN WORKSTATION Initialize a graphic workstation. 
+Input 
+Output 
+contrl(l} 
+contrl(2} 
+contrl(4} 
+intin 
+intin(l} 
+intin(2) 
+intin(3) 
+intin(4) 
+intin(5} 
+intin(6) 
+intin(7} 
+intin(8} 
+intin(9} 
+intin(lO} 
+contrl(3} 
+contrl (5) 
+in tou t (l) 
+intout(2} 
+intout(3} 
+intout(4} 
+intout(5} 
+C-4 
+Opcode = 1 
+o 
+Length of intin = 10 
+Initial defaults (for example, 
+linestyle color and character 
+size) 
+Workstation identifier (device 
+driver id). This value is used 
+to determine which device 
+driver to dynamically load into 
+memory. 
+Linetype 
+Polyline color index 
+Marker type 
+Polymarker color index 
+Text font 
+Text color index 
+Fill interior style 
+Fill style index 
+Fill color index 
+Number of output vertices = 6 
+Length of intout = 45 
+Maximum addressable width of 
+screen/plotter in rasters/ 
+steps assuming a 0 start point 
+(for example, a resolution of 
+640 implies an addressable area 
+of 0-639, so intout(I)=639} 
+Maximum addressable height of 
+screen/plotter in rasters/ 
+steps assuming a 0 start point 
+(for example, a resolution of 
+480 implies an addressable area 
+of 0-479, so intout(2)=479} 
+Device Coordinate units flag 
+0= Device capable of 
+producing precisely scaled 
+image (typically plotters 
+and printers) 
+1 Dev ice not capable of 
+precisely scaled image 
+(CRTs) 
+Width of one pixel 
+step, or aspect ratio 
+in micrometers 
+Height of one pixel 
+step, or aspect ratio 
+in micrometers 
+(plotter 
+for CRT) 
+(plotter 
+for CRT) 
+===== PAGE 54 =====
+GSX Programmer's Guide 
+intout(6} 
+intout(7} 
+intout(8} 
+intout(9} 
+intout(lO} 
+intout(ll} 
+intout(12} 
+intout(13} 
+intout(14} 
+intout(lS} --
+intout(16}­
+intout(2S} --
+intout(26}­
+intout(3S} --
+Open Workstation 
+Number of character heights 
+o = continuous scaling 
+Number of linetypes 
+Number of line widths 
+Number of marker types 
+Number of marker sizes 
+Number of fonts 
+Number of patterns 
+Number of hatch styles 
+Number of predefined colors 
+(must be at least 2 even for 
+monochrome device). This is 
+the number of colors that can 
+be displayed on the dev ice 
+simultaneously. 
+Number of Generalized Drawing 
+Primitives (GDPs) 
+Linear 1 ist of GDP number s 
+supported -1 no more GDPs in 
+list. Application should 
+search list until finding a -1 
+for the desired GDP. 
+1 bar 
+2 arc 
+3 pie slice 
+4 circle 
+5 ruling chars 
+Linear list of attribute set 
+associated with each GDP 
+-1 no more GDPs 
+o polyline 
+1 polymarker 
+2 text 
+3 fill area 
+4 none 
+intout(36} -- Color capability flag 
+o no 
+1 yes 
+intout(37} -- Text rotation capability 
+flag 
+o no 
+1 -- yes 
+C-S 
+===== PAGE 55 =====
+GSX Programmer's Guide Open Workstation 
+intout(38) -- Fill area capability flag 
+o no 
+1 -- yes 
+intout(39) -- Read cell array operation 
+capability flag 
+o no 
+1 -- yes 
+intout(40) -- Number of available colors 
+(total number of colors in 
+color palette) 
+intout(4l) 
+intout(42) 
+intout(43) 
+intout(44) 
+intout(45) 
+ptsout (1) 
+ptsout(2) 
+ptsout(3) 
+ptsout(4) 
+ptsout(S) 
+ptsout(6) 
+ptsout(7) 
+ptsout(8) 
+ptsout(9) 
+ptsout(lO) 
+o continuous device 
+(more than 32767 colors) 
+2 monochrome (black and 
+white) 
+>2 n u m b e r 0 f color s 
+available 
+Number of locator devices 
+available 
+Numbe r 0 f valua tor dev ices 
+available 
+Number of choice devices 
+available 
+Number of string devices 
+available 
+Workstation type 
+o Output only 
+1 Input only 
+2 Input/Output 
+3 Device independent segment 
+storage 
+4 GKS Metafile output 
+o 
+Minimum character height in 
+device units (not cell size) 
+o 
+Maximum character height in 
+device units (not cell size) 
+Minimum line width in device 
+units 
+o 
+C-6 
+Maximum line width in device 
+units 
+o 
+o 
+Minimum marker height in device 
+units (not cell size) 
+===== PAGE 56 =====
+GSX Programmer's Guide 
+ptsout (11) 
+ptsout (12) 
+Open Workstation 
+a 
+Maximum marker height in device 
+units (not cell size) 
+The default color 
+differently for 
+device. 
+table should be set up 
+a monochrome and a color 
+Monochrome CRT type devices 
+Index Color 
+a Black 
+1 White 
+Monochrome Printer/Plotter devices 
+Index Color 
+a White 
+1 Black 
+Color 
+Index Color 
+a Black 
+1 Red 
+2 Green 
+3 Blue 
+4 Cyan 
+5 Yellow 
+6 Magenta 
+7 White 
+8-n White 
+C-7 
+===== PAGE 57 =====
+GSX Programmer's Guide Open Workstation 
+Description 
+Other default values that should be set by the 
+driver during initialization are as follows: 
+Character height 
+Character up vector 
+Line width 
+Marker height 
+Writing mode 
+Input mode 
+Minimum character 
+height 
+90 degrees 
+counterclockwise from 
+the right horizontal (0 
+degrees rotation) 
+1 device unit (raster, 
+plotter step) 
+Minimum marker height 
+Replace 
+Request for all input 
+classes (locator, 
+valuator, choice, 
+string) 
+The Open Workstation operation causes a graphics 
+device to become the current device for the 
+application program. The device is initialized 
+with the parameters in the input array and 
+information about the device is returned to 
+Goos. The graphic device is selected, and, if 
+it is a CRT, the screen is cleared and the 
+alpha device is deselected and blanked. 
+C-8 
+===== PAGE 58 =====
+GSX Programmer's Guide Close Workstation 
+CLOSE WORKSTATION 
+Input 
+Output 
+Description 
+CLEAR WORKSTATION 
+Input 
+Output 
+Description 
+Stop all graphics output to this workstation. 
+contrl (1) 
+contrl(2) 
+contrl(3) --
+Opcode 
+o 
+o 
+2 
+The Close Workstation operation terminates the 
+graphics device properly and prevents any 
+further output to the device. If the device is 
+a CRT, the alpha device is selected, the screen 
+is cleared, and the graphics de·vice is 
+deselected and blanked. If the device is a 
+printer, then an update is executed. 
+Clear CRT screen or prompt for new paper on 
+plotter. 
+contrl(l) 
+contrl(2) 
+contrl(3) --
+Opcode 
+o 
+o 
+3 
+The Clear Workstation operation causes CRT 
+screens to be erased. If the device is a 
+plotter without paper advance, the operator is 
+prompted to load a new page. If the device is 
+a printer a form feed is issued and then an 
+update is executed. 
+C-9 
+===== PAGE 59 =====
+GSX Programmer's Guide update Workstation 
+UPDATE WORKSTATION Display all pending graphics on workstation. 
+Input 
+Output 
+Description 
+ESCAPE 
+Input 
+contrl(l) 
+contrl(2) 
+Opcode 
+o 
+4 
+contrl (3) -- ·0 
+The Update Workstation operation causes all 
+pending graphics commands that are queued to be 
+executed immediately. The operation is 
+analogous to flushing buffers. For pr inter 
+drivers this call must be used to start output 
+to the printer. 
+Perform device specific operation. 
+contrl(l) 
+contr 1 (2) 
+contrl (4) 
+contrl(6) 
+1 
+2 
+3 
+4 
+5 
+6 
+7 
+8 
+9 
+10 
+11 
+12 
+13 
+14 
+15 
+16 
+17 
+18 
+19 
+20-50 
+51-100 
+Opcode = 5 
+Number of input vertices 
+Number of input parameters 
+Function identifier 
+INQUIRE ADDRESSABLE CHARACTER 
+CELLS 
+ENTER GRAPHICS MODE 
+EXIT GRAPHICS MODE 
+CURSOR UP 
+CURSOR DOWN 
+CURSOR RIGHT 
+CURSOR LEFT 
+HOME CURSOR 
+ERASE TO END OF SCREEN 
+ERASE TO END OF LINE 
+DIRECT CURSOR ADDRESS 
+OUTPUT CURSOR ADDRESSABLE TEXT 
+REVERSE VIDEO ON 
+REVERSE VIDEO OFF 
+INQUIRE CURRENT CURSOR ADDRESS 
+INQUIRE TABLET STATUS 
+HARDCOPY 
+PLACE GRAPHIC CURSOR AT 
+LOCATION 
+REMOVE LAST GRAPHIC CURSOR 
+UNUSED BUT RESERVED FOR FUTURE 
+EXPANSION 
+UNUSED AND AVAILABLE FOR USE 
+C-IO 
+===== PAGE 60 =====
+GSX Programmer's Guide Escape 
+Output 
+Description 
+intin 
+ptsin 
+contrl(3) 
+contrl(S) 
+intout 
+ptsout 
+Function dependent information 
+(described on following pages) 
+Array of input coordinates for 
+escape function 
+Number of output vertices 
+Number of output parameters 
+Array of output parameters 
+Array of output coordinates 
+The Escape operation allows the special 
+capabilities of a graphics device to be 
+accessed from the application program. Some 
+escape functions above are predefined, but 
+other s can be de fined for your par ticular 
+devices. The parameters passed are dependent 
+on the function being performed. 
+C-ll 
+===== PAGE 61 =====
+GSX Programmer's Guide Escape 
+ESCAPE: INQUIRE 
+ADDRESSABLE 
+CHARACTER CELLS 
+Input 
+Output 
+Description 
+Return the number of alpha cursor addressable 
+columns and alpha cursor addressable rows. 
+contrl(2) 
+contrl (6) 
+contrl(3) 
+intout(l) 
+intout(2) --
+o 
+Function ID 1 
+o 
+Number of addressable rows on 
+the screen, typically 24 (-1 
+indicates cursor addressing not 
+possible) 
+Number of addressable columns on 
+the screen, typically 80 (-1 
+ind ica tes cursor addressing 
+not possible) 
+This operation returns information to the 
+calling program about the number of vertical 
+(rows) and hor izontal (columns) positions where 
+the alpha cursor can be positioned on the 
+screen. 
+C-l2 
+===== PAGE 62 =====
+GSX Programmer's Guide Escape 
+ESCAPE: ENTER 
+GRAPHICS MODE 
+Input 
+Output 
+Description 
+ESCAPE: EXIT 
+GRAPHICS MODE 
+Input 
+Output 
+Description 
+Enter graphics mode if different from alpha 
+mode. 
+contrl(2) 
+contrl(6) 
+contrl(3) 
+a 
+Function id 2 
+a 
+This operation causes the graphics device to 
+enter the graphics mode if different than the 
+alpha mode. Used to explicitly exit alpha 
+cursor addressing mode and to transition from 
+alpha to graphic mode properly. The graphics 
+dev ice iss e lec ted and cleared. The alpha 
+device is deselected and blanked. 
+Exit graphics mode if different from alpha 
+mode. 
+contrl(2) 
+contrl(6) 
+contrl(3) --
+a 
+Function id 3 
+a 
+The Exit Graphics operation causes the graphics 
+device to exit the graphics mode if different 
+than the alpha mode. Used to explicitly enter 
+the alpha cursor addressing nlode and to 
+transition from graphics to alpha mode 
+proper ly. The alpha device is selected and 
+cleared. The graphics device is deselected and 
+blanked. 
+C-l3 
+===== PAGE 63 =====
+GSX Programmer's Guide Escape 
+ESCAPE: CURSOR UP Move alpha cursor up one row without altering 
+horizontal position. 
+Input 
+Output 
+Description 
+ESCAPE: CURSOR 
+DOWN 
+Input 
+Output 
+Description 
+contrl(2) 
+contrl(6) 
+contrl(3) --
+o 
+Function id 4 
+o 
+This operation moves the alpha cursor up one row 
+without altering the horizontal position. If 
+the cursor is already at the top marg in, no 
+action results. 
+Move alpha cursor down one 
+altering horizontal position. 
+contrl(2) 
+contrl(6) 
+contrl(3) --
+o 
+Function id 5 
+o 
+row without 
+This operation moves the alpha cursor down one 
+row without altering the horizontal position. 
+If the cursor is already at the bottom margin, 
+no action results. 
+C-14 
+===== PAGE 64 =====
+GSX Programmer's Guide Escape 
+ESCAPE: CURSOR 
+RIGHT 
+Input 
+Output 
+Description 
+ESCAPE: CURSOR 
+LEFT 
+Input 
+Output 
+Description 
+Move alpha cursor right one column without 
+altering vertical position. 
+contrl (2) 
+contrl(6} 
+contrl(3} --
+o 
+Function id 6 
+o 
+The Cursor Right operation moves the alpha 
+cursor right one column without altering the 
+vertical position. If the cursor is already at 
+the right margin, no action results 
+Move alpha cursor left one column without 
+altering vertical position. 
+contrl(2} 
+contrl(6} 
+contrl(3} 
+o 
+Function id 7 
+o 
+The Cursor Left operation causes the alpha 
+cursor to move one column to the left without 
+altering the vertical position. If the cursor 
+is already at the left margin, no action 
+results. 
+C-IS 
+===== PAGE 65 =====
+GSX Programmer's Guide Escape 
+ESCAPE: HOME 
+CURSOR 
+Input 
+Output 
+Description 
+ESCAPE: ERASE TO 
+END OF SCREEN 
+Input 
+Output 
+Description 
+Send cursor to home position. 
+contrl(2} 
+contrl (6) 
+contrl(3} --
+o 
+Function id 
+o 
+8 
+This operation causes the alpha cursor to move 
+to the home position, usually the upper left 
+corner of a CRT display. 
+Erase from current alpha cursor position to 
+the end of the screen. 
+contrl(2} 
+contrl(6} 
+contrl(3} --
+o 
+Function id 9 
+o 
+This operation erases the display surface from 
+the current alpha cursor position to the end of 
+the screen. The current alpha cursor location 
+does not change. 
+C-16 
+===== PAGE 66 =====
+GSX Programmer's Guide Escape 
+ESCAPE: ERASE TO 
+END OF LINE 
+Input 
+Output 
+Description 
+ESCAPE: DIRECT 
+CURSOR ADDRESS 
+Input 
+Output 
+Description 
+Erase from the current alpha cursor position 
+to the end of the line. 
+contrl(2) 
+contrl(6) 
+contrl(3) 
+o 
+Function id 10 
+o 
+This operation erases the display surface from 
+the current alpha cursor position to the end of 
+the current line. The current alpha cursor 
+location does not change. 
+Move alpha cursor to specified 
+column. 
+row and 
+contrl(2) 
+contrl(6) 
+intin(l) 
+intin(2) 
+contrl(3) 
+o 
+Function id = 11 
+Row number (1 - number of rows) 
+Column number (1 - number of 
+columns) 
+o 
+The Direct Cursor Address operation moves the 
+alpha cursor directly to the specified row and 
+column address anywhere on the display sur face. 
+Addresses that are beyond the range that can be 
+displayed on the screen are set to the maximum 
+rowand/or column accordingly. 
+C-17 
+===== PAGE 67 =====
+GSX Programmer's Guide Escape 
+ESCAPE: OUTPUT 
+CURSOR ADDRESSABLE 
+TEXT 
+Input 
+Output 
+Description 
+Output text 
+position. 
+contrl(2) 
+contrl(4) 
+contrl(6) 
+intin 
+contrl(3) --
+at the current alpha cursor 
+o 
+Number of characters in 
+character string 
+Function id = 12 
+Text string in ASCII 
+o 
+This operation displays a string of text 
+starting at the current cursor position. Alpha 
+te x t char ac ter istics are determined by the 
+attributes currently in effect (for example, 
+reverse video). 
+C-1S 
+===== PAGE 68 =====
+GSX Programmer's Guide Escape 
+ESCAPE: REVERSE 
+VIDEO ON 
+Input 
+Output 
+Description 
+ESCAPE: REVERSE 
+VIDEO OFF 
+Input 
+Output 
+Description 
+Display subsequent cursor addressable text in 
+reverse video. 
+contrl(2) 
+contrl(6) 
+contrl(3) 
+o 
+Function id 13 
+o 
+This operation causes all subsequent text to be 
+displayed in reverse video format; that is, 
+characters are dark on a light background. 
+Display subsequent cursor addressable text in 
+standard video. 
+contrl (2) 
+contrl (6) 
+contrl(3) --
+o 
+Function id 14 
+o 
+This operation causes all subsequent text to be 
+displayed in normal video format; that is, 
+characters are light on a dark background. 
+C-19 
+===== PAGE 69 =====
+GSX Programmer's Guide Escape 
+ESCAPE: INQUIRE 
+CURRENT CURSOR 
+ADDRESS 
+Input 
+Output 
+Description 
+ESCAPE: INQUIRE 
+TABLET STATUS 
+Input 
+Output 
+Description 
+Return the current cursor position. 
+contrl(2) 
+contrl(6) 
+contrl(3) 
+intout(l) 
+intout(2) 
+o 
+Function id 15 
+o 
+Row number (1 - number of rows) 
+Column number (1 - number of 
+columns 
+This operation returns the current position of 
+the alpha cursor in row, column coordinates. 
+Return tablet status. 
+contrl(2) 
+contrl(6) 
+contrl(3) 
+intout(l) 
+o 
+Function id 16 
+o 
+tablet status 
+o tablet not available 
+1 tablet available 
+This operation returns tablet status whether a 
+graph ics tablet, mouse, joystick, or other 
+similar devices are connected to the 
+workstation. 
+C-20 
+===== PAGE 70 =====
+GSX Programmer's Guide Escape 
+ESCAPE: HARD COpy 
+Input 
+Output 
+Description 
+ESCAPE: PLACE 
+GRAPHIC CURSOR 
+AT LOCATION 
+Input 
+Output 
+Description 
+Generate hardcopy. 
+contrl(2) 
+contrl(6) 
+contrl(3) --
+o 
+Function id 
+o 
+17 
+This operation causes the device to generate a 
+hardcopy. This function is very device 
+specific and can entail copying the screen to a 
+printer or other attached hardcopy device. 
+Place a graphic cursor at specified location 
+contrl(2) 2 
+contrl(6) Function id = 18 
+ptsin (1) x-coordinate of location to 
+place cursor 
+ptsin(2) y-coordinate of location to 
+place cursor 
+contrl(3) -- o 
+Place Graphic Cursor at the specified location. 
+Th is is dev ice dependent and can be an 
+underbar, block, or similar character. This 
+cursor should be the same type as used for 
+request mode locator input. In this way, if 
+sample mode input is supported, the application 
+may use this call to generate the cursor for 
+rubber band type drawing. In memory mapped 
+devices, it is drawn in XOR mode so that it can 
+be removed. The cursor has no attributes; for 
+example, style or color index. 
+C-2l 
+===== PAGE 71 =====
+GSX Programmer's Guide Escape 
+ESCAPE: REMOVE Remove last graphic cursor/marker. 
+LAST GRAPHIC CURSOR 
+Input 
+Output 
+Description 
+contrl(2) 
+contrl(6) 
+contrl(3) 
+o 
+Function id 19 
+o 
+This operation removes the last graphic cursor 
+placed on the screen. 
+C-22 
+===== PAGE 72 =====
+GSX Programmer's Guide Polyline 
+POLYLINE 
+Input 
+Output 
+Description 
+Output a polyine to device. 
+contrl(l) 
+contrl (2) 
+contrl(3) --
+Opcode = 6 
+Number of vertices (x,y pairs) 
+in polyline (n) 
+ptsin 
+ptsin(l) 
+ptsin(2) 
+ptsin(3) 
+ptsin(4) 
+ptsin(2n-l) 
+ptsin (2n) 
+a 
+Array of 
+coordinates of 
+polyline in device 
+units (for 
+example, rasters 
+and plotter steps) 
+x-coordinate of 
+first point 
+y-coordinate of 
+first point 
+x-coordinate of 
+second point 
+y-coordinate of 
+second point 
+x-coordinate of 
+last point 
+y-coordinate of 
+last point 
+This operation causes a polyline to be displayed 
+on the graphics device. The starting point for. 
+the polyline is the first point in the input 
+ar ray. Lines are drawn between subsequent 
+points in the array. Make sure that the lines 
+exhibi t the current line attr ibutes: color, 
+linetype, line width. a length lines should be 
+displayed. A single coordinate pair should not 
+be displayed. 
+C-23 
+===== PAGE 73 =====
+GSX Programmers' Guide Polymaker 
+POLYMARKER 
+Input 
+Output 
+Description 
+Output markers to the device. 
+contrl(l) 
+contrl(2) 
+ptsin 
+ptsin(2n-l) 
+ptsin (2n) 
+contrl(3) --
+Opcode = 7 
+Number of markers 
+Array of coordinates in device 
+units (n) (for example, rasters 
+and plotter steps) 
+ptsin(l) x-coordinate 
+first marker 
+ptsin(2) y-coordinate 
+first marker 
+ptsin (3) x-coordinate 
+second marker 
+ptsin(4) y-coordinate 
+second marker 
+x-coordinate of last marker 
+y-coordinate of last marker 
+o 
+of 
+of 
+of 
+of 
+This operation causes markers to be drawn at the 
+points specified in the input array. Make sure 
+the markers display the current attributes: 
+color, scale, and type. 
+C-24 
+===== PAGE 74 =====
+GSX Programmer's Guide Text 
+TEXT 
+Input 
+Output 
+Description 
+Write text at specified position. 
+contrl(l) 
+contrl(2) 
+contrl(4) 
+intin 
+ptsin (1) 
+ptsin(2) 
+contrl(3) 
+Opcode = 8 
+Number of vertices = 1 
+Number of characters in text 
+string 
+Word character string in ASCII 
+x-coordinate of start point of 
+text in device units 
+y-coordinate of start point of 
+text in device units 
+o 
+This operation writes text to the display 
+surface starting at the position specified by 
+the input parameters. Note that the X,Y 
+position specified is the lower left corner of 
+the character itself, not the character cell. 
+Also, make sure the text exhibits current text 
+attributes: color, height, character up 
+vector, font. Each word of the intin array 
+contains only one character. Any character 
+code out of range for the selected font should 
+be mapped to a blank. 
+C-2S 
+===== PAGE 75 =====
+GSX Programmers' Guide Filled Area 
+FILLED AREA 
+Input 
+Output 
+Description 
+Fill a polygon. 
+contrl(l) 
+contrl(2) 
+ptsin 
+ptsin (1) 
+ptsin (2) 
+ptsin(3) 
+ptsin(4) 
+ptsin(2n-l) 
+ptsin(2n) 
+contrl(3) 
+Opcode = 9 
+Number of vertices in polygon 
+(n) 
+Array of coordinates of polygon 
+in device units 
+x-coordinate of first point 
+y-coordinate of first point 
+x-coordinate of second point 
+y-coordinate of second point 
+x-coordinate of last point 
+y-coordinate of last point 
+o 
+This operation fills a polygon specified by the 
+input array with the current fill color. 
+Ensure the correct color, fill interior style 
+(hollow, solid, pattern or hatch) and fill 
+style index are in effect before doing the 
+fill. 
+If the device cannot do area fill, it must at 
+least outline the polygon in the current fill 
+color. The device driver must ensure that the 
+fill area is closed by connecting the first 
+point to the last point. 
+A polygon with zero area should be displayed as 
+a dot. A polygon with only one endpoint should 
+not be displayed. 
+C-26 
+===== PAGE 76 =====
+GSX Programmer's Guide Cell Array 
+CELL ARRAY 
+Input 
+Output 
+Description 
+Display cell array. 
+contrl(l) 
+contrl(2) 
+contrl(4) 
+contrl(6) 
+contrl (7) 
+contrl(8) 
+contrl(9) 
+intin(l) 
+ptsin (1) 
+ptsin(2) 
+ptsin(3) 
+ptsin(4) 
+contrl(3) 
+Opcode = 10 
+2 
+Length of color index array 
+Leng th of each row in color 
+index array (size as declared 
+in a high level language) 
+Number of elements used in each 
+row of color index array 
+Number of rows in color index 
+array 
+Pixel operation to be performed 
+1 replace 
+2 overstrike 
+3 complement (xor) 
+4 erase 
+Color index array (stored one 
+row at time) 
+x-coordinate of lower left 
+corner in device units 
+y-coordinate of lower left 
+corner in device units 
+x-coord ina te of upper right 
+corner in device units 
+y-coordinate of upper right 
+corner in device units 
+o 
+The Cell Array operation causes the device to 
+draw a rectangular array which is defined by 
+the input parameter X,Y coordinates and the 
+color index array. 
+C-27 
+===== PAGE 77 =====
+GSX Programmer's Guide Cell Array 
+The extents of the cell are defined by the 
+lower left-hand and the upper right-hand X,Y 
+coordinates. Within the rectangle defined by 
+those points, the color index array specifies 
+colors for individual components of the cell. 
+Each row of the color index array should be 
+expanded to fill the en tire width of the 
+rectangle specified if necessary, via pixel 
+replication. Each row of the color index array 
+should also be replicated the appropriate 
+number of times to fill the entire height of 
+the rectangular area. 
+If the device cannot do cell arrays it must at 
+least outline the area in the current line 
+color. 
+C-28 
+===== PAGE 78 =====
+GSX Programmer's Guide Generalized Drawing Primitive 
+GENERALIZED 
+DRAWING PRIMITIVE 
+(GOP) 
+Output a primitive display element. 
+Input contrl(l) 
+contrl (2) 
+contrl(4) 
+contrl(6) 
+Opcode = 11 
+Number of vertices in ptsin 
+Length of input array intin 
+Primitive id 
+1 -- BAR uses fill area 
+attributes (interior 
+style, fill style, fill 
+color) 
+2 -- ARC use s 1 i n e 
+attributes (color, 
+linetype, width) 
+3 -- PIE SLICE -- uses fill 
+area attributes (interior 
+style, fill style, fill 
+color) 
+4 -- CIRCLE -- uses fill area 
+attributes (interior 
+style, fill style, fill 
+color) 
+5 PRINT GRAPHIC CHARACTERS 
+(RULING CHARACTERS) 
+6 7 are unused but reserved 
+for future expansion 
+8 10 are unused and 
+available for use 
+ptsin 
+ptsin(l) 
+ptsin (2) 
+ptsin(3) 
+ptsin(4) 
+ptsin (2n-l) 
+ptsin(2n) 
+C-29 
+Array of 
+coordinates for 
+GDP 
+x-coordinate of 
+first point 
+y-coordinate of 
+first point 
+x-coordinate of 
+second point 
+y-coordinate of 
+second point 
+x-coordinate of 
+last point 
+y-coordinate of 
+last point 
+===== PAGE 79 =====
+GSX Programmer's Guide Generalized Drawing Primitive 
+intin Data record 
+BAR contrl(2) 2 (number of 
+vertices 
+contrl(6) 1 (primitive ID) 
+ptsin(l) x-coordinate of 
+lower left-hand 
+corner of bar 
+ptsin(2) y-coordinate of 
+lower left-hand 
+corner of bar 
+ptsin(3) x-coordinate of 
+upper right-
+hand corner of 
+bar 
+ptsin(4) y-coordinate of 
+upper right-
+hand corner of 
+bar ARC AND PIE 
+SLICE 
+contrl (2) 4 (number of 
+vertices) 
+contrl(6) 2 (ARC) or 3 
+(PIE SLICE) 
+intin (1) Start angle in 
+tenths of 
+degrees ( 0-
+3600) 
+intin(2) End angle in 
+tenths of 
+degrees ( 0-
+3600) 
+ptsin (1) x-coordinate of 
+center point of 
+arc 
+ptsin (2) y-coordinate of 
+center point of 
+arc 
+ptsin(3) x-coordinate of 
+start point of 
+arc on 
+circumference 
+ptsin(4) y-coordinate of 
+start point of 
+arc on 
+circumference 
+ptsin(5) x-coordinate of 
+end point of 
+arc on 
+circumference 
+C-30 
+===== PAGE 80 =====
+GSX Programmer's Guide Generalized Drawing Primitive 
+ptsin(6) y-coordinate of 
+end point of 
+arc on 
+circumference 
+ptsin(7) Radius 
+ptsin(8) 0 
+CIRCLE contrl (2) 3 (number of 
+points) 
+contrl(6) 4 (primitive id) 
+ptsin (1) x-coordinate of 
+center point of 
+circle 
+ptsin(2) y-coordinate of 
+center point of 
+circle 
+ptsin(3) x-coordinate of 
+point on 
+circumference 
+ptsin(4) y-coordinate of 
+point on 
+circumference 
+ptsin(S) Radius 
+ptsin(6) 0 
+PRINT GRAPHIC CHARACTERS For graphics on 
+printer (such 
+as Diablo and 
+Epson) 
+contr1(2) 1 (number of 
+points) 
+contr-1 (4) Number of 
+characters to 
+output 
+contrl(6) 5 
+intin Graphic 
+characters to 
+output 
+ptsin (1) x-coordinate of 
+start point of 
+characters 
+ptsin (2) y-coordinate of 
+start point of 
+characters 
+Output contrl(3) -- 0 
+C-31 
+===== PAGE 81 =====
+GSX Programmer's Guide Generalized Drawing Primitive 
+Description The Generalized Drawing Primitive (GDP) 
+operation allows you to take advantage of the 
+intrinsic drawing capabilities of your graphics 
+device. Special elements such as arcs and 
+circles can be accessed through this mechanism. 
+Several primitive identifiers are predefined 
+and others are available for expansion. 
+The control and data arrays are dependent on 
+the nature of the primitive. 
+In some GDPs (Arc, Circle, Pie slice) redundant 
+but consistent information is provided. Only 
+the necessary information for a particular 
+device need be used. Also, all angle 
+spec i f ications assume that 0 degrees is 90 
+degrees to the right of vertical, with values 
+increasing in the counterclockwise direction. 
+C-32 
+===== PAGE 82 =====
+GSX Programmer's Guide Set Character Height 
+SET CHARACTER 
+HEIGHT 
+Input 
+Output 
+Description 
+Set character height. 
+contr 1 (1) 
+contr1 (2) 
+ptsin (1) 
+ptsin(2) 
+contr1(3) 
+ptsout (1) 
+ptsout(2) 
+ptsout(3) 
+ptsout(4) 
+Opcode = 12 
+Number of vertices = 1 
+o 
+Requested character height in 
+device units (rasters, plotter 
+steps) 
+Number of vertices = 2 
+Actual character width selected 
+in device units 
+Actual character height selected 
+in device units 
+Character cell width in device 
+units 
+Character cell height in device 
+units 
+This operation sets the current text character 
+height in Device Units. The specified height 
+is the height of the character itself rather 
+than the character cell. The driver returns 
+the s i z e of both the char acter and the 
+character cell. The character size is defined 
+as the size of an uppercase W. If the 
+requested size does not exist, a smaller size 
+should be used. 
+10000010 
+10000010 
+10000010 
+10010010 
+10101010 
+11000110 
+CHARACTER HEIGHT CELL HEIGHT 
+ORIGIN OF ROTATION 10000010 
+00000000 
+BASE LINE 
+10000010--~----------------~ 
+10000010 
+10000010 
+10010010 
+10101010 
+11000110 
+-CHARACTER HEIGHT 
+<-BASE LINE ORIGIN OF ROTATION 10000010 
+OOOOOOOO------------------~ 
+C-33 
+- CELL HEIGHT 
+===== PAGE 83 =====
+GSX Programmer's Guide Set Character Up Vector 
+SET CHARACTER UP 
+VECTOR 
+Input 
+Output 
+Description 
+Set text direction. 
+contrl(l) 
+contrl(2) 
+intin(l) 
+intin (2) 
+intin(3) 
+contrl(3) 
+contrl (5) 
+intout(l) 
+Opcode = 13 
+a 
+Requested angle of rotation of 
+character baseline (in tenths 
+of degrees a - 3600) 
+Run of angle cos (angle) * 
+100 (0-100) 
+Rise of angle sin (angle) * 
+100 (0-100) 
+a 
+1 
+Angle of rotation of character 
+baseline selected (in tenths of 
+degrees 0-3600) 
+This operation requests an angle of rotation 
+specified in tenths of degrees for the 
+CHARACTER UP VECTOR, which specifies the 
+basel ine for subsequent text. The dr iver 
+returns the actual up direction that is a best 
+fit match to the requested value. 
+For convenience, redundant but consistent 
+information is provided on input. Only 
+information pertinent to a given device need be 
+used. The angle specification assumes that a 
+degrees is 90 degrees to the right of vertical 
+(east on a compass), with angles increasing in 
+the counterclockwise direction. 
+270 
+C-34 
+===== PAGE 84 =====
+GSX Programmer's Guide Set Color Representation 
+SET COLOR 
+REPRESENTATION 
+Input 
+Output 
+Description 
+Specify color index value. 
+contrl{l) 
+contrl(2) 
+intin{l) 
+intin (2) 
+intin(3) 
+intin(4) 
+contrl(3) --
+Opcode = 14 
+o 
+Color index 
+Red color in tens i ty (in 
+tenths of percent 0- 1000) 
+Green color intensity 
+Blue color intensity 
+o 
+This operation associates a color index with the 
+color specified in RGB units. At least two 
+color indexes are required (black and white for 
+monochrome) • On a monochrome device, any 
+percentage of color should be mapped to white. 
+On color devices without palettes, a simple 
+remapping of the color indexes is sufficient. 
+On color devices with palettes, loading the 
+palette map is the proper operation. If the 
+color index requested is out of range, no 
+operation is performed. 
+C-35 
+===== PAGE 85 =====
+GSX Programmer's Guide Set Polyline Linetype 
+SET POLYLINE 
+LINETYPE 
+Input 
+Output 
+Description 
+Set polyline 1inetype. 
+contr1(1) Opcode = 15 
+contr1(2) 0 
+intin(l) Requested 1inesty1e 
+contr1(3) 0 
+intout(l) Linesty1e selected 
+This operation sets the 1inetype for subsequent 
+polyline operations. The total number of 
+1inesty1es available is device dependent; 
+however, 5 1inesty1es are required: one solid 
+plus four dash styles. 
+If the requested 1inesty1e is out of range, use 
+1inesty1e 1 (solid). 
+STYLE 
+STYLE 
+STYLE 
+STYLE 
+STYLE 
+1 
+2 
+3 
+4 
+5 
+SOLID 
+DASH 
+DOT 
+DASH,DOT 
+LONG DASH 
+C-36 
+1111111111111111 
+1111111000000000 
+1110000011100000 
+1111111000111000 
+1111111111110000 
+===== PAGE 86 =====
+GSX Programmer's Guide Set polyline Line Width 
+SET POLYLINE 
+LINE WIDTH 
+Input 
+Output 
+Description 
+SET POLYLINE 
+COLOR INDEX 
+Input 
+Output 
+Description 
+Set polyline line width. 
+contrl (1) 
+contrl (2) 
+ptsin(l) 
+contrl(3) 
+ptsout(l) 
+ptsout(2) 
+Opcode = 16 
+Number of input vertices = 1 
+Requested line width in device 
+units 
+ptsin(2) a 
+Number of output vertices = 1 
+Selected line width in device 
+units 
+a 
+This operation sets the width of lines for 
+subsequent polyline operations. Any attempt to 
+set the width beyond the specified maximum will 
+set it to the maximum line width. 
+Set polyline color index. 
+contrl(l) 
+contrl (2) 
+intin(l) 
+contrl (3) 
+intout(l) 
+Opcode = 17 
+a 
+Requested color index 
+a 
+Color index selected 
+This operation sets the color index for 
+subsequent polyline operations. The color 
+signified by the index is determined by the 
+SET COLOR REPRESENTATION operation. At least 
+two color lndexes are required. Color indexes 
+range from a to a device-dependent maximum. If 
+the selected index is out of range, use the 
+MAXIMUM color index. 
+C-37 
+===== PAGE 87 =====
+GSX Programmer's Guide Set Polymarker Type 
+SET POLYMARKER 
+TYPE 
+Input 
+Output 
+Description 
+Set polymarker type. 
+contrl(l) 
+contrl(2) 
+intin(l) 
+contrl(3) 
+intout(l) 
+Opcode = 18 
+o 
+Requested polymarker type 
+o 
+Polymarker type selected 
+This operation sets 
+subsequent polymarker 
+number of markers 
+dependent ~ however, 
+required, as follows: 
+the marker type for 
+operations. The total 
+available is device­
+five marker types are 
+1 - Dot 
+2 - + Plus 
+3 - * Asterisk 
+4 - 0 Circle 
+5 - X Diagonal Cross 
+If the requested marker type is out of range, 
+use type 3. Marker 1 should always be 
+implemented as the smallest dot that can be 
+displayed. 
+C-38 
+===== PAGE 88 =====
+GSX Programmer's Guide Set Polymarker Scale 
+SET POLYMARKER 
+SCALE 
+Input 
+Output 
+Description 
+Set polymarker scale (height). 
+contrl(l) 
+contrl (2) 
+ptsin(l) 
+ptsin(2) 
+contrl(3) 
+ptsout (1) 
+ptsout(2) 
+Opcode = 19 
+Number of input vertices = 1 
+o 
+Requested polymarker height in 
+device units 
+Number of output vertices = 1 
+o 
+Polymarker height selected in 
+device units 
+This operation requests a polymarker height for 
+subsequent polymarker operations. The driver 
+returns the actual height selected. If the 
+selected height does not exist, use a smaller 
+height. 
+C-39 
+===== PAGE 89 =====
+GSX Programmer's Guide Set Polymarker Color Index 
+SET POLYMARKER 
+COLOR INDEX 
+Input 
+Output 
+Description 
+Set polymarker color index. 
+contrl(l) 
+contrl(2) 
+intin(l) 
+contrl(3) 
+intout(l) 
+Opcode = 20 
+o 
+Requested polymarker color index 
+o 
+Polymarker color index selected 
+This operation sets the color index for 
+subsequent polymarker operations. The value of 
+the index is specified by the COLOR operation. 
+At least two color indexes are required. If 
+the index is out of range, use the MAXIMUM 
+color index. 
+C-40 
+===== PAGE 90 =====
+GSX Programmer's Guide Set Text Font 
+SET TEXT FO~T 
+Input 
+Output 
+Description 
+Set the hardware text font. 
+contrl(l) 
+contrl(2) 
+intin(l) 
+contrl(3) 
+intout(l) 
+Opcode = 21 
+o 
+Requested hardware text font 
+number 
+o 
+Hardware text font selected 
+This operation selects a character font for 
+subsequent text operations. Fonts are device­
+dependent and are specified from 1 to a device­
+dependent maximum. 
+C-4l 
+===== PAGE 91 =====
+GSX Programmer's Guide Set Text Color Index 
+SET TEXT 
+COLOR INDEX 
+Input 
+Output 
+Description 
+Set color index. 
+contrl(l) 
+contrl(2) 
+intin(l) 
+contrl(3) 
+intout(l) 
+Opcode = 22 
+o 
+Requested text color index 
+o 
+Text color index selected 
+This operation sets the color index for 
+subsequent text operations. At least two color 
+indexes are required. Color indexes range from 
+o to a device-dependen t maXlmum. If the 
+selected index is out of range, use the MAXIMUM 
+index. 
+C-42 
+===== PAGE 92 =====
+GSX Programmer's Guide Set Fill Inte~ior Style 
+SET FILL 
+INTERIOR STYLE 
+Input 
+Output 
+Description 
+Set interior fill style. 
+contrl(l) 
+contrl (2) 
+intin(l) 
+contrl(3) 
+intout(l) 
+Opcode = 23 
+o 
+Requested fill interior style 
+o - Hollow (outline no fill) 
+I - Solid 
+2 - Halftone pattern 
+3 - Hatch 
+o 
+Fill interior style selected 
+This operation sets the fill interior style to 
+be used in subsequent polygon fill operations. 
+If the requested style is not available, use 
+Hollow. The style actually used is returned to 
+the calling program. 
+C-43 
+===== PAGE 93 =====
+GSX Programmer's Guide Set Fill Style Index 
+SET FILL STYLE 
+INDEX 
+Input 
+Output 
+Description 
+Set fill style index. 
+contrl (1) 
+contrl(2) 
+intin (1) 
+contrl(3) 
+intout(l) 
+Opcode = 24 
+o 
+Requested fill style index for 
+Pattern or Hatch fill 
+o 
+fill style index selected for 
+Pattern or Hatch fill 
+Select a fill style based on the fill interior 
+style. This index has no effect if the 
+interior style is either Hollow or Solid. 
+Indexes go from 1 to a device-dependent 
+maximum. If the requested index is not 
+available, use index 1. The index references a 
+ha tch style if the fill inter ior style is 
+hatch, or it references a halftone pattern if 
+the interior fill style is halftone pattern. 
+For consistency, the hatch styles should be 
+implemented in the following order: 
+1 vertical lines 
+2 horizontal lines 
+3 +45 0 lines 
+4 -45 0 lines 
+5 cross 
+6 X 
+>6 device-dependent 
+You can implement halftone patterns for gray 
+scale shading with values 1 through 6. Value I 
+is the lightest, and 6 is the darkest. 
+C-44 
+===== PAGE 94 =====
+GSX Programmer's Guide Set Fill Color Index 
+SET FILL COLOR 
+INDEX 
+Input 
+Output 
+Description 
+Set fill color index. 
+contr 1 (1) 
+contrl (2) 
+intin(l) 
+contrl(3) 
+intout(l) 
+Opcode = 25 
+o 
+Requested fill color index 
+o 
+Fill color index selected 
+This operation sets the color index for 
+subsequent polygon fill operations. The actual 
+RGB value of the color index is determined by 
+the SET-COLOR-REPRESENTATION operation. At 
+least two color indexes are required. Color 
+indexes range from 0 to a device-dependent 
+max imum. If the selected index is out of 
+range, use the MAXIMUM. 
+C-45 
+===== PAGE 95 =====
+GSX Programmer's Guide Inquire Color Representation 
+INQUIRE COLOR 
+REPRESENTATION 
+Input 
+Output 
+Description 
+Return color representation. 
+contrl (1) 
+contrl(2) 
+intin(l) 
+intin (2) 
+contrl(3) 
+intout (1) 
+intout (2) 
+Opcode = 26 
+o 
+Requested color index 
+Set or realized flag 
+o set (return color values 
+requested) 
+1 realized (return color 
+values realized on device) 
+o 
+Color index 
+Red in tens i ty (in tenths of 
+percent 0-1000) 
+intout(3) Green intensity 
+intout(4) -- Blue intensity 
+This operation returns the requested or the 
+actual value of the specified color index in 
+RGB units. 
+Note: The device driver must maintain tables 
+of the color values that were set (requested) 
+and the color values that were realized. On 
+devices that have a continuous color range, one 
+of these tables may not be necessary. If the 
+selected index is out of range, use the values 
+for the MAXIMUM color index. 
+C-46 
+===== PAGE 96 =====
+GSX Programmer's Guide Inquire Cell Array 
+INQUIRE CELL ARRAY Return cell array definition. 
+Input 
+Output 
+Description 
+contrl{l) 
+contrl(2) 
+contrl(4) 
+contrl(6) 
+contrl(7) 
+ptsin (I) 
+ptsin(2) 
+ptsin(3) 
+ptsin(4) 
+contrl(3) 
+contrl(8) 
+contrl(9) 
+contrl(lO) 
+intout 
+Opcode = 27 
+2 
+Length of color index array 
+Length of each row in color 
+index array 
+Number of rows in color index 
+array 
+x-coordinate of lower left 
+corner in device units 
+y-coordinate of lower left 
+corner in device units 
+x-coordinate of upper right 
+corner in device units 
+y-coordinate of upper right 
+corner in device units 
+o 
+Number of elements used in each 
+row of color index array 
+Number of rows used in color 
+index array 
+Invalid value flag 
+o If no errors 
+1 I f a color value could 
+not be determined for 
+some pixel 
+Color index array (stored one 
+row at time) 
+-1 -- Indicates that a color 
+index could not be 
+determined for that 
+particular pixel 
+This operation returns the cell array definition 
+of the spec i f ied cell. Color indexes are 
+returned one row at a time, starting from the 
+top of the rectangular area, proceeding 
+downward. 
+C-47 
+===== PAGE 97 =====
+GSX Programmer's Guide Input Locator 
+INPUT LOCATOR Return locator position. 
+For REQUEST MODE 
+Input 
+Output 
+contrl(l) 
+contrl(2) 
+intin(l) 
+ptsin (1) 
+ptsin (2) 
+contrl(3) 
+contrl(5) 
+intout(l) --
+ptsout (1) 
+ptsout(2) 
+Opcode = 28 
+Number of input vertices 
+Locator device number 
+1 = keyboard 
+2 = mouse, joystick 
+1 
+Ini tial x-coord ina te of locator 
+in device units 
+Initial y-coordinate of locator 
+in device units 
+Number of output vertices = 1 
+Length of intout array -- status 
+o = request unsuccessful 
+>0 = request successful 
+Locator terminator 
+For keyboard terminated locator 
+input, this is the ASCII 
+character code of the key 
+struck to terminate input. For 
+input that is not keyboard­
+terminated (such as from a 
+tablet or mouse) , valid locator 
+terminators begin with <space> 
+(ASCII 32) and increase from 
+there. For instance, if the 
+puck on a tablet has 4 buttons, 
+the first button should 
+generate a <space> as a 
+terminator, the second a <! > 
+(ASCII 33), the third a <"> 
+(ASCII 34), and the fourth a 
+<#> (ASCII 35). 
+Final x-coordinate of locator in 
+device units 
+Final y-coordinate of locator in 
+device units 
+C-48 
+===== PAGE 98 =====
+GSX Programmer's Guide Input Locator 
+Description for 
+Request Mode 
+For SAMPLE MODE 
+Input 
+Output 
+Output 
+This operation returns the position in Device 
+Coordinates of the specified locator device. 
+Upon entry to the locator routine, a GRAPHIC 
+cursor is placed at the initial coordinate. 
+The GRAPHIC cursor is tracked with the input 
+device until a terminating even occurs, which 
+can result from the user pressing a key, or a 
+button on a mouse. The cursor is removed when 
+the terminating event occurs. 
+contrl(l) 
+contrl(2) 
+intin(l) 
+Opcode = 28 
+Number of input vertices 
+Locator device number 
+1 keyboard 
+2 mouse, joystick 
+Table C-l. Sample Mode Status Returned 
+1 
+Event 
+I 
+Control Array 
+(3) (5) 
+Coordinates Change 1 a 
+Key Pressed; 
+Coordinates Not Changed a 1 
+No Input 0 1 
+contrl(3) -- Number of output vertices 
+contrl(5) --
+1 coordinate changed 
+o no coordinate changed 
+Length of intout array 
+o no terminating character 
+1 terminating character 
+returned 
+C-49 
+===== PAGE 99 =====
+GSX Programmer's Guide Input Locator 
+Description for 
+Sample Mode 
+intout(l) --
+ptsout 
+ptsout (1) 
+ptsout(2) 
+Locator terminator if 
+terminating event occurs. For 
+keyboard terminated locator 
+input, this is the ASCII 
+character code of the key 
+struck to terminate input in 
+the low byte and 0 in the high 
+byte. For input that is not 
+keyboard-terminated (such as 
+from a tablet or mouse), valid 
+locator terminators begin with 
+20 hex (ASCII 32) and increase 
+from there. 
+Returned if coordinate changed 
+New x-coordinate of locator in 
+device units 
+New y-coordinate of locator in 
+device units 
+Upon entry to the locator routine, NO cursor 
+is displayed. Input is sampled. If the 
+coordinate changed, it is returned and 
+contrl(3) is set to 1. Contrl(S) is set to O. 
+If a terminating event occurs, a character is 
+returned and contrl(S) is set to 1. Contrl(3) 
+is set to O. If nothing happens, neither a 
+character nor coordinate is returned. 
+C-SO 
+===== PAGE 100 =====
+GSX Programmer's Guide Input Valuator 
+INPUT VALUATOR 
+For REQUEST MODE 
+Input 
+Output 
+Description for 
+Request Mode 
+Return value of valuator device. 
+contrl{l) 
+contrl (2) 
+intin(2) 
+contrl(3) 
+contrl{S) 
+intout{l) 
+intout(2) 
+Opcode = 29 
+o 
+Initial value 
+o 
+1 length of intout array 
+Output value 
+Terminator 
+The terminating character is 
+returned as an ASCII character 
+for keyboard input with the 
+high byte set to O. 
+This operation returns the current value of 
+the valuator device. The initial value of the 
+valuator is incremented or decremented 
+(typically with the Up Arrow and Down Arrow 
+keys) until a terminating character is struck. 
+Typical implementation of the Up Arrow and Down 
+Arrow keys is as follows: 
+• Pressing the Up Arrow key adds 10 to the 
+valuator. 
+• Pressing the Down Arrow key subtracts 10 from 
+the valuator. 
+However, when the Up and Down arrow keys are 
+pressed wi th the Shift key, the following 
+occurs: 
+• Up Arrow key adds 1 to the valuator. 
+• Down Arrow key subtracts 1 from the valuator. 
+C-Sl 
+===== PAGE 101 =====
+GSX Programmer's Guide Input Valuator 
+For SAMPLE MODE 
+Input 
+Output 
+Description for 
+Sample Mode 
+contrl(l) 
+contrl(2) 
+contrl(3) 
+contrl(S) 
+intout(l) 
+intout(2) 
+opcode 
+a 
+a 
+29 
+Length of intout array 
+status 
+a nothing happened 
+1 valuator changed 
+2 terminating character 
+New valuator value 
+Terminator if terminating event 
+occurred 
+This operation returns the current value of 
+the valuator device. The valuator device is 
+sampled. If the valuator changed, the valuator 
+value is incremented or decremented as 
+required. If a terminating event occurred, the 
+value is returned. If nothing happens, no 
+value is returned. 
+C-S2 
+===== PAGE 102 =====
+GSX Programmer's Guide Input Choice 
+INPUT CHOICE 
+For REQUEST MODE 
+Input 
+Output 
+Description for 
+Request Mode 
+For SAMPLE MODE 
+Input 
+Output 
+Return choice device status keys. 
+contrl(l) 
+contrl(2) 
+intin(l) 
+contrl(3) 
+contrl(5) 
+intout(l) 
+Opcode = 30 
+o 
+Choice device number 
+1 function keys 
+>1 workstation-dependent 
+o 
+1 
+Choice number (range of valid 
+numbers beginning at 1 to 
+workstation-dependent maximum) 
+This operation returns the choice from the 
+selected choice device. Upon entry to the 
+routine, the keys are sampled until a valid 
+choice key is pressed. This choice is returned. 
+The range for choice numbers begins at 1; its 
+maximum value is device-dependent. Input 
+Choice is typically implemented as function 
+keys. 
+contrl(l) 
+contrl(2) 
+intin(l) 
+contrl(3) 
+contrl (5) 
+intout (1) 
+intout (2) 
+Opcode = 30 
+.0 
+Choice device number 
+1 function keys 
+>1 workstation-dependent 
+o 
+Choice status 
+o nothing happened 
+1 sample successful 
+2 nonchoice key 
+Choice number if sample 
+successful 
+Choice terminator if terminating 
+event occurs 
+C-53 
+===== PAGE 103 =====
+GSX Programmer's Guide Input Choice 
+Description for 
+Sample Mode 
+This operation returns the choice status of 
+the selected choice device. Upon entry to the 
+routine, input is sampled. If input is 
+available and it is a valid choice key, it is 
+returned. If input is available but it is not 
+from a choice key, it is returned as a 
+terminating event. The range of choice numbers 
+begins at 1; its maximum value is device­
+dependent. 
+C-S4 
+===== PAGE 104 =====
+GSX Programmer's Guide Input String 
+INPUT STRING 
+For REQUEST MODE 
+Input 
+Output 
+Description for 
+Request Mode 
+Return string from specified string device. 
+contr1(1) 
+contr1(2) 
+intin (1) 
+intin(2) 
+intin(3) 
+ptsin (1) 
+ptsin (2) 
+contr1(3) 
+contr1 (5) 
+intout 
+Opcode = 31 
+o if nonecho mode 
+1 if echo mode 
+String device number 
+1 = default string device 
+(keyboard) 
+Maximum string length 
+Echo mode 
+0 do not echo input 
+characters 
+1 echo input 
+x coordinate 
+echo mode 
+y coordinate 
+echo mode 
+o 
+1 
+characters 
+of echo area 
+of echo area 
+o = request unsuccessful 
+>0 = request successful 
+Output string 
+in 
+in 
+This operation returns a string from the 
+specified device. Upon entry input is 
+accumulated until a carriage return is 
+encountered or the intout array is full. If 
+echo mode is enabled, text should be echoed to 
+the screen with the current text attributes: 
+color, height, character up vector, and font. 
+C-55 
+===== PAGE 105 =====
+GSX Programmer's Guide Input String 
+For SAMPLE MODE 
+Input 
+Output 
+Description for 
+Sample Mode 
+contrl(l) 
+contrl (2) 
+intin(l) 
+intin(2) 
+contrl(3) 
+contrl(5) 
+intout 
+Opcode = 31 
+o 
+String device number 
+1 = default string device 
+(keyboard) 
+Maximum string length 
+o 
+Length of output string 
+o = sample unsuccessful 
+(characters not available) 
+>0 = sam p 1 e s u c c e s s f u 1 
+(characters available) 
+Output string if sample 
+successful 
+This operation returns a string from the 
+specified device. Upon entry to the routine, 
+input is sampled. If data is available, it is 
+accumulated. Input is sample again. Input is 
+accumulated until one of the following 
+occurs: 
+• Input is accumulated until it is no longer 
+available 
+• A carriage return is encountered. 
+• The intout buffer is full. 
+Note that sample mode returns immediately as 
+soon as no input is available. 
+C-56 
+===== PAGE 106 =====
+GSX Programmer's Guide Set Writing Mode 
+SET WRITING MODE 
+Input 
+Output 
+Description 
+Set writing mode 
+contrl(l) 
+contrl(2) 
+intin(l) 
+contrl(3) 
+intout 
+Opcode = 32 
+o 
+Writing mode 
+1 replace 
+2 transparent 
+3 XOR (complement) 
+4 erase 
+o 
+writing mode selected 
+This operation affects the way pixels from 
+lines, filled areas, and text are placed on the 
+display. 
+The following are descr iptions of the four 
+writing modes used by the GSX: 
+• MASK is the line style mask. 
+• FORE is the selected color after mapping from 
+GSX. 
+• BACK is the color 0 after mapping from GSX 
+(default is black). 
+• OLD is the current PIXEL color value. 
+• NEW is the replacement color value. 
+C-S7 
+===== PAGE 107 =====
+GSX Programmer's Guide Set Writing Mode 
+REPLACE MODE 
+Boolean 
+Expression 
+TRANSPARENT 
+MODE 
+Boolean 
+Expression 
+XOR MODE 
+Boolean 
+Expression 
+ERASE MODE 
+Boolean 
+Expression 
+Replace mode is insensitive to the currently 
+displayed image. Any information already displayed 
+is completely replaced. The mask refers to the line 
+style or fill pattern. 
+NEW (FORE and MASK) or (BACK and not MASK) 
+Transparent mode only affects the pixels where the 
+mask is one and these are changed to the FORE value. 
+NEW (FORE and MASK) or (OLD and not MASK) 
+XOR mode reverses the bits representi~g the color. 
+NEW (FORE and MASK) XOR OLD 
+Erase mode sets the display to the currently selected 
+backg round color where the mask value is one, 
+independent of the foreground color. 
+(NEW BACK and MASK) or (OLD and not MASK) 
+C-58 
+===== PAGE 108 =====
+GSX Programmer's Guide Set Input Mode 
+SET INPUT MODE 
+Input 
+Output 
+Description 
+Set input mode. 
+contrl (1) 
+contrl (2) 
+intin(l) 
+intin (2) 
+contrl(3) 
+intout(l) 
+Opcode = 33 
+o 
+Logical input device 
+1 locator 
+2 valuator 
+3 choice 
+4 string 
+Input mode 
+1 request 
+2 sample 
+o 
+Input mode selected 
+This operation sets the input mode for the 
+specified logical input device (locator, 
+valuator, choice, string) to either request or 
+sample. In request mode, the driver waits 
+until an input event occurs before returning. 
+In sample mode, the driver returns the current 
+status or location of the input device without 
+waiting. 
+C-59 
+===== PAGE 109 =====
+tt 
+GSX Programmer's Guide Required Opcode CRT Devices 
+REQUIRED OPCODE 
+FOR CRT DEVICES 
+The following opcodes and subfunctions are 
+required for CRT devices: 
+Table C-2. Opcode for CRT Devices 
+Opcode Description 
+1 Open workstation 
+2 Close workstation 
+3 Clear workstation 
+4 Update workstation 
+5 Escape 
+Id I Definition 
+1 Inquire addressable 
+character cells 
+2 Exit graphics mode 
+3 Enter graphics mode 
+4 Cursor up 
+5 Cursor down 
+6 Cursor right 
+7 Cursor left 
+8 Home cursor 
+9 Erase to end of screen 
+10 Erase to end of line 
+11 Direct cursor address 
+12 Output cursor 
+addressable text 
+15 Inquire current cursor 
+address 
+18 Place graphic cursor 
+19 Remove graphic cursor 
+6 Polyline 
+7 Polymarker 
+8 Text 
+9 Filled area 
+10 Cell array 
+11 Graphic Drawing Primitive (GDP) 
+Id I Definition 
+1 Bar Fill 
+C-60 
+===== PAGE 110 =====
+GSX Programmer's Guide Required Opcode CRT Devices 
+REQUIRED OPCODE 
+FOR PLOTTERS AND 
+PRINTERS 
+Table C-2. (continued) 
+Opcode I Descr iption 
+12 Set character height 
+14 Set color representation 
+15 Set polyline linetype i 
+17 Set polyline color index 
+18 Set polymarker type 
+20 Set polymarker color index 
+22 Set text color index 
+25 Set fill color index 
+26 Inquire color representation 
+33 Set input mode (required only if 
+input locator, input valuator, 
+input choice, or input string is 
+present) 
+The following opcodes and subfunctions are 
+required for plotters and printers: 
+Table C-2. Opcode for CRT Devices 
+Opcode Definition 
+1 Open workstation 
+2 Close workstation 
+3 Clear workstation 
+4 Update workstation 
+5 Escape 
+Id J Definition 
+1 Inquire addressable 
+character cells 
+6 Polyline 
+7 Polymarker 
+8 Text 
+9 Filled area 
+10 Cell array 
+11 Graphic Drawing Primitive (GDP) 
+Id I Definition 
+I Bar Fill 
+12 Set character height 
+14 Set color representation 
+C-61 
+===== PAGE 111 =====
+GSX Programmer's Guide Opcode for Plotters and Printers 
+Table C-2. (continued) 
+Opcode I Description 
+15 Set polyline linetype 
+17 Set polyline color index 
+18 Set polymarker type 
+20 Set polymarker color index 
+22 Set text color index 
+25 Set fill color index 
+26 Inquire color representation 
+33 Set input mode (required only if 
+input locator, input valuator, 
+input choice, or input string 
+is present) 
+Determining if an opcode that is not required 
+is available in a particular driver can be done 
+in a couple of ways. One way is to check the 
+information about available features returned 
+from the OPEN WORKSTATION opcode. Another way 
+is to check the selected value returned from an 
+opcode against the requested value. If the two 
+values do not match, then either the opcode was 
+not available or the requested value was not 
+available, and a best fit value was selected~ 
+End of Appendix C 
+C-62 
+===== PAGE 112 =====
+Glossary 
+assignment table 
+BOOS 
+coordinate scaling 
+default device 
+driver 
+device driver 
+DR Draw 
+DR Graph 
+function code 
+GDOS 
+Assoc ia tes log ical dev ice numbers, called 
+workstation IDs, with specific GIOS files so 
+tha t dev ices can be referred to by number 
+within the application program. The Assignment 
+Table resides in a text file called ASSIGN.SYS 
+and can be modified using any text editor. 
+Basic Disk Operating System for the CP/M family 
+of operating systems. It contains the device­
+independent portion of the file system. The 
+device-dependent interface of CP/M is the BIOS 
+(Basic I/O System) module. 
+Transforms points from one space to another. In 
+GSX all point coordinates must be specified in 
+Normalized Device Coordinates with values 
+between 0 and 32,767. GDOS then scales these 
+coordinates into values appropriate for your 
+graphics device. 
+Larg 7st driver loaded during a graphics 
+seSSlon. It is always the first driver named in 
+the Assignment Table. 
+GIOS file that translates standard device­
+independent graphics operations to graphics 
+specific command sequences for a particular 
+device. Device drivers for graphics devices 
+are contained in the GIOS (Graphics I/O System) 
+portion of GSX. 
+Application program that provides an advanced 
+capability to create complex graphics. 
+Application program that allows you to graph and 
+plot data by making simple menu selections. 
+Number that indicates to the operating system 
+the function that is being requested when a 
+service call is made. 
+Graphics Device Operating System, or GDOS, is 
+the device-independent portion of GSX. It 
+services graphics requests and calls GIOS to 
+send commands to graphics devices. 
+Glossary-l 
+===== PAGE 113 =====
+GSX Programmer's Guide Glossary 
+Generalized 
+Drawing 
+Primitive (GDP) 
+GIN 
+GIOS 
+GKS 
+graphics mode 
+GSX 
+Graphical Kernel 
+System (GKS) 
+graphics 
+primitives 
+NOC 
+normalized 
+device coordinate 
+space 
+normalized 
+device coordinates 
+operation codes 
+A display function used to address special 
+device capabilities such as curve drawing. 
+Graphics Input mode 
+Graphics Input Output System, or GIOS, is the 
+device-dependent portion of GSX. GIOS files 
+are the individual device drivers which 
+translate between a particular device and the 
+standard VDI conventions. 
+Graphical Kernel System 
+Entered by executing the GSX command from the 
+operating system's user interface module. This 
+enables all graphics functions. 
+Graphics System Extension, or GSX, is the 
+graphics extension to the 8080 and 8086 family 
+of microcomputer operating systems. 
+An international standard for the 
+programming interface to graphics from an 
+application program. 
+Basic graphics operations performed by GSX: 
+for example, drawing lines, markers, and text 
+strings. 
+Normalized Device Coordinates 
+Uniform virtual space by which a graphics 
+application program passes graphics 
+informa tion to a device. GDOS translates 
+between NDC space and the Display Coordinates 
+(DC) of a particular device. 
+Virtual space in which all point coordinates 
+are mapped to values between a and 32,767. NDC 
+space serves as a common interface between 
+graphics devices. 
+Passed to GDOS as part of a parameter list: 
+indicates which graphics operation is 
+requested. 
+Glossary-2 
+===== PAGE 114 =====
+GSX Programmer's Guide Glossary 
+VDI 
+virtual device 
+interface 
+workstation 
+workstation 
+identification 
+number (ID) 
+Virtual Oevice Interface 
+Standard interface between device-dependent 
+and dev ice- independen t code in a graphics 
+environment. VOl makes all device drivers 
+appear identical to the calling program. GSX 
+is based on VOl, and all device dr i ver s wr it ten 
+for GSX must conform to the VOl specification. 
+Graphics device with one display surface and 
+zero or more input devices. 
+Logical unit number that specifies which 
+graphics device is currently active. Each 
+device driver has an associated workstation 10 
+which is specified in an Assignment Table in 
+file ASSIGN.SYS. 
+End of Glossary 
+Glossary-3 
+===== PAGE 115 =====
+
+===== PAGE 116 =====
+Index 
+A 
+arc, 8-30 
+architecture, 2-1 
+array elements, 4-2 
+aspect ratio, 4-3 
+ASSIGN.SYS, 4-4 
+assignment table, 3-7 
+assignment table format, 3-7 
+B 
+BAR, 8-30 
+c 
+cell array, 8-27 
+circle, 8-31 
+coordinate scaling, 2-2 
+D 
+device drivers, 1-4 
+dynamic loading, 3-1 
+E 
+error messages, 7-5 
+escape function 
+arc, 3-6 
+bar, 3-6 
+circle, 3-6 
+cursor down, 3-6 
+cursor left, 3-6 
+cursor right, 3-6 
+cursor up, 3-6 
+direct cursor address, 3-6 
+enter graphicx mode, 3-3 
+erase to end of screen, 3-6 
+erase to end of line, 3-6 
+exit graphics mode, 3-6 
+hardcopy, 3-6 
+home cursor, 3-6 
+inquire addressable 
+character cells, 3-3 
+inquire current cursor 
+address, 3-6 
+inquire tablet status, 3-6 
+output cursor addressable 
+text, 3-6 
+pie slice, 3-6 
+place cursor at location, 
+3-6 
+print graphic characters, 
+3-6 
+remove cursor, 3-6 
+reserved, 3-6 
+reverse video on, 3-6 
+reverse video off, 3-6 
+unused, 3-6 
+escape 
+F 
+cursor down, 8-10, 8-14 
+cursor left, 8-10, 8-15 
+cursor right, 8-10, 8-15 
+cursor up, 8-10, 8-14 
+direct cursor address, 8-10, 
+8-17 
+enter graphics mode, 8-10, 
+8-13 
+erase to end of line, 8-10, 
+8-17 
+erase to end of screen, 
+8-10, 8-16 
+exit graphics mode, 8-10, 
+8-13 
+hardcopy, 8-10 
+home cursor, 8-10, 8-16 
+inquire addressable 
+character cells, 8-10, 
+8-12 
+inquire current cursor 
+address, 8-10, 8-20 
+inquire tablet status, 8-10, 
+8-20 
+output cursor addressable 
+text, 8-10, 8-18 
+place graphic cursor at 
+location, 8-10, 8-21 
+remove last graphic cursor, 
+8-10, 8-22 
+reverse video off, 8-10, 
+8-19 
+reverse video on, 8-10, 8-19 
+filled area, 8-26 
+functions, 1-2 
+Index-l 
+===== PAGE 117 =====
+G 
+GDOS, 2-1 
+calling sequence, 3-2 
+functions, 3-1 
+generalized drawing primitive, 
+8-28 
+GrOS, 2-2 
+file 
+naming, 4-4 
+graphics 
+primitives, 2-3 
+requests, 1-4 
+GSX, 2-1 
+H 
+hard copy, 8-21 
+I 
+input 
+choice, 8-53 
+locator, 8-48 
+string, 8-55 
+valuator, 8-51 
+inquire 
+cell array, 8-47 
+color representation, 8-46 
+invoking device drivers, 7-3 
+L 
+loading GIOS files, 3-6 
+M 
+memory management, 3-8 
+memory requirements, 5-2 
+N 
+normalized coordinate space, 
+2-2 
+Normalized Device Coordinates 
+NDC, 3-2 
+o 
+operation code 
+cell array, 3-6 
+close workstation, 3-3, 8-9 
+escape, 8-10 
+filled text, 3-6 
+p 
+generalized drawing 
+primitive, 3-6 
+input choice, 3-6 
+input locator, 3-6 
+input string, 3-6 
+input valuator, 3-6 
+inquire cell array, 3-6 
+inquire color 
+representation, 3-6 
+open workstation, 3-3, 8-4 
+polyline, 3-6 
+polymarker, 3-6 
+set character height, 3-6 
+set character up vector, 3-6 
+set color representation, 
+3-6 
+set fill color index, 3-6 
+set fill interior style, 3-6 
+set fill style index, 3-6 
+set input mode, 3-6 
+set polyline color index, 
+3-6 
+set polyline linetype, 3-6 
+set polyline linewidth, 3-6 
+set polymarker type, 3-6 
+set polymarker scale, 3-6 
+set polymarker color index, 
+3-6 
+set text color index, 3-6 
+set text font, 3-6 
+set writing mode, 3-6 
+text, 3-6 
+update workstation, 8-10 
+pie slice, 8-30 
+plotters and printers, 8-61 
+polyline, 8-23 
+polymarker, 8-24 
+print graphic characters, 8-31 
+R 
+required opcode CRT Devices, 
+8-60 
+s 
+scaling factor, 4-3 
+set 
+character height, 8-33 
+character up vector, 8-34 
+color representation, 8-35 
+fill color index, 8-45 
+Index-2 
+===== PAGE 118 =====
+fill interior style, 8-42 
+fill style index, 8-43 
+input mode, 8-59 
+polyline color index, 8-37 
+polyline line width, 8-37 
+polyline linetype, 8-36 
+polymarker color index, 8-40 
+polymarker scale, 8-38 
+polymarker type, 8-38 
+text color index, 8-42 
+text font, 8-41 
+writing mode, 8-57 
+stack requirements, 5-2 
+T 
+text, 8-24 
+transforming points, 3-2 
+v 
+Virtual Device Interface VOl, 
+3-2, 4-2 
+Index-3 
+===== PAGE 119 =====
+NOTES 
+===== PAGE 120 =====
+
+===== PAGE 121 =====
+
+===== PAGE 122 =====
+Reader Comment Card 
+We welcome your comments and suggestions. They help us provide you with better 
+product documentation. 
+Date 
+1. What sections of this manual are especially helpful? 
+2. What suggestions do you have for improving this manual? What information 
+is missing or incomplete? Where are examples needed? 
+3. Did you find errors in this manual? (Specify section and page number.) 
+GSX™ Graphics Extension Programmer's Guide 
+Second Edition: September 1983 
+5000-2024 
+COMMENTS AND SUGGESTIONS BECOME THE PROPERTY OF DIGITAL RESEARCH. 
+===== PAGE 123 =====
+From: ______________________ _ 
+Attn: Publications Production 
+BUSINESS REPLY MAIL 
+FIRST CLASS / PERMIT NO. 182 / PACIFIC GROVE. CA 
+POSTAGE WILL BE PAID BY ADDRESSEE 
+[!Q] DIGITAL RESEARCHTW 
+P.o. Box 579 
+Pacific Grove, California 
+93950 
+NO POSTAGE 
+NECESSARY 
+IF MAILED IN THE 
+UNITED STATES 
+===== PAGE 124 =====
+
+===== PAGE 125 =====
+5QOO-2024 

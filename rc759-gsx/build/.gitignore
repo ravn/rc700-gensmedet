@@ -1,0 +1,8 @@
+# Build artefakter — genereres af rasm86/link86 via emu2
+*.obj
+*.lst
+*.sym
+*.h86
+*.cmd
+*.map
+*.a86

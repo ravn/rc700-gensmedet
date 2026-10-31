@@ -1,0 +1,271 @@
+; RC759 GSX-86 graphics driver (high-resolution monochrome, 1-plane, 1-console)
+; Original: scratch/zip-a-extract/dd759h1.sys  (8576 bytes)
+; Toolchain: RASM-86 1.2 + LINK-86 1.4
+; Build:
+;   rasm86 dd759h1.a86
+;   link86 dd759h1[DATA[ORIGIN[0],MAXIMUM[1000]],EXTRA[ADDITIONAL[200]]]
+
+	public	driver_entry
+
+; ============================================================================
+; CODE SEGMENT
+; ============================================================================
+	cseg
+
+; ----------------------------------------------------------------------------
+; GIOS entry dispatcher  CS:0000
+;
+; Far-called by GDOS.  DS:DX -> parameter block:
+;   PB+00  dd  far ptr contrl[]
+;   PB+04  dd  far ptr intin[]
+;   PB+08  dd  far ptr ptsin[]
+;   PB+0C  dd  far ptr intout[]
+;   PB+10  dd  far ptr ptsout[]
+; (PB+12 is start of contrl[] array — 10 words copied to stack by STD/LODSW)
+; ----------------------------------------------------------------------------
+driver_entry:
+	mov	ax,sp
+	mov	bx,ss
+	mov	cx,SEG jump_table	; fixup -> DATA segment
+	mov	ss,cx
+	mov	sp,0791h
+	push	bx
+	push	ax
+	push	ds
+	mov	si,dx
+	add	si,012h
+	mov	cx,00Ah
+	std
+intin_loop:
+	lodsw
+	push	ax
+	loop	intin_loop
+	push	bp
+	mov	bp,sp
+	mov	ax,SEG jump_table	; fixup -> DATA segment
+	mov	ds,ax
+	cld
+	les	di,2[bp]
+	mov	es:4[di],word ptr 0
+	mov	es:8[di],word ptr 0
+	mov	bx,es:[di]
+	cmp	bx,022h
+	ja	dispatch_done
+	shl	bx,1
+	call	word ptr 0100h[bx]
+dispatch_done:
+	pop	bp
+	add	sp,014h
+	pop	ds
+	pop	ax
+	pop	bx
+	mov	ss,bx
+	mov	sp,ax
+	retf
+
+; ============================================================================
+; HANDLER STUBS — bodies filled in tasks 3, 4, 5
+; ORG to exact offsets from original to ensure correct jump-table targets.
+; Pad between handlers with NOP (0x90) — will be replaced by real code.
+; ============================================================================
+
+	org	004Eh
+op01_OPEN_WORKSTATION:		; CS:004Eh
+	ret
+
+	org	0153h
+op02_CLOSE_WORKSTATION:		; CS:0153h
+	ret
+
+	org	0159h
+op03_CLEAR_WORKSTATION:		; CS:0159h
+	ret
+
+	org	016Dh
+op04_UPDATE_WORKSTATION:	; CS:016Dh
+	ret
+
+	org	016Eh
+op05_ESCAPE:			; CS:016Eh
+	ret
+
+	org	02D7h
+op06_POLYLINE:			; CS:02D7h
+	ret
+
+	org	04BFh
+op07_POLYMARKER:		; CS:04BFh
+	ret
+
+	org	050Fh
+op08_TEXT:			; CS:050Fh
+	ret
+
+	org	0706h
+op09_FILLED_AREA:		; CS:0706h
+	ret
+
+	org	08BEh
+op10_CELL_ARRAY:		; CS:08BEh
+	ret
+
+	org	0976h
+op11_GDP:			; CS:0976h
+	ret
+
+	org	0AA7h
+op12_SET_CHAR_HEIGHT:		; CS:0AA7h
+	ret
+
+	org	0AF6h
+op13_SET_CHAR_UP_VECTOR:	; CS:0AF6h
+	ret
+
+	org	0B20h
+op14_SET_COLOR_REP:		; CS:0B20h
+	ret
+
+	org	0B7Eh
+op15_SET_LINETYPE:		; CS:0B7Eh
+	ret
+
+	org	0B9Ch
+op16_SET_LINE_WIDTH:		; CS:0B9Ch
+	ret
+
+	org	0BB1h
+op17_SET_LINE_COLOR:		; CS:0BB1h
+	ret
+
+	org	0BCAh
+op18_SET_MARKER_TYPE:		; CS:0BCAh
+	ret
+
+	org	0BE8h
+op19_SET_MARKER_SCALE:		; CS:0BE8h
+	ret
+
+	org	0C2Bh
+op20_SET_MARKER_COLOR:		; CS:0C2Bh
+	ret
+
+	org	0C44h
+op21_SET_TEXT_FONT:		; CS:0C44h
+	ret
+
+	org	0C62h
+op22_SET_TEXT_COLOR:		; CS:0C62h
+	ret
+
+	org	0C7Bh
+op23_SET_FILL_STYLE:		; CS:0C7Bh
+	ret
+
+	org	0C98h
+op24_SET_FILL_INDEX:		; CS:0C98h
+	ret
+
+	org	0CB8h
+op25_SET_FILL_COLOR:		; CS:0CB8h
+	ret
+
+	org	0CDAh
+op26_INQUIRE_COLOR_REP:		; CS:0CDAh
+	ret
+
+	org	0D27h
+op27:				; CS:0D27h
+	ret
+
+	org	0D28h
+op28:				; CS:0D28h
+	ret
+
+	org	0E47h
+op29:				; CS:0E47h
+	ret
+
+	org	0E98h
+op30:				; CS:0E98h
+	ret
+
+	org	0EF5h
+op31:				; CS:0EF5h
+	ret
+
+	org	0F5Ch
+op32_SET_WRITING_MODE:		; CS:0F5Ch
+	ret
+
+	org	0F81h
+op33_SET_INPUT_MODE:		; CS:0F81h
+	ret
+
+	org	0FAFh
+op34_INQUIRE_INPUT_MODE:	; CS:0FAFh
+	ret
+
+	org	0FDDh
+op00_invalid:			; CS:0FDDh
+	ret
+
+	org	01040h
+
+; ============================================================================
+; DATA SEGMENT
+; ============================================================================
+	dseg
+
+	org	0
+
+	rb	100h		; DATA:0000..00FF (runtime state — task 6)
+
+; Jump table at DATA:0100 — 35 near CODE pointers, LINK-86 generates fixups
+jump_table:
+	dw	OFFSET op00_invalid
+	dw	OFFSET op01_OPEN_WORKSTATION
+	dw	OFFSET op02_CLOSE_WORKSTATION
+	dw	OFFSET op03_CLEAR_WORKSTATION
+	dw	OFFSET op04_UPDATE_WORKSTATION
+	dw	OFFSET op05_ESCAPE
+	dw	OFFSET op06_POLYLINE
+	dw	OFFSET op07_POLYMARKER
+	dw	OFFSET op08_TEXT
+	dw	OFFSET op09_FILLED_AREA
+	dw	OFFSET op10_CELL_ARRAY
+	dw	OFFSET op11_GDP
+	dw	OFFSET op12_SET_CHAR_HEIGHT
+	dw	OFFSET op13_SET_CHAR_UP_VECTOR
+	dw	OFFSET op14_SET_COLOR_REP
+	dw	OFFSET op15_SET_LINETYPE
+	dw	OFFSET op16_SET_LINE_WIDTH
+	dw	OFFSET op17_SET_LINE_COLOR
+	dw	OFFSET op18_SET_MARKER_TYPE
+	dw	OFFSET op19_SET_MARKER_SCALE
+	dw	OFFSET op20_SET_MARKER_COLOR
+	dw	OFFSET op21_SET_TEXT_FONT
+	dw	OFFSET op22_SET_TEXT_COLOR
+	dw	OFFSET op23_SET_FILL_STYLE
+	dw	OFFSET op24_SET_FILL_INDEX
+	dw	OFFSET op25_SET_FILL_COLOR
+	dw	OFFSET op26_INQUIRE_COLOR_REP
+	dw	OFFSET op27
+	dw	OFFSET op28
+	dw	OFFSET op29
+	dw	OFFSET op30
+	dw	OFFSET op31
+	dw	OFFSET op32_SET_WRITING_MODE
+	dw	OFFSET op33_SET_INPUT_MODE
+	dw	OFFSET op34_INQUIRE_INPUT_MODE
+
+	org	0C40h
+
+; ============================================================================
+; EXTRA SEGMENT
+; ============================================================================
+	eseg
+
+	org	0
+	rb	03E0h		; lookup tables (task 6)
+
+	end
