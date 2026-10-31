@@ -27,14 +27,14 @@
 driver_entry:
 	mov	ax,sp
 	mov	bx,ss
-	mov	cx,SEG jump_table	; fixup -> DATA segment
+	mov	cx,SEG jump_table               ; fixup -> DATA segment
 	mov	ss,cx
-	mov	sp,0791h
+	mov	sp,offset glyph_offsets-1       ; Original stack top below glyph table.
 	push	bx
 	push	ax
 	push	ds
-	mov	si,dx
-	add	si,012h
+	mov	si,dx                           ; DS:SI -> caller's five-pointer GSX PB.
+	add	si,012h                         ; PB+18: ptsout pointer's segment word.
 	mov	cx,00Ah
 	std
 copy_pb_loop:
@@ -43,17 +43,17 @@ copy_pb_loop:
 	loop	copy_pb_loop
 	push	bp
 	mov	bp,sp
-	mov	ax,SEG jump_table	; fixup -> DATA segment
+	mov	ax,SEG jump_table               ; fixup -> DATA segment
 	mov	ds,ax
 	cld
-	les	di,2[bp]
-	mov	es:4[di],word ptr 0
-	mov	es:8[di],word ptr 0
-	mov	bx,es:[di]
+	les	di,2[bp]                        ; ES:DI -> contrl[] (GSX stack frame +2)
+	mov	es:4[di],word ptr 0             ; contrl[2]: output coordinate-pair count
+	mov	es:8[di],word ptr 0             ; contrl[4]: output word count
+	mov	bx,es:[di]                      ; contrl[0]: function number
 	cmp	bx,022h
 	ja	dispatch_done
 	shl	bx,1
-	call	word ptr 0100h[bx]
+	call	word ptr jump_table[bx]
 dispatch_done:
 	pop	bp
 	add	sp,014h
@@ -72,74 +72,74 @@ dispatch_done:
 ; stores to attribute state variables.
 ; ============================================================================
 op01_OPEN_WORKSTATION:
-	mov	es:4[di],word ptr 6	; contrl[2] = nptsout = 6
-	mov	es:8[di],word ptr 02Dh	; contrl[4] = nintout = 45
-	les	di,0Eh[bp]		; ES:DI -> intout[]
-	mov	si,offset DEV_TAB	; DATA: intout defaults table
-	mov	cx,02Dh			; 45 words
+	mov	es:4[di],word ptr 6             ; contrl[2]: output coordinate-pair count
+	mov	es:8[di],word ptr 02Dh          ; contrl[4]: output word count
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
+	mov	si,offset DEV_TAB               ; DATA: intout defaults table
+	mov	cx,02Dh                         ; 45 words
 	rep movsw
-	les	di,012h[bp]		; ES:DI -> ptsout[]
-	mov	si,offset SIZ_TAB	; DATA: ptsout defaults table
-	mov	cx,00Ch			; 12 words
+	les	di,012h[bp]                     ; ES:DI -> ptsout[] (GSX stack frame +18)
+	mov	si,offset SIZ_TAB               ; DATA: ptsout defaults table
+	mov	cx,00Ch                         ; 12 words
 	rep movsw
-	mov	word ptr writing_mode,1	; GSX writing mode = replace
+	mov	word ptr writing_mode,1         ; GSX writing mode = replace
 	mov	ax,0
-	call	sincos_degrees		; angle 0 -> CX=sin=0, DX=cos=2048
-	mov	text_sine,cx		; text rotation sine
+	call	sincos_degrees                  ; angle 0 -> CX=sin=0, DX=cos=2048
+	mov	text_sine,cx                    ; text rotation sine
 	mov	marker_sine,cx
-	mov	text_cosine,dx		; text rotation cosine
+	mov	text_cosine,dx                  ; text rotation cosine
 	mov	marker_cosine,dx
 	mov	ax,8
 	shl	ax,1
-	shl	ax,1			; ax = 32 = marker size default
+	shl	ax,1                            ; ax = 32 = marker size default
 	mov	text_scale,ax
 	mov	marker_scale,ax
 	mov	ax,1
-	mov	v_line_width,ax		; default line width
-	mov	v_marker_scale,ax		; default marker scale
-	les	di,6[bp]		; ES:DI -> intin[]
-	mov	ax,es:[di]		; intin[1] = workstation id (ignored)
+	mov	v_line_width,ax                 ; default line width
+	mov	v_marker_scale,ax               ; default marker scale
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
+	mov	ax,es:[di]                      ; intin[1] = workstation id (ignored)
 	add	di,2
-	mov	v_wks_id,ax		; store
-	mov	ax,es:[di]		; intin[2] = linetype
+	mov	v_wks_id,ax                     ; store
+	mov	ax,es:[di]                      ; intin[2] = linetype
 	add	di,2
 	cmp	ax,7
 	jbe	ow_lt_ok
 	mov	ax,1
 ow_lt_ok:
 	mov	v_linetype,ax
-	mov	ax,es:[di]		; intin[3] = polyline color
+	mov	ax,es:[di]                      ; intin[3] = polyline color
 	call	sub_CD1h
 	mov	v_line_color,ax
-	mov	ax,es:[di]		; intin[4] = marker type
+	mov	ax,es:[di]                      ; intin[4] = marker type
 	add	di,2
 	cmp	ax,5
 	jbe	ow_mt_ok
 	mov	ax,5
 ow_mt_ok:
 	mov	v_marker_type,ax
-	mov	ax,es:[di]		; intin[5] = polymarker color
+	mov	ax,es:[di]                      ; intin[5] = polymarker color
 	add	di,2
 	call	sub_CD1h
 	mov	v_marker_color,ax
-	mov	ax,es:[di]		; intin[6] = text font
+	mov	ax,es:[di]                      ; intin[6] = text font
 	add	di,2
 	cmp	ax,1
 	jbe	ow_tf_ok
 	mov	ax,1
 ow_tf_ok:
 	mov	v_text_font,ax
-	mov	ax,es:[di]		; intin[7] = text color
+	mov	ax,es:[di]                      ; intin[7] = text color
 	add	di,2
 	call	sub_CD1h
 	mov	v_text_color,ax
-	mov	ax,es:[di]		; intin[8] = fill interior style
+	mov	ax,es:[di]                      ; intin[8] = fill interior style
 	cmp	ax,3
 	jbe	ow_fi_ok
 	mov	ax,0
 ow_fi_ok:
 	mov	v_fill_style,ax
-	mov	ax,es:[di]		; intin[9] = fill style index
+	mov	ax,es:[di]                      ; intin[9] = fill style index
 	add	di,2
 	dec	ax
 	cmp	ax,6
@@ -148,24 +148,24 @@ ow_fi_ok:
 ow_fs_ok:
 	inc	ax
 	mov	v_fill_index,ax
-	mov	ax,es:[di]		; intin[10] = fill color
+	mov	ax,es:[di]                      ; intin[10] = fill color
 	call	sub_CD1h
 	mov	v_fill_color,ax
 	push	ds
 	mov	ax,ds
 	mov	es,ax
-	mov	si,0219h		; copy 14 bytes within DATA
-	mov	di,0227h
+	mov	si,offset palette_defaults      ; copy 14 bytes within DATA
+	mov	di,offset palette_requested
 	mov	cx,00Eh
 	rep movsb
 	mov	ax,1
 	mov	cx,5
-	mov	di,02ABh
-	rep stosb			; store 5×1 bytes
+	mov	di,offset v_device_input_mode
+	rep stosb                               ; store 5×1 bytes
 	pop	ds
 	mov	word ptr locator_step_offset,0
 	mov	cl,1
-	jmp	init_graphics		; init graphics mode, return
+	jmp	init_graphics                   ; init graphics mode, return
 
 ; ============================================================================
 ; CLOSE WORKSTATION  CS:0153
@@ -180,9 +180,9 @@ op02_CLOSE_WORKSTATION:
 ; ============================================================================
 op03_CLEAR_WORKSTATION:
 	call	get_gcb_mutex
-	mov	ax,gcb_seg		; gcb_seg -> pixel memory segment
+	mov	ax,gcb_seg                      ; gcb_seg -> pixel memory segment
 	mov	es,ax
-	mov	cx,04000h		; 16384 words = 32KB
+	mov	cx,04000h                       ; 16384 words = 32KB
 	xor	ax,ax
 	mov	di,ax
 	rep stosw
@@ -201,30 +201,31 @@ op04_UPDATE_WORKSTATION:
 ; Sub-functions 0..0x13 (0..19) supported; higher -> ignore (ret).
 ; ============================================================================
 op05_ESCAPE:
-	mov	bx,es:0Ah[di]		; contrl[6] = escape sub-function ID
+	mov	bx,es:0Ah[di]                   ; contrl[5]: GDP/ESCAPE subfunction
 	cmp	bx,013h
 	jbe	esc_dispatch
 	ret
+
 esc_dispatch:
 	shl	bx,1
-	jmp	word ptr 0146h[bx]	; dispatch via escape sub-table
+	jmp	word ptr esc_table[bx]          ; dispatch via escape sub-table
 
 ; Escape sub-function 0: DRIVER IDENTIFICATION  CS:017E
 escfn0:
-	mov	si,0237h
+	mov	si,offset driver_identification
 	lodsw
-	mov	es:8[di],ax		; nintout = count
-	les	di,0Eh[bp]
+	mov	es:8[di],ax                     ; contrl[4]: output word count
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	cx,ax
 	rep movsw
 	ret
 
 ; Escape sub-function 1: INQUIRE ADDRESSABLE CHARACTER CELLS  CS:018E
 escfn1:
-	mov	es:8[di],word ptr 2
-	les	di,0Eh[bp]
-	mov	es:word ptr [di],018h	; display rows = 24
-	mov	es:2[di],word ptr 050h	; display columns = 80
+	mov	es:8[di],word ptr 2             ; contrl[4]: output word count
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
+	mov	es:word ptr [di],018h           ; display rows = 24
+	mov	es:2[di],word ptr 050h          ; display columns = 80
 	cmp	word ptr v_gfx_init,0
 	je	escfn1_done
 	mov	es:2[di],word ptr 050h
@@ -243,66 +244,66 @@ escfn3:
 
 ; Escape sub-function 4: CURSOR UP  CS:01BA
 escfn4:
-	mov	si,0263h
+	mov	si,offset seq_cursor_up
 	jmps	esc_send_seq
 
 ; Escape sub-function 5: CURSOR DOWN  CS:01BF
 escfn5:
-	mov	si,0269h
+	mov	si,offset seq_cursor_down
 	jmps	esc_send_seq
 
 ; Escape sub-function 6: CURSOR RIGHT  CS:01C4
 escfn6:
-	mov	si,026Fh
+	mov	si,offset seq_cursor_right
 	jmps	esc_send_seq
 
 ; Escape sub-function 7: CURSOR LEFT  CS:01C9
 escfn7:
-	mov	si,0275h
+	mov	si,offset seq_cursor_left
 	jmps	esc_send_seq
 
 ; Escape sub-function 8: HOME CURSOR  CS:01CE
 escfn8:
-	mov	si,027Bh
+	mov	si,offset seq_cursor_home
 	jmp	esc_send_seq
 
 ; Escape sub-function 9: ERASE TO END OF SCREEN  CS:01D4
 escfn9:
-	mov	si,0281h
+	mov	si,offset seq_erase_screen
 	jmps	esc_send_seq
 
 ; Escape sub-function 10: ERASE TO END OF LINE  CS:01D9
 escf10:
-	mov	si,0287h
+	mov	si,offset seq_erase_line
 	jmps	esc_send_seq
 
 ; Escape sub-function 11: DIRECT CURSOR ADDRESS  CS:01DE
 escf11:
-	les	di,6[bp]
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	ax,es:[di]
 	add	ax,01Fh
 	mov	v_cursor_x,ax
 	mov	ax,es:2[di]
 	add	ax,01Fh
 	mov	v_cursor_y,ax
-	mov	si,0299h
+	mov	si,offset seq_cursor_address
 	jmps	esc_send_seq
 
 ; Escape sub-function 12: OUTPUT ALPHANUMERIC TEXT  CS:01F9
 escf12:
-	mov	cx,es:6[di]
+	mov	cx,es:6[di]                     ; contrl[3]: input word count
 	add	v_marker_scale,cx
-	les	si,6[bp]
+	les	si,6[bp]                        ; ES:SI -> intin[] (GSX stack frame +6)
 	jmps	esc_send_seq_mid
 
 ; Escape sub-function 13: REVERSE VIDEO ON  CS:0206
 escf13:
-	mov	si,028Dh
+	mov	si,offset seq_reverse_on
 	jmps	esc_send_seq
 
 ; Escape sub-function 14: REVERSE VIDEO OFF  CS:020B
 escf14:
-	mov	si,0293h
+	mov	si,offset seq_reverse_off
 
 ; Common tail: send escape sequence from DS:SI  CS:020E
 esc_send_seq:
@@ -321,10 +322,10 @@ esc_send_done:
 
 ; Escape sub-function 15: INQUIRE CURRENT CURSOR ADDRESS  CS:021F
 escf15:
-	mov	es:8[di],word ptr 2
+	mov	es:8[di],word ptr 2             ; contrl[4]: output word count
 	mov	al,016h
-	int	028h			; XIOS fn 22: GetCursorPos
-	les	di,0Eh[bp]
+	int	028h                            ; XIOS fn 22: GetCursorPos
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	al,bh
 	cbw
 	mov	es:[di],ax
@@ -334,8 +335,8 @@ escf15:
 
 ; Escape sub-function 16: INQUIRE INPUT-DEVICE STATUS  CS:0239
 escf16:
-	mov	es:8[di],word ptr 1
-	les	di,0Eh[bp]
+	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	es:word ptr [di],0
 	ret
 
@@ -345,7 +346,7 @@ escf17:
 
 ; Escape sub-function 18: PLACE GRAPHIC CURSOR AT LOCATION  CS:0249
 escf18:
-	les	di,0Ah[bp]
+	les	di,0Ah[bp]                      ; ES:DI -> ptsin[] (GSX stack frame +10)
 	mov	ax,es:[di]
 	mov	v_saved_x,ax
 	mov	v_draw_x,ax
@@ -402,22 +403,22 @@ sub_2C4h_hi_ok:
 sub_2C4h_lo_ok:
 	ret
 
-op06_POLYLINE:			; CS:02D7h
+op06_POLYLINE:                                  ; CS:02D7h
 	call	get_gcb_mutex
 	mov	bx,v_linetype
 	shl	bx,1
-	mov	ax,01C1h[bx]
+	mov	ax,word ptr line_type_base[bx]
 	mov	draw_pattern,ax
 	mov	dx,writing_mode
 	mov	bx,v_line_color
 	call	load_pixel_lut
 	mov	word ptr v_polyline_state,0
-	mov	cx,es:2[di]
+	mov	cx,es:2[di]                     ; contrl[1]: input coordinate-pair count
 	dec	cx
 	cmp	cx,0
 	jle	op06_done
 op06_load_points:
-	les	di,0Ah[bp]
+	les	di,0Ah[bp]                      ; ES:DI -> ptsin[] (GSX stack frame +10)
 op06_points:
 	cmp	cx,1
 	jne	op06_first_point
@@ -451,7 +452,7 @@ sub_337h:
 sub_337_done:
 	ret
 
-abline:			; CS:034Dh
+abline:                                         ; CS:034Dh
 	push	es
 	push	si
 	push	di
@@ -543,6 +544,7 @@ sub_34d_done:
 	pop	si
 	pop	es
 	ret
+
 sub_34d_single_pixel:
 	mov	word ptr v_polyline_state,0FFh
 	push	cx
@@ -600,14 +602,14 @@ concat:
 	mov	bx,word ptr bit_masks[bx]
 	ret
 
-load_pixel_lut:			; CS:0492h
+load_pixel_lut:                                 ; CS:0492h
 	mov	pixel_mode,dl
 	cmp	bx,2
 	jb	sub_492_color_ok
 	mov	bx,1
 sub_492_color_ok:
-	mov	dh,0235h[bx]
-	mov	bx,01B9h
+	mov	dh,byte ptr pixel_color_control[bx]
+	mov	bx,offset pixel_lut
 	mov	cx,1
 sub_492_loop:
 	sar	dh,1
@@ -616,266 +618,270 @@ sub_492_loop:
 	shl	al,1
 	shl	al,1
 	xor	ah,ah
-	add	ax,01F1h
+	add	ax,offset pixel_truth_tables
 	mov	word ptr [bx],ax
 	add	bx,2
 	loop	sub_492_loop
 	ret
 
-op07_POLYMARKER:		; CS:04BFh
-		call	get_gcb_mutex
-		mov	ax,marker_sine
-		mov	transform_sine,ax
-		mov	ax,marker_cosine
-		mov	transform_cosine,ax
-		mov	ax,marker_scale
-		mov	transform_scale,ax
-		mov	draw_pattern,0FFFFh
-		mov	dx,writing_mode
-		mov	bx,v_marker_color
-		call	load_pixel_lut
-		mov	cx,es:word ptr 2[di]
-		jcxz	op07_done
-		les	di,0Ah[bp]
-	op07_loop:
-		mov	ax,es:word ptr [di]
-		mov	v_draw_x,ax
-		mov	ax,es:word ptr 2[di]
-		mov	v_draw_y,ax
-		add	di,4
-		mov	ax,v_marker_type
-		push	es
-		push	di
-		push	cx
-		call	draw_vector_glyph
-		pop	cx
-		pop	di
-		pop	es
-		loop	op07_loop
-	op07_done:
-		jmp	free_gcb_mutex
+op07_POLYMARKER:                                ; CS:04BFh
+	call	get_gcb_mutex
+	mov	ax,marker_sine
+	mov	transform_sine,ax
+	mov	ax,marker_cosine
+	mov	transform_cosine,ax
+	mov	ax,marker_scale
+	mov	transform_scale,ax
+	mov	draw_pattern,0FFFFh
+	mov	dx,writing_mode
+	mov	bx,v_marker_color
+	call	load_pixel_lut
+	mov	cx,es:word ptr 2[di]            ; contrl[1]: input coordinate-pair count
+	jcxz	op07_done
+	les	di,0Ah[bp]                      ; ES:DI -> ptsin[] (GSX stack frame +10)
+op07_loop:
+	mov	ax,es:word ptr [di]
+	mov	v_draw_x,ax
+	mov	ax,es:word ptr 2[di]
+	mov	v_draw_y,ax
+	add	di,4
+	mov	ax,v_marker_type
+	push	es
+	push	di
+	push	cx
+	call	draw_vector_glyph
+	pop	cx
+	pop	di
+	pop	es
+	loop	op07_loop
+op07_done:
+	jmp	free_gcb_mutex
 
-	op08_TEXT:			; CS:050Fh
-		call	get_gcb_mutex
-		mov	ax,text_sine
-		mov	transform_sine,ax
-		mov	ax,text_cosine
-		mov	transform_cosine,ax
-		mov	ax,text_scale
-		mov	transform_scale,ax
-		mov	draw_pattern,0FFFFh
-		mov	dx,writing_mode
-		mov	bx,v_text_color
-		call	load_pixel_lut
-		mov	cx,es:6[di]
-		jcxz	op08_done
-		les	di,0Ah[bp]
-		mov	ax,es:[di]
-		mov	v_text_x,ax
-		mov	ax,es:2[di]
-		mov	v_text_y,ax
-		push	cx
-		mov	cx,6
-		shl	word ptr v_text_x,cl
-		shl	word ptr v_text_y,cl
-		mov	ax,ds
-		mov	es,ax
-		mov	di,03F0h
-		mov	es:word ptr [di],8
-		mov	es:word ptr 2[di],0
-		call	transform_text_advance
-		pop	cx
-		les	di,6[bp]
-	op08_char_loop:
-		mov	al,es:[di]
-		cmp	al,7Fh
-		jbe	op08_char_ready
-		mov	al,20h
-	op08_char_ready:
-		inc	di
-		inc	di
-		push	es
-		push	di
-		push	cx
-		mov	cx,6
-		mov	bx,v_text_x
-		shr	bx,cl
-		mov	v_draw_x,bx
-		mov	bx,v_text_y
-		shr	bx,cl
-		mov	v_draw_y,bx
-		call	draw_vector_glyph
-		mov	ax,v_text_dx
-		add	v_text_x,ax
-		mov	ax,v_text_dy
-		add	v_text_y,ax
-		pop	cx
-		pop	di
-		pop	es
-		loop	op08_char_loop
-	op08_done:
-		jmp	free_gcb_mutex
+op08_TEXT:                                      ; CS:050Fh
+	call	get_gcb_mutex
+	mov	ax,text_sine
+	mov	transform_sine,ax
+	mov	ax,text_cosine
+	mov	transform_cosine,ax
+	mov	ax,text_scale
+	mov	transform_scale,ax
+	mov	draw_pattern,0FFFFh
+	mov	dx,writing_mode
+	mov	bx,v_text_color
+	call	load_pixel_lut
+	mov	cx,es:6[di]
+	jcxz	op08_done
+	les	di,0Ah[bp]                      ; ES:DI -> ptsin[] (GSX stack frame +10)
+	mov	ax,es:[di]
+	mov	v_text_x,ax
+	mov	ax,es:2[di]
+	mov	v_text_y,ax
+	push	cx
+	mov	cx,6
+	shl	word ptr v_text_x,cl
+	shl	word ptr v_text_y,cl
+	mov	ax,ds
+	mov	es,ax
+	mov	di,offset v_text_dx
+	mov	es:word ptr [di],8
+	mov	es:word ptr 2[di],0
+	call	transform_text_advance
+	pop	cx
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
+op08_char_loop:
+	mov	al,es:[di]
+	cmp	al,7Fh
+	jbe	op08_char_ready
+	mov	al,20h
+op08_char_ready:
+	inc	di
+	inc	di
+	push	es
+	push	di
+	push	cx
+	mov	cx,6
+	mov	bx,v_text_x
+	shr	bx,cl
+	mov	v_draw_x,bx
+	mov	bx,v_text_y
+	shr	bx,cl
+	mov	v_draw_y,bx
+	call	draw_vector_glyph
+	mov	ax,v_text_dx
+	add	v_text_x,ax
+	mov	ax,v_text_dy
+	add	v_text_y,ax
+	pop	cx
+	pop	di
+	pop	es
+	loop	op08_char_loop
+op08_done:
+	jmp	free_gcb_mutex
 
 	; Signed high/low nibbles encode x/y; 80h splits strokes, 88h ends.
 	; Marker 2 starts D0h,30h -> (-3,0),(3,0), then a separate stroke.
-	draw_vector_glyph:			; CS:05AEh
-		xor	ah,ah
-		shl	ax,1
-		mov	si,ax
-		mov	si,word ptr 0792h[si]
+draw_vector_glyph:                              ; CS:05AEh
+	xor	ah,ah
+	shl	ax,1
+	mov	si,ax
+	mov	si,word ptr glyph_offsets[si]
 sub_5AE_restart:
-		mov	word ptr v_text_point_count,0
-		mov	di,0316h
-		mov	ax,ds
-		mov	es,ax
-	sub_5AE_next:
-		lodsb
-		cmp	al,88h
-		je	draw_glyph_stroke
-		cmp	al,80h
-		jne	sub_5AE_decode
-		call	draw_glyph_stroke
-		jmps	sub_5AE_restart
-	sub_5AE_decode:
-		mov	bl,al
-		and	ax,000Fh
-		test	al,8
-		je	sub_5AE_y_ready
-		or	ax,0FFF0h
-	sub_5AE_y_ready:
-		mov	es:word ptr 2[di],ax
-		and	bx,00F0h
-		shr	bx,1
-		shr	bx,1
-		shr	bx,1
-		shr	bx,1
-		test	bl,8
-		je	sub_5AE_x_ready
-		or	bx,0FFF0h
-	sub_5AE_x_ready:
-		mov	es:word ptr [di],bx
-		call	transform_glyph_point
-		mov	ax,v_draw_x
-		add	es:word ptr [di],ax
-		jns	sub_5AE_x_clamped
-		mov	es:word ptr [di],0
-	sub_5AE_x_clamped:
-		mov	ax,v_draw_y
-		add	es:word ptr 2[di],ax
-		jns	sub_5AE_y_clamped
-		mov	es:word ptr 2[di],0
-	sub_5AE_y_clamped:
-		inc	word ptr v_text_point_count
-		add	di,4
-		jmps	sub_5AE_next
-	draw_glyph_stroke:
-		mov	cx,v_text_point_count
-		jcxz	sub_623_done
-		dec	cx
-		mov	di,0316h
-		mov	word ptr v_polyline_state,0
-		call	op06_points
-	sub_623_done:
-		ret
-	transform_glyph_point:
-		mov	ax,es:word ptr [di]
-		imul	word ptr transform_cosine
-		mov	cx,ax
-		mov	ax,es:word ptr 2[di]
-		imul	word ptr transform_sine
-		sub	cx,ax
-		mov	ax,cx
-		imul	word ptr transform_scale
-		mov	ax,es:word ptr [di]
-		mov	es:word ptr [di],dx
-		imul	word ptr transform_sine
-		mov	cx,ax
-		mov	ax,es:word ptr 2[di]
-		imul	word ptr transform_cosine
-		add	ax,cx
-		imul	word ptr transform_scale
-		mov	es:word ptr 2[di],dx
-		ret
-	transform_text_advance:
-		mov	ax,es:word ptr [di]
-		imul	word ptr transform_cosine
-		mov	cx,ax
-		mov	ax,es:word ptr 2[di]
-		imul	word ptr transform_sine
-		sub	cx,ax
-		mov	ax,cx
-		imul	word ptr transform_scale
-		shl	ax,1
-		rcl	dx,1
-		shl	ax,1
-		rcl	dx,1
-		shl	ax,1
-		rcl	dx,1
-		shl	ax,1
-		rcl	dx,1
-		shl	ax,1
-		rcl	dx,1
-		shl	ax,1
-		rcl	dx,1
-		mov	ax,es:word ptr [di]
-		mov	es:word ptr [di],dx
-		imul	word ptr transform_sine
-		mov	cx,ax
-		mov	ax,es:word ptr 2[di]
-		imul	word ptr transform_cosine
-		add	ax,cx
-		imul	word ptr transform_scale
-		shl	ax,1
-		rcl	dx,1
-		shl	ax,1
-		rcl	dx,1
-		shl	ax,1
-		rcl	dx,1
-		shl	ax,1
-		rcl	dx,1
-		shl	ax,1
-		rcl	dx,1
-		shl	ax,1
-		rcl	dx,1
-		mov	es:word ptr 2[di],dx
-		ret
+	mov	word ptr v_text_point_count,0
+	mov	di,offset v_text_points
+	mov	ax,ds
+	mov	es,ax
+sub_5AE_next:
+	lodsb
+	cmp	al,88h
+	je	draw_glyph_stroke
+	cmp	al,80h
+	jne	sub_5AE_decode
+	call	draw_glyph_stroke
+	jmps	sub_5AE_restart
+sub_5AE_decode:
+	mov	bl,al
+	and	ax,000Fh
+	test	al,8
+	je	sub_5AE_y_ready
+	or	ax,0FFF0h
+sub_5AE_y_ready:
+	mov	es:word ptr 2[di],ax
+	and	bx,00F0h
+	shr	bx,1
+	shr	bx,1
+	shr	bx,1
+	shr	bx,1
+	test	bl,8
+	je	sub_5AE_x_ready
+	or	bx,0FFF0h
+sub_5AE_x_ready:
+	mov	es:word ptr [di],bx
+	call	transform_glyph_point
+	mov	ax,v_draw_x
+	add	es:word ptr [di],ax
+	jns	sub_5AE_x_clamped
+	mov	es:word ptr [di],0
+sub_5AE_x_clamped:
+	mov	ax,v_draw_y
+	add	es:word ptr 2[di],ax
+	jns	sub_5AE_y_clamped
+	mov	es:word ptr 2[di],0
+sub_5AE_y_clamped:
+	inc	word ptr v_text_point_count
+	add	di,4
+	jmps	sub_5AE_next
+draw_glyph_stroke:
+	mov	cx,v_text_point_count
+	jcxz	sub_623_done
+	dec	cx
+	mov	di,offset v_text_points
+	mov	word ptr v_polyline_state,0
+	call	op06_points
+sub_623_done:
+	ret
+
+transform_glyph_point:
+	mov	ax,es:word ptr [di]
+	imul	word ptr transform_cosine
+	mov	cx,ax
+	mov	ax,es:word ptr 2[di]
+	imul	word ptr transform_sine
+	sub	cx,ax
+	mov	ax,cx
+	imul	word ptr transform_scale
+	mov	ax,es:word ptr [di]
+	mov	es:word ptr [di],dx
+	imul	word ptr transform_sine
+	mov	cx,ax
+	mov	ax,es:word ptr 2[di]
+	imul	word ptr transform_cosine
+	add	ax,cx
+	imul	word ptr transform_scale
+	mov	es:word ptr 2[di],dx
+	ret
+
+transform_text_advance:
+	mov	ax,es:word ptr [di]
+	imul	word ptr transform_cosine
+	mov	cx,ax
+	mov	ax,es:word ptr 2[di]
+	imul	word ptr transform_sine
+	sub	cx,ax
+	mov	ax,cx
+	imul	word ptr transform_scale
+	shl	ax,1
+	rcl	dx,1
+	shl	ax,1
+	rcl	dx,1
+	shl	ax,1
+	rcl	dx,1
+	shl	ax,1
+	rcl	dx,1
+	shl	ax,1
+	rcl	dx,1
+	shl	ax,1
+	rcl	dx,1
+	mov	ax,es:word ptr [di]
+	mov	es:word ptr [di],dx
+	imul	word ptr transform_sine
+	mov	cx,ax
+	mov	ax,es:word ptr 2[di]
+	imul	word ptr transform_cosine
+	add	ax,cx
+	imul	word ptr transform_scale
+	shl	ax,1
+	rcl	dx,1
+	shl	ax,1
+	rcl	dx,1
+	shl	ax,1
+	rcl	dx,1
+	shl	ax,1
+	rcl	dx,1
+	shl	ax,1
+	rcl	dx,1
+	shl	ax,1
+	rcl	dx,1
+	mov	es:word ptr 2[di],dx
+	ret
 
 	; AX is degrees: quadrant reflection/signs extend a 0..90 sine table.
 	; Example: AX=90 -> CX=2048 (sine), DX=0 (cosine).
-	sincos_degrees:			; CS:06D7h
-		xor	dx,dx
-		mov	bx,5Ah
-		div	bx
-		call	sin_quadrant
-		push	cx
-		inc	ax
-		call	sin_quadrant
-		mov	dx,cx
-		pop	cx
-		ret
-	sin_quadrant:
-		push	ax
-		mov	bx,dx
-		and	al,3
-		shr	al,1
-		jae	sub_6EAh_x_ready
-		sub	bx,5Ah
-		neg	bx
-	sub_6EAh_x_ready:
-		shl	bx,1
-		mov	cx,word ptr sine_table[bx]
-		shr	al,1
-		jae	sub_6EAh_done
-		neg	cx
-	sub_6EAh_done:
-		pop	ax
-		ret
+sincos_degrees:                                 ; CS:06D7h
+	xor	dx,dx
+	mov	bx,5Ah
+	div	bx
+	call	sin_quadrant
+	push	cx
+	inc	ax
+	call	sin_quadrant
+	mov	dx,cx
+	pop	cx
+	ret
 
-op09_FILLED_AREA:		; CS:0706h
-	mov	ax,es:2[di]
+sin_quadrant:
+	push	ax
+	mov	bx,dx
+	and	al,3
+	shr	al,1
+	jae	sub_6EAh_x_ready
+	sub	bx,5Ah
+	neg	bx
+sub_6EAh_x_ready:
+	shl	bx,1
+	mov	cx,word ptr sine_table[bx]
+	shr	al,1
+	jae	sub_6EAh_done
+	neg	cx
+sub_6EAh_done:
+	pop	ax
+	ret
+
+op09_FILLED_AREA:                               ; CS:0706h
+	mov	ax,es:2[di]                     ; contrl[1]: input coordinate-pair count
 	cmp	ax,1
 	jg	op09_start
 	ret
+
 op09_start:
 	push	ax
 	call	get_gcb_mutex
@@ -905,7 +911,7 @@ op09_pattern_ready:
 	mov	v_fill_pattern_offset,bx
 	mov	v_fill_min_y,03E8h
 	mov	v_fill_max_y,0
-	les	di,0Ah[bp]
+	les	di,0Ah[bp]                      ; ES:DI -> ptsin[] (GSX stack frame +10)
 	mov	cx,v_fill_npts
 op09_bounds_loop:
 	mov	ax,es:2[di]
@@ -931,7 +937,7 @@ op09_scanline_setup:
 op09_collect_intersections:
 	mov	word ptr v_fill_intersection_count,0
 	mov	cx,v_fill_npoints_minus1
-	les	si,0Ah[bp]
+	les	si,0Ah[bp]                      ; ES:SI -> ptsin[] (GSX stack frame +10)
 op09_edge_loop:
 	push	cx
 	lea	di,4[si]
@@ -941,7 +947,7 @@ op09_edge_loop:
 	add	si,4
 	pop	cx
 	loop	op09_edge_loop
-	les	di,0Ah[bp]
+	les	di,0Ah[bp]                      ; ES:DI -> ptsin[] (GSX stack frame +10)
 	call	sub_84Bh
 	mov	ax,v_fill_intersection_count
 	shr	ax,1
@@ -954,7 +960,7 @@ op09_edge_loop:
 	add	si,v_fill_pattern_offset
 	mov	al,[si]
 	mov	ah,al
-	mov	bx,0316h
+	mov	bx,offset v_text_points
 op09_pattern_loop:
 	push	bx
 	push	ax
@@ -987,7 +993,7 @@ op09_done:
 	dec	cx
 	je	op09_return
 	call	op06_load_points
-	les	di,0Ah[bp]
+	les	di,0Ah[bp]                      ; ES:DI -> ptsin[] (GSX stack frame +10)
 	mov	ax,es:[di]
 	mov	v_x1,ax
 	mov	ax,es:2[di]
@@ -1003,6 +1009,7 @@ op09_return:
 	jmp	free_gcb_mutex
 sub_84Ah:
 	ret
+
 sub_84Bh:
 	mov	bx,es:2[di]
 	sub	bx,es:2[si]
@@ -1039,7 +1046,7 @@ sub_84b_insert:
 	push	es
 	mov	bx,ds
 	mov	es,bx
-	mov	di,0316h
+	mov	di,offset v_text_points
 	mov	cx,v_fill_intersection_count
 	jcxz	sub_84b_store
 sub_84b_scan:
@@ -1050,7 +1057,7 @@ sub_84b_scan:
 sub_84b_shift:
 	mov	di,v_fill_intersection_count
 	shl	di,1
-	add	di,0316h
+	add	di,offset v_text_points
 	lea	si,-2[di]
 	std
 	rep	movsw
@@ -1061,20 +1068,20 @@ sub_84b_store:
 	pop	es
 	ret
 
-op10_CELL_ARRAY:		; CS:08BEh
+op10_CELL_ARRAY:                                ; CS:08BEh
 	call	get_gcb_mutex
-	mov	bx,es:10h[di]
+	mov	bx,es:10h[di]                   ; contrl[8]: cell-array pixel operation.
 	mov	v_cell_color,bx
-	mov	bx,es:0Eh[di]
-	mov	si,es:0Ch[di]
+	mov	bx,es:0Eh[di]                   ; contrl[7]: cell-array row count
+	mov	si,es:0Ch[di]                   ; contrl[6]: used elements per cell-array row
 	or	si,si
 	jne	op10_dimensions_ready
 	jmp	free_gcb_mutex
 op10_dimensions_ready:
 	mov	v_cell_columns,si
-	mov	ax,es:0Ah[di]
+	mov	ax,es:0Ah[di]                   ; contrl[5]: declared cell-array row length
 	mov	v_cell_row_stride,ax
-	les	di,0Ah[bp]
+	les	di,0Ah[bp]                      ; ES:DI -> ptsin[] (GSX stack frame +10)
 	mov	ax,es:6[di]
 	mov	v_x2,ax
 	mov	cx,es:2[di]
@@ -1091,10 +1098,10 @@ op10_dimensions_ready:
 	div	si
 	mov	v_cell_width,ax
 	mov	draw_pattern,0FFFFh
-	les	di,2[bp]
-	mov	cx,es:0Eh[di]
+	les	di,2[bp]                        ; ES:DI -> contrl[] (GSX stack frame +2)
+	mov	cx,es:0Eh[di]                   ; contrl[7]: cell-array row count
 	jcxz	op10_done
-	les	di,6[bp]
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 op10_cell_loop:
 	push	cx
 	mov	cx,v_cell_height
@@ -1135,20 +1142,21 @@ op10_column_loop:
 op10_done:
 	jmp	free_gcb_mutex
 
-op11_GDP:			; CS:0976h
-	mov	bx,es:0Ah[di]
+op11_GDP:                                       ; CS:0976h
+	mov	bx,es:0Ah[di]                   ; contrl[5]: GDP/ESCAPE subfunction
 	cmp	bx,7
 	jbe	op11_dispatch
 	ret
+
 op11_dispatch:
 	shl	bx,1
-	jmp	word ptr 016Eh[bx]
-gdp01:
+	jmp	word ptr gdp_table[bx]
+gdpbar:                                         ; DRI skeleton name; GDP 1, bar.
 	call	get_gcb_mutex
 	mov	bx,v_fill_color
 	mov	dx,writing_mode
 	call	load_pixel_lut
-	les	di,0Ah[bp]
+	les	di,0Ah[bp]                      ; ES:DI -> ptsin[] (GSX stack frame +10)
 	mov	ax,es:4[di]
 	sub	ax,es:[di]
 	mov	v_cell_row_stride,ax
@@ -1172,7 +1180,7 @@ gdp01_pattern_ready:
 	shl	si,cl
 	add	si,offset fill_tiles
 	mov	v_fill_pattern_offset,si
-	les	di,0Ah[bp]
+	les	di,0Ah[bp]                      ; ES:DI -> ptsin[] (GSX stack frame +10)
 	mov	ax,es:[di]
 	inc	ax
 	mov	v_x1,ax
@@ -1208,7 +1216,7 @@ gdp01_fill_loop:
 gdp01_outline:
 	mov	word ptr v_polyline_state,0FFh
 	mov	draw_pattern,0FFFFh
-	les	di,0Ah[bp]
+	les	di,0Ah[bp]                      ; ES:DI -> ptsin[] (GSX stack frame +10)
 	mov	ax,es:[di]
 	mov	v_x1,ax
 	mov	ax,es:4[di]
@@ -1244,14 +1252,22 @@ gdp01_outline:
 	call	abline
 	jmp	free_gcb_mutex
 
-	ret
-	ret
-	ret
+; Original GDP 2..5 entries are distinct RET stubs, not implementations.
+gdp02_stub:
 	ret
 
-op12_SET_CHAR_HEIGHT:		; CS:0AA7h
-	mov	es:4[di],word ptr 2
-	les	di,0Ah[bp]
+gdp03_stub:
+	ret
+
+gdp04_stub:
+	ret
+
+gdp05_stub:
+	ret
+
+op12_SET_CHAR_HEIGHT:                           ; CS:0AA7h
+	mov	es:4[di],word ptr 2             ; contrl[2]: output coordinate-pair count
+	les	di,0Ah[bp]                      ; ES:DI -> ptsin[] (GSX stack frame +10)
 	mov	bx,es:2[di]
 	mov	cl,3
 	shl	bx,cl
@@ -1268,7 +1284,7 @@ op12_min_ready:
 	jbe	op12_size_ready
 	mov	bx,0F0h
 op12_size_ready:
-	les	di,12h[bp]
+	les	di,12h[bp]                      ; ES:DI -> ptsout[] (GSX stack frame +18)
 	mov	es:4[di],bx
 	mov	es:6[di],bx
 	shl	bx,1
@@ -1282,9 +1298,9 @@ op12_size_ready:
 	mov	text_scale,bx
 	ret
 
-op13_SET_CHAR_UP_VECTOR:	; CS:0AF6h
-	mov	es:8[di],word ptr 1
-	les	di,6[bp]
+op13_SET_CHAR_UP_VECTOR:                        ; CS:0AF6h
+	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	ax,es:[di]
 	add	ax,5
 	xor	dx,dx
@@ -1295,19 +1311,19 @@ op13_SET_CHAR_UP_VECTOR:	; CS:0AF6h
 	pop	ax
 	mov	text_sine,cx
 	mov	text_cosine,dx
-	les	di,0Eh[bp]
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	es:word ptr [di],ax
 	ret
 
-op14_SET_COLOR_REP:		; CS:0B20h
-	les	di,6[bp]
+op14_SET_COLOR_REP:                             ; CS:0B20h
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	bx,es:[di]
 	cmp	bx,2
 	jae	op14_done
 	mov	ax,6
 	mul	bl
 	mov	si,ax
-	add	si,0227h
+	add	si,offset palette_requested
 	mov	dx,4
 	mov	cx,3
 op14_component_loop:
@@ -1326,18 +1342,19 @@ op14_component_loop:
 op14_component_next:
 	shr	dl,1
 	loop	op14_component_loop
-	mov	byte ptr 0233h[bx],dh
+	mov	byte ptr palette_realized[bx],dh
 	sub	sp,10h
 	mov	bp,sp
-	mov	bx,0233h
+	mov	bx,offset palette_realized
 	call	sub_B74h
-	mov	byte ptr [bp],al
-	mov	dx,bp
+	mov	byte ptr [bp],al                ; Temporary XIOS buffer: packed palette.
+	mov	dx,bp                           ; SS:DX -> XIOS buffer, not the GSX PB.
 	mov	al,1Fh
 	int	028h
 	add	sp,10h
 op14_done:
 	ret
+
 sub_B74h:
 	mov	al,1[bx]
 	mov	cl,4
@@ -1345,52 +1362,52 @@ sub_B74h:
 	or	al,[bx]
 	ret
 
-op15_SET_LINETYPE:		; CS:0B7Eh
-	mov	es:8[di],word ptr 1
-	les	di,6[bp]
+op15_SET_LINETYPE:                              ; CS:0B7Eh
+	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	ax,es:[di]
 	cmp	ax,7
 	jbe	op15_value_ready
 	mov	ax,1
 op15_value_ready:
-	les	di,0Eh[bp]
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	v_linetype,ax
 	mov	es:word ptr [di],ax
 	ret
 
-op16_SET_LINE_WIDTH:		; CS:0B9Ch
-	mov	es:4[di],word ptr 1
-	les	di,12h[bp]
+op16_SET_LINE_WIDTH:                            ; CS:0B9Ch
+	mov	es:4[di],word ptr 1             ; contrl[2]: output coordinate-pair count
+	les	di,12h[bp]                      ; ES:DI -> ptsout[] (GSX stack frame +18)
 	mov	es:word ptr [di],1
 	mov	es:2[di],word ptr 0
 	ret
 
-op17_SET_LINE_COLOR:		; CS:0BB1h
-	mov	es:8[di],word ptr 1
-	les	di,6[bp]
+op17_SET_LINE_COLOR:                            ; CS:0BB1h
+	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	ax,es:[di]
 	call	sub_CD1h
-	les	di,0Eh[bp]
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	v_line_color,ax
 	mov	es:word ptr [di],ax
 	ret
 
-op18_SET_MARKER_TYPE:		; CS:0BCAh
-	mov	es:8[di],word ptr 1
-	les	di,6[bp]
+op18_SET_MARKER_TYPE:                           ; CS:0BCAh
+	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	ax,es:[di]
 	cmp	ax,5
 	jbe	op18_value_ready
 	mov	ax,3
 op18_value_ready:
-	les	di,0Eh[bp]
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	v_marker_type,ax
 	mov	es:word ptr [di],ax
 	ret
 
-op19_SET_MARKER_SCALE:		; CS:0BE8h
-	mov	es:4[di],word ptr 1
-	les	di,0Ah[bp]
+op19_SET_MARKER_SCALE:                          ; CS:0BE8h
+	mov	es:4[di],word ptr 1             ; contrl[2]: output coordinate-pair count
+	les	di,0Ah[bp]                      ; ES:DI -> ptsin[] (GSX stack frame +10)
 	mov	ax,es:2[di]
 	mov	cl,3
 	shl	ax,cl
@@ -1406,7 +1423,7 @@ op19_min_ready:
 	jle	op19_size_ready
 	mov	bx,0F0h
 op19_size_ready:
-	les	di,12h[bp]
+	les	di,12h[bp]                      ; ES:DI -> ptsout[] (GSX stack frame +18)
 	mov	es:word ptr [di],0
 	shl	bx,1
 	mov	ax,6000h
@@ -1416,55 +1433,55 @@ op19_size_ready:
 	mov	marker_scale,bx
 	ret
 
-op20_SET_MARKER_COLOR:		; CS:0C2Bh
-	mov	es:8[di],word ptr 1
-	les	di,6[bp]
+op20_SET_MARKER_COLOR:                          ; CS:0C2Bh
+	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	ax,es:[di]
 	call	sub_CD1h
-	les	di,0Eh[bp]
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	v_marker_color,ax
 	mov	es:word ptr [di],ax
 	ret
 
-op21_SET_TEXT_FONT:		; CS:0C44h
-	mov	es:8[di],word ptr 1
-	les	di,6[bp]
+op21_SET_TEXT_FONT:                             ; CS:0C44h
+	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	ax,es:[di]
 	cmp	ax,1
 	jbe	op21_value_ready
 	mov	ax,1
 op21_value_ready:
-	les	di,0Eh[bp]
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	v_text_font,ax
 	mov	es:word ptr [di],ax
 	ret
 
-op22_SET_TEXT_COLOR:		; CS:0C62h
-	mov	es:8[di],word ptr 1
-	les	di,6[bp]
+op22_SET_TEXT_COLOR:                            ; CS:0C62h
+	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	ax,es:[di]
 	call	sub_CD1h
-	les	di,0Eh[bp]
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	v_text_color,ax
 	mov	es:word ptr [di],ax
 	ret
 
-op23_SET_FILL_STYLE:		; CS:0C7Bh
-	mov	es:8[di],word ptr 1
-	les	di,6[bp]
+op23_SET_FILL_STYLE:                            ; CS:0C7Bh
+	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	ax,es:[di]
 	cmp	ax,3
 	jbe	op23_value_ready
 	xor	ax,ax
 op23_value_ready:
 	mov	v_fill_style,ax
-	les	di,0Eh[bp]
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	es:word ptr [di],ax
 	ret
 
-op24_SET_FILL_INDEX:		; CS:0C98h
-	mov	es:8[di],word ptr 1
-	les	di,6[bp]
+op24_SET_FILL_INDEX:                            ; CS:0C98h
+	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	ax,es:[di]
 	dec	ax
 	cmp	ax,6
@@ -1473,30 +1490,30 @@ op24_SET_FILL_INDEX:		; CS:0C98h
 op24_value_ready:
 	inc	ax
 	mov	v_fill_index,ax
-	les	di,0Eh[bp]
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	es:word ptr [di],ax
 	ret
 
-op25_SET_FILL_COLOR:		; CS:0CB8h
-	mov	es:8[di],word ptr 1
-	les	di,6[bp]
+op25_SET_FILL_COLOR:                            ; CS:0CB8h
+	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	ax,es:[di]
 	call	sub_CD1h
-	les	di,0Eh[bp]
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	v_fill_color,ax
 	mov	es:word ptr [di],ax
 	ret
 
-sub_CD1h:			; CS:0CD1h
+sub_CD1h:                                       ; CS:0CD1h
 	cmp	ax,2
 	jb	sub_CD1_done
 	mov	ax,1
 sub_CD1_done:
 	ret
 
-op26_INQUIRE_COLOR_REP:		; CS:0CDAh
-	mov	es:8[di],word ptr 4
-	les	di,6[bp]
+op26_INQUIRE_COLOR_REP:                         ; CS:0CDAh
+	mov	es:8[di],word ptr 4             ; contrl[4]: output word count
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	cx,3
 	mov	ax,es:[di]
 	cmp	ax,2
@@ -1504,12 +1521,12 @@ op26_INQUIRE_COLOR_REP:		; CS:0CDAh
 	mov	ax,1
 op26_index_ready:
 	mov	bx,es:2[di]
-	les	di,0Eh[bp]
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	stosw
 	xchg	ax,bx
 	cmp	ax,0
 	je	op26_standard_color
-	mov	dl,byte ptr 0233h[bx]
+	mov	dl,byte ptr palette_realized[bx]
 	mov	dh,4
 op26_component_loop:
 	xor	ax,ax
@@ -1524,19 +1541,20 @@ op26_component_ready:
 	shl	dh,1
 	loop	op26_component_loop
 	ret
+
 op26_standard_color:
 	mov	al,6
 	mul	bl
-	mov	si,0227h
+	mov	si,offset palette_requested
 	add	si,ax
 	rep	movsw
 	ret
 
-op27_INQUIRE_CELL_ARRAY:				; CS:0D27h
+op27_INQUIRE_CELL_ARRAY:                        ; CS:0D27h
 	ret
 
-op28_LOCATOR:				; CS:0D28h
-	les	di,0Ah[bp]
+op28_LOCATOR:                                   ; CS:0D28h
+	les	di,0Ah[bp]                      ; ES:DI -> ptsin[] (GSX stack frame +10)
 	mov	ax,es:[di]
 	mov	v_draw_x,ax
 	mov	ax,es:2[di]
@@ -1570,19 +1588,20 @@ op28_event_ready:
 op28_return_one:
 	mov	cx,1
 op28_return_data:
-	les	di,0Eh[bp]
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	al,ah
 	xor	ah,ah
 	mov	es:word ptr [di],ax
-	les	di,12h[bp]
+	les	di,12h[bp]                      ; ES:DI -> ptsout[] (GSX stack frame +18)
 	mov	ax,v_draw_x
 	mov	es:word ptr [di],ax
 	mov	ax,v_draw_y
 	mov	es:2[di],ax
-	les	di,2[bp]
-	mov	es:4[di],cx
-	mov	es:8[di],bx
+	les	di,2[bp]                        ; ES:DI -> contrl[] (GSX stack frame +2)
+	mov	es:4[di],cx                     ; contrl[2]: output coordinate-pair count
+	mov	es:8[di],bx                     ; contrl[4]: output word count
 	ret
+
 op28_alternate_mode:
 	call	get_loc_key
 	or	al,al
@@ -1624,21 +1643,24 @@ get_loc_key:
 	je	sub_DB3_toggle
 	mov	al,1
 	ret
+
 sub_DB3_toggle:
 	xor	word ptr locator_step_offset,4
 sub_DB3_empty:
 	xor	ax,ax
 	ret
+
 sub_DB3_decode:
 	add	si,locator_step_offset
-	mov	bx,word ptr 02B2h[si]
+	mov	bx,word ptr loc_tbl[si]
 	inc	si
 	inc	si
-	mov	cx,word ptr 02B2h[si]
+	mov	cx,word ptr loc_tbl[si]
 	add	bx,v_draw_x
 	add	cx,v_draw_y
 	xor	ah,ah
 	ret
+
 clamp_locator:
 	mov	v_draw_x,bx
 	mov	v_draw_y,cx
@@ -1664,8 +1686,8 @@ sub_E08_y_min_ready:
 	or	ax,ax
 	ret
 
-op29_VALUATOR:				; CS:0E47h
-	les	di,6[bp]
+op29_VALUATOR:                                  ; CS:0E47h
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	cx,es:2[di]
 	cmp	byte ptr v_input_mode,1
 	jne	op29_alternate_mode
@@ -1677,11 +1699,12 @@ op29_read_loop:
 	je	op29_read_loop
 	mov	bx,1
 op29_return:
-	les	di,0Eh[bp]
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	es:word ptr [di],cx
-	les	di,2[bp]
-	mov	es:8[di],bx
+	les	di,2[bp]                        ; ES:DI -> contrl[] (GSX stack frame +2)
+	mov	es:8[di],bx                     ; contrl[4]: output word count
 	ret
+
 op29_alternate_mode:
 	call	sub_FB8h
 	mov	bx,0
@@ -1707,9 +1730,9 @@ sub_E87_other:
 sub_E87_done:
 	ret
 
-op30_CHOICE:				; CS:0E98h
+op30_CHOICE:                                    ; CS:0E98h
 	call	sub_FDEh
-	mov	es:8[di],word ptr 0
+	mov	es:8[di],word ptr 0             ; contrl[4]: output word count
 	cmp	byte ptr v_key_mode,1
 	je	op30_secondary_input
 	call	sub_FB8h
@@ -1727,12 +1750,13 @@ op30_CHOICE:				; CS:0E98h
 op30_invalid_key:
 	mov	cx,0
 op30_report:
-	les	di,2[bp]
-	mov	es:8[di],bx
-	les	di,0Eh[bp]
+	les	di,2[bp]                        ; ES:DI -> contrl[] (GSX stack frame +2)
+	mov	es:8[di],bx                     ; contrl[4]: output word count
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	es:word ptr [di],cx
 op30_return:
 	ret
+
 op30_secondary_input:
 	call	sub_FB0h
 	or	al,al
@@ -1750,11 +1774,11 @@ op30_secondary_empty:
 	mov	bx,0
 	jmps	op30_report
 
-op31_STRING:				; CS:0EF5h
-	les	di,6[bp]
+op31_STRING:                                    ; CS:0EF5h
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	cx,es:2[di]
 	mov	ax,es:4[di]
-	les	di,0Eh[bp]
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	xor	bx,bx
 	or	ax,ax
 	je	op31_default_input
@@ -1801,13 +1825,13 @@ op31_default_keyboard:
 	inc	bx
 	loop	op31_default_keyboard
 op31_done:
-	les	di,2[bp]
-	mov	es:8[di],bx
+	les	di,2[bp]                        ; ES:DI -> contrl[] (GSX stack frame +2)
+	mov	es:8[di],bx                     ; contrl[4]: output word count
 	ret
 
-op32_SET_WRITING_MODE:		; CS:0F5Ch
-	mov	es:8[di],word ptr 1
-	les	di,6[bp]
+op32_SET_WRITING_MODE:                          ; CS:0F5Ch
+	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	bx,es:[di]
 	mov	ax,1
 	cmp	bx,0
@@ -1816,32 +1840,32 @@ op32_SET_WRITING_MODE:		; CS:0F5Ch
 	ja	op32_value_ready
 	mov	ax,bx
 op32_value_ready:
-	les	di,0Eh[bp]
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	writing_mode,ax
 	mov	es:word ptr [di],ax
 	ret
 
-op33_SET_INPUT_MODE:		; CS:0F81h
-	mov	es:8[di],word ptr 1
-	les	di,6[bp]
+op33_SET_INPUT_MODE:                            ; CS:0F81h
+	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
+	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	bx,es:[di]
 	mov	ax,es:2[di]
 	cmp	ax,2
 	je	op33_mode_ready
 	mov	ax,1
 op33_mode_ready:
-	mov	si,02ABh
+	mov	si,offset v_device_input_mode
 	cmp	bx,4
 	jbe	op33_index_ready
 	mov	bx,0
 op33_index_ready:
 	add	si,bx
 	mov	[si],al
-	les	di,0Eh[bp]
+	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	es:word ptr [di],ax
 	ret
 
-op34_INQUIRE_INPUT_MODE:	; CS:0FAFh
+op34_INQUIRE_INPUT_MODE:                        ; CS:0FAFh
 	ret
 
 sub_FB0h:
@@ -1868,7 +1892,7 @@ sub_FB8h:
 
 sub_FC9h:
 	call	sub_FB0h
-sub_FCCh:			; CS:0FCCh
+sub_FCCh:                                       ; CS:0FCCh
 	push	ax
 	push	es
 	push	di
@@ -1883,7 +1907,7 @@ sub_FCCh:			; CS:0FCCh
 	pop	es
 	pop	ax
 
-op00_invalid:			; CS:0FDDh
+op00_invalid:                                   ; CS:0FDDh
 	ret
 
 sub_FDEh:
@@ -1892,13 +1916,13 @@ sub_FDEh:
 	mov	al,36h
 	jmp	sub_FCCh
 
-sub_FE8h:			; CS:0FE8h
+sub_FE8h:                                       ; CS:0FE8h
 	mov	al,1Bh
 	call	sub_FCCh
 	mov	al,37h
 	jmp	sub_FCCh
 
-get_gcb_mutex:			; CS:0FF2h
+get_gcb_mutex:                                  ; CS:0FF2h
 	mov	al,0FFh
 	xchg	byte ptr gcb_mx,al
 	test	al,al
@@ -1917,28 +1941,28 @@ sub_FF2_wait:
 sub_FF2_done:
 	ret
 
-free_gcb_mutex:			; CS:0100Ch
+free_gcb_mutex:                                 ; CS:0100Ch
 	mov	byte ptr gcb_mx,0
 	ret
 
-init_graphics:			; CS:01012h
+init_graphics:                                  ; CS:01012h
 	; Keep both segment operands relocatable; their linked bytes are zero.
 	mov	word ptr gcb_seg,SEG extra_segment_anchor
 	mov	al,0
 	mov	ah,1
 	mov	dx,SEG gcb_seg
-	mov	cx,058Ch
+	mov	cx,offset gcb_mx
 	int	028h
 	mov	word ptr v_gfx_init,1
 	ret
 
-exit_graphics:			; CS:0102Bh
+exit_graphics:                                  ; CS:0102Bh
 	mov	al,1
 	int	028h
 	mov	word ptr v_gfx_init,0
 	ret
 
-	rb	10		; CODE trailing padding
+	rb	10                              ; CODE trailing padding
 
 ; ============================================================================
 ; DATA SEGMENT
@@ -1948,150 +1972,222 @@ exit_graphics:			; CS:0102Bh
 	dseg
 
 
-	rb	100h		; DATA:0000..00FF (runtime state — task 6)
+	rb	100h                            ; DATA:0000..00FF (runtime state — task 6)
 
 ; Jump table at DATA:0100 — 35 near CODE pointers.
-; Absolute CS offsets (avoids RASM-86 internal symbol table overflow with 35 fixups).
 ; Values verified against disasm/dd759h1.a86.
 jump_table:
-	dw	0FDDh	; op  0 op00_invalid
-	dw	004Eh	; op  1 op01_OPEN_WORKSTATION
-	dw	0153h	; op  2 op02_CLOSE_WORKSTATION
-	dw	0159h	; op  3 op03_CLEAR_WORKSTATION
-	dw	016Dh	; op  4 op04_UPDATE_WORKSTATION
-	dw	016Eh	; op  5 op05_ESCAPE
-	dw	02D7h	; op  6 op06_POLYLINE
-	dw	04BFh	; op  7 op07_POLYMARKER
-	dw	050Fh	; op  8 op08_TEXT
-	dw	0706h	; op  9 op09_FILLED_AREA
-	dw	08BEh	; op 10 op10_CELL_ARRAY
-	dw	0976h	; op 11 op11_GDP
-	dw	0AA7h	; op 12 op12_SET_CHAR_HEIGHT
-	dw	0AF6h	; op 13 op13_SET_CHAR_UP_VECTOR
-	dw	0B20h	; op 14 op14_SET_COLOR_REP
-	dw	0B7Eh	; op 15 op15_SET_LINETYPE
-	dw	0B9Ch	; op 16 op16_SET_LINE_WIDTH
-	dw	0BB1h	; op 17 op17_SET_LINE_COLOR
-	dw	0BCAh	; op 18 op18_SET_MARKER_TYPE
-	dw	0BE8h	; op 19 op19_SET_MARKER_SCALE
-	dw	0C2Bh	; op 20 op20_SET_MARKER_COLOR
-	dw	0C44h	; op 21 op21_SET_TEXT_FONT
-	dw	0C62h	; op 22 op22_SET_TEXT_COLOR
-	dw	0C7Bh	; op 23 op23_SET_FILL_STYLE
-	dw	0C98h	; op 24 op24_SET_FILL_INDEX
-	dw	0CB8h	; op 25 op25_SET_FILL_COLOR
-	dw	0CDAh	; op 26 op26_INQUIRE_COLOR_REP
-	dw	0D27h	; op 27 op27_INQUIRE_CELL_ARRAY
-	dw	0D28h	; op 28 op28_LOCATOR
-	dw	0E47h	; op 29 op29_VALUATOR
-	dw	0E98h	; op 30 op30_CHOICE
-	dw	0EF5h	; op 31 op31_STRING
-	dw	0F5Ch	; op 32 op32_SET_WRITING_MODE
-	dw	0F81h	; op 33 op33_SET_INPUT_MODE
-	dw	0FAFh	; op 34 op34_INQUIRE_INPUT_MODE
+	dw	offset op00_invalid             ; op  0 op00_invalid
+	dw	offset op01_OPEN_WORKSTATION    ; op  1 op01_OPEN_WORKSTATION
+	dw	offset op02_CLOSE_WORKSTATION   ; op  2 op02_CLOSE_WORKSTATION
+	dw	offset op03_CLEAR_WORKSTATION   ; op  3 op03_CLEAR_WORKSTATION
+	dw	offset op04_UPDATE_WORKSTATION  ; op  4 op04_UPDATE_WORKSTATION
+	dw	offset op05_ESCAPE              ; op  5 op05_ESCAPE
+	dw	offset op06_POLYLINE            ; op  6 op06_POLYLINE
+	dw	offset op07_POLYMARKER          ; op  7 op07_POLYMARKER
+	dw	offset op08_TEXT                ; op  8 op08_TEXT
+	dw	offset op09_FILLED_AREA         ; op  9 op09_FILLED_AREA
+	dw	offset op10_CELL_ARRAY          ; op 10 op10_CELL_ARRAY
+	dw	offset op11_GDP                 ; op 11 op11_GDP
+	dw	offset op12_SET_CHAR_HEIGHT     ; op 12 op12_SET_CHAR_HEIGHT
+	dw	offset op13_SET_CHAR_UP_VECTOR  ; op 13 op13_SET_CHAR_UP_VECTOR
+	dw	offset op14_SET_COLOR_REP       ; op 14 op14_SET_COLOR_REP
+	dw	offset op15_SET_LINETYPE        ; op 15 op15_SET_LINETYPE
+	dw	offset op16_SET_LINE_WIDTH      ; op 16 op16_SET_LINE_WIDTH
+	dw	offset op17_SET_LINE_COLOR      ; op 17 op17_SET_LINE_COLOR
+	dw	offset op18_SET_MARKER_TYPE     ; op 18 op18_SET_MARKER_TYPE
+	dw	offset op19_SET_MARKER_SCALE    ; op 19 op19_SET_MARKER_SCALE
+	dw	offset op20_SET_MARKER_COLOR    ; op 20 op20_SET_MARKER_COLOR
+	dw	offset op21_SET_TEXT_FONT       ; op 21 op21_SET_TEXT_FONT
+	dw	offset op22_SET_TEXT_COLOR      ; op 22 op22_SET_TEXT_COLOR
+	dw	offset op23_SET_FILL_STYLE      ; op 23 op23_SET_FILL_STYLE
+	dw	offset op24_SET_FILL_INDEX      ; op 24 op24_SET_FILL_INDEX
+	dw	offset op25_SET_FILL_COLOR      ; op 25 op25_SET_FILL_COLOR
+	dw	offset op26_INQUIRE_COLOR_REP   ; op 26 op26_INQUIRE_COLOR_REP
+	dw	offset op27_INQUIRE_CELL_ARRAY  ; op 27 op27_INQUIRE_CELL_ARRAY
+	dw	offset op28_LOCATOR             ; op 28 op28_LOCATOR
+	dw	offset op29_VALUATOR            ; op 29 op29_VALUATOR
+	dw	offset op30_CHOICE              ; op 30 op30_CHOICE
+	dw	offset op31_STRING              ; op 31 op31_STRING
+	dw	offset op32_SET_WRITING_MODE    ; op 32 op32_SET_WRITING_MODE
+	dw	offset op33_SET_INPUT_MODE      ; op 33 op33_SET_INPUT_MODE
+	dw	offset op34_INQUIRE_INPUT_MODE  ; op 34 op34_INQUIRE_INPUT_MODE
 
 ; Secondary escape sub-function dispatch table at DATA:0146
 ; 20 entries (sub-functions 0..19).
-; Absolute CS offsets from disassembly (avoids exceeding RASM-86 symbol table limit).
 esc_table:
-	dw	017Eh	; escfn0 identification
-	dw	018Eh	; escfn1 character cells
-	dw	01B0h	; escfn2 enter graphics
-	dw	01B7h	; escfn3 exit graphics
-	dw	01BAh	; escfn4 cursor up
-	dw	01BFh	; escfn5 cursor down
-	dw	01C4h	; escfn6 cursor right
-	dw	01C9h	; escfn7 cursor left
-	dw	01CEh	; escfn8 home cursor
-	dw	01D4h	; escfn9 erase screen remainder
-	dw	01D9h	; escf10 erase line remainder
-	dw	01DEh	; escf11 cursor address
-	dw	01F9h	; escf12 alpha text
-	dw	0206h	; escf13 reverse on
-	dw	020Bh	; escf14 reverse off
-	dw	021Fh	; escf15 cursor inquiry
-	dw	0239h	; escf16 input-device status
-	dw	0248h	; escf17 hardcopy stub
-	dw	0249h	; escf18 place graphic cursor
-	dw	0261h	; escf19 remove graphic cursor
+	dw	offset escfn0                   ; escfn0 identification
+	dw	offset escfn1                   ; escfn1 character cells
+	dw	offset escfn2                   ; escfn2 enter graphics
+	dw	offset escfn3                   ; escfn3 exit graphics
+	dw	offset escfn4                   ; escfn4 cursor up
+	dw	offset escfn5                   ; escfn5 cursor down
+	dw	offset escfn6                   ; escfn6 cursor right
+	dw	offset escfn7                   ; escfn7 cursor left
+	dw	offset escfn8                   ; escfn8 home cursor
+	dw	offset escfn9                   ; escfn9 erase screen remainder
+	dw	offset escf10                   ; escf10 erase line remainder
+	dw	offset escf11                   ; escf11 cursor address
+	dw	offset escf12                   ; escf12 alpha text
+	dw	offset escf13                   ; escf13 reverse on
+	dw	offset escf14                   ; escf14 reverse off
+	dw	offset escf15                   ; escf15 cursor inquiry
+	dw	offset escf16                   ; escf16 input-device status
+	dw	offset escf17                   ; escf17 hardcopy stub
+	dw	offset escf18                   ; escf18 place graphic cursor
+	dw	offset escf19                   ; escf19 remove graphic cursor
 
 ; GDP sub-function dispatch table at DATA:016E.
 gdp_table:
-	dw	0FDDh,0986h,0AA3h,0AA4h,0AA5h,0AA6h,0FDDh,0FDDh
+	dw	offset op00_invalid
+	dw	offset gdpbar
+	dw	offset gdp02_stub
+	dw	offset gdp03_stub
+	dw	offset gdp04_stub
+	dw	offset gdp05_stub
+	dw	offset op00_invalid
+	dw	offset op00_invalid
 
 ; Typed variable declarations — addresses from disasm analysis
-v_wks_id	dw	0		; DATA:017E intin[1] workstation id
-v_linetype	dw	0		; DATA:0180 current linetype (1-7)
-v_line_color	dw	0		; DATA:0182 polyline color index
-v_marker_type	dw	0		; DATA:0184 marker type (1-5)
-v_marker_color	dw	0		; DATA:0186 polymarker color
-v_text_font	dw	0		; DATA:0188 text font (1)
-v_text_color	dw	0		; DATA:018A text color
-v_fill_style	dw	0		; DATA:018C fill interior style (0-3)
-v_fill_index	dw	0		; DATA:018E fill style index
-v_fill_color	dw	0		; DATA:0190 fill color
+v_wks_id	dw	0                       ; DATA:017E intin[1] workstation id
+v_linetype	dw	0                       ; DATA:0180 current linetype (1-7)
+v_line_color	dw	0                       ; DATA:0182 polyline color index
+v_marker_type	dw	0                       ; DATA:0184 marker type (1-5)
+v_marker_color	dw	0                       ; DATA:0186 polymarker color
+v_text_font	dw	0                       ; DATA:0188 text font (1)
+v_text_color	dw	0                       ; DATA:018A text color
+v_fill_style	dw	0                       ; DATA:018C fill interior style (0-3)
+v_fill_index	dw	0                       ; DATA:018E fill style index
+v_fill_color	dw	0                       ; DATA:0190 fill color
 
 	rb	8
-v_cell_width	dw	0		; DATA:019A cell width
-v_cell_height	dw	0		; DATA:019C cell height
-v_cell_columns	dw	0		; DATA:019E number of columns
-v_cell_row_stride	dw	0	; DATA:01A0 cell data row stride
-v_cell_x_start	dw	0		; DATA:01A2 cell x start
-v_cell_color	dw	0		; DATA:01A4 cell color
+v_cell_width	dw	0                       ; DATA:019A cell width
+v_cell_height	dw	0                       ; DATA:019C cell height
+v_cell_columns	dw	0                       ; DATA:019E number of columns
+v_cell_row_stride	dw	0               ; DATA:01A0 cell data row stride
+v_cell_x_start	dw	0                       ; DATA:01A2 cell x start
+v_cell_color	dw	0                       ; DATA:01A4 cell color
 
-v_x1		dw	0		; DATA:01A6 current draw x1
-v_x2		dw	0		; DATA:01A8 current draw x2
-v_y1		dw	0		; DATA:01AA current draw y1
-v_y2		dw	0		; DATA:01AC current draw y2
+v_x1		dw	0                       ; DATA:01A6 current draw x1
+v_x2		dw	0                       ; DATA:01A8 current draw x2
+v_y1		dw	0                       ; DATA:01AA current draw y1
+v_y2		dw	0                       ; DATA:01AC current draw y2
 
-v_line_step	dw	0		; DATA:01AE X/Y step for pixel addressing
-v_delta_major	dw	0		; DATA:01B0 Bresenham major-axis delta
-v_line_error	dw	0		; DATA:01B2 Bresenham error accumulator
+v_line_step	dw	0                       ; DATA:01AE X/Y step for pixel addressing
+v_delta_major	dw	0                       ; DATA:01B0 Bresenham major-axis delta
+v_line_error	dw	0                       ; DATA:01B2 Bresenham error accumulator
 
-v_polyline_state dw	0		; DATA:01B4 single-point polyline marker
-pixel_mode	db	0		; DATA:01B6 active pixel writing mode
+v_polyline_state dw	0                       ; DATA:01B4 single-point polyline marker
+pixel_mode	db	0                       ; DATA:01B6 active pixel writing mode
 
-writing_mode	dw	0		; DATA:01B7 GSX writing mode (1-4)
+writing_mode	dw	0                       ; DATA:01B7 GSX writing mode (1-4)
 
-pixel_lut	dw	0		; DATA:01B9 pixel truth-table pointer
+pixel_lut	dw	0                       ; DATA:01B9 pixel truth-table pointer
 
 	rb	4
-draw_pattern	dw	0		; DATA:01BF rotating line/fill bit pattern
+draw_pattern	dw	0                       ; DATA:01BF rotating line/fill bit pattern
 
-	; Device patterns, workstation data, and terminal escape sequences.
-	db	0FFh,0FFh
+; POLYLINE indexes this base with 2*line_type; valid types are 1..7.
+line_type_base:
+	dw	1111111111111111b               ; Original slot 0, before valid types.
 line_types:
-	db	0FFh,0FFh,07Fh,00h,01Ch,01Ch,07Fh,01Ch,0FFh,00Fh,033h,033h,055h,055h
+	dw	1111111111111111b               ; 1 ################
+	dw	0000000001111111b               ; 2 .........#######
+	dw	0001110000011100b               ; 3 ...###.....###..
+	dw	0001110001111111b               ; 4 ...###...#######
+	dw	0000111111111111b               ; 5 ....############
+	dw	0011001100110011b               ; 6 ..##..##..##..##
+	dw	0101010101010101b               ; 7 .#.#.#.#.#.#.#.#
+
+; One pixel bit per word: index X & 15, MSB first.
 bit_masks:
-	db	000h,080h,000h,040h,000h,020h,000h,010h,000h,008h,000h,004h,000h,002h,000h,001h
-	db	080h,000h,040h,000h,020h,000h,010h,000h,008h,000h,004h,000h,002h,000h,001h,000h
-	db	000h,0FFh,000h,0FFh,000h,0FFh,0FFh,000h,000h,0FFh,000h,0FFh,000h,0FFh,0FFh,000h
-	db	000h,000h,000h,000h,000h,000h,0FFh,000h,000h,000h,000h,000h,000h,000h,0FFh,0FFh
-	db	000h,000h,000h,000h,000h,000h,000h,0FFh,000h,000h,000h,000h,000h,000h,0E8h,003h
-	db	0E8h,003h,0E8h,003h,000h,007h,000h,000h,000h,000h,000h,000h,000h,000h,000h,000h
-	db	000h,000h,000h,000h,000h,001h,02Ah,000h,031h,000h,02Eh,000h,031h,000h,020h,000h
-	db	052h,000h,043h,000h,037h,000h,035h,000h,030h,000h,020h,000h,042h,000h,02Fh,000h
-	db	057h,000h,031h,000h,031h,000h,02Fh,000h,031h,000h,033h,000h,02Fh,000h,038h,000h
-	db	034h,000h,002h,000h,01Bh,000h,041h,000h,002h,000h,01Bh,000h,042h,000h,002h,000h
-	db	01Bh,000h,043h,000h,002h,000h,01Bh,000h,044h,000h,002h,000h,01Bh,000h,048h,000h
-	db	002h,000h,01Bh,000h,04Ah,000h,002h,000h,01Bh,000h,04Bh,000h,002h,000h,01Bh,000h
-	db	070h,000h,002h,000h,01Bh,000h,071h,000h,004h,000h,01Bh,000h,059h,000h
+	dw	1000000000000000b
+	dw	0100000000000000b
+	dw	0010000000000000b
+	dw	0001000000000000b
+	dw	0000100000000000b
+	dw	0000010000000000b
+	dw	0000001000000000b
+	dw	0000000100000000b
+	dw	0000000010000000b
+	dw	0000000001000000b
+	dw	0000000000100000b
+	dw	0000000000010000b
+	dw	0000000000001000b
+	dw	0000000000000100b
+	dw	0000000000000010b
+	dw	0000000000000001b
 
-v_cursor_x	dw	020h		; DATA:029F cursor x (from escape 12)
-v_cursor_y	dw	020h		; DATA:02A1 cursor y
+; load_pixel_lut selects four-byte tables; plot_pixel indexes each
+; with 2*pattern_bit + old_pixel. Entries are output bits (00h/FFh).
+pixel_truth_tables:
+	db	00h,0FFh,00h,0FFh               ; Table 0
+	db	00h,0FFh,0FFh,00h               ; Table 1
+	db	00h,0FFh,00h,0FFh               ; Table 2
+	db	00h,0FFh,0FFh,00h               ; Table 3
+	db	00h,00h,00h,00h                 ; Table 4
+	db	00h,00h,0FFh,00h                ; Table 5
+	db	00h,00h,00h,00h                 ; Table 6
+	db	00h,00h,0FFh,0FFh               ; Table 7
+	db	00h,00h,00h,00h                 ; Table 8
+	db	00h,00h,00h,0FFh                ; Table 9
 
-v_line_width	dw	1		; DATA:02A3 line width
-v_marker_scale	dw	1		; DATA:02A5 marker scale
+; OPEN_WORKSTATION copies these 14 bytes into palette_requested.
+palette_defaults:
+	dw	0,0,0                           ; Color 0: black RGB, range 0..1000.
+	dw	1000,1000,1000                  ; Color 1: white RGB.
+	db	00h,07h                         ; Packed color control bytes.
+palette_requested:
+	dw	0,0,0                           ; Requested color 0 RGB.
+	dw	0,0,0                           ; Requested color 1 RGB.
+palette_realized:
+	db	00h,00h                         ; Packed realized colors.
+pixel_color_control:
+	db	00h,01h                         ; Per-color input to load_pixel_lut.
 
-v_saved_x	dw	0		; DATA:02A7 saved cursor x
-v_saved_y	dw	0		; DATA:02A9 saved cursor y
-v_device_input_mode	db	0		; DATA:02AB mode selector 0
-v_cursor_mode	db	0		; DATA:02AC cursor mode
-v_input_mode	db	0		; DATA:02AD input mode
-v_key_mode	db	0		; DATA:02AE keyboard mode
-v_keyboard_mode	db	0		; DATA:02AF keyboard mode selector
+; Preserve the original count: escfn0 copies 42 WORDS, although the
+; text has 21 characters. The copy includes following escape data.
+driver_identification:
+	dw	42
+	dw	'1','.','1',' ','R','C','7','5','0',' ','B','/','W'
+	dw	'1','1','/','1','3','/','8','4'
 
-locator_step_offset	dw	0		; DATA:02B0 locator movement-table selector
+; Console sequences: word count followed by one word per character.
+seq_cursor_up:
+	dw	2,01Bh,'A'
+seq_cursor_down:
+	dw	2,01Bh,'B'
+seq_cursor_right:
+	dw	2,01Bh,'C'
+seq_cursor_left:
+	dw	2,01Bh,'D'
+seq_cursor_home:
+	dw	2,01Bh,'H'
+seq_erase_screen:
+	dw	2,01Bh,'J'
+seq_erase_line:
+	dw	2,01Bh,'K'
+seq_reverse_on:
+	dw	2,01Bh,'p'
+seq_reverse_off:
+	dw	2,01Bh,'q'
+seq_cursor_address:
+	dw	4,01Bh,'Y'                      ; Final two words updated by escf11.
+v_cursor_x	dw	020h                    ; DATA:029F cursor coordinate (escape 11)
+v_cursor_y	dw	020h                    ; DATA:02A1 cursor y
+
+v_line_width	dw	1                       ; DATA:02A3 line width
+v_marker_scale	dw	1                       ; DATA:02A5 marker scale
+
+v_saved_x	dw	0                       ; DATA:02A7 saved cursor x
+v_saved_y	dw	0                       ; DATA:02A9 saved cursor y
+v_device_input_mode	db	0               ; DATA:02AB mode selector 0
+v_cursor_mode	db	0                       ; DATA:02AC cursor mode
+v_input_mode	db	0                       ; DATA:02AD input mode
+v_key_mode	db	0                       ; DATA:02AE keyboard mode
+v_keyboard_mode	db	0                       ; DATA:02AF keyboard mode selector
+
+locator_step_offset	dw	0               ; DATA:02B0 locator movement-table selector
 loc_tbl:
 	dw	0,1,0,10,0,0FFFFh,0,0FFF6h
 	dw	1,0,10,0,0FFFFh,0,0FFF6h,0
@@ -2100,85 +2196,248 @@ loc_tbl:
 	db	0FFh,0FFh,001h,000h,0F6h,0FFh,00Ah,000h,0FFh,0FFh,0FFh,0FFh,0F6h,0FFh,0F6h,0FFh
 	db	0E8h,003h,0E8h,003h,001h,000h,001h,000h,000h,000h
 
-v_fill_min_y	dw	0		; DATA:02FC
+v_fill_min_y	dw	0                       ; DATA:02FC
 	rb	2
-v_fill_max_y	dw	0		; DATA:0300
+v_fill_max_y	dw	0                       ; DATA:0300
 
 	rb	4
-v_text_point_count	dw	0	; DATA:0306 decoded glyph point count
-v_fill_intersection_count	dw	0	; DATA:0308
+v_text_point_count	dw	0               ; DATA:0306 decoded glyph point count
+v_fill_intersection_count	dw	0       ; DATA:0308
 	rb	2
-v_fill_pattern_count	dw	0	; DATA:030C
-v_fill_npts	dw	0		; DATA:030E
-v_fill_npoints_minus1	dw	0	; DATA:0310
-v_fill_scan_y	dw	0		; DATA:0312
-v_fill_pattern_offset	dw	0	; DATA:0314
+v_fill_pattern_count	dw	0               ; DATA:030C
+v_fill_npts	dw	0                       ; DATA:030E
+v_fill_npoints_minus1	dw	0               ; DATA:0310
+v_fill_scan_y	dw	0                       ; DATA:0312
+v_fill_pattern_offset	dw	0               ; DATA:0314
 
-v_text_points	db	0		; DATA:0316 decoded glyph point buffer
+v_text_points	db	0                       ; DATA:0316 decoded glyph point buffer
 
 	rb	199
-text_sine	dw	0		; DATA:03DE text sine, scaled by 2048
-text_cosine	dw	0		; DATA:03E0 text cosine, scaled by 2048
-text_scale	dw	0		; DATA:03E2 text scale
-marker_sine	dw	0		; DATA:03E4 marker sine, scaled by 2048
-marker_cosine	dw	0		; DATA:03E6 marker cosine, scaled by 2048
-marker_scale	dw	0		; DATA:03E8 marker scale
-transform_sine	dw	0		; DATA:03EA polymarker scratch
-transform_cosine	dw	0		; DATA:03EC polymarker scratch
-transform_scale	dw	0	; DATA:03EE polymarker scratch
+text_sine	dw	0                       ; DATA:03DE text sine, scaled by 2048
+text_cosine	dw	0                       ; DATA:03E0 text cosine, scaled by 2048
+text_scale	dw	0                       ; DATA:03E2 text scale
+marker_sine	dw	0                       ; DATA:03E4 marker sine, scaled by 2048
+marker_cosine	dw	0                       ; DATA:03E6 marker cosine, scaled by 2048
+marker_scale	dw	0                       ; DATA:03E8 marker scale
+transform_sine	dw	0                       ; DATA:03EA polymarker scratch
+transform_cosine	dw	0               ; DATA:03EC polymarker scratch
+transform_scale	dw	0                       ; DATA:03EE polymarker scratch
 
-v_text_dx	dw	0		; DATA:03F0 text x advance
-v_text_dy	dw	0		; DATA:03F2 text y advance
+v_text_dx	dw	0                       ; DATA:03F0 text x advance
+v_text_dy	dw	0                       ; DATA:03F2 text y advance
 
-v_draw_x	dw	0		; DATA:03F4 current drawing x
-v_draw_y	dw	0		; DATA:03F6 current drawing y
+v_draw_x	dw	0                       ; DATA:03F4 current drawing x
+v_draw_y	dw	0                       ; DATA:03F6 current drawing y
 
-v_text_x	dw	0		; DATA:03F8 text origin x
-v_text_y	dw	0		; DATA:03FA text origin y
+v_text_x	dw	0                       ; DATA:03F8 text origin x
+v_text_y	dw	0                       ; DATA:03FA text origin y
 
-; Sine samples: round(2048*sin(degrees)), 0..90.
-sine_table	dw	0
-	db	024h,000h
-	; Remaining sine values, DEV_TAB/SIZ_TAB, and 8x8 fill tiles.
-	db	047h,000h,06Bh,000h,08Fh,000h,0B2h,000h,0D6h,000h,0FAh,000h,01Dh,001h,040h,001h
-	db	064h,001h,087h,001h,0AAh,001h,0CDh,001h,0EFh,001h,012h,002h,035h,002h,057h,002h
-	db	079h,002h,09Bh,002h,0BCh,002h,0DEh,002h,0FFh,002h,020h,003h,041h,003h,062h,003h
-	db	082h,003h,0A2h,003h,0C1h,003h,0E1h,003h,000h,004h,01Fh,004h,03Dh,004h,05Bh,004h
-	db	079h,004h,097h,004h,0B4h,004h,0D1h,004h,0EDh,004h,009h,005h,024h,005h,040h,005h
-	db	05Ah,005h,075h,005h,08Fh,005h,0A8h,005h,0C1h,005h,0DAh,005h,0F2h,005h,00Ah,006h
-	db	021h,006h,038h,006h,04Eh,006h,064h,006h,079h,006h,08Eh,006h,0A2h,006h,0B6h,006h
-	db	0C9h,006h,0DBh,006h,0EEh,006h,0FFh,006h,010h,007h,021h,007h,031h,007h,040h,007h
-	db	04Fh,007h,05Dh,007h,06Bh,007h,078h,007h,084h,007h,090h,007h,09Ch,007h,0A7h,007h
-	db	0B1h,007h,0BAh,007h,0C3h,007h,0CCh,007h,0D3h,007h,0DAh,007h,0E1h,007h,0E7h,007h
-	db	0ECh,007h,0F1h,007h,0F5h,007h,0F8h,007h,0FBh,007h,0FDh,007h,0FFh,007h,000h,008h
-	db	000h,008h
+	include sine.a86
+
+; OPEN_WORKSTATION intout, one-based indices per GSX/DRI skeleton.
+; Advertised capabilities, not proof that every operation works.
 DEV_TAB:
-	db	02Fh,002h,0FFh,000h,001h,000h,088h,001h,042h,002h,0E8h,000h,007h,000h
-	db	001h,000h,005h,000h,0E8h,000h,001h,000h,006h,000h,006h,000h,002h,000h,001h,000h
-	db	001h,000h,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh
-	db	0FFh,0FFh,0FFh,0FFh,003h,000h,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh
-	db	0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,001h,000h,001h,000h,001h,000h,000h,000h
-	db	004h,000h,001h,000h,001h,000h,001h,000h,001h,000h,002h,000h
-SIZ_TAB:
-	db	000h,000h,007h,000h
-	db	000h,000h,0D2h,000h,001h,000h,000h,000h,001h,000h,000h,000h,000h,000h,006h,000h
-	db	000h,000h,0B4h,000h
-fill_tiles:
-	db	0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,088h,088h,088h,088h
-	db	088h,088h,088h,088h,0FFh,000h,000h,000h,0FFh,000h,000h,000h,088h,044h,022h,011h
-	db	088h,044h,022h,011h,011h,022h,044h,088h,011h,022h,044h,088h,0FFh,088h,088h,088h
-	db	0FFh,088h,088h,088h,081h,042h,024h,018h,018h,024h,042h,081h,004h,000h,040h,000h
-	db	004h,000h,040h,000h,000h,022h,000h,088h,000h,022h,000h,088h,000h,0AAh,000h,0AAh
-	db	000h,0AAh,000h,0AAh,011h,0AAh,044h,0AAh,011h,0AAh,044h,0AAh,055h,0AAh,011h,0AAh
-	db	055h,0AAh,011h,0AAh,0AAh,055h,0AAh,055h,0AAh,055h,0AAh,055h
+	dw	559                             ; 1 Maximum X coordinate (560 pixels, origin 0).
+	dw	255                             ; 2 Maximum Y coordinate (256 pixels, origin 0).
+	dw	1                               ; 3 Coordinate precision: 0 exact, 1 not exact.
+	dw	392                             ; 4 Pixel width in micrometers.
+	dw	578                             ; 5 Pixel height in micrometers.
+	dw	232                             ; 6 Number of character heights.
+	dw	7                               ; 7 Number of line styles.
+	dw	1                               ; 8 Number of line widths.
+	dw	5                               ; 9 Number of marker types.
+	dw	232                             ; 10 Number of marker sizes.
+	dw	1                               ; 11 Number of text fonts.
+	dw	6                               ; 12 Number of area patterns.
+	dw	6                               ; 13 Number of crosshatch patterns.
+	dw	2                               ; 14 Number of simultaneous colors.
+	dw	1                               ; 15 Number of supported GDPs.
+	dw	1                               ; 16 GDP slot 1: function 1, filled rectangle (bar).
+	dw	-1                              ; 17 GDP slot 2: unused.
+	dw	-1                              ; 18 GDP slot 3: unused.
+	dw	-1                              ; 19 GDP slot 4: unused.
+	dw	-1                              ; 20 GDP slot 5: unused.
+	dw	-1                              ; 21 GDP slot 6: unused.
+	dw	-1                              ; 22 GDP slot 7: unused.
+	dw	-1                              ; 23 GDP slot 8: unused.
+	dw	-1                              ; 24 GDP slot 9: unused.
+	dw	-1                              ; 25 GDP slot 10: unused.
+	dw	3                               ; 26 GDP slot 1 attribute class: fill area.
+	dw	-1                              ; 27 GDP slot 2 attribute class: unused.
+	dw	-1                              ; 28 GDP slot 3 attribute class: unused.
+	dw	-1                              ; 29 GDP slot 4 attribute class: unused.
+	dw	-1                              ; 30 GDP slot 5 attribute class: unused.
+	dw	-1                              ; 31 GDP slot 6 attribute class: unused.
+	dw	-1                              ; 32 GDP slot 7 attribute class: unused.
+	dw	-1                              ; 33 GDP slot 8 attribute class: unused.
+	dw	-1                              ; 34 GDP slot 9 attribute class: unused.
+	dw	-1                              ; 35 GDP slot 10 attribute class: unused.
+	dw	1                               ; 36 Color capability.
+	dw	1                               ; 37 Text rotation supported.
+	dw	1                               ; 38 Polygon fill supported.
+	dw	0                               ; 39 Cell-array inquiry not supported.
+	dw	4                               ; 40 Palette entries, not bitmap planes.
+	dw	1                               ; 41 Number of locator input devices.
+	dw	1                               ; 42 Number of valuator input devices.
+	dw	1                               ; 43 Number of choice input devices.
+	dw	1                               ; 44 Number of string input devices.
+	dw	2                               ; 45 Workstation type: input and output.
 
-gcb_mx	db	0		; DATA:058C XIOS gcb_mx semaphore
+; OPEN_WORKSTATION ptsout: six coordinate pairs in device units.
+; One-based word indices; zero components are not padding.
+SIZ_TAB:
+	dw	0                               ; 1 Minimum character size: X component.
+	dw	7                               ; 2 Minimum character height.
+	dw	0                               ; 3 Maximum character size: X component.
+	dw	210                             ; 4 Maximum character height.
+	dw	1                               ; 5 Minimum line width.
+	dw	0                               ; 6 Minimum line size: Y component.
+	dw	1                               ; 7 Maximum line width.
+	dw	0                               ; 8 Maximum line size: Y component.
+	dw	0                               ; 9 Minimum marker size: X component.
+	dw	6                               ; 10 Minimum marker height.
+	dw	0                               ; 11 Maximum marker size: X component.
+	dw	180                             ; 12 Maximum marker height.
+fill_tiles:
+	; Stored rows: # = bit 1, . = bit 0 (before writing-mode logic).
+	; Tile 0: solid.
+	db	11111111b                       ; ########
+	db	11111111b                       ; ########
+	db	11111111b                       ; ########
+	db	11111111b                       ; ########
+	db	11111111b                       ; ########
+	db	11111111b                       ; ########
+	db	11111111b                       ; ########
+	db	11111111b                       ; ########
+
+	; Tile 1: hatch index 1.
+	db	10001000b                       ; #...#...
+	db	10001000b                       ; #...#...
+	db	10001000b                       ; #...#...
+	db	10001000b                       ; #...#...
+	db	10001000b                       ; #...#...
+	db	10001000b                       ; #...#...
+	db	10001000b                       ; #...#...
+	db	10001000b                       ; #...#...
+
+	; Tile 2: hatch index 2.
+	db	11111111b                       ; ########
+	db	00000000b                       ; ........
+	db	00000000b                       ; ........
+	db	00000000b                       ; ........
+	db	11111111b                       ; ########
+	db	00000000b                       ; ........
+	db	00000000b                       ; ........
+	db	00000000b                       ; ........
+
+	; Tile 3: hatch index 3.
+	db	10001000b                       ; #...#...
+	db	01000100b                       ; .#...#..
+	db	00100010b                       ; ..#...#.
+	db	00010001b                       ; ...#...#
+	db	10001000b                       ; #...#...
+	db	01000100b                       ; .#...#..
+	db	00100010b                       ; ..#...#.
+	db	00010001b                       ; ...#...#
+
+	; Tile 4: hatch index 4.
+	db	00010001b                       ; ...#...#
+	db	00100010b                       ; ..#...#.
+	db	01000100b                       ; .#...#..
+	db	10001000b                       ; #...#...
+	db	00010001b                       ; ...#...#
+	db	00100010b                       ; ..#...#.
+	db	01000100b                       ; .#...#..
+	db	10001000b                       ; #...#...
+
+	; Tile 5: hatch index 5.
+	db	11111111b                       ; ########
+	db	10001000b                       ; #...#...
+	db	10001000b                       ; #...#...
+	db	10001000b                       ; #...#...
+	db	11111111b                       ; ########
+	db	10001000b                       ; #...#...
+	db	10001000b                       ; #...#...
+	db	10001000b                       ; #...#...
+
+	; Tile 6: hatch index 6.
+	db	10000001b                       ; #......#
+	db	01000010b                       ; .#....#.
+	db	00100100b                       ; ..#..#..
+	db	00011000b                       ; ...##...
+	db	00011000b                       ; ...##...
+	db	00100100b                       ; ..#..#..
+	db	01000010b                       ; .#....#.
+	db	10000001b                       ; #......#
+
+	; Tile 7: pattern index 1.
+	db	00000100b                       ; .....#..
+	db	00000000b                       ; ........
+	db	01000000b                       ; .#......
+	db	00000000b                       ; ........
+	db	00000100b                       ; .....#..
+	db	00000000b                       ; ........
+	db	01000000b                       ; .#......
+	db	00000000b                       ; ........
+
+	; Tile 8: pattern index 2.
+	db	00000000b                       ; ........
+	db	00100010b                       ; ..#...#.
+	db	00000000b                       ; ........
+	db	10001000b                       ; #...#...
+	db	00000000b                       ; ........
+	db	00100010b                       ; ..#...#.
+	db	00000000b                       ; ........
+	db	10001000b                       ; #...#...
+
+	; Tile 9: pattern index 3.
+	db	00000000b                       ; ........
+	db	10101010b                       ; #.#.#.#.
+	db	00000000b                       ; ........
+	db	10101010b                       ; #.#.#.#.
+	db	00000000b                       ; ........
+	db	10101010b                       ; #.#.#.#.
+	db	00000000b                       ; ........
+	db	10101010b                       ; #.#.#.#.
+
+	; Tile 10: pattern index 4.
+	db	00010001b                       ; ...#...#
+	db	10101010b                       ; #.#.#.#.
+	db	01000100b                       ; .#...#..
+	db	10101010b                       ; #.#.#.#.
+	db	00010001b                       ; ...#...#
+	db	10101010b                       ; #.#.#.#.
+	db	01000100b                       ; .#...#..
+	db	10101010b                       ; #.#.#.#.
+
+	; Tile 11: pattern index 5.
+	db	01010101b                       ; .#.#.#.#
+	db	10101010b                       ; #.#.#.#.
+	db	00010001b                       ; ...#...#
+	db	10101010b                       ; #.#.#.#.
+	db	01010101b                       ; .#.#.#.#
+	db	10101010b                       ; #.#.#.#.
+	db	00010001b                       ; ...#...#
+	db	10101010b                       ; #.#.#.#.
+
+	; Tile 12: pattern index 6.
+	db	10101010b                       ; #.#.#.#.
+	db	01010101b                       ; .#.#.#.#
+	db	10101010b                       ; #.#.#.#.
+	db	01010101b                       ; .#.#.#.#
+	db	10101010b                       ; #.#.#.#.
+	db	01010101b                       ; .#.#.#.#
+	db	10101010b                       ; #.#.#.#.
+	db	01010101b                       ; .#.#.#.#
+
+gcb_mx	db	0                               ; DATA:058C XIOS gcb_mx semaphore
 		; This initial segment word is a LINK-86 fixup to EXTRA.
-	gcb_seg	dw	SEG extra_segment_anchor ; DATA:058D pixel memory segment
-v_gfx_init	dw	0		; DATA:058F init done (1 after first open)
+gcb_seg	dw	SEG extra_segment_anchor        ; DATA:058D pixel memory segment
+v_gfx_init	dw	0                       ; DATA:058F init done (1 after first open)
 
 	rb	513
 	; Glyph vector offsets followed by encoded character vectors.
+glyph_offsets:
 	db	092h,008h,09Eh,008h,0A4h,008h,0AAh,008h,0B6h,008h,0BCh,008h,0C2h,008h,0C3h,008h
 	db	0C4h,008h,0C5h,008h,0C6h,008h,0C7h,008h,0C8h,008h,0C9h,008h,0CAh,008h,0CBh,008h
 	db	0CCh,008h,0CDh,008h,0CEh,008h,0CFh,008h,0D0h,008h,0D1h,008h,0D2h,008h,0D3h,008h

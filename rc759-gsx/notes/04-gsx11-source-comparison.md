@@ -54,6 +54,21 @@ coordinates instead of assuming that a direct driver call is equivalent.
 
 ## 2. Workstation tables have established meanings
 
+The source now separates the former DATA:01C1..029E byte blob into
+line patterns, pixel masks, pixel truth tables, default/requested palettes,
+color control, identification and word-counted console sequences.
+Their users refer to declaration-site labels instead of numeric offsets.
+Remaining instruction operands pointing at DATA were also converted:
+pixel_lut, text advances, the shared glyph/intersection scratch buffer,
+glyph_offsets, locator deltas, input modes and the XIOS GCB address.
+The original stack-top value is expressed as OFFSET glyph_offsets-1.
+Rebuild `scratch/emu2-current-20261101-002654/dd759h1.cmd` matches
+all 8,576 original bytes with zero RASM errors.
+The identification count remains 42 words despite its 21-character text:
+escfn0 therefore copies subsequent escape data too; the reason is unknown.
+Rebuild `scratch/emu2-current-20261101-001231/dd759h1.cmd` has zero
+RASM errors and matches all 8,576 original bytes, including fixups.
+
 `OPEN_WORKSTATION` copies 45 words at `DATA:04B2` to intout and 12 words at
 `DATA:050C` to ptsout. These correspond to GIOS11's `DEV_TAB` and `SIZ_TAB`
 (`COMMON0.INC:340-398,5815-5860`). The GSX Programmer's Guide independently

@@ -1,5 +1,23 @@
 # Build all 13 CP/M BIOSes from source
 
+## Readable H1 tables and references (2026-11-01)
+
+- [x] Document DEV_TAB/SIZ_TAB words and render fill tiles in binary
+  with visual comments.
+- [x] Split pattern, palette and console data into named declarations;
+  replace numeric CODE and DATA references with labels.
+- [x] Explain GSX ABI offsets beside instructions and normalize indentation,
+  side comments and blank lines after returns.
+- [x] Rebuild final source with zero RASM errors; all 8,576 bytes match
+  the original, and the generator reproduces src/sine.a86 exactly.
+
+## Generated H1 sine include (2026-10-31)
+
+- [x] Extract the 91 sine words into src/sine.a86 and add a Python generator.
+- [x] Copy the include into the emu2 build directory.
+- [x] Verify generator output against the include and original table bytes;
+  rebuild with zero RASM errors and all 8,576 bytes identical.
+
 ## Sequential H1 assembly layout (2026-10-31)
 
 - [x] Replace all 90 ORG directives with sequential layout and explicit RB

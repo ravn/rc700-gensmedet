@@ -1,6 +1,25 @@
 # DRI skeleton source as oracle: bounded symbol comparison vs H1
 
+Final readability pass: GSX ABI fields have inline explanations, labels
+start at column 1, instructions use one tab, inline comments align at
+column 49 where space permits, and returns have a following blank line.
+The final pre-commit build `scratch/emu2-current-20261101-004412/dd759h1.cmd`
+reports zero RASM errors and matches all 8,576 original bytes.
+The sine generator also reproduces the checked-in include exactly.
+
 ## Applied H1 symbol alignment
+
+The sine table now lives in `src/sine.a86`, included by the main source.
+Regenerate it from the rc759-gsx directory with:
+
+```sh
+python3 tools/generate_sine.py > src/sine.a86
+```
+
+The generator emits 91 decimal DW values. Its output matches the checked-in
+include and all original SYS table bytes. The include-based rebuild
+`scratch/emu2-current-20261031-234659/dd759h1.cmd` has zero RASM errors and
+matches all 8,576 original bytes, including the relocation trailer.
 
 After committing the reference research, the rebuildable `src/dd759h1.a86`
 was aligned with the verified roles. Historical `sub_*`/`v_*` names cited
@@ -28,7 +47,10 @@ bit_masks and fill_tiles without fixed-address EQU aliases. All 90 ORG
 directives were subsequently removed: sections are sequential, with RB for
 actual gaps and trailing padding, including EXTRA. The previously documented
 EXTRA RB failure did not recur in the current toolchain.
-Numeric dispatch entries are intentionally retained to avoid new LINK fixups.
+All CODE references in the opcode, ESCAPE and GDP dispatch tables now use
+OFFSET labels; indirect transfers also name their tables. The current build
+accepts these symbols without the previously assumed resource limitation.
+GDP 1 uses the skeleton's gdpbar name; GDP 2..5 retain distinct RET stubs.
 
 RASM-86 reported zero errors; LINK-86 emitted 8,576 bytes.
 `scratch/emu2-current-20261031-233945/dd759h1.cmd` matches the original SYS
