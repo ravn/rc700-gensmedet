@@ -1,5 +1,113 @@
 # DRI skeleton source as oracle: bounded symbol comparison vs H1
 
+## Executable vector-text profile (2026-11-01)
+
+Run `python3 tools/benchmark_vector_text.py` from `rc759-gsx/`.
+Tested with existing Unicorn 2.1.4 and Capstone 5.0.7; any new Python
+dependencies belong in a venv. The harness executes the original SYS
+(SHA256 `dcbe221f5efc105c9f983f63d31327a7a39df0739d9c050a110d917dbe8eddfe`)
+with segment relocations applied, through the actual GSX dispatcher.
+Only INT 28h graphics initialization is stubbed, supplying isolated RAM
+instead of the XIOS graphics buffer. OPEN is outside the measured region.
+No reconstructed driver instructions or optimization were substituted.
+
+The untouched OPEN defaults are sine 0, cosine 2048, scale 32.
+Their A raster matches the independently hand-worked vertical strokes,
+diagonal roof and crossbar at (20,50). Seven vertices execute 42 point
+IMUL plus six text-advance IMUL. Explicitly setting those same defaults
+preserves the pixels, instruction counts and modeled costs. Eight A's
+match eight translated copies, with eight-pixel origin spacing.
+Each mixed-text case below was repeated with identical pixels and counts.
+That repeat check proves determinism, not independent correctness of
+every glyph, scaled line or rotated line.
+
+Measured work for `ABCabc12`, origin (20,50), solid black default writing:
+
+| Scale / angle | Instructions | Point transforms | Pixel calls | IMUL | Nominal cycles | Point-transform share | Zero-cost transform ceiling |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 32 / 0 degrees | 10,469 | 66 | 168 | 402 | 98,488 | 22.8% | 1.30x |
+| 64 / 0 degrees | 12,583 | 66 | 281 | 402 | 116,110 | 19.3% | 1.24x |
+| 128 / 0 degrees | 16,866 | 66 | 507 | 402 | 151,079 | 14.9% | 1.17x |
+| 32 / 45 degrees | 10,442 | 66 | 160 | 402 | 98,231 | 22.8% | 1.30x |
+
+Instruction, point, pixel-call and IMUL counts are observed in CPU
+execution; cycles and their fractions are a model. Costs follow the
+Intel-derived table in `mame/src/devices/cpu/i86/i186.cpp:63-140`,
+mapped through the enum in `i86.h:45-105`. Taken conditional branches
+and CL shift counts use actual runtime state; segment prefixes cost two.
+Controls check memory IMUL=40 and JNE=4/13 for not-taken/taken.
+This is not a complete 80186 emulator timing model. Wait states, odd-word
+bus penalties, video contention, prefetch effects, OS calls and interrupts
+are excluded. No real RC759 elapsed time or optimized speedup was measured.
+For non-default cases, sine/cosine/scale are set directly, bypassing the
+public setters' angle/height quantization.
+
+For standard size, modeled costs split into point transformation 22.8%,
+glyph decoding/buffer preparation 17.0%, segment setup 8.6%, line setup/
+stepping/address calculation 32.1%, pixel kernel 15.9%, and other text/
+dispatcher work 3.7% (including advance transformation). At scale 128,
+line work plus the pixel kernel rises to 66.1%.
+
+The earlier speculative 1.5-2.5x estimate was too generous for a
+transformation-only optimization. A zero-replacement-cost ceiling is
+`1 / (1 - transform_share)`; real replacements must cost something.
+If an identity fast path or warmed vector-coordinate cache removed 75%
+of point-transform cost, the modeled overall speedups would be about
+1.21x, 1.17x, 1.13x and 1.21x respectively. These are conditional scenarios,
+not measured improvements; cache construction/invalidation is not priced.
+A larger gain needs faster decoding and/or line/pixel work as well.
+All proposed reuse remains vector-based; neither DMA nor bitmap fonts
+are required by this analysis.
+
+### Pixel/line special cases: verified structure and conditional gains
+
+Static inspection of `abline`, `plot_pixel` and
+`pixel_address_and_mask` establishes that the start address and mask
+are computed once per segment, not once per pixel. Subsequent pixels
+use incremental updates: Y steps change DI by +/-2; X steps rotate BX,
+adding 512 to DI when the mask crosses a 16-pixel strip boundary.
+Thus the principal opportunity is the inner drawing/stepping loop,
+not replacing repeated full coordinate-to-address calculations.
+
+Potential specializations, not implemented or benchmarked:
+
+| Case | Work that could be removed |
+|---|---|
+| Solid pattern, fixed color/writing function | Select a direct OR/AND/XOR operation once per segment instead of rotating the pattern and consulting the truth table for every pixel. |
+| Vertical segment | Keep the mask constant and advance DI by +/-2; omit Bresenham error arithmetic and X-step decisions. |
+| Horizontal segment | The existing special loop still calls `plot_pixel` per pixel. Accumulate word masks, handling partial ends and updating up to 16 pixels per word; successive horizontal words are 512 bytes apart. |
+| Exact 45-degree diagonal | Both axes step each iteration; omit error arithmetic and the decision whether to step the minor axis. |
+
+The measured executions give a nominal 93 cycles per `plot_pixel`
+body, including RET, plus 15 for its direct CALL. Those costs are modeled,
+not hardware measurements. A direct inlined bit operation could remove
+the lookup, old-pixel extraction, call and return, but the caller's
+register/flag requirements and specialization overhead must be priced.
+
+Using the actual profile fractions, `speedup = T / (T - saved_cost)`:
+
+| Assumed saving, including replacement overhead | Scale 32 | Scale 64 | Scale 128 |
+|---|---:|---:|---:|
+| 75% of pixel-body cost | 1.14x | 1.20x | 1.31x |
+| 50% of combined line-region and pixel-body cost | 1.32x | 1.39x | 1.49x |
+| Previous row plus 75% of point-transform cost | 1.70x | 1.74x | 1.79x |
+
+These are conditional scenarios, not forecasts validated by an optimized
+implementation. The pixel-body region excludes CALL, which belongs to
+the line region; combined-region scenarios count each instruction once.
+The line region includes segment setup/address calculation as well as
+stepping, so halving it requires more than simplifying `plot_pixel`.
+Short glyph segments may not repay extra case selection; larger text
+has more pixel work over which to amortize it.
+
+Correctness constraints: XOR must preserve shared-endpoint suppression;
+patterned lines must preserve pattern phase, including across segments;
+partial-word writes must leave unrelated pixels untouched; reversed
+directions and Bresenham tie behavior must retain the original raster.
+Prioritize a solid fixed-function pixel loop and vertical segments for
+a future experiment, retaining the general path as fallback. All cases
+remain vector rendering, without DMA or bitmap-font substitution.
+
 ## Full source-comment audit (2026-11-01)
 
 Scope: every comment in `src/dd759h1.a86`, `src/glyphs.a86` and
