@@ -1659,12 +1659,14 @@ get_loc_key:
 	ret
 
 sub_DB3_toggle:
-	xor	word ptr locator_step_offset,4
+	xor	word ptr locator_step_offset,4 ; Key code 201 toggles step 1/10.
 sub_DB3_empty:
 	xor	ax,ax
 	ret
 
 sub_DB3_decode:
+	; Each direction has two (delta X, delta Y) pairs, four bytes each.
+	; At (100,50), key 205 with offset 4 gives (110,50).
 	add	si,locator_step_offset
 	mov	bx,word ptr loc_tbl[si]
 	inc	si
@@ -2132,8 +2134,10 @@ bit_masks:
 	dw	0000000000000010b
 	dw	0000000000000001b
 
-; load_pixel_lut selects four-byte tables; plot_pixel indexes 3756
+; load_pixel_lut selects four-byte tables; plot_pixel indexes each
 ; with 2*pattern_bit + old_pixel. Entries control XOR toggles (0/255).
+; new_pixel = old_pixel XOR (entry != 0): 0 keeps, 255 flips.
+; Example: replace/color 1 uses table 3; pattern=1, old=0 flips to 1.
 pixel_truth_tables:
 	db	00h,0FFh,00h,0FFh               ; Table 0
 	db	00h,0FFh,0FFh,00h               ; Table 1
@@ -2201,11 +2205,18 @@ v_input_mode	db	0                       ; DATA:685 input mode
 v_key_mode	db	0                       ; DATA:686 keyboard mode
 v_keyboard_mode	db	0                       ; DATA:687 keyboard mode selector
 
-locator_step_offset	dw	0               ; DATA:688 locator movement-table selector
+; Keyboard-controlled graphics locator, not the alpha text cursor.
+; Key code 201 toggles offset 0/4: steps of 1/10 pixels respectively.
+; The physical RC759 key corresponding to code 201 is not established.
+locator_step_offset	dw	0               ; DATA:688 starts with small steps
 loc_tbl:
-	dw	0,1,0,10,0,0FFFFh,0,0FFF6h
-	dw	1,0,10,0,0FFFFh,0,0FFF6h,0
+	dw	0,1,0,10                        ; Key 200: small/large positive Y.
+	dw	0,-1,0,-10                      ; Key 208: small/large negative Y.
+	dw	1,0,10,0                        ; Key 205: small/large positive X.
+	dw	-1,0,-10,0                      ; Key 203: small/large negative X.
 
+	; Following bytes resemble additional diagonal delta pairs, but
+	; get_loc_key only selects the four directions above. Role unknown.
 	db	001h,000h,0FFh,0FFh,00Ah,000h,0F6h,0FFh,001h,000h,001h,000h,00Ah,000h,00Ah,000h
 	db	0FFh,0FFh,001h,000h,0F6h,0FFh,00Ah,000h,0FFh,0FFh,0FFh,0FFh,0F6h,0FFh,0F6h,0FFh
 	db	0E8h,003h,0E8h,003h,001h,000h,001h,000h,000h,000h
@@ -2450,84 +2461,7 @@ gcb_seg	dw	SEG extra_segment_anchor        ; DATA:1421 pixel memory segment
 v_gfx_init	dw	0                       ; DATA:1423 init done (1 after first open)
 
 	rb	513
-	; Glyph vector offsets followed by encoded character vectors.
-glyph_offsets:
-	db	092h,008h,09Eh,008h,0A4h,008h,0AAh,008h,0B6h,008h,0BCh,008h,0C2h,008h,0C3h,008h
-	db	0C4h,008h,0C5h,008h,0C6h,008h,0C7h,008h,0C8h,008h,0C9h,008h,0CAh,008h,0CBh,008h
-	db	0CCh,008h,0CDh,008h,0CEh,008h,0CFh,008h,0D0h,008h,0D1h,008h,0D2h,008h,0D3h,008h
-	db	0D4h,008h,0D5h,008h,0D6h,008h,0D7h,008h,0D8h,008h,0D9h,008h,0DAh,008h,0DBh,008h
-	db	0DCh,008h,0DDh,008h,0E3h,008h,0E9h,008h,0F7h,008h,007h,009h,016h,009h,022h,009h
-	db	025h,009h,02Ah,009h,02Fh,009h,03Bh,009h,041h,009h,046h,009h,049h,009h,04Fh,009h
-	db	054h,009h,05Eh,009h,065h,009h,06Eh,009h,07Dh,009h,084h,009h,08Eh,009h,09Bh,009h
-	db	0A0h,009h,0B3h,009h,0C0h,009h,0CCh,009h,0D9h,009h,0DDh,009h,0E3h,009h,0E7h,009h
-	db	0F3h,009h,003h,00Ah,00Ch,00Ah,01Ah,00Ah,023h,00Ah,02Bh,00Ah,033h,00Ah,03Ah,00Ah
-	db	045h,00Ah,04Eh,00Ah,057h,00Ah,05Dh,00Ah,066h,00Ah,06Ah,00Ah,070h,00Ah,079h,00Ah
-	db	083h,00Ah,08Bh,00Ah,096h,00Ah,0A1h,00Ah,0AEh,00Ah,0B4h,00Ah,0BBh,00Ah,0C1h,00Ah
-	db	0C7h,00Ah,0D1h,00Ah,0D8h,00Ah,0DFh,00Ah,0EBh,00Ah,0F8h,00Ah,007h,00Bh,014h,00Bh
-	db	017h,00Bh,01Ah,00Bh,024h,00Bh,02Eh,00Bh,037h,00Bh,041h,00Bh,04Bh,00Bh,054h,00Bh
-	db	061h,00Bh,06Ah,00Bh,070h,00Bh,079h,00Bh,082h,00Bh,085h,00Bh,08Fh,00Bh,098h,00Bh
-	db	0A2h,00Bh,0AEh,00Bh,0BAh,00Bh,0C1h,00Bh,0CCh,00Bh,0D5h,00Bh,0DEh,00Bh,0E4h,00Bh
-	db	0EAh,00Bh,0F0h,00Bh,0FCh,00Bh,001h,00Ch,00Eh,00Ch,01Bh,00Ch,02Bh,00Ch,03Ah,00Ch
-	db	090h,0F0h,080h,010h,070h,080h,009h,00Fh,080h,001h,007h,088h,011h,01Fh,0FFh,0F1h
-	db	011h,088h,0D0h,030h,080h,00Dh,003h,088h,0D0h,030h,080h,00Dh,003h,080h,0EEh,022h
-	db	080h,0E2h,02Eh,088h,0DDh,03Dh,033h,0D3h,0DDh,088h,0DDh,033h,080h,03Dh,0D3h,088h
-	db	088h,088h,088h,088h,088h,088h,088h,088h,088h,088h,088h,088h,088h,088h,088h,088h
-	db	088h,088h,088h,088h,088h,088h,088h,088h,088h,088h,088h,020h,021h,080h,023h,026h
-	db	088h,024h,026h,080h,054h,056h,088h,046h,037h,017h,006h,043h,032h,080h,015h,004h
-	db	040h,03Fh,01Fh,000h,088h,02Fh,027h,080h,001h,010h,030h,041h,042h,033h,013h,004h
-	db	005h,016h,036h,045h,088h,011h,055h,080h,014h,015h,025h,024h,014h,080h,041h,051h
-	db	052h,042h,041h,088h,050h,014h,015h,026h,036h,045h,044h,011h,010h,030h,052h,088h
-	db	034h,036h,088h,04Eh,011h,014h,047h,088h,00Eh,031h,034h,007h,088h,030h,036h,080h
-	db	011h,055h,080h,015h,051h,080h,003h,063h,088h,030h,036h,080h,003h,063h,088h,011h
-	db	020h,02Fh,00Dh,088h,003h,063h,088h,000h,001h,011h,010h,000h,088h,000h,001h,045h
-	db	046h,088h,001h,005h,016h,036h,045h,041h,030h,010h,001h,088h,004h,026h,020h,080h
-	db	000h,040h,088h,005h,016h,036h,045h,044h,000h,040h,041h,088h,005h,016h,036h,045h
-	db	044h,033h,042h,041h,030h,010h,001h,080h,013h,033h,088h,006h,003h,043h,080h,020h
-	db	026h,088h,001h,010h,030h,041h,042h,033h,003h,006h,046h,088h,002h,013h,033h,042h
-	db	041h,030h,010h,001h,005h,016h,036h,045h,088h,006h,046h,044h,000h,088h,001h,002h
-	db	013h,004h,005h,016h,036h,045h,044h,033h,042h,041h,030h,010h,001h,080h,013h,023h
-	db	088h,001h,010h,030h,041h,045h,036h,016h,005h,004h,013h,033h,044h,088h,015h,025h
-	db	024h,014h,015h,080h,012h,022h,021h,011h,012h,088h,015h,025h,024h,014h,015h,080h
-	db	021h,011h,012h,022h,020h,01Fh,088h,030h,003h,036h,088h,002h,042h,080h,004h,044h
-	db	088h,010h,043h,016h,088h,006h,017h,037h,046h,045h,034h,024h,022h,080h,021h,020h
-	db	088h,050h,010h,001h,006h,017h,057h,066h,063h,052h,032h,023h,024h,035h,055h,064h
-	db	088h,000h,004h,026h,044h,040h,080h,003h,043h,088h,000h,006h,036h,045h,044h,033h
-	db	042h,041h,030h,000h,080h,003h,033h,088h,045h,036h,016h,005h,001h,010h,030h,041h
-	db	088h,000h,006h,036h,045h,041h,030h,000h,088h,040h,000h,006h,046h,080h,003h,023h
-	db	088h,000h,006h,046h,080h,003h,023h,088h,045h,036h,016h,005h,001h,010h,030h,041h
-	db	043h,023h,088h,000h,006h,080h,003h,043h,080h,040h,046h,088h,010h,030h,080h,020h
-	db	026h,080h,016h,036h,088h,001h,010h,030h,041h,046h,088h,000h,006h,080h,002h,046h
-	db	080h,013h,040h,088h,040h,000h,006h,088h,000h,006h,024h,046h,040h,088h,000h,006h
-	db	080h,005h,041h,080h,040h,046h,088h,001h,005h,016h,036h,045h,041h,030h,010h,001h
-	db	088h,000h,006h,036h,045h,044h,033h,003h,088h,012h,030h,010h,001h,005h,016h,036h
-	db	045h,041h,030h,088h,000h,006h,036h,045h,044h,033h,003h,080h,013h,040h,088h,001h
-	db	010h,030h,041h,042h,033h,013h,004h,005h,016h,036h,045h,088h,006h,046h,080h,020h
-	db	026h,088h,006h,001h,010h,030h,041h,046h,088h,006h,002h,020h,042h,046h,088h,006h
-	db	000h,022h,040h,046h,088h,000h,001h,045h,046h,080h,040h,041h,005h,006h,088h,006h
-	db	024h,020h,080h,024h,046h,088h,006h,046h,045h,001h,000h,040h,088h,000h,004h,026h
-	db	046h,080h,026h,020h,040h,080h,003h,043h,088h,001h,005h,016h,036h,045h,041h,030h
-	db	010h,001h,080h,046h,000h,088h,000h,003h,025h,043h,040h,080h,002h,042h,080h,015h
-	db	035h,037h,017h,015h,088h,004h,001h,010h,030h,041h,044h,080h,006h,005h,080h,046h
-	db	045h,088h,00Fh,07Fh,088h,054h,036h,088h,040h,043h,034h,014h,003h,001h,010h,030h
-	db	041h,088h,006h,001h,010h,030h,041h,043h,034h,014h,003h,088h,041h,030h,010h,001h
-	db	003h,014h,034h,043h,088h,046h,041h,030h,010h,001h,003h,014h,034h,043h,088h,030h
-	db	010h,001h,003h,014h,034h,043h,042h,002h,088h,020h,025h,036h,046h,055h,080h,003h
-	db	043h,088h,041h,030h,010h,001h,003h,014h,034h,043h,04Fh,03Eh,01Eh,00Fh,088h,000h
-	db	006h,080h,003h,014h,034h,043h,040h,088h,020h,023h,080h,025h,026h,088h,046h,045h
-	db	080h,043h,04Fh,03Eh,01Eh,00Fh,088h,000h,006h,080h,001h,034h,080h,012h,030h,088h
-	db	020h,026h,088h,000h,004h,080h,003h,014h,023h,034h,043h,040h,088h,000h,004h,080h
-	db	003h,014h,034h,043h,040h,088h,001h,003h,014h,034h,043h,041h,030h,010h,001h,088h
-	db	004h,00Eh,080h,001h,010h,030h,041h,043h,034h,014h,003h,088h,041h,030h,010h,001h
-	db	003h,014h,034h,043h,080h,044h,04Eh,088h,000h,004h,080h,003h,014h,034h,088h,001h
-	db	010h,030h,041h,032h,012h,003h,014h,034h,043h,088h,004h,044h,080h,026h,021h,030h
-	db	040h,051h,088h,004h,001h,010h,030h,041h,080h,044h,040h,088h,004h,002h,020h,042h
-	db	044h,088h,004h,000h,022h,040h,044h,088h,000h,044h,080h,004h,040h,088h,004h,001h
-	db	010h,030h,041h,080h,044h,04Fh,03Eh,01Eh,00Fh,088h,004h,044h,000h,040h,088h,040h
-	db	010h,001h,003h,014h,034h,043h,042h,022h,080h,024h,020h,088h,001h,003h,014h,034h
-	db	043h,041h,030h,010h,001h,080h,044h,000h,088h,040h,043h,034h,014h,003h,001h,010h
-	db	030h,041h,080h,015h,035h,037h,017h,015h,088h,004h,001h,010h,030h,041h,080h,044h
-	db	040h,080h,006h,005h,080h,046h,045h,088h,088h,000h,000h,000h,000h,000h
-
+	include glyphs.a86
 
 ; ============================================================================
 ; EXTRA SEGMENT

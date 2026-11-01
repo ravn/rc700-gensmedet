@@ -1,5 +1,27 @@
 # User-supplied GSX-80/86 source tree
 
+## Trailing locator-data reference audit (2026-11-01)
+
+The 42 bytes following the active locator table occupy DATA offsets
+722..763. Original binary words decode to four small/large diagonal pairs
+followed by 1000,1000,1,1,0. The intended use of these words is unknown.
+
+Static inspection found no explicit H1 instruction reference to that
+interval. The original disassembly has just two indexed locator loads,
+at CODE offsets 3571 and 3577, using base DATA offset 690.
+get_loc_key supplies direction offsets 0,8,16,24, adds a step selector
+0 or 4, then reads two words. The union of those reads is exactly
+DATA 690..721, excluding the trailing bytes.
+
+Other internal pointer setup and bulk-copy paths were inspected:
+palette copies, input-mode initialization, identification/console output,
+glyph streams, sine/fill tables and polygon scratch start elsewhere.
+XIOS initialization receives the GCB address at DATA 1420, not this block.
+No alternate consumer was found. This is a static reference result, not
+a runtime watchpoint proof: caller-provided aliasing pointers, corrupted
+indices or stack exhaustion could access memory outside intended ranges.
+Do not delete these bytes while preserving original binary identity.
+
 ## Follow-up driver analysis (2026-11-01)
 
 There are 45 subdirectories under `dd/` excluding the shared `s/` directory.

@@ -84,7 +84,7 @@ def main():
 
     for name in ("rasm86.cmd", "link86.cmd"):
         (work / name).write_bytes((ROOT / "tools" / name).read_bytes())
-    for name in ("dd759h1.a86", "sine.a86"):
+    for name in ("dd759h1.a86", "sine.a86", "glyphs.a86"):
         source = (ROOT / "src" / name).read_bytes()
         source = source.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n") + b"\x1a"
         (work / name).write_bytes(source)
