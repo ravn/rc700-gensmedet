@@ -1,5 +1,75 @@
 # RC700-SYSGEN Project Timeline
 
+## 2026-10-31 — Sequential H1 layout, no ORG or fixed table aliases
+
+At user request removed all 90 ORG directives from src/dd759h1.a86.
+Actual data holes and segment padding are now explicit RB reservations;
+table symbols sit directly at their data declarations instead of numeric
+EQU offsets. RASM requires OFFSET for immediate label addresses; added it
+to DEV_TAB/SIZ_TAB loads and fill_tiles arithmetic. EXTRA RB worked,
+contrary to the old source comment about an assembler crash.
+
+The final EXTRA declaration is `extra_segment_anchor rb 992`.
+Artifact scratch/emu2-current-20261031-233945/dd759h1.cmd:
+zero RASM errors, 8,576 bytes, identical header, CODE, DATA, EXTRA and
+relocation trailer. The original SYS remains unchanged. User requested
+a local commit of the verified label and layout changes; no push.
+
+## 2026-10-31 — Committed source oracles, aligned H1 symbols
+
+Committed oracle research as 9399574, then preserved original reference
+line endings in 1fe1626. Workspace tracking commits: 9eb8ba6 and 1870151.
+The first staged reference blobs had been normalized by core.autocrlf=input;
+reference/.gitattributes plus explicit add --renormalize restored archival
+bytes. DRI archive members were checked against Git blobs, not just worktree.
+
+Subsequently renamed 60 verified routine/state symbols in src/dd759h1.a86,
+corrected ESCAPE numbering and row/column descriptions, and introduced named
+fixed-offset table aliases. Skeleton names abline, concat and get_loc_key
+identify matching roles; vector glyph and RC759 pixel-LUT names stay distinct
+from the skeleton's bitmap renderer.
+Final artifact scratch/emu2-current-20261031-232627/dd759h1.cmd:
+zero RASM errors, 8,576 bytes, identical header/CODE/DATA/EXTRA/trailer via
+comparator and cmp. Label-alignment changes remain separate from the
+requested initial research commits; no push or graphics-runtime test.
+
+## 2026-10-31 — Skeleton sources found; user-supplied GSX source history
+
+Located Retroarchive's mono.zip and color.zip developer skeleton packages.
+Retained 13 source/notice files byte-for-byte under
+`rc759-gsx/reference/dri-skeleton/`, with archive hashes and release-version
+differences documented. User designated the skeleton sources as semantic
+oracles; the original H1 SYS remains the byte-identity oracle.
+Static comparison: `rc759-gsx/notes/06-dri-skeleton-oracle-comparison.md`.
+Test archives have observed content anomalies; no executable usability claim.
+
+User also copied `scratch/gsx80_86/` into the project: 689 files with SCCS
+source history, including IBM monochrome GIOS C, Ratfor-style skeletons,
+GSX-86 assembly, vector-font initialization and a floating-point sine routine.
+Recorded inventory and extraction cautions in
+`rc759-gsx/notes/07-gsx80-86-source-tree.md`. The copied sine implementation
+uses 19 real samples/interpolation, not H1's 91-word fixed-point table.
+No historical sources edited or built, no H1 behavior changes, no commits.
+
+## 2026-10-31 — DRI skeleton guides identify names and ESCAPE annotation errors
+
+User supplied the Lund archive's GSX `writing_drivers/` directory.
+Retained five guide files under `rc759-gsx/reference/lth-writing-drivers/`,
+including CP/M-86 monochrome skeleton and illustrated test-suite PDFs.
+The guides name BWMMSKCP.A86/MONOMMRE.A86/MONOMMOB.OBJ/FONT.OBJ, but those
+package files were not in the inspected indexes or found by workspace filename.
+Compared `concat`, `get_loc_key`, cursor sequence names and ESCAPE roles:
+`rc759-gsx/notes/05-dri-skeleton-guides.md`.
+
+Original SYS word reads show source ESCAPE labels are off by one:
+ESCAPE 2 goes to CS:01B0 (enter graphics), ESCAPE 3 to CS:01B7 (exit),
+and ESCAPE 15 to CS:021F (cursor inquiry). Recorded the full mapping;
+no source rename or behavior change made. Corrected the XIOS note and the
+earlier mistaken association of opcode 27 with valuator input (actually 29).
+The test guide's MODETEST covers both pen values and all four writing modes,
+making it directly relevant to the static color-zero discrepancy. No graphics
+tests executed; downloaded PDF signatures/hashes and documentation links checked.
+
 ## Session: #116 investigated + closed stale; #119 filed + PARKED (polypascal-test hang, both compilers) (Jul 4, 2026) — Medium
 
 **#116** ("restore SDCC cpnos build") was stale: `make prom1-lineprog
@@ -8980,6 +9050,65 @@ Næste blocker: 82730-mailbox-handshake-loop (test 16). mame-branch rc750-rom-fo
 - **Resultater**:
   - `mame-test COMPILER=clang`: Booter direkte til `A>` på 2 sekunder.
   - `cross-version-boot-test.sh`: Alle 4 kryds-version kombinationer (både S01=On og S01=Off) PASS.
+
+## 2026-10-31 — RC759 GSX-86: current emu2 matches MAME (Hard)
+
+Verified current `emu2-cpm86` (`f1fe35c`) against MAME with identical
+normalized RASM-86 input. A controlling terminal from `pty.fork()` is required:
+non-TTY execution fails keyboard initialization, and early PTY EOF is Ctrl-D at
+RASM-86's `STOP RASM-86 (Y/N)?` prompt. Current emu2 produced an OBJ and linked
+CMD byte-identical to MAME (1,792 and 8,576 bytes). The older pinned `55806f2`
+still truncates the OBJ at record 72 and LINK-86 fails at record 73. Procedure
+and limitations: `tasks/memory/reference_rc759_gsx_emu2_verification.md`.
+
+## 2026-10-31 — RC759 GSX-86: first handler blocks match original SYS
+
+Continued H1 reconstruction using the original 8,576-byte SYS as the independent
+byte oracle. Fixed the POLYLINE pixel-loop target, then reconstructed the
+POLYMARKER entry; `CS:016E..02D6`, `CS:02D7..04BE`, and `CS:04BF..050E` now
+match exactly. The ESCAPE dispatch table at `DATA:0146` also matches. Current
+emu2 reports zero RASM-86 errors and LINK-86 produces an 8,576-byte CMD, but
+4,336 bytes still differ overall (CODE 2,668, DATA 1,657, relocation trailer
+11). Several handlers/helpers remain stubs; exact bytes in these ranges do not
+mean the full driver is reconstructed or behaviorally verified.
+
+## 2026-10-31 — RC759 GSX-86 H1: byte-identical rebuild
+
+Completed the remaining H1 code, reconstructed the DATA initializers and lookup
+tables, and restored all five load-time segment fixups. The final relocation
+records include `CS:1016 -> EXTRA`, `CS:101D -> DATA`, and `DATA:058D -> EXTRA`;
+the immediate bytes remain zero in the linked image, so byte comparison alone
+would not expose missing fixups. RASM-86 reported zero errors and LINK-86
+produced `scratch/emu2-current-20261031-222116/dd759h1.cmd` (8,576 bytes).
+`compare_sys_cmd.py` reported identical header, CODE (4,160 B), DATA (3,136 B),
+EXTRA (992 B), and relocation trailer (160 B); an independent `cmp -s` also
+confirmed the full files are identical. Running that CMD directly in current
+emu2 exited with status 0. This verifies load and return, not graphics behavior.
+
+## 2026-10-31 — RC759 GSX: historical sources clarify H1
+
+Retained 21 unmodified reference files from Seasip's GIOS11 and GDOS 1.3
+archives, with provenance and hashes under `rc759-gsx/reference/seasip/`.
+GIOS11 explicitly contains disassembled source; its later video-mode ports
+and FreeGEM were excluded. Findings with source line numbers and H1 offsets:
+`rc759-gsx/notes/04-gsx11-source-comparison.md`.
+
+Independently checked all 91 words at DATA:03FC against
+`round(2048*sin(degrees))`: exact match. The supposed device-height variables
+are text/marker sine/cosine coefficients. The parameter-block wrapper copies
+five far pointers, not the contrl array. Text and markers share a signed-nibble
+vector decoder; drawing writes bitmap memory under an XIOS semaphore, not
+character-generator uploads. Corrected misleading source comments and the
+older opcode/XIOS notes, including the missing eighth interrupt site.
+
+All 32 static pixel-mode combinations match the IBM driver's instruction
+expressions, but this is not blanket conformance: color-zero transparent/erase
+cases differ from the GSX manual's published expressions. Runtime impact and
+historical intent remain unverified; no behavior change or bug filing made.
+Rebuilt comment-only changes in
+`scratch/emu2-current-20261031-224305/dd759h1.cmd`: zero RASM errors,
+8,576 bytes, full comparator/cmp equality including relocations.
+No new MAME graphics test performed.
 
 ## 2026-10-19 — CPNOS: 2 KB PROM cap, SIO-B 38.400 baud & PolyPascal test PASS
 

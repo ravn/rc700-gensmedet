@@ -1,0 +1,1472 @@
+	; Glyph vector offsets followed by encoded character vectors.
+; 128 near DATA pointers indexed by character code (0..127).
+glyph_offsets:
+	dw	offset glyph_000                ; character code 0
+	dw	offset glyph_001                ; character code 1
+	dw	offset glyph_002                ; character code 2
+	dw	offset glyph_003                ; character code 3
+	dw	offset glyph_004                ; character code 4
+	dw	offset glyph_005                ; character code 5
+	dw	offset glyph_006                ; character code 6
+	dw	offset glyph_007                ; character code 7
+	dw	offset glyph_008                ; character code 8
+	dw	offset glyph_009                ; character code 9
+	dw	offset glyph_010                ; character code 10
+	dw	offset glyph_011                ; character code 11
+	dw	offset glyph_012                ; character code 12
+	dw	offset glyph_013                ; character code 13
+	dw	offset glyph_014                ; character code 14
+	dw	offset glyph_015                ; character code 15
+	dw	offset glyph_016                ; character code 16
+	dw	offset glyph_017                ; character code 17
+	dw	offset glyph_018                ; character code 18
+	dw	offset glyph_019                ; character code 19
+	dw	offset glyph_020                ; character code 20
+	dw	offset glyph_021                ; character code 21
+	dw	offset glyph_022                ; character code 22
+	dw	offset glyph_023                ; character code 23
+	dw	offset glyph_024                ; character code 24
+	dw	offset glyph_025                ; character code 25
+	dw	offset glyph_026                ; character code 26
+	dw	offset glyph_027                ; character code 27
+	dw	offset glyph_028                ; character code 28
+	dw	offset glyph_029                ; character code 29
+	dw	offset glyph_030                ; character code 30
+	dw	offset glyph_031                ; character code 31
+	dw	offset glyph_032                ; character code 32 ( )
+	dw	offset glyph_exclamation_mark   ; character code 33 (!)
+	dw	offset glyph_quotation_mark     ; character code 34 (")
+	dw	offset glyph_number_sign        ; character code 35 (#)
+	dw	offset glyph_dollar_sign        ; character code 36 ($)
+	dw	offset glyph_percent_sign       ; character code 37 (%)
+	dw	offset glyph_ampersand          ; character code 38 (&)
+	dw	offset glyph_apostrophe         ; character code 39 (')
+	dw	offset glyph_left_parenthesis   ; character code 40 (()
+	dw	offset glyph_right_parenthesis  ; character code 41 ())
+	dw	offset glyph_asterisk           ; character code 42 (*)
+	dw	offset glyph_plus_sign          ; character code 43 (+)
+	dw	offset glyph_comma              ; character code 44 (,)
+	dw	offset glyph_hyphen_minus       ; character code 45 (-)
+	dw	offset glyph_full_stop          ; character code 46 (.)
+	dw	offset glyph_solidus            ; character code 47 (/)
+	dw	offset glyph_0                  ; character code 48 (0)
+	dw	offset glyph_1                  ; character code 49 (1)
+	dw	offset glyph_2                  ; character code 50 (2)
+	dw	offset glyph_3                  ; character code 51 (3)
+	dw	offset glyph_4                  ; character code 52 (4)
+	dw	offset glyph_5                  ; character code 53 (5)
+	dw	offset glyph_6                  ; character code 54 (6)
+	dw	offset glyph_7                  ; character code 55 (7)
+	dw	offset glyph_8                  ; character code 56 (8)
+	dw	offset glyph_9                  ; character code 57 (9)
+	dw	offset glyph_colon              ; character code 58 (:)
+	dw	offset glyph_semicolon          ; character code 59 (;)
+	dw	offset glyph_less_than_sign     ; character code 60 (<)
+	dw	offset glyph_equals_sign        ; character code 61 (=)
+	dw	offset glyph_greater_than_sign  ; character code 62 (>)
+	dw	offset glyph_question_mark      ; character code 63 (?)
+	dw	offset glyph_commercial_at      ; character code 64 (@)
+	dw	offset glyph_upper_A            ; character code 65 (A)
+	dw	offset glyph_upper_B            ; character code 66 (B)
+	dw	offset glyph_upper_C            ; character code 67 (C)
+	dw	offset glyph_upper_D            ; character code 68 (D)
+	dw	offset glyph_upper_E            ; character code 69 (E)
+	dw	offset glyph_upper_F            ; character code 70 (F)
+	dw	offset glyph_upper_G            ; character code 71 (G)
+	dw	offset glyph_upper_H            ; character code 72 (H)
+	dw	offset glyph_upper_I            ; character code 73 (I)
+	dw	offset glyph_upper_J            ; character code 74 (J)
+	dw	offset glyph_upper_K            ; character code 75 (K)
+	dw	offset glyph_upper_L            ; character code 76 (L)
+	dw	offset glyph_upper_M            ; character code 77 (M)
+	dw	offset glyph_upper_N            ; character code 78 (N)
+	dw	offset glyph_upper_O            ; character code 79 (O)
+	dw	offset glyph_upper_P            ; character code 80 (P)
+	dw	offset glyph_upper_Q            ; character code 81 (Q)
+	dw	offset glyph_upper_R            ; character code 82 (R)
+	dw	offset glyph_upper_S            ; character code 83 (S)
+	dw	offset glyph_upper_T            ; character code 84 (T)
+	dw	offset glyph_upper_U            ; character code 85 (U)
+	dw	offset glyph_upper_V            ; character code 86 (V)
+	dw	offset glyph_upper_W            ; character code 87 (W)
+	dw	offset glyph_upper_X            ; character code 88 (X)
+	dw	offset glyph_upper_Y            ; character code 89 (Y)
+	dw	offset glyph_upper_Z            ; character code 90 (Z)
+	dw	offset glyph_left_square_bracket ; character code 91 ([)
+	dw	offset glyph_reverse_solidus    ; character code 92 (\)
+	dw	offset glyph_right_square_bracket ; character code 93 (])
+	dw	offset glyph_circumflex_accent  ; character code 94 (^)
+	dw	offset glyph_low_line           ; character code 95 (_)
+	dw	offset glyph_grave_accent       ; character code 96 (`)
+	dw	offset glyph_lower_a            ; character code 97 (a)
+	dw	offset glyph_lower_b            ; character code 98 (b)
+	dw	offset glyph_lower_c            ; character code 99 (c)
+	dw	offset glyph_lower_d            ; character code 100 (d)
+	dw	offset glyph_lower_e            ; character code 101 (e)
+	dw	offset glyph_lower_f            ; character code 102 (f)
+	dw	offset glyph_lower_g            ; character code 103 (g)
+	dw	offset glyph_lower_h            ; character code 104 (h)
+	dw	offset glyph_lower_i            ; character code 105 (i)
+	dw	offset glyph_lower_j            ; character code 106 (j)
+	dw	offset glyph_lower_k            ; character code 107 (k)
+	dw	offset glyph_lower_l            ; character code 108 (l)
+	dw	offset glyph_lower_m            ; character code 109 (m)
+	dw	offset glyph_lower_n            ; character code 110 (n)
+	dw	offset glyph_lower_o            ; character code 111 (o)
+	dw	offset glyph_lower_p            ; character code 112 (p)
+	dw	offset glyph_lower_q            ; character code 113 (q)
+	dw	offset glyph_lower_r            ; character code 114 (r)
+	dw	offset glyph_lower_s            ; character code 115 (s)
+	dw	offset glyph_lower_t            ; character code 116 (t)
+	dw	offset glyph_lower_u            ; character code 117 (u)
+	dw	offset glyph_lower_v            ; character code 118 (v)
+	dw	offset glyph_lower_w            ; character code 119 (w)
+	dw	offset glyph_lower_x            ; character code 120 (x)
+	dw	offset glyph_lower_y            ; character code 121 (y)
+	dw	offset glyph_lower_z            ; character code 122 (z)
+	dw	offset glyph_left_curly_bracket ; character code 123 ({)
+	dw	offset glyph_vertical_line      ; character code 124 (|)
+	dw	offset glyph_right_curly_bracket ; character code 125 (})
+	dw	offset glyph_tilde              ; character code 126 (~)
+	dw	offset glyph_127                ; character code 127
+
+; Signed-nibble vectors; 128 splits strokes, 136 ends a glyph.
+; Coordinates are relative to glyph origin, not successive pen deltas.
+; Labels identify ASCII code positions, not necessarily glyph appearance:
+; national-letter shapes also occupy some ASCII punctuation positions.
+; Sketches: o = vertex, # = schematic line, . = empty; Y upwards.
+; Integer line sketches are not the driver rasterization oracle.
+
+; Stroke 1: (-7,0) -> (-1,0)
+; Stroke 2: (1,0) -> (7,0)
+; Stroke 3: (0,-7) -> (0,-1)
+; Stroke 4: (0,1) -> (0,7)
+; Sketch: X=-7..7, Y=7..-7 (top to bottom).
+; .......o.......
+; .......#.......
+; .......#.......
+; .......#.......
+; .......#.......
+; .......#.......
+; .......o.......
+; o#####o.o#####o
+; .......o.......
+; .......#.......
+; .......#.......
+; .......#.......
+; .......#.......
+; .......#.......
+; .......o.......
+glyph_000:
+	db	090h,0F0h,080h,010h,070h,080h,009h,00Fh,080h,001h,007h,088h
+
+; Stroke 1: (1,1) -> (1,-1) -> (-1,-1) -> (-1,1) -> (1,1)
+; Sketch: X=-1..1, Y=1..-1 (top to bottom).
+; o#o
+; #.#
+; o#o
+glyph_001:
+	db	011h,01Fh,0FFh,0F1h,011h,088h
+
+; Stroke 1: (-3,0) -> (3,0)
+; Stroke 2: (0,-3) -> (0,3)
+; Sketch: X=-3..3, Y=3..-3 (top to bottom).
+; ...o...
+; ...#...
+; ...#...
+; o#####o
+; ...#...
+; ...#...
+; ...o...
+glyph_002:
+	db	0D0h,030h,080h,00Dh,003h,088h
+
+; Stroke 1: (-3,0) -> (3,0)
+; Stroke 2: (0,-3) -> (0,3)
+; Stroke 3: (-2,-2) -> (2,2)
+; Stroke 4: (-2,2) -> (2,-2)
+; Sketch: X=-3..3, Y=3..-3 (top to bottom).
+; ...o...
+; .o.#.o.
+; ..###..
+; o#####o
+; ..###..
+; .o.#.o.
+; ...o...
+glyph_003:
+	db	0D0h,030h,080h,00Dh,003h,080h,0EEh,022h,080h,0E2h,02Eh,088h
+
+; Stroke 1: (-3,-3) -> (3,-3) -> (3,3) -> (-3,3) -> (-3,-3)
+; Sketch: X=-3..3, Y=3..-3 (top to bottom).
+; o#####o
+; #.....#
+; #.....#
+; #.....#
+; #.....#
+; #.....#
+; o#####o
+glyph_004:
+	db	0DDh,03Dh,033h,0D3h,0DDh,088h
+
+; Stroke 1: (-3,-3) -> (3,3)
+; Stroke 2: (3,-3) -> (-3,3)
+; Sketch: X=-3..3, Y=3..-3 (top to bottom).
+; o.....o
+; .#...#.
+; ..#.#..
+; ...#...
+; ..#.#..
+; .#...#.
+; o.....o
+glyph_005:
+	db	0DDh,033h,080h,03Dh,0D3h,088h
+
+; Empty glyph: no strokes.
+glyph_006:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_007:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_008:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_009:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_010:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_011:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_012:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_013:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_014:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_015:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_016:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_017:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_018:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_019:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_020:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_021:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_022:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_023:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_024:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_025:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_026:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_027:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_028:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_029:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_030:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_031:
+	db	088h
+
+; Empty glyph: no strokes.
+glyph_032:
+	db	088h
+
+; Stroke 1: (2,0) -> (2,1)
+; Stroke 2: (2,3) -> (2,6)
+; Sketch: X=2..2, Y=6..0 (top to bottom).
+; o
+; #
+; #
+; o
+; .
+; o
+; o
+glyph_exclamation_mark:
+	db	020h,021h,080h,023h,026h,088h
+
+; Stroke 1: (2,4) -> (2,6)
+; Stroke 2: (5,4) -> (5,6)
+; Sketch: X=2..5, Y=6..4 (top to bottom).
+; o..o
+; #..#
+; o..o
+glyph_quotation_mark:
+	db	024h,026h,080h,054h,056h,088h
+
+; Stroke 1: (4,6) -> (3,7) -> (1,7) -> (0,6) -> (4,3) -> (3,2)
+; Stroke 2: (1,5) -> (0,4) -> (4,0) -> (3,-1) -> (1,-1) -> (0,0)
+; Sketch: X=0..4, Y=7..-1 (top to bottom).
+; .o#o.
+; o...o
+; .o...
+; o.##.
+; .#..o
+; ..#o.
+; ...#.
+; o...o
+; .o#o.
+glyph_number_sign:
+	db	046h,037h,017h,006h,043h,032h,080h,015h,004h,040h,03Fh,01Fh,000h,088h
+
+; Stroke 1: (2,-1) -> (2,7)
+; Stroke 2: (0,1) -> (1,0) -> (3,0) -> (4,1) -> (4,2) -> (3,3) -> (1,3) -> (0,4) -> (0,5) -> (1,6) -> (3,6) -> (4,5)
+; Sketch: X=0..4, Y=7..-1 (top to bottom).
+; ..o..
+; .o#o.
+; o.#.o
+; o.#..
+; .o#o.
+; ..#.o
+; o.#.o
+; .o#o.
+; ..o..
+glyph_dollar_sign:
+	db	02Fh,027h,080h,001h,010h,030h,041h,042h,033h,013h,004h,005h,016h,036h,045h,088h
+
+; Stroke 1: (1,1) -> (5,5)
+; Stroke 2: (1,4) -> (1,5) -> (2,5) -> (2,4) -> (1,4)
+; Stroke 3: (4,1) -> (5,1) -> (5,2) -> (4,2) -> (4,1)
+; Sketch: X=1..5, Y=5..1 (top to bottom).
+; oo..o
+; oo.#.
+; ..#..
+; .#.oo
+; o..oo
+glyph_percent_sign:
+	db	011h,055h,080h,014h,015h,025h,024h,014h,080h,041h,051h,052h,042h,041h,088h
+
+; Stroke 1: (5,0) -> (1,4) -> (1,5) -> (2,6) -> (3,6) -> (4,5) -> (4,4) -> (1,1) -> (1,0) -> (3,0) -> (5,2)
+; Sketch: X=1..5, Y=6..0 (top to bottom).
+; .oo..
+; o..o.
+; o..o.
+; .##..
+; .##.o
+; o..#.
+; o#o.o
+glyph_ampersand:
+	db	050h,014h,015h,026h,036h,045h,044h,011h,010h,030h,052h,088h
+
+; Stroke 1: (3,4) -> (3,6)
+; Sketch: X=3..3, Y=6..4 (top to bottom).
+; o
+; #
+; o
+glyph_apostrophe:
+	db	034h,036h,088h
+
+; Stroke 1: (4,-2) -> (1,1) -> (1,4) -> (4,7)
+; Sketch: X=1..4, Y=7..-2 (top to bottom).
+; ...o
+; ..#.
+; .#..
+; o...
+; #...
+; #...
+; o...
+; .#..
+; ..#.
+; ...o
+glyph_left_parenthesis:
+	db	04Eh,011h,014h,047h,088h
+
+; Stroke 1: (0,-2) -> (3,1) -> (3,4) -> (0,7)
+; Sketch: X=0..3, Y=7..-2 (top to bottom).
+; o...
+; .#..
+; ..#.
+; ...o
+; ...#
+; ...#
+; ...o
+; ..#.
+; .#..
+; o...
+glyph_right_parenthesis:
+	db	00Eh,031h,034h,007h,088h
+
+; Stroke 1: (3,0) -> (3,6)
+; Stroke 2: (1,1) -> (5,5)
+; Stroke 3: (1,5) -> (5,1)
+; Stroke 4: (0,3) -> (6,3)
+; Sketch: X=0..6, Y=6..0 (top to bottom).
+; ...o...
+; .o.#.o.
+; ..###..
+; o#####o
+; ..###..
+; .o.#.o.
+; ...o...
+glyph_asterisk:
+	db	030h,036h,080h,011h,055h,080h,015h,051h,080h,003h,063h,088h
+
+; Stroke 1: (3,0) -> (3,6)
+; Stroke 2: (0,3) -> (6,3)
+; Sketch: X=0..6, Y=6..0 (top to bottom).
+; ...o...
+; ...#...
+; ...#...
+; o#####o
+; ...#...
+; ...#...
+; ...o...
+glyph_plus_sign:
+	db	030h,036h,080h,003h,063h,088h
+
+; Stroke 1: (1,1) -> (2,0) -> (2,-1) -> (0,-3)
+; Sketch: X=0..2, Y=1..-3 (top to bottom).
+; .o.
+; ..o
+; ..o
+; .#.
+; o..
+glyph_comma:
+	db	011h,020h,02Fh,00Dh,088h
+
+; Stroke 1: (0,3) -> (6,3)
+; Sketch: X=0..6, Y=3..3 (top to bottom).
+; o#####o
+glyph_hyphen_minus:
+	db	003h,063h,088h
+
+; Stroke 1: (0,0) -> (0,1) -> (1,1) -> (1,0) -> (0,0)
+; Sketch: X=0..1, Y=1..0 (top to bottom).
+; oo
+; oo
+glyph_full_stop:
+	db	000h,001h,011h,010h,000h,088h
+
+; Stroke 1: (0,0) -> (0,1) -> (4,5) -> (4,6)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; ....o
+; ....o
+; ...#.
+; ..#..
+; .#...
+; o....
+; o....
+glyph_solidus:
+	db	000h,001h,045h,046h,088h
+
+; Stroke 1: (0,1) -> (0,5) -> (1,6) -> (3,6) -> (4,5) -> (4,1) -> (3,0) -> (1,0) -> (0,1)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; .o#o.
+; o...o
+; #...#
+; #...#
+; #...#
+; o...o
+; .o#o.
+glyph_0:
+	db	001h,005h,016h,036h,045h,041h,030h,010h,001h,088h
+
+; Stroke 1: (0,4) -> (2,6) -> (2,0)
+; Stroke 2: (0,0) -> (4,0)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; ..o..
+; .##..
+; o.#..
+; ..#..
+; ..#..
+; ..#..
+; o#o#o
+glyph_1:
+	db	004h,026h,020h,080h,000h,040h,088h
+
+; Stroke 1: (0,5) -> (1,6) -> (3,6) -> (4,5) -> (4,4) -> (0,0) -> (4,0) -> (4,1)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; .o#o.
+; o...o
+; ....o
+; ...#.
+; ..#..
+; .#..o
+; o###o
+glyph_2:
+	db	005h,016h,036h,045h,044h,000h,040h,041h,088h
+
+; Stroke 1: (0,5) -> (1,6) -> (3,6) -> (4,5) -> (4,4) -> (3,3) -> (4,2) -> (4,1) -> (3,0) -> (1,0) -> (0,1)
+; Stroke 2: (1,3) -> (3,3)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; .o#o.
+; o...o
+; ....o
+; .o#o.
+; ....o
+; o...o
+; .o#o.
+glyph_3:
+	db	005h,016h,036h,045h,044h,033h,042h,041h,030h,010h,001h,080h,013h,033h,088h
+
+; Stroke 1: (0,6) -> (0,3) -> (4,3)
+; Stroke 2: (2,0) -> (2,6)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o.o..
+; #.#..
+; #.#..
+; o###o
+; ..#..
+; ..#..
+; ..o..
+glyph_4:
+	db	006h,003h,043h,080h,020h,026h,088h
+
+; Stroke 1: (0,1) -> (1,0) -> (3,0) -> (4,1) -> (4,2) -> (3,3) -> (0,3) -> (0,6) -> (4,6)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o###o
+; #....
+; #....
+; o##o.
+; ....o
+; o...o
+; .o#o.
+glyph_5:
+	db	001h,010h,030h,041h,042h,033h,003h,006h,046h,088h
+
+; Stroke 1: (0,2) -> (1,3) -> (3,3) -> (4,2) -> (4,1) -> (3,0) -> (1,0) -> (0,1) -> (0,5) -> (1,6) -> (3,6) -> (4,5)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; .o#o.
+; o...o
+; #....
+; #o#o.
+; o...o
+; o...o
+; .o#o.
+glyph_6:
+	db	002h,013h,033h,042h,041h,030h,010h,001h,005h,016h,036h,045h,088h
+
+; Stroke 1: (0,6) -> (4,6) -> (4,4) -> (0,0)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o###o
+; ....#
+; ....o
+; ...#.
+; ..#..
+; .#...
+; o....
+glyph_7:
+	db	006h,046h,044h,000h,088h
+
+; Stroke 1: (0,1) -> (0,2) -> (1,3) -> (0,4) -> (0,5) -> (1,6) -> (3,6) -> (4,5) -> (4,4) -> (3,3) -> (4,2) -> (4,1) -> (3,0) -> (1,0) -> (0,1)
+; Stroke 2: (1,3) -> (2,3)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; .o#o.
+; o...o
+; o...o
+; .ooo.
+; o...o
+; o...o
+; .o#o.
+glyph_8:
+	db	001h,002h,013h,004h,005h,016h,036h,045h,044h,033h,042h,041h,030h,010h,001h,080h
+	db	013h,023h,088h
+
+; Stroke 1: (0,1) -> (1,0) -> (3,0) -> (4,1) -> (4,5) -> (3,6) -> (1,6) -> (0,5) -> (0,4) -> (1,3) -> (3,3) -> (4,4)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; .o#o.
+; o...o
+; o...o
+; .o#o#
+; ....#
+; o...o
+; .o#o.
+glyph_9:
+	db	001h,010h,030h,041h,045h,036h,016h,005h,004h,013h,033h,044h,088h
+
+; Stroke 1: (1,5) -> (2,5) -> (2,4) -> (1,4) -> (1,5)
+; Stroke 2: (1,2) -> (2,2) -> (2,1) -> (1,1) -> (1,2)
+; Sketch: X=1..2, Y=5..1 (top to bottom).
+; oo
+; oo
+; ..
+; oo
+; oo
+glyph_colon:
+	db	015h,025h,024h,014h,015h,080h,012h,022h,021h,011h,012h,088h
+
+; Stroke 1: (1,5) -> (2,5) -> (2,4) -> (1,4) -> (1,5)
+; Stroke 2: (2,1) -> (1,1) -> (1,2) -> (2,2) -> (2,0) -> (1,-1)
+; Sketch: X=1..2, Y=5..-1 (top to bottom).
+; oo
+; oo
+; ..
+; oo
+; oo
+; .o
+; o.
+glyph_semicolon:
+	db	015h,025h,024h,014h,015h,080h,021h,011h,012h,022h,020h,01Fh,088h
+
+; Stroke 1: (3,0) -> (0,3) -> (3,6)
+; Sketch: X=0..3, Y=6..0 (top to bottom).
+; ...o
+; ..#.
+; .#..
+; o...
+; .#..
+; ..#.
+; ...o
+glyph_less_than_sign:
+	db	030h,003h,036h,088h
+
+; Stroke 1: (0,2) -> (4,2)
+; Stroke 2: (0,4) -> (4,4)
+; Sketch: X=0..4, Y=4..2 (top to bottom).
+; o###o
+; .....
+; o###o
+glyph_equals_sign:
+	db	002h,042h,080h,004h,044h,088h
+
+; Stroke 1: (1,0) -> (4,3) -> (1,6)
+; Sketch: X=1..4, Y=6..0 (top to bottom).
+; o...
+; .#..
+; ..#.
+; ...o
+; ..#.
+; .#..
+; o...
+glyph_greater_than_sign:
+	db	010h,043h,016h,088h
+
+; Stroke 1: (0,6) -> (1,7) -> (3,7) -> (4,6) -> (4,5) -> (3,4) -> (2,4) -> (2,2)
+; Stroke 2: (2,1) -> (2,0)
+; Sketch: X=0..4, Y=7..0 (top to bottom).
+; .o#o.
+; o...o
+; ....o
+; ..oo.
+; ..#..
+; ..o..
+; ..o..
+; ..o..
+glyph_question_mark:
+	db	006h,017h,037h,046h,045h,034h,024h,022h,080h,021h,020h,088h
+
+; Stroke 1: (5,0) -> (1,0) -> (0,1) -> (0,6) -> (1,7) -> (5,7) -> (6,6) -> (6,3) -> (5,2) -> (3,2) -> (2,3) -> (2,4) -> (3,5) -> (5,5) -> (6,4)
+; Sketch: X=0..6, Y=7..0 (top to bottom).
+; .o###o.
+; o.....o
+; #..o#o#
+; #.o...o
+; #.o...o
+; #..o#o.
+; o......
+; .o###o.
+glyph_commercial_at:
+	db	050h,010h,001h,006h,017h,057h,066h,063h,052h,032h,023h,024h,035h,055h,064h,088h
+
+; Stroke 1: (0,0) -> (0,4) -> (2,6) -> (4,4) -> (4,0)
+; Stroke 2: (0,3) -> (4,3)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; ..o..
+; .#.#.
+; o...o
+; o###o
+; #...#
+; #...#
+; o...o
+glyph_upper_A:
+	db	000h,004h,026h,044h,040h,080h,003h,043h,088h
+
+; Stroke 1: (0,0) -> (0,6) -> (3,6) -> (4,5) -> (4,4) -> (3,3) -> (4,2) -> (4,1) -> (3,0) -> (0,0)
+; Stroke 2: (0,3) -> (3,3)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o##o.
+; #...o
+; #...o
+; o##o.
+; #...o
+; #...o
+; o##o.
+glyph_upper_B:
+	db	000h,006h,036h,045h,044h,033h,042h,041h,030h,000h,080h,003h,033h,088h
+
+; Stroke 1: (4,5) -> (3,6) -> (1,6) -> (0,5) -> (0,1) -> (1,0) -> (3,0) -> (4,1)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; .o#o.
+; o...o
+; #....
+; #....
+; #....
+; o...o
+; .o#o.
+glyph_upper_C:
+	db	045h,036h,016h,005h,001h,010h,030h,041h,088h
+
+; Stroke 1: (0,0) -> (0,6) -> (3,6) -> (4,5) -> (4,1) -> (3,0) -> (0,0)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o##o.
+; #...o
+; #...#
+; #...#
+; #...#
+; #...o
+; o##o.
+glyph_upper_D:
+	db	000h,006h,036h,045h,041h,030h,000h,088h
+
+; Stroke 1: (4,0) -> (0,0) -> (0,6) -> (4,6)
+; Stroke 2: (0,3) -> (2,3)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o###o
+; #....
+; #....
+; o#o..
+; #....
+; #....
+; o###o
+glyph_upper_E:
+	db	040h,000h,006h,046h,080h,003h,023h,088h
+
+; Stroke 1: (0,0) -> (0,6) -> (4,6)
+; Stroke 2: (0,3) -> (2,3)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o###o
+; #....
+; #....
+; o#o..
+; #....
+; #....
+; o....
+glyph_upper_F:
+	db	000h,006h,046h,080h,003h,023h,088h
+
+; Stroke 1: (4,5) -> (3,6) -> (1,6) -> (0,5) -> (0,1) -> (1,0) -> (3,0) -> (4,1) -> (4,3) -> (2,3)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; .o#o.
+; o...o
+; #....
+; #.o#o
+; #...#
+; o...o
+; .o#o.
+glyph_upper_G:
+	db	045h,036h,016h,005h,001h,010h,030h,041h,043h,023h,088h
+
+; Stroke 1: (0,0) -> (0,6)
+; Stroke 2: (0,3) -> (4,3)
+; Stroke 3: (4,0) -> (4,6)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o...o
+; #...#
+; #...#
+; o###o
+; #...#
+; #...#
+; o...o
+glyph_upper_H:
+	db	000h,006h,080h,003h,043h,080h,040h,046h,088h
+
+; Stroke 1: (1,0) -> (3,0)
+; Stroke 2: (2,0) -> (2,6)
+; Stroke 3: (1,6) -> (3,6)
+; Sketch: X=1..3, Y=6..0 (top to bottom).
+; ooo
+; .#.
+; .#.
+; .#.
+; .#.
+; .#.
+; ooo
+glyph_upper_I:
+	db	010h,030h,080h,020h,026h,080h,016h,036h,088h
+
+; Stroke 1: (0,1) -> (1,0) -> (3,0) -> (4,1) -> (4,6)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; ....o
+; ....#
+; ....#
+; ....#
+; ....#
+; o...o
+; .o#o.
+glyph_upper_J:
+	db	001h,010h,030h,041h,046h,088h
+
+; Stroke 1: (0,0) -> (0,6)
+; Stroke 2: (0,2) -> (4,6)
+; Stroke 3: (1,3) -> (4,0)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o...o
+; #..#.
+; #.#..
+; #o...
+; o.#..
+; #..#.
+; o...o
+glyph_upper_K:
+	db	000h,006h,080h,002h,046h,080h,013h,040h,088h
+
+; Stroke 1: (4,0) -> (0,0) -> (0,6)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o....
+; #....
+; #....
+; #....
+; #....
+; #....
+; o###o
+glyph_upper_L:
+	db	040h,000h,006h,088h
+
+; Stroke 1: (0,0) -> (0,6) -> (2,4) -> (4,6) -> (4,0)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o...o
+; ##.##
+; #.o.#
+; #...#
+; #...#
+; #...#
+; o...o
+glyph_upper_M:
+	db	000h,006h,024h,046h,040h,088h
+
+; Stroke 1: (0,0) -> (0,6)
+; Stroke 2: (0,5) -> (4,1)
+; Stroke 3: (4,0) -> (4,6)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o...o
+; o...#
+; ##..#
+; #.#.#
+; #..##
+; #...o
+; o...o
+glyph_upper_N:
+	db	000h,006h,080h,005h,041h,080h,040h,046h,088h
+
+; Stroke 1: (0,1) -> (0,5) -> (1,6) -> (3,6) -> (4,5) -> (4,1) -> (3,0) -> (1,0) -> (0,1)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; .o#o.
+; o...o
+; #...#
+; #...#
+; #...#
+; o...o
+; .o#o.
+glyph_upper_O:
+	db	001h,005h,016h,036h,045h,041h,030h,010h,001h,088h
+
+; Stroke 1: (0,0) -> (0,6) -> (3,6) -> (4,5) -> (4,4) -> (3,3) -> (0,3)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o##o.
+; #...o
+; #...o
+; o##o.
+; #....
+; #....
+; o....
+glyph_upper_P:
+	db	000h,006h,036h,045h,044h,033h,003h,088h
+
+; Stroke 1: (1,2) -> (3,0) -> (1,0) -> (0,1) -> (0,5) -> (1,6) -> (3,6) -> (4,5) -> (4,1) -> (3,0)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; .o#o.
+; o...o
+; #...#
+; #...#
+; #o..#
+; o.#.o
+; .o#o.
+glyph_upper_Q:
+	db	012h,030h,010h,001h,005h,016h,036h,045h,041h,030h,088h
+
+; Stroke 1: (0,0) -> (0,6) -> (3,6) -> (4,5) -> (4,4) -> (3,3) -> (0,3)
+; Stroke 2: (1,3) -> (4,0)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o##o.
+; #...o
+; #...o
+; oo#o.
+; #.#..
+; #..#.
+; o...o
+glyph_upper_R:
+	db	000h,006h,036h,045h,044h,033h,003h,080h,013h,040h,088h
+
+; Stroke 1: (0,1) -> (1,0) -> (3,0) -> (4,1) -> (4,2) -> (3,3) -> (1,3) -> (0,4) -> (0,5) -> (1,6) -> (3,6) -> (4,5)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; .o#o.
+; o...o
+; o....
+; .o#o.
+; ....o
+; o...o
+; .o#o.
+glyph_upper_S:
+	db	001h,010h,030h,041h,042h,033h,013h,004h,005h,016h,036h,045h,088h
+
+; Stroke 1: (0,6) -> (4,6)
+; Stroke 2: (2,0) -> (2,6)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o#o#o
+; ..#..
+; ..#..
+; ..#..
+; ..#..
+; ..#..
+; ..o..
+glyph_upper_T:
+	db	006h,046h,080h,020h,026h,088h
+
+; Stroke 1: (0,6) -> (0,1) -> (1,0) -> (3,0) -> (4,1) -> (4,6)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o...o
+; #...#
+; #...#
+; #...#
+; #...#
+; o...o
+; .o#o.
+glyph_upper_U:
+	db	006h,001h,010h,030h,041h,046h,088h
+
+; Stroke 1: (0,6) -> (0,2) -> (2,0) -> (4,2) -> (4,6)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o...o
+; #...#
+; #...#
+; #...#
+; o...o
+; .#.#.
+; ..o..
+glyph_upper_V:
+	db	006h,002h,020h,042h,046h,088h
+
+; Stroke 1: (0,6) -> (0,0) -> (2,2) -> (4,0) -> (4,6)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o...o
+; #...#
+; #...#
+; #...#
+; #.o.#
+; ##.##
+; o...o
+glyph_upper_W:
+	db	006h,000h,022h,040h,046h,088h
+
+; Stroke 1: (0,0) -> (0,1) -> (4,5) -> (4,6)
+; Stroke 2: (4,0) -> (4,1) -> (0,5) -> (0,6)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o...o
+; o...o
+; .#.#.
+; ..#..
+; .#.#.
+; o...o
+; o...o
+glyph_upper_X:
+	db	000h,001h,045h,046h,080h,040h,041h,005h,006h,088h
+
+; Stroke 1: (0,6) -> (2,4) -> (2,0)
+; Stroke 2: (2,4) -> (4,6)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o...o
+; .#.#.
+; ..o..
+; ..#..
+; ..#..
+; ..#..
+; ..o..
+glyph_upper_Y:
+	db	006h,024h,020h,080h,024h,046h,088h
+
+; Stroke 1: (0,6) -> (4,6) -> (4,5) -> (0,1) -> (0,0) -> (4,0)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o###o
+; ....o
+; ...#.
+; ..#..
+; .#...
+; o....
+; o###o
+glyph_upper_Z:
+	db	006h,046h,045h,001h,000h,040h,088h
+
+; Stroke 1: (0,0) -> (0,4) -> (2,6) -> (4,6)
+; Stroke 2: (2,6) -> (2,0) -> (4,0)
+; Stroke 3: (0,3) -> (4,3)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; ..o#o
+; .##..
+; o.#..
+; o###o
+; #.#..
+; #.#..
+; o.o#o
+glyph_left_square_bracket:
+	db	000h,004h,026h,046h,080h,026h,020h,040h,080h,003h,043h,088h
+
+; Stroke 1: (0,1) -> (0,5) -> (1,6) -> (3,6) -> (4,5) -> (4,1) -> (3,0) -> (1,0) -> (0,1)
+; Stroke 2: (4,6) -> (0,0)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; .o#oo
+; o..#o
+; #..##
+; #.#.#
+; ##..#
+; o#..o
+; oo#o.
+glyph_reverse_solidus:
+	db	001h,005h,016h,036h,045h,041h,030h,010h,001h,080h,046h,000h,088h
+
+; Stroke 1: (0,0) -> (0,3) -> (2,5) -> (4,3) -> (4,0)
+; Stroke 2: (0,2) -> (4,2)
+; Stroke 3: (1,5) -> (3,5) -> (3,7) -> (1,7) -> (1,5)
+; Sketch: X=0..4, Y=7..0 (top to bottom).
+; .o#o.
+; .#.#.
+; .ooo.
+; .#.#.
+; o...o
+; o###o
+; #...#
+; o...o
+glyph_right_square_bracket:
+	db	000h,003h,025h,043h,040h,080h,002h,042h,080h,015h,035h,037h,017h,015h,088h
+
+; Stroke 1: (0,4) -> (0,1) -> (1,0) -> (3,0) -> (4,1) -> (4,4)
+; Stroke 2: (0,6) -> (0,5)
+; Stroke 3: (4,6) -> (4,5)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o...o
+; o...o
+; o...o
+; #...#
+; #...#
+; o...o
+; .o#o.
+glyph_circumflex_accent:
+	db	004h,001h,010h,030h,041h,044h,080h,006h,005h,080h,046h,045h,088h
+
+; Stroke 1: (0,-1) -> (7,-1)
+; Sketch: X=0..7, Y=-1..-1 (top to bottom).
+; o######o
+glyph_low_line:
+	db	00Fh,07Fh,088h
+
+; Stroke 1: (5,4) -> (3,6)
+; Sketch: X=3..5, Y=6..4 (top to bottom).
+; o..
+; .#.
+; ..o
+glyph_grave_accent:
+	db	054h,036h,088h
+
+; Stroke 1: (4,0) -> (4,3) -> (3,4) -> (1,4) -> (0,3) -> (0,1) -> (1,0) -> (3,0) -> (4,1)
+; Sketch: X=0..4, Y=4..0 (top to bottom).
+; .o#o.
+; o...o
+; #...#
+; o...o
+; .o#oo
+glyph_lower_a:
+	db	040h,043h,034h,014h,003h,001h,010h,030h,041h,088h
+
+; Stroke 1: (0,6) -> (0,1) -> (1,0) -> (3,0) -> (4,1) -> (4,3) -> (3,4) -> (1,4) -> (0,3)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o....
+; #....
+; #o#o.
+; o...o
+; #...#
+; o...o
+; .o#o.
+glyph_lower_b:
+	db	006h,001h,010h,030h,041h,043h,034h,014h,003h,088h
+
+; Stroke 1: (4,1) -> (3,0) -> (1,0) -> (0,1) -> (0,3) -> (1,4) -> (3,4) -> (4,3)
+; Sketch: X=0..4, Y=4..0 (top to bottom).
+; .o#o.
+; o...o
+; #....
+; o...o
+; .o#o.
+glyph_lower_c:
+	db	041h,030h,010h,001h,003h,014h,034h,043h,088h
+
+; Stroke 1: (4,6) -> (4,1) -> (3,0) -> (1,0) -> (0,1) -> (0,3) -> (1,4) -> (3,4) -> (4,3)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; ....o
+; ....#
+; .o#o#
+; o...o
+; #...#
+; o...o
+; .o#o.
+glyph_lower_d:
+	db	046h,041h,030h,010h,001h,003h,014h,034h,043h,088h
+
+; Stroke 1: (3,0) -> (1,0) -> (0,1) -> (0,3) -> (1,4) -> (3,4) -> (4,3) -> (4,2) -> (0,2)
+; Sketch: X=0..4, Y=4..0 (top to bottom).
+; .o#o.
+; o...o
+; o###o
+; o....
+; .o#o.
+glyph_lower_e:
+	db	030h,010h,001h,003h,014h,034h,043h,042h,002h,088h
+
+; Stroke 1: (2,0) -> (2,5) -> (3,6) -> (4,6) -> (5,5)
+; Stroke 2: (0,3) -> (4,3)
+; Sketch: X=0..5, Y=6..0 (top to bottom).
+; ...oo.
+; ..o..o
+; ..#...
+; o###o.
+; ..#...
+; ..#...
+; ..o...
+glyph_lower_f:
+	db	020h,025h,036h,046h,055h,080h,003h,043h,088h
+
+; Stroke 1: (4,1) -> (3,0) -> (1,0) -> (0,1) -> (0,3) -> (1,4) -> (3,4) -> (4,3) -> (4,-1) -> (3,-2) -> (1,-2) -> (0,-1)
+; Sketch: X=0..4, Y=4..-2 (top to bottom).
+; .o#o.
+; o...o
+; #...#
+; o...o
+; .o#o#
+; o...o
+; .o#o.
+glyph_lower_g:
+	db	041h,030h,010h,001h,003h,014h,034h,043h,04Fh,03Eh,01Eh,00Fh,088h
+
+; Stroke 1: (0,0) -> (0,6)
+; Stroke 2: (0,3) -> (1,4) -> (3,4) -> (4,3) -> (4,0)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o....
+; #....
+; #o#o.
+; o...o
+; #...#
+; #...#
+; o...o
+glyph_lower_h:
+	db	000h,006h,080h,003h,014h,034h,043h,040h,088h
+
+; Stroke 1: (2,0) -> (2,3)
+; Stroke 2: (2,5) -> (2,6)
+; Sketch: X=2..2, Y=6..0 (top to bottom).
+; o
+; o
+; .
+; o
+; #
+; #
+; o
+glyph_lower_i:
+	db	020h,023h,080h,025h,026h,088h
+
+; Stroke 1: (4,6) -> (4,5)
+; Stroke 2: (4,3) -> (4,-1) -> (3,-2) -> (1,-2) -> (0,-1)
+; Sketch: X=0..4, Y=6..-2 (top to bottom).
+; ....o
+; ....o
+; .....
+; ....o
+; ....#
+; ....#
+; ....#
+; o...o
+; .o#o.
+glyph_lower_j:
+	db	046h,045h,080h,043h,04Fh,03Eh,01Eh,00Fh,088h
+
+; Stroke 1: (0,0) -> (0,6)
+; Stroke 2: (0,1) -> (3,4)
+; Stroke 3: (1,2) -> (3,0)
+; Sketch: X=0..3, Y=6..0 (top to bottom).
+; o...
+; #...
+; #..o
+; #.#.
+; #o..
+; o.#.
+; o..o
+glyph_lower_k:
+	db	000h,006h,080h,001h,034h,080h,012h,030h,088h
+
+; Stroke 1: (2,0) -> (2,6)
+; Sketch: X=2..2, Y=6..0 (top to bottom).
+; o
+; #
+; #
+; #
+; #
+; #
+; o
+glyph_lower_l:
+	db	020h,026h,088h
+
+; Stroke 1: (0,0) -> (0,4)
+; Stroke 2: (0,3) -> (1,4) -> (2,3) -> (3,4) -> (4,3) -> (4,0)
+; Sketch: X=0..4, Y=4..0 (top to bottom).
+; oo.o.
+; o.o.o
+; #...#
+; #...#
+; o...o
+glyph_lower_m:
+	db	000h,004h,080h,003h,014h,023h,034h,043h,040h,088h
+
+; Stroke 1: (0,0) -> (0,4)
+; Stroke 2: (0,3) -> (1,4) -> (3,4) -> (4,3) -> (4,0)
+; Sketch: X=0..4, Y=4..0 (top to bottom).
+; oo#o.
+; o...o
+; #...#
+; #...#
+; o...o
+glyph_lower_n:
+	db	000h,004h,080h,003h,014h,034h,043h,040h,088h
+
+; Stroke 1: (0,1) -> (0,3) -> (1,4) -> (3,4) -> (4,3) -> (4,1) -> (3,0) -> (1,0) -> (0,1)
+; Sketch: X=0..4, Y=4..0 (top to bottom).
+; .o#o.
+; o...o
+; #...#
+; o...o
+; .o#o.
+glyph_lower_o:
+	db	001h,003h,014h,034h,043h,041h,030h,010h,001h,088h
+
+; Stroke 1: (0,4) -> (0,-2)
+; Stroke 2: (0,1) -> (1,0) -> (3,0) -> (4,1) -> (4,3) -> (3,4) -> (1,4) -> (0,3)
+; Sketch: X=0..4, Y=4..-2 (top to bottom).
+; oo#o.
+; o...o
+; #...#
+; o...o
+; #o#o.
+; #....
+; o....
+glyph_lower_p:
+	db	004h,00Eh,080h,001h,010h,030h,041h,043h,034h,014h,003h,088h
+
+; Stroke 1: (4,1) -> (3,0) -> (1,0) -> (0,1) -> (0,3) -> (1,4) -> (3,4) -> (4,3)
+; Stroke 2: (4,4) -> (4,-2)
+; Sketch: X=0..4, Y=4..-2 (top to bottom).
+; .o#oo
+; o...o
+; #...#
+; o...o
+; .o#o#
+; ....#
+; ....o
+glyph_lower_q:
+	db	041h,030h,010h,001h,003h,014h,034h,043h,080h,044h,04Eh,088h
+
+; Stroke 1: (0,0) -> (0,4)
+; Stroke 2: (0,3) -> (1,4) -> (3,4)
+; Sketch: X=0..3, Y=4..0 (top to bottom).
+; oo#o
+; o...
+; #...
+; #...
+; o...
+glyph_lower_r:
+	db	000h,004h,080h,003h,014h,034h,088h
+
+; Stroke 1: (0,1) -> (1,0) -> (3,0) -> (4,1) -> (3,2) -> (1,2) -> (0,3) -> (1,4) -> (3,4) -> (4,3)
+; Sketch: X=0..4, Y=4..0 (top to bottom).
+; .o#o.
+; o...o
+; .o#o.
+; o...o
+; .o#o.
+glyph_lower_s:
+	db	001h,010h,030h,041h,032h,012h,003h,014h,034h,043h,088h
+
+; Stroke 1: (0,4) -> (4,4)
+; Stroke 2: (2,6) -> (2,1) -> (3,0) -> (4,0) -> (5,1)
+; Sketch: X=0..5, Y=6..0 (top to bottom).
+; ..o...
+; ..#...
+; o###o.
+; ..#...
+; ..#...
+; ..o..o
+; ...oo.
+glyph_lower_t:
+	db	004h,044h,080h,026h,021h,030h,040h,051h,088h
+
+; Stroke 1: (0,4) -> (0,1) -> (1,0) -> (3,0) -> (4,1)
+; Stroke 2: (4,4) -> (4,0)
+; Sketch: X=0..4, Y=4..0 (top to bottom).
+; o...o
+; #...#
+; #...#
+; o...o
+; .o#oo
+glyph_lower_u:
+	db	004h,001h,010h,030h,041h,080h,044h,040h,088h
+
+; Stroke 1: (0,4) -> (0,2) -> (2,0) -> (4,2) -> (4,4)
+; Sketch: X=0..4, Y=4..0 (top to bottom).
+; o...o
+; #...#
+; o...o
+; .#.#.
+; ..o..
+glyph_lower_v:
+	db	004h,002h,020h,042h,044h,088h
+
+; Stroke 1: (0,4) -> (0,0) -> (2,2) -> (4,0) -> (4,4)
+; Sketch: X=0..4, Y=4..0 (top to bottom).
+; o...o
+; #...#
+; #.o.#
+; ##.##
+; o...o
+glyph_lower_w:
+	db	004h,000h,022h,040h,044h,088h
+
+; Stroke 1: (0,0) -> (4,4)
+; Stroke 2: (0,4) -> (4,0)
+; Sketch: X=0..4, Y=4..0 (top to bottom).
+; o...o
+; .#.#.
+; ..#..
+; .#.#.
+; o...o
+glyph_lower_x:
+	db	000h,044h,080h,004h,040h,088h
+
+; Stroke 1: (0,4) -> (0,1) -> (1,0) -> (3,0) -> (4,1)
+; Stroke 2: (4,4) -> (4,-1) -> (3,-2) -> (1,-2) -> (0,-1)
+; Sketch: X=0..4, Y=4..-2 (top to bottom).
+; o...o
+; #...#
+; #...#
+; o...o
+; .o#o#
+; o...o
+; .o#o.
+glyph_lower_y:
+	db	004h,001h,010h,030h,041h,080h,044h,04Fh,03Eh,01Eh,00Fh,088h
+
+; Stroke 1: (0,4) -> (4,4) -> (0,0) -> (4,0)
+; Sketch: X=0..4, Y=4..0 (top to bottom).
+; o###o
+; ...#.
+; ..#..
+; .#...
+; o###o
+glyph_lower_z:
+	db	004h,044h,000h,040h,088h
+
+; Stroke 1: (4,0) -> (1,0) -> (0,1) -> (0,3) -> (1,4) -> (3,4) -> (4,3) -> (4,2) -> (2,2)
+; Stroke 2: (2,4) -> (2,0)
+; Sketch: X=0..4, Y=4..0 (top to bottom).
+; .ooo.
+; o.#.o
+; #.o#o
+; o.#..
+; .oo#o
+glyph_left_curly_bracket:
+	db	040h,010h,001h,003h,014h,034h,043h,042h,022h,080h,024h,020h,088h
+
+; Stroke 1: (0,1) -> (0,3) -> (1,4) -> (3,4) -> (4,3) -> (4,1) -> (3,0) -> (1,0) -> (0,1)
+; Stroke 2: (4,4) -> (0,0)
+; Sketch: X=0..4, Y=4..0 (top to bottom).
+; .o#oo
+; o..#o
+; #.#.#
+; o#..o
+; oo#o.
+glyph_vertical_line:
+	db	001h,003h,014h,034h,043h,041h,030h,010h,001h,080h,044h,000h,088h
+
+; Stroke 1: (4,0) -> (4,3) -> (3,4) -> (1,4) -> (0,3) -> (0,1) -> (1,0) -> (3,0) -> (4,1)
+; Stroke 2: (1,5) -> (3,5) -> (3,7) -> (1,7) -> (1,5)
+; Sketch: X=0..4, Y=7..0 (top to bottom).
+; .o#o.
+; .#.#.
+; .o#o.
+; .o#o.
+; o...o
+; #...#
+; o...o
+; .o#oo
+glyph_right_curly_bracket:
+	db	040h,043h,034h,014h,003h,001h,010h,030h,041h,080h,015h,035h,037h,017h,015h,088h
+
+; Stroke 1: (0,4) -> (0,1) -> (1,0) -> (3,0) -> (4,1)
+; Stroke 2: (4,4) -> (4,0)
+; Stroke 3: (0,6) -> (0,5)
+; Stroke 4: (4,6) -> (4,5)
+; Sketch: X=0..4, Y=6..0 (top to bottom).
+; o...o
+; o...o
+; o...o
+; #...#
+; #...#
+; o...o
+; .o#oo
+glyph_tilde:
+	db	004h,001h,010h,030h,041h,080h,044h,040h,080h,006h,005h,080h,046h,045h,088h
+
+; Empty glyph: no strokes.
+glyph_127:
+	db	088h,000h,000h,000h,000h,000h

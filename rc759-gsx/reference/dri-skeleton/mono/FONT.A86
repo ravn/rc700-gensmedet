@@ -1,0 +1,380 @@
+;
+;******************************************************************************
+;ENGLISH
+;Bit mapped Font 
+;
+;Last Update March 11,1982 11:56 A.M.
+;1/5/82 Modified area styles (dithered and cross-hatched)		
+;	changed area style bytes according to a rotate left
+;	rather than right for ease in fast fill algorithm
+;1/26/83 Made first two crosshatch patterns twice as dense. 
+;1/28/83 Made A "dot" as the first marker.
+;3/8/83  The area styles (pattern and crosshatch are mirrored)
+;	 The actual characters, markers and ctrl characters are normal.
+;3/10/83 The vertical and horizontal cross-hatch made twice as dense.
+;6/17/83 Rearranged the Fill PATTERN styles to be the same as the TS803
+;8/20/83 added dseg to put this stuff in the data segment
+;8/25/83 added jump to entry to allow module to be linked first
+;8/28/83 moved the first byte to the last byte like it is supposed to be
+;******************************************************************************
+public	font
+public	arstl1
+cseg	
+	extrn	entry:near
+	jmp	entry			;jump to entry if this is the first
+					;module in the link command
+dseg
+font	db	00h,00h,00h,00h ;NULL
+	db	00h,00h,00h,00h ;
+	db	05h,70h,40h,70h ;SOH
+	db	15h,75h,07h,05h ;
+	db	05h,70h,40h,70h ;STX
+	db	15h,75h,02h,05h ;
+	db	05h,70h,40h,60h ;ETX
+	db	45h,75h,02h,05h ;
+
+;
+;area style tables
+;
+arstl1	db	00h		;intensity level two
+	db	44h
+	db	00h
+	db	11h
+;
+	db	00h		;intensity level four
+	db	55h
+	db	00h
+	db	55h
+;
+	db	88h		;intensity level six
+	db	55h
+	db	22h
+	db	55h
+;
+	db	0aah		;intensity level eight
+	db	55h
+	db	0aah
+	db	55h
+;
+	db	0aah		;intensity level ten
+	db	0ddh
+	db	0aah
+	db	77h
+;
+	db	0aah		;intensity level twelve
+	db	0ffh
+	db	0aah
+	db	0ffh
+;
+	db	0eeh		;intensity level fourteen
+	db	0ffh
+	db	0bbh
+	db	0ffh
+;
+	db	0ffh		;intensity level sixteen
+	db	0ffh
+	db	0ffh
+	db	0ffh
+;
+arstl2	db	11h		;vertical cross hatch
+	db	11h
+	db	11h
+	db	11h
+	db	11h
+	db	11h
+	db	11h
+	db	11h
+;
+	db	0ffh		;horizontal cross hatch
+	db	00h		
+	db	00h
+	db	00h
+	db	0ffh
+	db	00h
+	db	00h
+	db	00h
+;
+	db	11h		;diagonal cross hatch
+	db	22h		;+45 deg
+	db	44h
+	db	88h
+	db	11h
+	db	22h
+	db	44h
+	db	88h
+;
+	db	88h		;diagonal cross hatch
+	db	44h		;-45 deg
+	db	22h
+	db	11h
+	db	88h
+	db	44h
+	db	22h
+	db	11h
+;
+	db	0ffh		;Square cross hatch "Cross"
+	db	11h
+	db	11h
+	db	11h
+	db	0ffh
+	db	11h
+	db	11h
+	db	11h
+;
+	db	81h		;"X" cross hatch
+	db	42h
+	db	24h
+	db	18h
+	db	18h
+	db	24h
+	db	42h
+	db	81h
+;
+	db	88h		;Vertical / -45 cross hatch
+	db	48h
+	db	28h
+	db	18h
+	db	08h
+	db	0ch
+	db	0ah
+	db	09h
+;
+	db	81h		;cross diagonals
+	db	42h
+	db	24h
+	db	18h
+	db	18h
+	db	24h
+	db	42h
+	db	81h
+
+
+;marker symbols
+;
+	db	00h,00h,18h,18h ;dot
+	db	18h,00h,00h,00h ;	
+	db	00h,08h,08h,3Eh ;+
+	db	08h,08h,00h,00h ;
+	db	00h,22h,1Ch,7Fh ;*
+	db	1Ch,22h,00h,00h ;
+	db	3Ch,42h,42h,42h ;O
+	db	42h,42h,3Ch,00h ;
+	db	41h,22h,14h,08h ;X
+	db	14h,22h,41h,00h ;
+	db	7Fh,41h,41h,41h ;square
+	db	41h,41h,7Fh,00h ;
+	db	08h,1Ch,2Ah,41h ;diamond
+	db	22h,14h,08h,00h
+	db	08h,14h,14h,22h ;triangle
+	db	2Ah,49h,7Fh,00h
+	db	7Fh,7fh,6Bh,77h ;filled square
+	db	6Bh,7Fh,7Fh,00h 
+	db	00h,00h,00h,7Fh ;horizontal bar 
+	db	00h,00h,00h,00h ;
+	db	70h,40h,70h,15h ;SYN
+	db	75h,02h,02h,02h ;
+	db	70h,40h,60h,4Eh ;ETB
+	db	79h,0Eh,09h,0Eh ;
+	db	70h,40h,60h,47h ;FS
+	db	44h,07h,01h,07h ;
+	db	38h,40h,58h,4Fh ;GS
+	db	3Ch,07h,01h,07H ;
+	db	70h,48h,70h,57h ;RS
+	db	4Ch,07h,01h,07h ;
+	db	48h,48h,48h,4Fh ;US
+	db	34h,07h,01h,07h ;
+	db	00h,00h,00h,00h ;SPACE	(** Also used for HOLLOW FILL **)
+	db	00h,00h,00h,00h ;
+	db	08h,08h,08h,08h ;EX. POINT 
+	db	08h,00h,08h,00h ;
+	db	12h,24h,48h,00h ;"
+	db	00h,00h,00h,00h ;
+	db	14h,14h,7Fh,14h ;#
+	db	7Fh,14h,14h,00h ;
+	db	08h,3Fh,48h,3Eh ;$
+	db	09h,7Eh,08h,00h ;
+	db	21h,52h,24h,08h ;%
+	db	12h,25h,42h,00h ;
+	db	18h,24h,24h,38h ;&
+	db	45h,42h,3dh,00h ;
+	db	04h,08h,10h,00h ;'
+	db	00h,00h,00h,00h ;
+	db	04h,08h,10h,10h ;(
+	db	10h,08h,04h,00h ;
+	db	10h,08h,04h,04h ;)
+	db	04h,08h,10h,00h ;
+	db	00h,22h,1Ch,7Fh ;*
+	db	1Ch,22h,00h,00h ;
+	db	00h,08h,08h,3Eh ;+
+	db	08h,08h,00h,00h ;
+	db	00h,00h,00h,00h ;,
+	db	18h,18h,08h,10h ;
+	db	00h,00h,00h,3Ch ;-
+	db	00h,00h,00h,00h ;
+	db	00h,00h,00h,00h ;.
+	db	00h,18h,18h,00h ;
+	db	01h,02h,04h,08h ;/
+	db	10h,20h,40h,00h ;
+	db	3Ch,42h,46h,4Ah ;0
+	db	52h,62h,3Ch,00h ;
+	db	08h,18h,08h,08h ;1
+	db	08h,08h,1Ch,00h ;
+	db	3Ch,42h,02h,3Ch ;2
+	db	40h,40h,7Eh,00h ;
+	db	3Ch,42h,02h,1Ch ;3
+	db	02h,42h,3Ch,00h ;
+	db	0Ch,14h,24h,44h ;4
+	db	7Eh,04h,04h,00h ;
+	db	7Eh,40h,78h,04h ;5
+	db	02h,44h,38h,00h ;
+	db	1Ch,20h,40h,7Ch ;6
+	db	42h,42h,3Ch,00h ;
+	db	7Eh,42h,04h,08h ;7
+	db	10h,10h,10h,00h ;
+	db	3Ch,42h,42h,3Ch ;8
+	db	42h,42h,3Ch,00h ;
+	db	3Ch,42h,42h,3Eh ;9
+	db	02h,02h,3Ch,00h ;
+	db	00h,18h,18h,00h ;:
+	db	18h,18h,00h,00h ;
+	db	00h,18h,18h,00h ;SEMICOLN
+	db	18h,18h,08h,10h ;
+	db	08h,10h,20h,40h ;<
+	db	20h,10h,08h,00h ;
+	db	00h,00h,7Eh,00h ;=
+	db	7Eh,00h,00h,00h ;
+	db	10h,08h,04h,02h ;>
+	db	04h,08h,10h,00h ;
+	db	3Ch,42h,02h,0Ch ;?
+	db	10h,10h,00h,10h ;
+	db	1Ch,22h,4Eh,52h ;@
+	db	4Eh,40h,3Ch,00h ;
+	db	18h,24h,42h,42h ;A
+	db	7Eh,42h,42h,00h ;
+	db	7Ch,22h,22h,3Ch ;B
+	db	22h,22h,7Ch,00h ;
+	db	1Ch,22h,40h,40h ;C
+	db	40h,22h,1Ch,00h ;
+	db	78h,24h,22h,22h ;D
+	db	22h,24h,78h,00h ;
+	db	7EH,40h,40h,78h ;E
+	db	40h,40h,7Eh,00h ;
+	db	7Eh,40h,40h,78h ;F
+	db	40h,40h,40h,00h ;
+	db	1Ch,22h,40h,4Eh ;G
+	db	42h,22h,1Ch,00h ;
+	db	42h,42h,42h,7Eh ;H
+	db	42h,42h,42h,00h ;
+	db	1Ch,08h,08h,08h ;I
+	db	08h,08h,1Ch,00h ;
+	db	1Fh,04h,04h,04h ;J
+	db	04h,44h,38h,00h ;
+	db	42h,44h,48h,70h ;K
+	db	48h,44h,42h,00h ;
+	db	40h,40h,40h,40h ;L
+	db	40h,42h,7Eh,00h ;
+	db	42h,66h,5Ah,5Ah ;M
+	db	42h,42h,42h,00h ;
+	db	42h,62h,52h,4Ah ;N
+	db	46h,42h,42h,00h ;
+	db	3Ch,42h,42h,42h ;O
+	db	42h,42h,3Ch,00h ;
+	db	7Ch,42h,42h,7Ch ;P
+	db	40h,40h,40h,00h ;
+	db	3Ch,42h,42h,42h ;Q
+	db	4Ah,44h,3Ah,00h ;
+	db	7Ch,42h,42h,7Ch ;R
+	db	48h,44h,42h,00h ;
+	db	3Ch,42h,40h,3Ch ;S
+	db	02h,42h,3Ch,00h ;
+	db	7Fh,08h,08h,08h ;T
+	db	08h,08h,08h,00h ;
+	db	42h,42h,42h,42h ;U
+	db	42h,42h,3Ch,00h ;
+	db	42h,42h,42h,42h ;V
+	db	24h,24h,18h,00h ;
+	db	42h,42h,42h,5Ah ;W
+	db	5Ah,66h,42h,00h ;
+	db	41h,22h,14h,08h ;X
+	db	14h,22h,41h,00h ;
+	db	41h,22h,14h,08h ;Y
+	db	08h,08h,08h,00h ;
+	db	7Eh,04h,08h,10h ;Z
+	db	20h,40h,7Eh,00h ;
+	db	3Ch,20h,20h,20h ;[
+	db	20h,20h,3Ch,00h ;
+	db	40h,20h,10h,08h ;\
+	db	04H,03H,01H,00H ;
+	db	1Eh,02h,02h,02h ;]
+	db	02h,02h,1Eh,00h ;
+	db	00h,08h,14h,22h ;^
+	db	00h,00h,00h,00h ;
+	db	00h,00h,00h,00h ;_
+	db	00h,00h,7Fh,00h ;
+	db	10h,08h,04h,00h ;`
+	db	00h,00h,00h,00h ;
+	db	00h,00h,3Ch,02h ;a
+	db	3Eh,42h,3Dh,00h ;
+	db	40h,40h,5Ch,62h ;b
+	db	42h,62h,5Ch,00h ;
+	db	00h,00h,3Eh,40h ;c
+	db	40h,40h,3Eh,00h ;
+	db	02h,02h,3Ah,46h ;d 
+	db	42h,46h,3Ah,00h ;
+	db	00h,00h,3Ch,42h ;e
+	db	7Ch,40h,3Ch,00h ;
+	db	0Ch,12h,10h,7Ch ;f
+	db	10h,10h,10h,00h ;
+	db	00h,00h,3Eh,42h ;g
+	db	42h,3Eh,02h,7Ch ;
+	db	40h,40h,5Ch,62h ;h
+	db	42h,42h,42h,00h ;
+	db	08h,00h,18h,08h ;i
+	db	08h,08h,1Ch,00h ;
+	db	02h,00h,02h,02h ;j
+	db	02h,02h,22h,1Ch ;
+	db	40h,40h,44h,48h ;k
+	db	58h,64h,42h,00h ;
+	db	10h,08h,08h,08h ;l
+	db	08h,08h,04h,00h ;
+	db	00h,00h,76h,49h ;m
+	db	49h,41h,41h,00h ;
+	db	00h,00h,5Ch,62h ;n
+	db	42h,42h,42h,00h ;
+	db	00h,00h,3Ch,42h ;o
+	db	42h,42h,3Ch,00h ;
+	db	00h,00h,7Ch,42h ;p
+	db	42h,7Ch,40h,40h ;
+	db	00h,00h,3Eh,42h ;q
+	db	42h,3Eh,02h,03h ;
+	db	00h,00h,5Ch,62h ;r
+	db	40h,40h,40h,00h ;
+	db	00h,00h,3Eh,40h ;s
+	db	3Ch,02h,7Ch,00h ;
+	db	10h,10h,7Ch,10h ;t
+	db	10h,12h,0Ch,00h ;    
+	db	00h,00h,42h,42h ;u
+	db	42h,46h,3Ah,00h ;
+	db	00h,00h,42h,42h ;v
+	db	24h,24h,18h,00h ;
+	db	00h,00h,41h,41h ;w
+	db	49h,49h,36h,00h ;
+	db	00h,00h,42h,24h ;x
+	db	18h,24h,42h,00h ;
+	db	00h,00h,42h,42h ;y
+	db	42h,3Eh,02h,3Ch ;
+	db	00h,00h,7Eh,04h ;z
+	db	18h,20h,7Eh,00h ;
+	db	0Ch,10h,10h,20h ;{
+	db	10h,10h,0Ch,00h ;
+	db	08h,08h,08h,00h ;|
+	db	08h,08h,08h,00h ;
+	db	18h,04h,04h,02h ;}
+	db	04h,04h,18h,00h ;
+	db	00h,00h,30h,49h ;~
+	db	06h,00h,00h,00h ;
+	db	00h,00h,00h,00h ;rubout
+	db	00h,00h,00h,00h ;
+
+ 
+

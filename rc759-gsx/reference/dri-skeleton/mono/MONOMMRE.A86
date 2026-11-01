@@ -1,0 +1,1333 @@
+EJECT
+;Hist
+;  DH	Increased horizontal line count to 32 to fix xline bug
+;
+cseg
+	public	plyfill_rot
+	public	enable_cross,move_cross,clip_cross
+	public	abline,draw_char
+	public	next_address
+	public	load_lut
+;
+;***************************************************************************
+;* load_lut								   *
+;*	  loads lookup table						   *
+;*	  si contains address of request_color_table entry		   *
+;*	  ax contains color index requested				   *
+;*	Original data in request_color_table				   *
+;*	New data in realized color table				   *
+;*	Programs look-up table if available				   *
+;***************************************************************************
+load_lut:
+	cmp	ax,0
+	jne	load_lut_done	;can't set foreground color
+	mov	cx,ds
+	mov	es,cx
+	mov	cx,3		;three entries to look at
+	mov	bx,0		;initialize 
+lut_loop:
+	cmp	[si],ax 	;is there a zero in the table
+	je	next_color
+	or	bl,0ffh 	;no, then background color is 1
+next_color:
+	add	si,2
+	loop	lut_loop
+	mov	back_bp_1,bl	;save background color
+	mov	di,offset realized_color_table
+	mov	cx,3 
+	mov	ax,0
+	cmp	bl,0ffh
+	jne	store_index_0
+	mov	ax,1000
+store_index_0:
+	rep	stosw
+	mov	cx,3
+	mov	ax,0
+	cmp	bl,0ffh
+	jne	store_index_1
+	mov	ax,1000
+store_index_1:
+	rep	stosw
+load_lut_done:
+	mov	al,back_bp_1
+	mov	bakcol,al
+	ret
+;
+;
+;****************************************************************
+;plyfill_rot							*
+;		called by poly fill to rotate style		*
+;								*
+;	Entry	ah = style cl=count				*
+;								*
+;	Exit	ah = rotated style cl=0 			*
+;								*
+;****************************************************************
+plyfill_rot:
+if msb_first
+	rol ah,cl
+else
+	ror ah,cl
+endif
+	ret
+EJECT
+;****************************************************************
+;draw_char (called by hrdtext, outputs individual characters	*
+;	Entry							*
+;		si - Top of Character Cell Font address 	*
+;		di - Physical address (top of cell)		*
+;		bl - Byte index(start of character)		*
+;		cx - number of bytes to output			*
+;		char_mode - operation to perform		*
+;		char_bp_1 - value in bit plane for current color*
+;		char_bp_2 - value in bit plane for current color*
+;								*	
+;	Uses	ax,cx,si					*	     
+;								*
+;****************************************************************
+draw_char:
+	mov	ax, graph_plane
+	mov	es, ax			; graphic memory segment address
+	add	bx, offset ortbl
+	mov	bx, [bx]		;get offset into byte
+draw_loop:
+	push	cx
+	push	di			; save physical address
+	push	bx			; save OR table mask in bl.
+	mov	cx, 8			; 8-bit counter.
+	mov	dl, [ si ]		; get character font byte.
+	inc	si			;point at next byte
+	cmp	char_mode,0		;do we have to fool with the mask?
+	jne	byte_loop
+	cmp	char_bp_1,0
+	jne	back_char
+	mov	dl,0
+back_char:
+	cmp	back_bp_1,0
+	je	byte_loop
+	not	dl			;reverse video mask
+byte_loop:
+	cmp	char_mode,0
+	je	replace_char
+	cmp	char_mode,1
+	je	xor_char
+	cmp	char_mode,2
+	je	not_char
+	jmps	or_char
+replace_char:
+	rol	dl,1
+	jnc	rep_char_not_1
+	cmp	char_bp_1,0
+	je	rep_char_not_1
+	or	es:[di],bl
+	jmps	rep_char_bp_done
+rep_char_not_1:
+	not	bl
+	and	es:[di],bl
+	not	bl
+rep_char_bp_done:
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	rep_incdi_done
+if byte_swap
+	dec	di
+	test	di,1
+	jz	rep_incdi_done
+	add	di,4
+else
+	inc	di
+endif
+rep_incdi_done:
+	loop	replace_char
+	jmp	byte_done
+;
+xor_char:
+	rol	dl,1
+	jnc	xor_char_bp_done
+	xor	es:[di],bl
+xor_char_bp_done:
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	xor_incdi_done
+if byte_swap
+	dec	di
+	test	di,1
+	jz	xor_incdi_done
+	add	di,4
+else
+	inc	di
+endif
+xor_incdi_done:
+	loop	xor_char
+	jmps	byte_done
+;
+or_char:
+	rol	dl,1
+	jnc	or_char_bp_done
+	cmp	char_bp_1,0
+	je	or_char_not_bp_1
+	or	es:[di],bl
+	jmps	or_char_bp_done
+or_char_not_bp_1:
+	not	bl
+	and	es:[di],bl
+	not	bl
+or_char_bp_done:
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	or_incdi_done
+if byte_swap
+	dec	di
+	test	di,1
+	jz	or_incdi_done
+	add	di,4
+else
+	inc	di
+endif
+or_incdi_done:
+	loop	or_char
+	jmps	byte_done
+;
+not_char:
+	rol	dl,1
+	jnc	not_char_bp_done
+	not	bl
+	and	es:[di],bl
+	not	bl
+not_char_bp_done:
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	not_incdi_done
+if byte_swap
+	dec	di
+	test	di,1
+	jz	not_incdi_done
+	add	di,4
+else
+	inc	di
+endif
+not_incdi_done:
+	loop	not_char
+	jmps	byte_done
+;
+byte_done:
+	pop	bx
+	pop	di
+	add	di, next_line		; increment phys address down screen
+if multiseg
+	cmp	di, plane_size		; are we below the screen
+	jc	dwdi_inc_done
+	add	di, move_to_first
+endif
+dwdi_inc_done:
+	pop	cx
+	dec	cx
+	jz	draw_char_done
+	jmp	draw_loop
+draw_char_done:
+	ret				; character has been drawn.
+EJECT
+;************************************************************************
+;*next_address								*
+;*	compute the next address to be written to by text		*
+;*	Entry								*
+;*		di=current address					*
+;*		bl=current byte index					*
+;*		chup=direction to move					*
+;*			0   =right					*
+;*			900 =up 					*
+;*			1800=left					*
+;*			2700=down					*
+;*									*
+;************************************************************************
+next_address:
+	cmp	chup,0
+	jne	up
+if byte_swap
+	dec	di
+	test	di,1
+	jz	nad
+	add	di,4
+else
+	inc	di
+endif
+	jmps	nad
+up:	cmp	chup,900
+	jne	left
+	sub	di,(bytes_line*8)/num_segs
+	jmps	nad
+left:	cmp	chup,1800
+	jne	down
+if byte_swap
+	inc	di
+	test	di,1
+	jnz	nad
+	sub	di,4
+else
+	dec	di
+endif
+	jmps	nad
+down:	add	di,(bytes_line*8)/num_segs
+nad:
+	ret
+EJECT
+;************************************************************************
+;TENNIS 								*
+;	Entry	CX - delta count for ABLINE (count includes last point) *
+;	Exit	CX is decremented by one if:				*
+;			XOR writing mode and the line about to be	*
+;			drawn is not the last of the poly line		*
+;			else Cx is left alone				*
+;	Purpose:  Xor does not Xor itself at intersection points of	*
+;		  polline or plydpl of fill				*
+;************************************************************************
+tennis:
+	cmp	line_mode,1		; check if xor
+	jnz	jimmy	 
+	cmp	lstlin, 0ffh		; check if XOR and last line of pollin
+	jz	jimmy
+	cmp	cx, 1
+	jz	jimmy
+	dec	cx
+jimmy:	ret
+;
+EJECT
+;****************************************************************
+;Subroutine	abline						*
+;    Entry:	X1-coordinate					* 
+;		Y1-coordinate					*
+;		X2-coordinate					*
+;		Y2-coordinate					*
+;    Purpose:							*
+;		This routine will draw a line from (x1,y1) to	*
+;		(x2,y2) using Bresenham's algorithm.		*
+;								*
+;								*
+;    Variables: for Bresenham's algorithm defined for		*
+;		delta y > delta x after label "ckslope".	*
+;		delta y <= delta x				*
+;****************************************************************
+abline: 
+	mov	ax, graph_plane 	;graphics bitmap segment addr.
+	mov	es, ax
+	mov	wrap_around,move_to_last
+	mov	cx,x2
+	sub	cx,x1			;is line vertical?
+notver: jc	swap			; if x1>x2 then swap pairs
+	push	cx			; save delta x
+	mov	bx, x1
+	mov	ax, y1		
+	call	concat			;get phys. address of initial (X1,Y1)
+	mov	si, offset ortbl	;or mask table address
+	add	si, bx			;   index into table
+	mov	bh,bl
+	mov	bl,[ si ]		;get initial OR table mask.
+	pop	cx
+	mov	dx,y2
+	sub	dx,y1			; is line horizontal?
+	jnz	nothor			; dx is delta y
+	jmp	xline
+swap:
+	push	cx
+	mov	bx, x2
+	mov	ax, y2		
+	call	concat			;get phys. address of initial (X1,Y1)
+	mov	si, offset ortbl	;or mask table address
+	add	si, bx			;   index into table
+	mov	bh,bl
+	mov	bl,[ si ]		;get initial OR table mask.
+	pop	cx
+	neg	cx
+	mov	dx,y1
+	sub	dx,y2			;dx is delta y
+	jnz	nothor
+	jmp	xline
+nothor: mov	yinc,neg_next_line
+	jnc	abnorm			;is delta y positive
+	neg	dx			; make delta y positive
+	mov	yinc,next_line		; positive to next segment
+	mov	wrap_around,move_to_first
+abnorm:
+					;BL - contains OR table mask
+					;DI - Physical Address
+					;ES - graphics segment address
+	cmp	cx, dx			;if dx - dy is negative
+	jnc	dxgedy
+	jmp	dygtdx			;   then dy > dx.
+dxgedy: 	
+	mov	ax,cx
+	inc	cx
+	call	tennis
+	shl	dx, 1			;e1 := 2dy
+	mov	si, dx			;e1 stored in si
+	sub	dx, ax			;epsilon := dx = (2dy -dx)
+	mov	bp, dx			;e2 is stored in bp
+	sub	bp, ax			;e2 := (2dy - 2dx)
+	mov	ax,line_mask
+	cmp	line_mode,0
+	je	replace_dxge
+	cmp	line_mode,1
+	je	xor_dxge
+	cmp	line_mode,2
+	jne	its_or_dxge
+	jmp	not_dxge
+its_or_dxge:
+	jmp	or_dxge
+;
+replace_dxge:
+	rol	ax,1
+	jnc	rep_dxge_not_1
+	cmp	line_bp_1,0
+	je	rep_dxge_not_1
+	or	es:[di],bl
+	jmps	rep_dxge_bp_done
+rep_dxge_not_1:
+	not	bl
+	and	es:[di],bl
+	not	bl
+rep_dxge_bp_done:
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	rep_dxge_incdi_done
+if byte_swap
+	dec	di
+	test	di,1
+	jz	rep_dxge_incdi_done
+	add	di,4
+else
+	inc	di
+endif
+rep_dxge_incdi_done:
+	cmp	dx, 0			;if epsilon < 0
+	js	rep_dxge_same1		;   then do not incr. x.
+	add	dx,bp			;epsilon = epsilon + e2
+	add	di, yinc		;    y := y+yinc
+if multiseg
+	cmp	di,plane_size		; gone past the edge of graphics?
+	jc	rep_dxge_yinc_done
+	add	di,wrap_around		;add back in the number to wrap
+   endif
+rep_dxge_yinc_done:
+	loop	replace_dxge
+	ret
+rep_dxge_same1: 
+	add	dx,si			;epsilon := (epsilon + e1)
+	loop	replace_dxge
+	ret
+;
+xor_dxge:
+	rol	ax,1
+	jnc	xor_dxge_bp_done
+	xor	es:[di],bl
+xor_dxge_bp_done:
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	xor_dxge_incdi_done
+if byte_swap
+	dec	di
+	test	di,1
+	jz	xor_dxge_incdi_done
+	add	di,4
+else
+	inc	di
+endif
+xor_dxge_incdi_done:
+	cmp	dx, 0			;if epsilon < 0
+	js	xor_dxge_same1		;   then do not incr. x.
+	add	dx,bp			;epsilon = epsilon + e2
+	add	di, yinc		;    y := y+yinc
+if multiseg
+	cmp	di,plane_size		; gone past the edge of graphics?
+	jc	xor_dxge_yinc_done
+	add	di,wrap_around		;add back in the number to wrap
+   endif
+xor_dxge_yinc_done:
+	loop	xor_dxge
+	ret
+xor_dxge_same1:
+	add	dx,si			;epsilon := (epsilon + e1)
+	loop	xor_dxge
+	ret
+;
+not_dxge:
+	rol	ax,1
+	jnc	not_dxge_bp_done
+	not	bl
+	and	es:[di],bl
+	not	bl
+not_dxge_bp_done:
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	not_dxge_incdi_done
+if byte_swap
+	dec	di
+	test	di,1
+	jz	not_dxge_incdi_done
+	add	di,4
+else
+	inc	di
+endif
+not_dxge_incdi_done:
+	cmp	dx, 0			;if epsilon < 0
+	js	not_dxge_same1		;   then do not incr. x.
+	add	dx,bp			;epsilon = epsilon + e2
+	add	di, yinc		;    y := y+yinc
+if multiseg
+	cmp	di,plane_size		; gone past the edge of graphics?
+	jc	not_dxge_yinc_done
+	add	di,wrap_around		;add back in the number to wrap
+   endif
+not_dxge_yinc_done:
+	loop	not_dxge
+	ret
+not_dxge_same1: 
+	add	dx,si			;epsilon := (epsilon + e1)
+	loop	not_dxge
+	ret
+;
+or_dxge:
+	rol	ax,1
+	jnc	or_dxge_bp_done
+	cmp	line_bp_1,0
+	je	or_dxge_not_bp_1
+	or	es:[di],bl
+	jmps	or_dxge_bp_done
+or_dxge_not_bp_1:
+	not	bl
+	and	es:[di],bl
+	not	bl
+or_dxge_bp_done:
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	or_dxge_incdi_done
+if byte_swap
+	dec	di
+	test	di,1
+	jz	or_dxge_incdi_done
+	add	di,4
+else
+	inc	di
+endif
+or_dxge_incdi_done:
+	cmp	dx, 0			;if epsilon < 0
+	js	or_dxge_same1		;   then do not incr. x.
+	add	dx,bp			;epsilon = epsilon + e2
+	add	di, yinc		;    y := y+yinc
+if multiseg
+	cmp	di,plane_size		; gone past the edge of graphics?
+	jc	or_dxge_yinc_done
+	add	di,wrap_around		;add back in the number to wrap
+   endif
+or_dxge_yinc_done:
+	loop	or_dxge
+	ret
+or_dxge_same1: 
+	add	dx,si			;epsilon := (epsilon + e1)
+	loop	or_dxge
+	ret
+;
+dygtdx: 	
+	xchg	cx,dx			;make dx and dy same as above
+	mov	ax,cx			;dx=dx, ax=dy, cx=count
+	inc	cx
+	call	tennis
+	shl	dx, 1			;e1 := 2dx
+	mov	si, dx			;si is e1
+	sub	dx, ax			;epsilon := dx = (2dx - dy)
+	mov	bp, dx
+	sub	bp, ax			;e2 := (2dx - 2dy)	
+	mov	ax,line_mask
+	cmp	line_mode,0
+	je	replace_dygt
+	cmp	line_mode,1
+	je	xor_dygt
+	cmp	line_mode,2
+	jne	its_or_dygt
+	jmp	not_dygt
+its_or_dygt:
+	jmp	or_dygt
+replace_dygt:
+	rol	ax,1
+	jnc	rep_dygt_not_1
+	cmp	line_bp_1,0
+	je	rep_dygt_not_1
+	or	es:[di],bl
+	jmps	rep_dygt_bp_done
+rep_dygt_not_1:
+	not	bl
+	and	es:[di],bl
+	not	bl
+rep_dygt_bp_done:
+	add	di, yinc		;    y := y+yinc
+if multiseg
+	cmp	di,plane_size		; gone past the edge of graphics?
+	jc	rep_dygt_yinc_done
+	add	di,wrap_around		;add back in the number to wrap
+   endif
+rep_dygt_yinc_done:
+	cmp	dx, 0			;if epsilon < 0
+	js	rep_dygt_same1		;   then do not incr. x.
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	rep_dygt_incdi_done
+if byte_swap
+	dec	di
+	test	di,1
+	jz	rep_dygt_incdi_done
+	add	di,4
+else
+	inc	di
+endif
+rep_dygt_incdi_done:
+	add	dx,bp			;epsilon = epsilon + e2
+	loop	replace_dygt
+	ret
+rep_dygt_same1: 
+	add	dx,si			;epsilon := (epsilon + e1)
+	loop	replace_dygt
+	ret
+;
+xor_dygt:
+	rol	ax,1
+	jnc	xor_dygt_bp_done
+	xor	es:[di],bl
+xor_dygt_bp_done:
+	add	di, yinc		;    y := y+yinc
+if multiseg
+	cmp	di,plane_size		; gone past the edge of graphics?
+	jc	xor_dygt_yinc_done
+	add	di,wrap_around		;add back in the number to wrap
+   endif
+xor_dygt_yinc_done:
+	cmp	dx, 0			;if epsilon < 0
+	js	xor_dygt_same1		;   then do not incr. x.
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	xor_dygt_incdi_done
+if byte_swap
+	dec	di
+	test	di,1
+	jz	xor_dygt_incdi_done
+	add	di,4
+else
+	inc	di
+endif
+xor_dygt_incdi_done:
+	add	dx,bp			;epsilon = epsilon + e2
+	loop	xor_dygt
+	ret
+xor_dygt_same1: 
+	add	dx,si			;epsilon := (epsilon + e1)
+	loop	xor_dygt
+	ret
+;
+not_dygt:
+	rol	ax,1
+	jnc	not_dygt_bp_done
+	not	bl
+	and	es:[di],bl
+	not	bl
+not_dygt_bp_done:
+	add	di, yinc		;    y := y+yinc
+if multiseg
+	cmp	di,plane_size		; gone past the edge of graphics?
+	jc	not_dygt_yinc_done
+	add	di,wrap_around		;add back in the number to wrap
+   endif
+not_dygt_yinc_done:
+	cmp	dx, 0			;if epsilon < 0
+	js	not_dygt_same1		;   then do not incr. x.
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	not_dygt_incdi_done
+if byte_swap
+	dec	di
+	test	di,1
+	jz	not_dygt_incdi_done
+	add	di,4
+else
+	inc	di
+endif
+not_dygt_incdi_done:
+	add	dx,bp			;epsilon = epsilon + e2
+	loop	not_dygt
+	ret
+not_dygt_same1: 
+	add	dx,si			;epsilon := (epsilon + e1)
+	loop	not_dygt
+	ret
+;
+or_dygt:
+	rol	ax,1
+	jnc	or_dygt_bp_done
+	cmp	line_bp_1,0
+	je	or_dygt_not_bp_1
+	or	es:[di],bl
+	jmps	or_dygt_bp_done
+or_dygt_not_bp_1:
+	not	bl
+	and	es:[di],bl
+	not	bl
+or_dygt_bp_done:
+	add	di, yinc		;    y := y+yinc
+if multiseg
+	cmp	di,plane_size		; gone past the edge of graphics?
+	jc	or_dygt_yinc_done
+	add	di,wrap_around		;add back in the number to wrap
+   endif
+or_dygt_yinc_done:
+	cmp	dx, 0			;if epsilon < 0
+	js	or_dygt_same1		;   then do not incr. x.
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	or_dygt_incdi_done
+if byte_swap
+	dec	di
+	test	di,1
+	jz	or_dygt_incdi_done
+	add	di,4
+else
+	inc	di
+endif
+or_dygt_incdi_done:
+	add	dx,bp			;epsilon = epsilon + e2
+	loop	or_dygt
+	ret
+or_dygt_same1: 
+	add	dx,si			;epsilon := (epsilon + e1)
+	loop	or_dygt
+	ret
+;
+EJECT
+;***************************************************************************
+;*			HORIZONTAL LINE ONLY				   *
+;*		draws horizontal lines by word if >15 pixels long	   *
+;*									   *
+;***************************************************************************
+xline:					;HORIZONTAL LINE ONLY
+	mov	ax,line_mask
+	inc	cx			;Delta X count
+	call	tennis
+	cmp	cx,32		;one less than two words
+	jb	bits_out
+	jmp	words_out
+bits_out:
+	cmp	cx,0
+	jne	some_line
+	ret
+some_line:
+	cmp	line_mode,0
+	je	replace_xline
+	cmp	line_mode,1
+	je	xor_xline
+	cmp	line_mode,2
+	je	not_xline
+	jmp	or_xline
+replace_xline:
+	rol	ax,1
+	jnc	rep_xline_not_1
+	cmp	line_bp_1,0
+	je	rep_xline_not_1
+	or	es:[di],bl
+	jmps	rep_xline_bp_done
+rep_xline_not_1:
+	not	bl
+	and	es:[di],bl
+	not	bl
+rep_xline_bp_done:
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	rep_xline_incdi_done
+if byte_swap
+	dec	di
+	test	di,1
+	jz	rep_xline_incdi_done
+	add	di,4
+else
+	inc	di
+endif
+rep_xline_incdi_done:
+	loop	replace_xline
+	ret
+;
+xor_xline:
+	rol	ax,1
+	jnc	xor_xline_bp_done
+	xor	es:[di],bl
+xor_xline_bp_done:
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	xor_xline_incdi_done
+if byte_swap
+	dec	di
+	test	di,1
+	jz	xor_xline_incdi_done
+	add	di,4
+else
+	inc	di
+endif
+xor_xline_incdi_done:
+	loop	xor_xline
+	ret
+;
+not_xline:
+	rol	ax,1
+	jnc	not_xline_bp_done
+	not	bl
+	and	es:[di],bl
+	not	bl
+not_xline_bp_done:
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	not_xline_incdi_done
+if byte_swap
+	dec	di
+	test	di,1
+	jz	not_xline_incdi_done
+	add	di,4
+else
+	inc	di
+endif
+not_xline_incdi_done:
+	loop	not_xline
+	ret
+;
+or_xline:
+	rol	ax,1
+	jnc	or_xline_bp_done
+	cmp	line_bp_1,0
+	je	or_xline_not_bp_1
+	or	es:[di],bl
+	jmps	or_xline_bp_done
+or_xline_not_bp_1:
+	not	bl
+	and	es:[di],bl
+	not	bl
+or_xline_bp_done:
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	or_xline_incdi_done
+if byte_swap
+	dec	di
+	test	di,1
+	jz	or_xline_incdi_done
+	add	di,4
+else
+	inc	di
+endif
+or_xline_incdi_done:
+	loop	or_xline
+	ret
+;
+words_out:
+	neg	bh
+	add	bh,8
+check_di:
+	test	di,1
+if byte_swap
+	jz	check_for_bits_out
+else	
+	jnz	check_for_bits_out
+endif	
+	add	bh,8
+check_for_bits_out:
+	cmp	bh,0
+	je	lfringe_done
+	push	bx			;save bit index
+	mov	bl,bh
+	xor	bh,bh
+	sub	cx,bx			;compute new count
+	pop	bx
+	push	cx			;save it
+	xor	ch,ch
+	mov	cl,bh			;how many bits to word boundary
+	call	bits_out
+	pop	cx
+lfringe_done:
+if byte_swap
+	xchg	ah,al			;bytes are swapped in word
+	dec	di			;point to low byte in word
+endif	 
+	mov	bh,cl
+	and	bh,15
+	push	bx			;save right fringe
+	shr	cx,1
+	shr	cx,1
+	shr	cx,1
+	shr	cx,1			;words to write
+	cmp	line_mode,0
+	je	replace_xwords
+	cmp	line_mode,1
+	je	xor_xwords
+	cmp	line_mode,2
+	je	not_xwords
+	jmps	or_xwords
+replace_xwords:
+	rep	stosw			;shove it in there
+	jmps	middle_done
+;
+xor_xwords:
+	xor	es:[di],ax
+	inc	di
+	inc	di
+	loop	xor_xwords
+	jmps	middle_done
+;
+not_xwords:
+	not	ax
+not_xwords_loop:
+	and	es:[di],ax
+	inc	di
+	inc	di
+	loop	not_xwords_loop
+	not	ax
+	jmps	middle_done
+;
+or_xwords:
+	cmp	line_bp_1,0
+	je	not_xwords_bp_1
+	or	es:[di],ax		;put them in
+	jmps	or_xwords_bp_done
+not_xwords_bp_1:
+	not	ax			;mask selected bits out
+	and	es:[di],ax
+	not	ax
+or_xwords_bp_done:
+	inc	di
+	inc	di
+	loop	or_xwords
+middle_done:
+if byte_swap
+	xchg	ah,al			;swap bytes back
+	inc	di			;point to high byte
+endif	
+	pop	bx
+	mov	cl,bh
+	jmp	bits_out
+;
+EJECT
+;****************************************************************
+;enable_cross							*
+;	Turn the cross hair cursor on for first time		*
+;								*
+;	Entry	gcurx,gcury are current x,y cursor location	*
+;								*
+;	Exit	none						*
+;								*
+;****************************************************************
+enable_cross:
+	mov	bx,gcurx
+	mov	cx,gcury
+	call	drwcur
+	ret
+;****************************************************************
+;move_cross							*
+;	Undraw old cross hair					*
+;								*
+;	Draw new cross hair					*	
+;	Entry	gcurx,gcury are current x,y cursor location	*
+;		bx,cx are new x,y				*
+;	Exit	none						*
+;								*
+;****************************************************************
+move_cross:
+	push	bx
+	push	cx			;save new x,y
+	call	enable_cross		;undraw old x,y
+	pop	cx
+	pop	bx
+	call	clip_cross		;clip new x,y	
+	mov	gcurx,bx
+	mov	gcury,cx
+	call	drwcur			;draw new x,y
+	ret
+EJECT
+;****************************************************************
+;clip_cross							*
+;	Routine will clip the x,y location to the current	*
+;	addressable space					*
+;								*
+;	Entry	reg pair bx = new cursor x			*
+;		reg pair cx = new cursor y			*
+;	Exit	none						*
+;								*
+;****************************************************************
+clip_cross:
+	mov	al, bh
+	rcl	al, 1			; test if new x is < 0.
+	jnc	clipx1
+	xor	bx, bx			;   yes, then clip at 0
+	jmps	clipy
+clipx1:
+	mov	ax, XRESMX
+	sub	ax, bx
+	jnc	clipy			; if newx <= xresmax then clip newy
+	mov	bx, XRESMX		;   else newx = XRESMX
+clipy:
+	mov	al, ch
+	rcl	al, 1			; test if new y is < 0.
+	jnc	clipy1			; if newy >= 0 then test if < yresmx
+	xor	cx, cx			;   else clip y at 0.
+	jmp	clipdn
+clipy1:
+	mov	ax, yresmx
+	sub	ax, cx
+	jnc	clipdn			; if newy <= yresmax then exit
+	mov	cx, yresmx		;   else newy = yresmx
+clipdn:
+	ret
+;
+EJECT
+;****************************************************************
+;DRWCUR 							*
+;	Draws the cross hair cursor on the screen.		*
+;								*
+;	Entry	reg pair bx - cursor x value			*
+;		reg pair cx - cursor y value			*
+;								*
+;	Exit	none						*
+;****************************************************************
+drwcur:
+	push	es
+	mov	ax, graph_plane 	; point at graphics plane
+	mov	es, ax
+	push	bx			; save cursor x value for drawing y cur.
+	push	cx			; save y value
+	mov	dx, bx			; save cursor x value
+	add	dx, curwtx
+	cmp	dx, XRESMX
+	jb	drwcr1
+	mov	dx, XRESMX
+drwcr1: 				; dx = right x of cursor	
+	sub	bx, curwtx
+	jnc	drwhorz
+	xor	bx,bx
+;					bx = left x of cursor
+drwhorz:
+	sub	dx,bx			; dx=delx
+	push	dx			;save count
+	mov	ax,cx			; ax=y bx = x
+	call	concat
+	mov	si,bx
+	add	si, offset ortbl
+	mov	bl, [si]
+	pop	cx
+	inc	cx			; count = delx +1
+drwhorz_loop:
+	xor	es:[di],bl
+if msb_first
+	ror	bl,1
+else	
+	rol	bl,1
+endif
+	jnc	drwhorz1
+if byte_swap
+	dec	di
+	test	di,1
+	jz	drwhorz1
+	add	di,4
+else
+	inc	di
+endif
+drwhorz1:
+	loop	drwhorz_loop		
+;
+	pop	ax			; get y value
+	mov	cx,ax
+	add	cx, curwty		; find top end point of vert. line.
+	cmp	cx, yresmx
+;					test if top end of cursor is > yresmx
+	jb	drwcr3
+	mov	cx, yresmx
+drwcr3: 				; cx = top y of cursor
+	sub	ax, curwty
+;					test if bottom end of cursor is < 0
+	jnc	drwcr4
+	xor	ax, ax
+drwcr4: 				; ax = bottom y of cursor
+	pop	bx			; ax,cx= b/t y bx = x
+	sub	cx,ax			; cx=dely
+	push	cx			;save count
+	call	concat
+	mov	si, offset ortbl
+	xor	bh,bh
+	mov	bl, [si+bx]
+	pop	cx
+	inc	cx			; count = dely + 1
+drwvert_loop:
+	xor	es:[di],bl
+	add	di,neg_next_line	; move bot to top
+if multiseg
+	cmp	di,plane_size
+	jc	drwvert1
+	add	di,move_to_last
+endif
+drwvert1:
+	loop	drwvert_loop		
+	pop	es
+	ret
+EJECT
+dseg
+;******************************************************************************
+;*				DATA TO BE REASSEMBLED			      *
+;*			contains device dependent information		      *
+;******************************************************************************
+	public	device_table,size_table
+	public	gcurx,gcury
+	public	y1,y2,x1,x2
+	public	lstlin
+	public	back_bp_1
+	public	line_mask,line_mode
+	public	line_bp_1
+	public	char_mode,char_bp_1
+	public	arstl2
+;
+	extrn	chup:word
+	extrn	realized_color_table:byte
+;
+device_table	dw	xresmx	;1	x resolution
+		dw	yresmx	;2	y resolution
+		dw	1	;3	device precision 0=exact,1=not exact
+		dw	xsize	;4	width of pixel
+		dw	ysize	;5	heigth of pixel
+		dw	1	;6	character sizes
+		dw	8	;7	linestyles
+		dw	1	;8	linewidth
+		dw	8	;9	marker types
+		dw	1	;10	marker size
+		dw	1	;11	text font
+		dw	8	;12	area patterns
+		dw	8	;13	crosshatch patterns
+		dw	2	;14	colors at one time
+		dw	1	;15	number of GDP's
+		dw	1	;16	GDP #1
+		dw	-1	;17	GDP #2
+		dw	-1	;18	GDP #3
+		dw	-1	;19	GDP #4
+		dw	-1	;20	GDP #5
+		dw	-1	;21	GDP #6
+		dw	-1	;22	GDP #7
+		dw	-1	;23	GDP #8
+		dw	-1	;24	GDP #9
+		dw	-1	;25	GDP #10
+;GDP attributes
+		dw	3	;26	GDP #1
+		dw	-1	;27	GDP #2
+		dw	-1	;28	GDP #3
+		dw	-1	;29	GDP #4
+		dw	-1	;30	GDP #5
+		dw	-1	;31	GDP #6
+		dw	-1	;32	GDP #7
+		dw	-1	;33	GDP #8
+		dw	-1	;34	GDP #9
+		dw	-1	;35	GDP #10
+		dw	1	;36	Color capability
+		dw	1	;37	Text Rotation
+		dw	1	;38	Polygonfill
+		dw	0	;39	Pixel Operation
+		dw	2	;40	Pallette size
+if mouse
+		dw	2	;41	# of locator devices return 2
+else
+		dw	1	;41	return 1
+endif
+		dw	1	;42	# of valuator devices
+		dw	1	;43	# of choice devices
+		dw	1	;44	# of string devices
+		dw	2	;45	Workstation Type 2 = out/in
+;
+;size_table
+;returns text,line and marker sizes in device coordinates
+;
+size_table	dw	0	;1
+		dw	7	;2	min char height
+		dw	0	;3
+		dw	7	;4	max char height
+		dw	1	;5	min line width
+		dw	0	;6
+		dw	1	;7	max line width
+		dw	0	;8
+		dw	0	;9
+		dw	7	;10	min marker height
+		dw	0	;11
+		dw	7	;12	max marker height	
+;
+;
+if msb_first
+ortbl		db	128		; 'or' mask table in stpixl
+		db	64
+		db	32
+		db	16
+		db	8
+		db	4
+		db	2
+		db	1
+else
+ortbl		db	1
+		db	2
+		db	4
+		db	8
+		db	16
+		db	32
+		db	64
+		db	128
+endif
+;				
+gcurx	dw	0			;current cursor X-coordinate
+gcury	dw	0			;current cursor Y-coordinate
+;
+;variables used in abline
+; 
+line_mask	dw	0ffffh		;line style
+line_mode	db	0
+line_bp_1	db	0
+;
+wrap_around	dw	0
+yinc		dw	0
+lstlin		db	0		;flag for last line of polline
+					;0ffh for last line
+					; 0   not last line
+;
+back_bp_1	db	0
+;
+x1	dw	0		;variables used in line drawing routine
+y1	dw	0
+x2	dw	0
+y2	dw	0
+;
+;
+;variables for draw_char
+	char_mode	db	0
+	char_bp_1	db	0
+	char_bp_2	db	0
+;
+arstl2	db	11h		;vertical cross hatch
+	db	11h
+	db	11h
+	db	11h
+	db	11h
+	db	11h
+	db	11h
+	db	11h
+;
+	db	0ffh		;horizontal cross hatch
+	db	00h		
+	db	0ffh
+	db	00h
+	db	0ffh
+	db	00h
+	db	0ffh
+	db	00h
+;
+if not msb_first		;do we assemble this section first?
+	db	11h		;diagonal cross hatch
+	db	22h		;+45 deg
+	db	44h
+	db	88h
+	db	11h
+	db	22h
+	db	44h
+	db	88h
+endif				;or this section
+	db	88h		;diagonal cross hatch
+	db	44h		;-45 deg
+	db	22h
+	db	11h
+	db	88h
+	db	44h
+	db	22h
+	db	11h
+if msb_first
+	db	11h		;diagonal cross hatch
+	db	22h		;+45 deg
+	db	44h
+	db	88h
+	db	11h
+	db	22h
+	db	44h
+	db	88h
+endif
+	db	0ffh		;Square cross hatch "Cross"
+	db	11h
+	db	11h
+	db	11h
+	db	0ffh
+	db	11h
+	db	11h
+	db	11h
+;
+	db	81h		;"X" cross hatch
+	db	42h
+	db	24h
+	db	18h
+	db	18h
+	db	24h
+	db	42h
+	db	81h
+;
+	db	88h		;Vertical / +45 cross hatch
+	db	48h
+	db	28h
+	db	18h
+	db	08h
+	db	0ch
+	db	0ah
+	db	09h
+;
+	db	01h		;horizontal /-45 hatch
+	db	02h
+	db	0ffh
+	db	08h
+	db	10h
+	db	20h
+	db	0ffh
+	db	80h
+

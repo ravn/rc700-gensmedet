@@ -1,0 +1,369 @@
+
+XRESMX		equ	719	; X - maximum resolution
+YRESMX		equ	334	; Y - maximum resolution
+XSIZE		equ	277	; Pixel width
+YSIZE		equ	385	; Pixel height
+CROSSHAIR_W	equ	8	; Crosshair width
+CROSSHAIR_H	equ	4	; Crosshair height
+MARK2_SIZE	equ	6	; Marker 2 size
+
+NUM_COLORS	equ	2	; Colour depth
+TWOHEAD		equ	1	; Graphics and text are separate 'heads'?
+NEEDSFLUSH	equ	1	; 'Flush' function needs callling after draw?
+
+TEXT_PLANE	equ	0B000h
+TPLANE_SIZE	equ	1000h
+GRAPH_PLANE	equ	0E000h
+PLANE_SIZE	equ	0F618h
+
+		include	macros.inc
+		include	common0.inc
+		include	common1.inc
+		include	font.inc
+		include	common2.inc
+
+		cseg
+;
+; List of queued drawing operations. For some reason (probably to avoid 
+; 'snow') graphics card RAM can only be updated in a narrow time window. 
+; So any access to video RAM is held in a queue, which is flushed when 
+; it is full or at the end of an operation.
+;
+draw_qlen	dw	0
+draw_queue	rw	60
+
+bitmasks	db	80h, 40h, 20h, 10h, 8, 4, 2, 1
+
+write_ops	dw	offset write_replace
+		dw	offset write_or
+		dw	offset write_xor
+		dw	offset write_erase
+;
+
+wait_retrace:	push	dx
+		push	ax
+wait_retr1:	mov	dx, 202h
+		in	al, dx
+		and	al, 1
+		jnz	wait_retr1
+wait_retr2:	in	al, dx
+		and	al, 1
+		jz	wait_retr2
+		mov	al, 0
+		mov	dx, 200h
+		out	dx, al
+		pop	ax
+		pop	dx
+		retn
+;
+enable_video:	push	dx
+		push	ax
+		mov	al, 20h
+		mov	dx, 200h
+		out	dx, al
+		pop	ax
+		pop	dx
+		retn
+;
+CLEARMEM:	push	es
+		call	wait_retrace
+		pushf
+		cld	
+		mov	bx, GRAPH_PLANE
+		mov	es, bx
+		mov	cx, PLANE_SIZE / 2
+		xor	di, di
+		xor	ax, ax
+		rep	stosw
+		call	wait_retrace
+		call	enable_video
+		popf
+		pop	es
+		retn
+;
+_cleartext:	push	es
+		pushf
+		cld
+		mov	bx, TEXT_PLANE
+		mov	es, bx
+		mov	cx, TPLANE_SIZE / 2
+		xor	di, di
+		mov	ax, 0720h
+		rep	stosw
+		popf
+		pop	es
+		retn
+
+; Enter	with 1 for graphics, 0 for text
+
+_GFXMODE:		; CODE XREF: v_opnwk+233p v_clswk+3p
+
+fill_hline_mode	equ	(word ptr (16))[bp]
+fill_hline_ink	equ	(word ptr (14))[bp]
+fill_hline_rot	equ	(byte ptr (12))[bp]
+fill_hline_mask	equ	(word ptr (10))[bp]
+fill_hline_y	equ	(word ptr  (8))[bp]
+fill_hline_x1	equ	(word ptr  (6))[bp]
+fill_hline_x0	equ	(word ptr  (4))[bp]
+
+;		S u b r	o u t i	n e
+
+_fill_hline:		; CODE XREF: v_bar+A7p	area_fill+2DBp
+		push	bp
+		mov	bp, sp
+		mov	dx, fill_hline_mask
+		mov	cl, fill_hline_rot
+		rol	dx, cl
+		mov	cx, fill_hline_x1
+		mov	bx, fill_hline_x0
+		sub	cx, bx
+		inc	cx
+
+fill_hline1:				; CODE XREF: _fill_hline+37j
+		push	cx
+		push	bx
+		push	dx
+		push	word ptr fill_hline_mode
+		xor	si, si
+		mov	ah, dh
+		and	ah, 80h
+		jz	fill_hline2
+		mov	si, fill_hline_ink
+
+fill_hline2:				; CODE XREF: _fill_hline+21j
+		push	si
+		push	word ptr fill_hline_y
+		push	bx
+		call	_PUTPIXEL
+		add	sp, 8
+		pop	dx
+		rol	dx, 1
+		pop	bx
+		inc	bx
+		pop	cx
+		loop	fill_hline1
+		pop	bp
+		retn	
+
+
+getpixel_y	equ	(word ptr (6))[bp]
+getpixel_x	equ	(word ptr (4))[bp]
+
+
+_GETPIXEL:		; CODE XREF: vq_cellarray+125p
+		push	bp
+		mov	bp, sp
+		push	ds
+		mov	ax, YRESMX
+		sub	ax, getpixel_y
+		shl	ax, 1		; * 2
+		mov	di, ax		;   DI = y * 2
+		shl	ax, 1		; * 4
+		shl	ax, 1		; * 8
+		add	di, ax		;   DI = y * 10
+		shl	ax, 1		; * 16
+		add	di, ax		;   DI = y * 26
+		shl	ax, 1		; * 32
+		shl	ax, 1		; * 64
+		add	di, ax		;   DI = y * 90
+		mov	ax, getpixel_x
+		mov	si, ax
+		shr	ax, 1
+		shr	ax, 1
+		shr	ax, 1
+		add	di, ax
+		and	si, 7
+		mov	dl, cs:bitmasks[si]
+		xor	ax, ax
+		mov	si, GRAPH_PLANE
+		mov	ds, si
+		call	wait_retrace
+		mov	dh, [di]
+		call	enable_video
+		and	dh, dl
+		jz	getpixel1
+		inc	al
+
+getpixel1:				; CODE XREF: _GETPIXEL+50j
+		pop	ds
+	
+		pop	bp
+		retn	
+
+
+
+putpixel_mode	equ	(word ptr (10))[bp]
+putpixel_ink	equ	(byte ptr  (8))[bp]
+putpixel_y	equ	(word ptr  (6))[bp]
+putpixel_x	equ	(word ptr  (4))[bp]
+
+;		S u b r	o u t i	n e
+
+_PUTPIXEL:		; CODE XREF: v_cellarray+1A2p
+					; cseg:12ADp ...
+		push	bp
+		mov	bp, sp
+		push	ds
+		push	cs
+		pop	ds
+		mov	bx, cs:draw_qlen
+		cmp	bx, 120		;Length of drawing queue
+		jnz	putpix1
+		push	word ptr putpixel_mode
+		call	_DRAWFLUSH	; Empty the queue
+		add	sp, 2
+		xor	bx, bx
+putpix1:
+		mov	ax, YRESMX
+		sub	ax, putpixel_y
+		shl	ax, 1		; * 2
+		mov	di, ax
+		shl	ax, 1		; * 4
+		shl	ax, 1		; * 8
+		add	di, ax		;   di = Y * 10
+		shl	ax, 1		; * 16
+		add	di, ax		;   di = Y * 26
+		shl	ax, 1		; * 32
+		shl	ax, 1		; * 64
+		add	di, ax		;   di = Y * 90
+		mov	ax, putpixel_x	; X
+		mov	si, ax
+		shr	ax, 1		; /2
+		shr	ax, 1		; /4
+		shr	ax, 1		; /8
+		add	di, ax
+		and	si, 7		; X & 7
+		mov	dl, cs:bitmasks[si]
+		mov	dh, putpixel_ink
+		neg	dh
+		mov	cs:draw_queue[bx], di	; Address
+		add	bx, 2
+		mov	cs:draw_queue[bx], dx	; Pixel & mask
+		add	bx, 2
+		mov	cs:draw_qlen, bx
+		pop	ds
+		pop	bp
+		ret
+;
+drawflush_mode	equ	(word ptr (4))[bp]
+;
+_DRAWFLUSH:	push	bp
+		mov	bp, sp
+		push	ds
+		push	es
+		pushf
+		push	cs
+		pop	ds
+		mov	cx,cs:draw_qlen
+		shr	cx, 1
+		shr	cx, 1
+		jcxz	drawflush1
+		mov	si, offset draw_queue
+		mov	ax, GRAPH_PLANE
+		mov	es, ax
+		mov	di, drawflush_mode	;Write mode
+		dec	di
+		shl	di, 1
+		cld
+		cli	
+		call	wait_retrace
+		jmp	cs:write_ops[di]
+
+write_replace:				; DATA XREF: cseg:2914o
+		lodsw
+		mov	bx, ax
+		lodsw
+		mov	dl, al
+		not	dl	
+		and	dl, es:[bx]
+		and	al, ah
+		or	dl, al
+		mov	es:[bx], dl
+		loop	write_replace
+		jmp	drawflush1
+
+write_or:	lodsw
+		mov	bx, ax
+		lodsw
+		and	al, ah
+		or	es:[bx], al
+		loop	write_or
+		jmp	drawflush1
+
+
+write_xor:	lodsw
+		mov	bx, ax
+		lodsw
+		and	al, ah
+		xor	es:[bx], al
+		loop	write_xor
+		jmp	drawflush1
+
+
+write_erase:	lodsw
+		mov	bx, ax
+		lodsw
+		and	al, ah
+		not	al
+		and	es:[bx], al
+		loop	write_erase
+drawflush1:	call	enable_video
+		popf
+		mov	cs:draw_qlen, 0
+		pop	es
+		pop	ds
+		pop	bp
+		ret
+
+
+
+		include	common3.inc
+
+	dw	0ffffh	; Write mode
+
+palette		dw	0FFFFh
+		dw	0FFFFh
+		dw	0FFh
+		dw	100h
+		dw	100h
+		dw	100h
+text_cury	dw	200h
+text_curx	dw	100h
+
+registers dw	0	;AX
+	dw	100h	;BX
+	dw	100h	;CX
+	dw	0	;DX
+	dw	0	;SI
+	dw	0	;DI
+	dw	0	;DS
+	dw	0	;ES
+	dw	0, 0, 0
+
+
+	db	'--------------------------------------------------',0Dh,0Ah
+	db	'DDORCH  IBM PC / Orchid Technology  18 Mar 83 V1.1',0Dh,0Ah
+	db	'Serial No. 1024-0000-003178    All Rights Reserved',0Dh,0Ah
+	db	'Copyright (c) 1983  Graphic Software Systems, Inc.',0Dh,0Ah
+	db	'--------------------------------------------------',0Dh,0Ah
+	db	1Ah
+
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
+	db	0FFh, 0FFh, 0FFh
+		end 
+
+		end 

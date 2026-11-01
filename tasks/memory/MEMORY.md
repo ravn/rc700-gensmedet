@@ -1,2 +1,7 @@
 - [No timeout on macOS](feedback_no_timeout_on_macos.md) — use `perl -e 'alarm shift; exec @ARGV' N cmd` to guard hangable ntvcm runs
 - **[const char* vs const byte* in comparisons](feedback_const_char_vs_byte_sign_extension.md) — HARD: mixed-sign byte loop → sign-extension → bloat; ALL comparison params must be `const byte *`**
+- [RC759 GSX-86 emu2 verification](reference_rc759_gsx_emu2_verification.md) — use `pty.fork()` (controlling TTY); current emu2 OBJ/CMD match MAME
+- [RC759 GSX source comparison](../../rc759-gsx/notes/04-gsx11-source-comparison.md) — GIOS11 provenance, H1 sine/vector tables, pixel-mode caveats
+- [DRI GIOS skeleton guides](../../rc759-gsx/notes/05-dri-skeleton-guides.md) — 1983 package names, ESCAPE mapping, MODETEST pen-zero coverage
+- [DRI skeleton source oracle](../../rc759-gsx/reference/dri-skeleton/README.md) — retained mono/color A86 sources and version provenance
+- [GSX source-history tree](../../rc759-gsx/notes/07-gsx80-86-source-tree.md) — user-supplied SCCS files; IBM C, Ratfor and assembly

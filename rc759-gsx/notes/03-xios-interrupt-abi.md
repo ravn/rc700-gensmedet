@@ -18,7 +18,7 @@ direkte via `IN/OUT`.
 
 | AL | Funktion | Registre ind | Registre ud | Afsnit |
 |---:|----------|--------------|-------------|--------|
-| 0  | **Init Graphics** | AH=1 høj-/2 medium-opløsning, DS:CX→gcb el. DX:CX→gcb | — | 4.5.1 |
+| 0  | **Init Graphics** | AH=1 høj-/2 medium-opløsning, DX:CX→gcb | — | 4.5.1 |
 | 1  | **Exit Graphics** | — | — | 4.5.2 |
 | 2  | Reserved | | | |
 | 3  | Get NVM copy address | — | ES:SI → NVM-kopi | 3.2 |
@@ -76,13 +76,14 @@ Andre CCP/M-86-funktioner nævnt i manualen (ikke brugt af driveren):
 32 KB bitmap-segment, mappet i pixel-memory under grafik-mode.
 
 ```
-word_address = (X div 16) * 256 + Y    ; 256 words/strip, 128 strips total
+word_address = (X div 16) * 256 + (255 - Y) ; H1 CS:046A
 bit_mask     = 1 << (15 - (X mod 16))  ; MSB = leftmost pixel
 ```
 - Origo: nederste venstre hjørne (Y=0 nederst).
 - Y: 0..255.
-- Mono (`h*`): 1 bit/pixel. 32 KB = 1024 × 256 pixels (men faktisk display 560 × 256).
-- Farve (`m*`): 2 eller 4 bits/pixel (`shl bx, 1` i det eksempel vi så, dvs. 2 bits = 4 farver per pixel; "4"-plane er sandsynligvis 4 bits = 16 farver).
+- H1: 1 bit/pixel. 32 KB = 64 strips × 256 words = 1024 × 256 pixels
+  adressekapacitet; capability-tabellen annoncerer 560 × 256.
+- Andre variant-suffixer og farveformater er ikke verificeret her.
 
 ## Graphics Control Block (gcb)
 
@@ -101,15 +102,16 @@ Driverens brug af Int 28h / Int E0h-funktioner, krydstjekket med
 
 | CS-offset | Instruktion | XIOS/BDOS fn | Betydning i GSX-sammenhæng |
 |-----------|-------------|-------------:|---------------------------|
-| 0x0225 | `MOV AL,0x16; INT 28h` | **22** Get cursor pos | OPEN_WORKSTATION gemmer cursor til senere restore |
-| 0x0B6C | `MOV AL,0x1F; INT 28h, DX=0x233` | **31** Define palette | SET_COLOR_REP uploader palette-def (buffer @ CS:0x233) |
+| 0x0227 | `INT 28h`, AL=16h | **22** Get cursor pos | ESCAPE 15 returnerer tekstcursorposition; kilde-labelens 16 er forkert |
+| 0x0B6E | `INT 28h`, AL=1Fh | **31** Define palette | SET_COLOR_REP sender palette-def fra DS:DX på driverstakken; DATA:0233 er to pakkede palettebytes |
 | 0x1004 | `MOV CL,0x8D; MOV DX,1; INT E0h` | **141** CCP/M Delay | mutex-polling på gcb_mx |
-| 0x1022 | `AL=0, AH=1, CX=0x58c; INT 28h` | **0** Init Graphics | Enter graphics mode (høj-opløsning, gcb @ CS:0x58c) |
-| 0x0FC1 | `MOV CL,6; DL=0xFF; INT E0h` | **BDOS 6** | Non-blocking keyboard input (ESCAPE "inquire tablet"?) |
-| 0x0FD6 | `MOV CL,6; DL=byte; INT E0h` | **BDOS 6** | Direct Console Output (TEXT handler for simpel ascii) |
-| 0x0D4A | `MOV CL,0x8D; INT E0h` | **141** CCP/M Delay | Også semafor-polling |
+| 0x1022 | `AL=0, AH=1, CX=0x58c; INT 28h` | **0** Init Graphics | Enter graphics mode; DX=DATA, gcb @ DATA:058C |
+| 0x102D | `AL=1; INT 28h` | **1** Exit Graphics | Returnér til alfanumerisk mode |
+| 0x0FC1 | `MOV CL,6; DL=0xFF; INT E0h` | **BDOS 6** | Fælles non-blocking tastaturinput |
+| 0x0FD6 | `MOV CL,6; DL=byte; INT E0h` | **BDOS 6** | Konsoloutput til ESCAPE og input-echo; ikke grafik-TEXT |
+| 0x0D4A | `MOV CX,0x8D; INT E0h`, DX=0 | **141** CCP/M Delay | Yield i locatorens event-loop; ikke gcb-semaforpolling |
 
-Dermed er alle 7 interrupt-call-sites i driveren forklaret ved dokumenterede
+Dermed er alle 8 interrupt-call-sites i driveren forklaret ved dokumenterede
 XIOS/BDOS-funktioner. Ingen ukendte eller udokumenterede entries.
 
 ## Konsekvens for optimering
@@ -123,7 +125,7 @@ For at "gøre driveren bedre" skal vi forstå:
    - Bedre bit-sat-algoritmer (fx precomputed word-stripes i stedet for
      bit-ad-gangen).
    - Fjerne eller reducere mutex-låse hvor det er sikkert.
-   - Bedre Bresenham-linjer (hvis nuværende er simpel DDA).
+   - Måling af den eksisterende integer-error/Bresenham-lignende rasterizer.
 2. **Palette-updates** er sjældne og rammer kun fn 31.
 3. **Tekst** på en grafik-skærm skal driveren selv emulere (XIOS 35 virker
    kun i char-mode) — her kan vi vinde ved at precache glyphs i pixel-mem.
@@ -131,3 +133,8 @@ For at "gøre driveren bedre" skal vi forstå:
 
 For at måle: byg oracle fra Myresnak (GSX-APP) eller en lille egen GRAPHICS.CMD
 testharness, kør under MAME-RC759 (vi har allerede en fungerende emulator).
+
+Se [GSX 1.1-kildesammenligningen](04-gsx11-source-comparison.md) for
+capability-tabeller, vektorfont, trigonometriske tabeller og pixel-writing modes.
+Se [DRI-skeletguiden](05-dri-skeleton-guides.md) for den verificerede
+ESCAPE-mapping: source-labels er forskudt i forhold til dispatch-tabellen.

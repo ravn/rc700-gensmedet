@@ -1,5 +1,9 @@
 # RC759 GSX-86 driver — session 2 findings (2026-10-31)
 
+**Rettet efter byte-rekonstruktion og GSX 1.1-kildesammenligning.** Se
+[den kildebaserede analyse](04-gsx11-source-comparison.md) for evidens.
+De tidligere chargen-/glyph-upload- og graphics-on/off-hypoteser var forkerte.
+
 ## Store opdagelser
 
 ### 1. CP/M-86 CMD-format identificeret — jump-tabellen fundet
@@ -9,15 +13,15 @@ Driveren er en standard CP/M-86 `.CMD` fil med tre grupper:
 |------:|-------|---------------------|---------|------|
 | 0     | CODE  | 0x0080..0x10C0      | 0x1040  | 8086 kode, CS-relativ 0x0000..0x1040 |
 | 1     | DATA  | 0x10C0..0x1D00      | 0x0C40  | Initialiseret data **+ GIOS jump-tabel ved DATA:0x100** |
-| 2     | EXTRA | 0x1D00..0x20E0      | 0x03E0  | Lookup-tabeller, ikke dekodet endnu |
-| —     | —     | 0x20E0..0x2180      | 0xA0    | Relocation records / trailer, ikke parsede |
+| 2     | EXTRA | 0x1D00..0x20E0      | 0x03E0  | Nulinitialiseret image; segmentreference til grafik-savebuffer |
+| —     | —     | 0x20E0..0x2180      | 0xA0    | Fem segmentfixups, terminator og padding; reproduceret byteidentisk |
 
 **Jump-tabellen ligger ved DATA-group offset 0x100 (fil 0x11C0)**, ikke i CODE
 som første gæt. Dispatcheren `CALL [BX+0x100]` læser med DS=DATA_SEG efter
 CP/M-86-loader har relokeret `MOV AX, 0` ved CS:0x1F til `MOV AX, data_seg`.
 
-### 2. Alle 35 opcodes har handler — ingen gaps
-Fuld GDOS-coverage iht. Appendix C "Required Opcode for CRT Devices":
+### 2. Alle 35 tabelpladser findes — flere handlers er stubs
+Dispatch-tabellen er komplet som tabel, ikke som funktionel GSX-dækning:
 
 ```
 op  1 OPEN_WORKSTATION       -> CS:0x004e
@@ -35,48 +39,44 @@ op 12..26 SET_* attributter  -> CS:0x0aa7 .. 0x0cda  (små handlers, ~30B hver)
 op 27..34 input/writing-mode -> CS:0x0d27 .. 0x0faf
 ```
 
-Opcode 0 peger på CS:0x0fdd — formentlig fælles "invalid"-returstub.
+Opcode 0 peger på CS:0x0fdd, en `RET`-stub. Opcode 4, 27 og 34 samt
+GDP 2..5 er også `RET`-stubs; capability-tabellen annoncerer kun GDP 1 (bar).
 
-### 3. Driveren rammer IKKE hardware direkte
+### 3. Ingen port-I/O; pixels skrives direkte i bitmap-segmentet
 **0 `IN`/`OUT`-instruktioner i hele CODE-segmentet.**
 
 Al I/O går via to interrupts:
 
-- `INT 0xE0` (4 call-sites) = CP/M-86 BDOS + rc759-BDOS-udvidelser
+- `INT 0xE0` (4 call-sites) = CP/M-86 BDOS / CCP/M-86
   - `CL=6, DL=char`  →  BDOS fn 6 "Direct Console I/O" (ascii text output)
-  - `CL=0x8D, DX=0/1`  →  rc759-udvidelse, formodet "graphics mode on/off"
-- `INT 0x28` (3 call-sites) = rc759 chargen-BIOS-interrupt
-  - `AL=0x16`  →  init/clear
-  - `AL=0x1F, DX=buffer_ptr`  →  upload char pattern (16 bytes typisk)
-  - `AL=0, AH=1, CX=buffer`  →  pattern pointer op
+  - `CL=0x8D` → CCP/M fn 141, delay/yield; ikke grafikmodeskift
+- `INT 0x28` (4 call-sites) = RC759 XIOS
+  - `AL=0x16` → læs tekstcursorposition
+  - `AL=0x1F, DS:DX=buffer_ptr` → definér palette
+  - `AL=0, AH=1, DX:CX=gcb` → start højopløsningsgrafik
+  - `AL=1` → afslut grafik
 
 Dette er konsistent med:
 - Appendix C's eksplicitte formulering: *"Device driver I/O (that is,
   communication between the device driver and the device via the system
   hardware ports) is done through operating system calls."*
-- Brugerobservation 2026-10-31: *"rc759 bruger en tekstskærm hvor hvert
-  tegn kan fuldt defineres på pixel niveau til højopløsning."* Driveren
-  er altså en vector→chargen-glyph-oversætter.
+- PICCOLINE-guide §4.5: XIOS stiller et bitmap-segment og en semafor til
+  rådighed. H1 tegner linjer og vektortekst med direkte memory-writes,
+  ikke med upload af tegnmønstre.
 
 ## Konsekvenser for målet "gøre den bedre"
 
 Vi behøver IKKE kortlægge rc759-portadresser — hardware-abstraktionen ligger
 i rc759-BIOS. Forbedringsvinklerne er alle driver-interne:
 
-1. **Batching af chargen-uploads** — hvis fx POLYLINE i dag kalder
-   `INT 0x28` én gang pr. berørt celle, kan vi akkumulere og uploade
-   i større bundter.
-2. **Bedre primitive-algoritmer** — Bresenham-linjer, bedre polygonfill,
-   korrekt clipping.
-3. **Komplet ESCAPE-sub-funktion-dækning** — mange GSX-apps bruger
-   ESCAPE 1 (inquire character cells), 2/3 (enter/exit graphics), 11
-   (direct cursor address). Skal verificeres at alle er implementeret.
-4. **Caching af glyphs** — hvis samme pixel-mønster bruges flere steder,
-   kan vi genbruge chargen-slot.
+Ingen optimering er udført eller målt her. Den nuværende POLYLINE er allerede
+en integer-error/Bresenham-lignende rasterizer. Før ændringer bør en grafisk
+oracle dække endepunkter i XOR-mode, polygonkanter, mønsterfase og vektortekst.
+GSX 1.1-referencekilderne er sammenligningsmateriale, ikke en automatisk facitliste.
 
 Hvad vi FØRST skal gøre for at kunne måle "bedre":
-- Finde rc759-BIOS-dokumentation (vi har MAME `rc759`-driver i mamedev;
-  den emulerer `INT 0x28` og `INT 0xE0 CL=0x8D`-udvidelsen).
+- Bruge PICCOLINE-guide §4.5 som XIOS-reference. MAME emulerer maskinens
+  hardware; gæste-OS'et implementerer disse interrupts.
 - Opsætte en test-rig: GSX-app under CP/M-86 i MAME, med nuværende
   driver som baseline.
 
@@ -86,8 +86,8 @@ Hvad vi FØRST skal gøre for at kunne måle "bedre":
    - OPEN_WORKSTATION (`CS:0x004e`) — hvordan sætter den intout[] op?
    - POLYLINE (`CS:0x02d7`) — er det Bresenham eller noget værre?
    - TEXT (`CS:0x050f`) — bruger den chargen-upload eller BDOS fn 6?
-2. **Diff mellem `h1` (mono) og `h4` (4-plane farve)** — identificer de
-   plane-afhængige kodeveje.
+2. **Diff mellem H1 og øvrige varianter** — suffixernes præcise betydning
+   og de andre varianters adfærd er ikke fastslået i denne analyse.
 3. **Krydstjek `INT 0x28`-funktionsnumre mod MAME rc759-driver**
    (`src/mame/drivers/rc759.cpp` el. hvor den nu bor).
 4. Først derefter beslutte om vi vil annotere videre eller reimplementere.

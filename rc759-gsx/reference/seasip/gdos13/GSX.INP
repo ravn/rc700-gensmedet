@@ -1,0 +1,5 @@
+graphics=
+gsx[code[segment[gsx_code,gsx_comm_code,graphics_code]]],
+gsxcomm,
+gsxldr
+

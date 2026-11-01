@@ -1,0 +1,784 @@
+;**************************************************************************
+;*			    DEVICE SPECIFIC ROUTINES			  *
+;*									  *   
+;*		These routines and equates are device dependant.	  *
+;*									  *
+;*									  *
+;*									  *
+;**************************************************************************
+;Hist
+;Name	Date	Modification
+;DH	9/29/83 Added background color
+;DH	9/29/83 Added choice possibility for character returned
+;SR	11/1/83 uses rom calls to init screens
+;DH	11/9/83 Added microsoft mouse option
+;DH	12/28/83 removed microsoft mouse option(included in mouse.a86)
+dseg
+	copyright	db	'GSX-86 V1.3	   28 Dec 83'
+			db	'IBM monochrome screen driver'
+			db	'Serial No. XXXX-0000-654321 '
+			db	'Digital Research, Inc.      '
+cseg
+;
+	public	clearmem
+	public	check_escape
+	public	escfn0,escfn1,escfn2,escfn3
+	public	escfn4,escfn5,escfn6,escfn7
+	public	escfn8,escfn9,escf10,escf11
+	public	escf12,escf13,escf14,escf15
+	public	escf16,escf17,escf18,escf19
+	public	concat
+	public	valuator,choice,get_char
+	public	plyfill_rot
+	public	abline,draw_char
+	public	next_address
+	public	enable_cross,move_cross,clip_cross,get_loc_key
+	public	device_table ,	size_table
+	public	gcurx,gcury
+	public	y1,y2,x1,x2
+	public	lstlin
+	public	arstl2
+;
+	extrn	entry:near		;the place to jump to if this module
+					;is linked in first
+;
+;integer array indexing equates
+	W_1	equ	word ptr 0
+	W_2	equ	word ptr 2
+	W_3	equ	word ptr 4
+	W_4	equ	word ptr 6
+	W_5	equ	word ptr 8
+	W_6	equ	word ptr 10
+	W_7	equ	word ptr 12
+	W_8	equ	word ptr 14
+	W_9	equ	word ptr 16
+	W_10	equ	word ptr 18
+;
+false		equ	0
+true		equ	not false
+val_inc_big	equ	10			;maximum valuator increment
+val_inc_small	equ	1			;minimum valuator increment
+EJECT
+;****************************************************************
+;		screen coordinate equates			*
+;   these must be changed to the values for specific machines	*
+;****************************************************************
+;
+xresmx		equ	639			;X - Maximum resolution.
+yresmx		equ	199			;Y - Maximum resolution.
+xsize		equ	169			;size of pixel in microns
+ysize		equ	400			;
+graph_plane	equ	0b800h			;start of graphics segment
+plane_size	equ	04000h			;size of graphics memory
+msb_first	equ	true			;set if msb is first out 
+byte_swap	equ	false			;are bytes swapped
+multiseg	equ	true
+num_segs	equ	2			;number of graphics segments
+bytes_line	equ	80			;used to compute addresses
+chars_line	equ	80			;number of characters per line
+lines_page	equ	25			;lines per alpha screen
+last_dri_escape equ	19			;last dri defined escape
+mouse		equ	true			;mouse driver to be included
+;
+;****************************************************************
+;		    device dependant equates			*
+;   these may or may not be necessary depending on hardware	*
+;****************************************************************
+;
+if multiseg
+next_line	equ	plane_size / num_segs	;offset to get to next segment
+else
+next_line	equ	bytes_line
+endif
+neg_next_line	equ	0-next_line
+move_to_first	equ	0-plane_size+bytes_line
+move_to_last	equ	plane_size-bytes_line	;from before first to last
+curwtx		equ	16			;1/2 width of cross hair
+curwty		equ	8			;1/2 height of cross hair
+cur_mot_max_x	equ	16			;how far cursor moves fast in x
+cur_mot_max_y	equ	8			;how far cursor moves fast in y
+cur_mot_min_x	equ	1			;how far cursor moves slow in x
+cur_mot_min_y	equ	1			;how far cursor moves slow in y
+;
+;****************************************************************
+;		IBM STANDARD ROM BIOS CALLS			*
+;****************************************************************
+SCREEN	equ	10H		;interrupts to use for rom routine I/O
+KEYBD	equ	16H
+rev_vid_on	equ	70h		;turn on reverse video bits
+rev_vid_off	equ	07h		;turn off reverse video bits 
+;
+read_cur_pos	equ	3			;bios rom calls for char I/O
+set_cur_pos	equ	2
+read_char	equ	8
+write_char	equ	9
+set_palette	equ	0bh
+get_character	equ	0			;keyboard read
+;
+EJECT
+;
+	jmp	entry		;if we come in from here, go to real entry
+;
+;****************************************
+;* clearmem				*
+;*	    clears graphics memory	*
+;*	    uses ax,cx,di		*
+;*    stores zeros in graphics plane	*
+;****************************************
+clearmem:
+	mov	ax,graph_plane		; ld in graphics memory address
+	mov	es,ax
+	mov	cx,plane_size/2 	;number of bytes to zero
+	mov	al,bakcol
+	mov	ah,al
+	mov	di,0
+	rep	stosw			; store plane_size zeros in graphmem
+	ret
+;
+;************************************************************************
+;*			escape functions				*
+;*	 handle character I/O , alpha and graphics cursor		*
+;*									*
+;*	ENTRY								*
+;*		contrl	points to segment and offset of contrl		*
+;*		intin	points to segment and offset of intin		*
+;*		ptsin	points to segment and offset of ptsin		*
+;*		intout	points to segment and offset of intout		*
+;*		ptsout	points to segment and offset of ptsout		*
+;*									*
+;*									*
+;************************************************************************
+;
+;****************************************
+;check_escape				*
+;	checks escape function called	*
+;	against last_escape		*
+;****************************************
+check_escape:
+	cmp	bx,last_dri_escape
+	jbe	its_ok
+	xor	bx,bx			;do a nop if its not valid
+its_ok:
+	ret
+;
+;****************************************
+;escape func 0
+; Nop
+;****************************************	
+escfn0:
+	ret
+;
+;****************************************	
+;escape func 1
+; Inquire Addressable Character Cells
+;****************************************	
+escfn1:
+	les	di,intout
+	mov	es:W_1[di], lines_page	; number of addressable rows. 
+	mov	es:W_2[di], chars_line	; number of addressable columns.
+	ret
+;****************************************	
+;escape func 2
+; Enter Graphics Mode 
+;****************************************	
+escfn2: 				; 
+	call	escfn8			; home alpha cursor.
+	call	escfn9			; clear alpha display.
+	push	ds
+	mov	ax,0
+	mov	ds,ax
+	mov	bx,410h
+	mov	al,[bx] 		;get current screen adapter
+	mov	mode_save,al		;save it
+	and	al,0cfh
+	or	al,10h
+	mov	[bx],al 		;select color card
+	mov	ah,0
+	mov	al,6			;hi-res graphics
+	int	screen
+	pop	ds
+	call	clearmem		; clear graphics display
+;	mov	si,offset crt_init_table_g
+;	call	crt_init
+if mouse
+	mov	bl,1
+	call	mouse_function		;initialize the mouse
+endif
+	ret
+;
+;****************************************	
+;escape func 3
+; Exit Graphics Mode
+;****************************************	
+escfn3: 				; 
+	mov	ax,graph_plane		; ld in graphics memory address
+	mov	es,ax
+	mov	cx,plane_size/2 	;number of bytes to zero
+	xor	ax,ax
+	mov	di,0
+	rep	stosw			; store plane_size zeros in graphmem
+;	mov	si,offset crt_init_table_a
+;	call	crt_init
+	push	ds
+	mov	ax,0
+	mov	ds,ax
+	mov	bx,410h
+	mov	al,mode_save		;get screen adapter
+	mov	[bx],al 		;select default card
+	mov	ah,0
+	mov	al,3			;alpha mode
+	int	screen
+	pop	ds
+	mov	attribute,rev_vid_off
+	call	escfn8			;home
+	call	escfn9			;clear to end of screen
+if mouse
+	mov	bl,2
+	call	mouse_function
+endif
+	ret
+;
+;*****************************************************************
+;crt_init
+;	initializes the display controller with data from table
+;*****************************************************************
+crt_init:
+	mov	dx,03d4h		;select port
+	mov	bl,0			;select register
+	mov	cl,length crt_init_table_a
+crt_init_loop:
+	mov	al,bl
+	out	dx,al
+	inc	bx
+	inc	dx
+	lodsb
+	out	dx,al
+	dec	dx
+	loop	crt_init_loop
+	inc	dx
+	inc	dx
+	inc	dx
+	inc	dx
+	lodsb
+	out	dx,al
+	inc	dx
+	lodsb
+	out	dx,al
+	ret
+;
+;****************************************	
+;escape func 4
+; Cursor Up
+;****************************************	
+escfn4:
+	mov	ah,read_cur_pos
+	int	screen
+	cmp	dh,0			;is cursor at top of screen
+	jz	escfn4done		;if so, then done
+	dec	dh
+	mov	ah,set_cur_pos
+	int	screen
+escfn4done:
+	ret
+;
+;****************************************	
+;escape func 5
+; Cursor Down
+;****************************************	
+escfn5:
+	mov	ah,read_cur_pos
+	int	screen
+	cmp	dh,lines_page		;is cursor at bottom of screen?
+	jz	escfn5done		;if so, done
+	inc	dh
+	mov	ah,set_cur_pos
+	int	screen
+escfn5done:
+	ret
+;
+;****************************************	
+;escape func 6
+; Cursor Right
+;****************************************	
+escfn6:
+	mov	ah,read_cur_pos
+	int	screen
+	cmp	dl,chars_line		;is cursor at edge of screen?
+	jz	escfn6done		;if so, done
+	inc	dl
+	mov	ah,set_cur_pos
+	int	screen
+escfn6done:
+	ret
+;
+;****************************************	
+;escape func 7
+; Cursor Left
+;****************************************	
+escfn7:
+	mov	ah,read_cur_pos
+	int	screen
+	cmp	dl,0			;is cursor at edge of screen?
+	jz	escfn7done		;if so, done
+	dec	dl
+	mov	ah,set_cur_pos
+	int	screen
+escfn7done:
+	ret
+;
+;****************************************	
+;escape func 8
+; Home Cursor
+;****************************************	
+escfn8:
+	mov	dx,0
+	mov	ah,set_cur_pos
+	int	screen			; move cursor home
+	ret
+;
+;****************************************	
+;escape func 9
+; Erase to end of screen
+;****************************************	
+escfn9:
+	mov	ah,read_cur_pos 	;get current cursor position
+	int	screen
+	push	dx			;save it 
+	xor	cx,cx
+	mov	cl,dl			;compute number of spaces to write
+	neg	cl
+	add	cl,bytes_line		;wrap cl around bytes_line
+	xor	ax,ax
+	mov	al,dh			;add bytes_line * number of columns
+	neg	al
+	add	al,lines_page
+	dec	al			;don't count the line we're on
+	mov	bl,bytes_line
+	mul	bl			;bl=number of lines * bytes_line
+	add	cx,ax
+	dec	cx			;that last spot causes scroll
+	mov	bx,rev_vid_off		;page zero and reverse off
+	mov	ah,write_char
+	mov	al,20h
+	int	screen			;write cx spaces out
+	pop	dx			;get original cursor position
+	mov	ah,set_cur_pos
+	int	screen			;restore cursor position
+	ret
+;
+;****************************************	
+;escape func 10
+; Erase to end of line
+;****************************************	
+escf10:
+	mov	ah,read_cur_pos 	;get current cursor position
+	int	screen
+	push	dx			;save it 
+	xor	cx,cx
+	mov	cl,dl			;compute number of spaces to write
+	neg	cl
+	add	cl,bytes_line
+	mov	bx,rev_vid_off		;page zero and everything to black
+	mov	al,20h
+	mov	ah,write_char
+	int	screen			;write cx spaces out
+	pop	dx
+	mov	ah,set_cur_pos
+	int	screen			;restore cursor position
+	ret
+;
+;****************************************	
+;escape func 11
+; Move Cursor to x,y
+;****************************************	
+escf11:
+	les	di,intin
+	mov	ax, es:[di]			; get the row number (1-24)
+	mov	dh,al
+	dec	dh				; make zero relative
+	mov	ax, es: W_2[di] 		; get the column number (1-80)
+	mov	dl,al
+	dec	dl				; zero relative
+	mov	ah,set_cur_pos
+	mov	bx,0				;page zero
+	int	screen
+	ret
+;
+;****************************************	
+;escape func 12
+; Output text
+;****************************************	
+escf12:
+	les	di,contrl
+	mov	cx, es: W_4[di] 	; get string length.
+	and	cx, cx			; test if 0 count
+	jz	esc12_done
+	les	di,intin
+esc120:
+	mov	al, es:[di]	; load character to be output.	
+	push	es
+	push	di
+	push	cx
+	mov	cx,1
+	xor	bx,bx
+	mov	bl,attribute
+	mov	ah,write_char
+	int	screen
+	call	escfn6
+	pop	cx
+	pop	di 
+	pop	es
+	inc	di
+	inc	di
+	loop	esc120
+esc12_done:
+	ret
+;****************************************	
+;escape func 13     
+; Reverse video on
+;****************************************	
+escf13:
+	mov	attribute,rev_vid_on
+	ret
+;
+;****************************************	
+;escape func 14
+; Reverse video off
+;****************************************	
+escf14:
+	mov	attribute,rev_vid_off
+	ret
+;
+;****************************************	
+;escape func 15
+; Return Current Cursor Address 
+;****************************************	
+escf15:
+	les	di,intout
+	mov	ah,read_cur_pos
+	int	screen
+	xor	ax,ax			;zero high byte
+	mov	al,dh
+	inc	al			;make one relative
+	mov	es:[di],ax		;return row address
+	mov	al,dl
+	inc	al
+	mov	es:W_2[di],ax		;return column address
+	ret
+;
+;****************************************	
+;escape func 16
+; Return Tablet Status
+;****************************************	
+escf16:
+	les	di,intout
+if mouse
+	mov	es:W_1[di],1		;if mouse then return 1
+else
+	mov	es:W_1[di], 0		;else return a 0
+endif
+	ret
+;
+;****************************************	
+;escape func 17 	NOT SUPPORTED
+; Hard Copy
+;****************************************	
+escf17:
+	ret
+;
+;****************************************	
+;escape func 18
+; Place graphic cross-hair cursor at x,y
+;****************************************	
+escf18:
+	les	di,ptsin
+	mov	ax,es:[di]
+	mov	gcurx,ax
+	mov	ax,es:W_2[di]
+	mov	gcury,ax
+	call	enable_cross
+	ret				;      locator is called before esc19.
+;****************************************	
+;escape func 19
+; Remove cursor /Marker 
+;****************************************	
+escf19:
+	call	enable_cross
+esc19d: ret
+EJECT
+;****************************************************************
+;CONCAT 							*	
+;	ENTRY	Reg. BX - X-coordinate (dev. coord.)		*
+;		Reg. AX - Y-coordinate (dev. coord.)		*
+;								*
+;	EXIT	Reg. DI - Physical address			*
+;		Reg. BL - Byte index				*	
+;								*
+;	Reg. Used. AX, BX, CX, DX, DI				*
+;								*
+;****************************************************************
+concat:
+	and	bx, 03ffh		;mask off 10 lsb for x-coord.
+	mov	cx, yresmx		;normalize y-coordinate
+	sub	cx, ax
+	mov	ax, cx
+	shr	ax,1
+	mov	dh,cl
+	mov	dl, bl			;save low order byte of x-coord
+	and	dl, 07h 		;mask off data bit index.
+	mov	cl, 3			;set count to 3
+	shr	bx, cl			;shift out 3 lsb of x-coord.
+	mov	cl,bytes_line
+	mul	cl			;brute force calculation
+					;use shift and add if possible
+	add	ax, bx			;concatenate y and x coordinates in AX
+	and	dh,1
+	jz	concat1
+	add	ax,next_line		;if odd address, then start at next_line
+concat1:mov	di, ax			;di = memory address
+	xor	dh, dh
+	mov	bx, dx			;bx = bit index into data byte
+	ret
+EJECT
+;
+;************************************************************************
+;*get_loc_key								*
+;*	Get Locator key 						*
+;*		Entry  none						*
+;*		Exit							*
+;*			al=0 nothing happened				*
+;*									*
+;*			al=1 button press				*
+;*				ah = character information		*
+;*									*
+;*			al=2 coordinate information			*
+;*				bx = delta x				*
+;*				cx = delta y				*
+;*									*
+;*									*
+;************************************************************************
+get_loc_key:
+if mouse
+	mov	bl,3
+	call	mouse_function
+	and	al,al
+	jz	get_loc_mouse
+	ret 
+get_loc_mouse:
+endif		     
+	mov	ah,1
+	int	KEYBD			;see if ros has character
+	jz	get_loc_key_none
+	xor	ah,ah
+	int	KEYBD
+	mov	si,offset loc_tbl
+	mov	cx,10			;search table for locator key
+loc_key_search:
+	cmp	ax,[si]
+	jz	found_loc_key
+	add	si,6
+	loop	loc_key_search
+	mov	ah,al
+	mov	al,1			;not a locator key so return status
+	ret
+found_loc_key:
+	add	si,2
+	mov	bx,[si] 	;get delta x value
+	add	si,2
+	mov	cx,[si]
+	mov	al,2
+	ret
+get_loc_key_none:
+	xor	al,al
+	ret
+include mouse.a86
+EJECT
+;************************************************************************
+;*valuator								*
+;*	Get valuator increment						*
+;*		Exit							*
+;*			al=0 nothing happened				*
+;*									*
+;*			al=1 button press				*
+;*				ah = character information		*
+;*									*
+;*			al=2 coordinate information			*
+;*				bx = delta value			*
+;*									*
+;************************************************************************
+valuator:
+	mov	ah,1
+	int	KEYBD			;see if ros has character
+	jz	get_val_none
+	xor	ah,ah
+	int	KEYBD
+	mov	si,offset val_tbl
+	mov	cx,4			;search table for locator key
+val_key_search:
+	cmp	ax,[si]
+	jz	found_val_key
+	add	si,4
+	loop	val_key_search
+	mov	ah,al
+	mov	al,1			;not a locator key so return status
+	ret
+found_val_key:
+	add	si,2
+	mov	bx,[si] 	;get delta x value
+	mov	al,2
+	ret
+get_val_none:
+	xor	ax,ax
+	ret
+EJECT
+;
+;************************************************************************
+;*  Get choice for choice input 					*
+;*		Entry  none						*
+;*									*
+;*		Exit							*
+;*			al=0 nothing happened				*
+;*									*
+;*			al=1 choice value				*
+;*				bx = choice number 1 to max choice keys *
+;*									*
+;*			al=2 button press				*
+;*				ah = character				*
+;*									*
+;************************************************************************
+choice:
+	mov	ah,1
+	int	KEYBD			; see if ros has character
+	jz	choice_none
+	xor	ah,ah
+	int	KEYBD
+	mov	bl,ah			; swap byte choice runs from 3b00-4400
+	mov	bh,al
+	sub	bx,3bh
+	jc	choice_key		; make it zero based if <0 then reject
+	cmp	bx,10			; test if too large
+	jnc	choice_none
+	inc	bx			; make 1-10
+	mov	al,1			; bx = choice number
+	xor	ah,ah
+	ret
+choice_key:
+	mov	ah,al
+	mov	al,2
+	ret
+choice_none:
+	xor	al,al
+	ret
+EJECT
+;
+;************************************************************************
+;*get_char								*
+;*	Get character for string input					*
+;*		Entry  none						*
+;*									*
+;*		Exit							*
+;*			al=0 nothing happened				*
+;*									*
+;*			al=1 button press				*
+;*				bx = character information		*
+;*									*
+;************************************************************************
+get_char:
+	mov	ah,1
+	int	KEYBD			; see if ros has character
+	jz	get_char_none
+	xor	ah,ah
+	int	KEYBD
+	mov	bl,al
+	xor	bh,bh
+	mov	al,1			; return character in bx status in al
+	ret
+get_char_none:
+	xor	al,al
+	ret
+EJECT
+;
+include monommre.a86
+dseg
+;***************************************************************************
+;*									   *
+;*				Data Area				   *
+;*		     contains data for escape functions 		   *
+;*		and the values returned on open_workstation		   *
+;*									   *
+;*									   *
+;*									   *
+;***************************************************************************
+;
+	extrn	txtclx:word	;text color index
+	extrn	txtcol:byte	;text writing mode
+	extrn	wrmode:word	;writing mode
+	extrn	plncol:byte	;polygon color index
+	extrn	bakcol:byte	;back ground color
+	extrn	style:word	;line style
+	extrn	contrl:dword 
+	extrn	intin:dword 
+	extrn	ptsin:dword 
+	extrn	intout:dword 
+	extrn	ptsout:dword 
+;
+mode_save   db	0	;save switch setting for default card
+;
+crt_init_table_g   db	38h,28h,2bh,0ah,7fh,6h,64h,70h,2,1,0,0bh,0,0,0,0
+		   db	1eh,3fh
+;
+crt_init_table_a   db	71h,50h,5ah,0ah,1fh,6h,19h,1ch,2,7,6,7,0,0,0,0
+		   db	29h,30h
+;
+attribute	   db	07h		;text attributes
+;
+;loc_tbl
+;	table of words for locator keys
+;		format
+;			word = key code
+;			word = delta x
+;			word = delta y
+loc_tbl dw	4d00h	;right arrow un shifted
+	dw	cur_mot_max_x
+	dw	0
+	dw	4d36h	;right arrow shifted
+	dw	cur_mot_min_x
+	dw	0
+	dw	4b00h	;left arrow unshifted
+	dw	0-cur_mot_max_x
+	dw	0
+	dw	4b34h	;left arrow shifted
+	dw	0-cur_mot_min_x
+	dw	0
+	dw	4800h	;up arrow unshifted
+	dw	0
+	dw	cur_mot_max_y
+	dw	4838H	;up arrow shifted
+	dw	0
+	dw	cur_mot_min_y
+	dw	5000h	;down arrow unshifted
+	dw	0
+	dw	0-cur_mot_max_y
+	dw	5032h	;down arrow shifted
+	dw	0
+	dw	0-cur_mot_min_y
+	dw	4700h	;home un shifted
+	dw	0-xresmx
+	dw	0-yresmx
+	dw	4737h	;home shifted
+	dw	0-xresmx
+	dw	0-yresmx
+;
+;val_tbl
+;    decoding of valuator input
+;
+val_tbl dw	4800h	;up arrow unshifted
+	dw	val_inc_big
+	dw	4838H	;up arrow shifted
+	dw	val_inc_small
+	dw	5000h	;down arrow unshifted
+	dw	0-val_inc_big
+	dw	5032h	;down arrow shifted
+	dw	0-val_inc_small
+;
+

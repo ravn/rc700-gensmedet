@@ -1,0 +1,467 @@
+
+XRESMX		equ	639	; X - maximum resolution
+YRESMX		equ	199	; Y - maximum resolution
+XSIZE		equ	375	; Pixel width
+YSIZE		equ	900	; Pixel height
+CROSSHAIR_W	equ	8	; Crosshair width
+CROSSHAIR_H	equ	4	; Crosshair height
+MARK2_SIZE	equ	6	; Marker 2 size
+
+NUM_COLORS	equ	4	; Colour depth
+TWOHEAD		equ	0	; Graphice and text are separate 'heads'?
+NEEDSFLUSH	equ	0	; 'Flush' function needs callling after draw?
+
+
+GRAPH_PLANE	equ	0B800h
+PLANE_SIZE	equ	02000h
+
+		include	macros.inc
+		include	common0.inc
+		include	font.inc
+		include	common2.inc
+
+		cseg
+
+gfxmode_regs	db	38h, 28h, 2Dh, 0Ah, 7Fh, 6, 64h, 70h, 2, 1, 6, 7
+		db	0, 0, 0, 0
+txtmode_regs	db	71h, 50h, 5Ah, 0Ah, 1Fh, 6, 19h, 1Ch, 2, 7, 6, 7
+		db	0, 0, 0, 0
+bitmasks	db	80h, 40h, 20h, 10h, 08h, 04h, 02h, 01h
+
+write_ops	dw	offset write_0
+		dw	offset write_1
+		dw	offset write_2
+		dw	offset write_3
+		dw	offset write_4
+		dw	offset write_5
+		dw	offset write_6
+		dw	offset write_7
+		dw	offset write_8
+		dw	offset write_9
+		dw	offset write_a
+		dw	offset write_b
+		dw	offset write_c
+		dw	offset write_d
+		dw	offset write_e
+		dw	offset write_f
+
+
+
+;		S u b r	o u t i	n e
+; Enter	with 1 for graphics, 0 for text
+
+gfxmode_param	equ	(byte ptr (4))[bp]
+
+_GFXMODE:		; CODE XREF: v_opnwk+233p v_clswk+3p
+					; ...
+		push	bp
+		mov	bp, sp
+		push	es
+		push	ds
+		pushf	
+		push	cs
+		pop	ds
+	
+		cld	
+		mov	dx, 3D8h	; Video	off
+		xor	al, al
+		out	dx, al
+		mov	dx, 3D4h	; CRTC
+		cmp	gfxmode_param, 0
+		jz	set_textmode
+		mov	si, offset gfxmode_regs
+		xor	bl, bl
+		mov	cx, 10h
+
+init_crtc_g:				; CODE XREF: _GFXMODE+29j
+		mov	al, bl
+		inc	bl
+		out	dx, al		; Video: CRT cntrlr addr
+					; horizontal total
+		inc	dx
+		lodsb
+		out	dx, al		; Video: CRT controller	internal registers
+		dec	dx
+		loop	init_crtc_g
+		add	dx, 4
+		mov	al, 1Eh		; Control reg (gfx mode)
+		out	dx, al
+		call	CLEARMEM
+		mov	dx, 3D9h
+		mov	al, 0		; Colour reg (gfx mode)
+		out	dx, al
+		jmp	gfxmode_end
+
+
+set_textmode:				; CODE XREF: _GFXMODE+16j
+		mov	si, offset txtmode_regs
+		xor	bl, bl
+		mov	cx, 10h
+
+init_crtc_t:				; CODE XREF: _GFXMODE+4Cj
+		mov	al, bl
+		inc	bl
+		out	dx, al
+		inc	dx
+		lodsb
+		out	dx, al
+		dec	dx
+		loop	init_crtc_t
+		call	_cleartext
+		add	dx, 4
+		mov	al, 29h		; Control reg for text mode
+		out	dx, al
+		inc	dx
+		mov	al, 30h		; Colour reg for text mode
+		out	dx, al
+
+gfxmode_end:				; CODE XREF: _GFXMODE+38j
+		popf	
+		pop	ds
+	
+		pop	es
+		pop	bp
+		retn	
+
+
+
+
+
+;		S u b r	o u t i	n e
+
+CLEARMEM:		; CODE XREF: v_opnwk+238p v_clrwkp
+					; ...
+		push	es
+		pushf	
+		cld	
+		mov	bx, GRAPH_PLANE
+		mov	al, 20h
+		mov	dx, 3DDh	; Page in the first plane
+		out	dx, al
+		mov	es, bx
+	
+		mov	cx, PLANE_SIZE
+		xor	di, di
+		xor	ax, ax
+		rep stosw
+
+		mov	al, 60h
+		mov	dx, 3DDh	; Page in the second plane
+		out	dx, al
+		mov	es, bx
+		mov	cx, PLANE_SIZE
+		xor	di, di
+		xor	ax, ax
+		rep stosw
+
+		popf	
+		pop	es
+	
+		retn	
+
+
+
+
+
+;		S u b r	o u t i	n e
+
+_cleartext:		; CODE XREF: v_enter_cur+8p
+					; _GFXMODE+4Ep
+		push	es
+		pushf	
+		cld	
+		mov	bx, GRAPH_PLANE
+		mov	es, bx
+	
+		mov	cx, PLANE_SIZE
+		xor	di, di
+		mov	ax, 720h
+		rep stosw
+		popf	
+		pop	es
+	
+		retn	
+
+
+
+fill_hline_mode	equ	(word ptr (16))[bp]
+fill_hline_ink	equ	(word ptr (14))[bp]
+fill_hline_rot	equ	(byte ptr (12))[bp]
+fill_hline_mask	equ	(word ptr (10))[bp]
+fill_hline_y	equ	(word ptr  (8))[bp]
+fill_hline_x1	equ	(word ptr  (6))[bp]
+fill_hline_x0	equ	(word ptr  (4))[bp]
+
+;		S u b r	o u t i	n e
+
+_fill_hline:		; CODE XREF: v_bar+A7p	area_fill+2DBp
+		push	bp
+		mov	bp, sp
+		mov	dx, fill_hline_mask
+		mov	cl, fill_hline_rot
+		rol	dx, cl
+		mov	cx, fill_hline_x1
+		mov	bx, fill_hline_x0
+		sub	cx, bx
+		inc	cx
+
+fill_hline1:				; CODE XREF: _fill_hline+37j
+		push	cx
+		push	bx
+		push	dx
+		push	word ptr fill_hline_mode
+		xor	si, si
+		mov	ah, dh
+		and	ah, 80h
+		jz	fill_hline2
+		mov	si, fill_hline_ink
+
+fill_hline2:				; CODE XREF: _fill_hline+21j
+		push	si
+		push	word ptr fill_hline_y
+		push	bx
+		call	_PUTPIXEL
+		add	sp, 8
+		pop	dx
+		rol	dx, 1
+		pop	bx
+		inc	bx
+		pop	cx
+		loop	fill_hline1
+		pop	bp
+		retn	
+
+
+getpixel_y	equ	(word ptr (6))[bp]
+getpixel_x	equ	(word ptr (4))[bp]
+
+
+_GETPIXEL:		; CODE XREF: vq_cellarray+125p
+		push	bp
+		mov	bp, sp
+		push	ds
+		mov	ax, YRESMX
+		sub	ax, getpixel_y
+		xor	dl, dl
+		mov	dh, al
+		and	dh, 1
+		shl	dh, 1
+		shl	dh, 1
+		shl	dh, 1
+		shl	dh, 1
+		shl	dh, 1
+		mov	di, dx
+		shr	ax, 1
+		shl	ax, 1
+		shl	ax, 1
+		shl	ax, 1
+		shl	ax, 1
+		add	di, ax
+		shl	ax, 1
+		shl	ax, 1
+		add	di, ax
+		mov	ax, getpixel_x
+		mov	si, ax
+		shr	ax, 1
+		shr	ax, 1
+		shr	ax, 1
+		add	di, ax
+		and	si, 7
+		mov	bl, cs:bitmasks[si]
+		mov	al, 60h
+		mov	dx, 3DDh
+		out	dx, al	;Select second plane
+		xor	ah, ah
+		mov	si, GRAPH_PLANE
+		mov	cx, 2
+		mov	ds, si
+read_plane:
+		shl	ah, 1	
+		mov	bh, [di]
+		and	bh, bl
+		jz	read_plane1
+		inc	ah
+read_plane1:	mov	al, 20h
+		out	dx, al
+		loop	read_plane
+
+		mov	al, ah	
+		xor	ah, ah
+		pop	ds
+		pop	bp
+		retn	
+
+
+
+putpixel_mode	equ	(word ptr (10))[bp]
+putpixel_ink	equ	(word ptr  (8))[bp]
+putpixel_y	equ	(word ptr  (6))[bp]
+putpixel_x	equ	(word ptr  (4))[bp]
+
+;		S u b r	o u t i	n e
+
+_PUTPIXEL:		; CODE XREF: v_cellarray+1A2p
+					; cseg:12ADp ...
+		push	bp
+		mov	bp, sp
+		push	ds
+		mov	ax, YRESMX
+		sub	ax, putpixel_y
+		xor	dl, dl
+		mov	dh, al
+		and	dh, 1
+		shl	dh, 1
+		shl	dh, 1
+		shl	dh, 1
+		shl	dh, 1
+		shl	dh, 1
+		mov	di, dx
+		shr	ax, 1
+		shl	ax, 1
+		shl	ax, 1
+		shl	ax, 1
+		shl	ax, 1
+		add	di, ax
+		shl	ax, 1
+		shl	ax, 1
+		add	di, ax
+		mov	ax, putpixel_x
+		mov	si, ax
+		shr	ax, 1
+		shr	ax, 1
+		shr	ax, 1
+		add	di, ax
+		and	si, 7
+		mov	bl, cs:bitmasks[si]
+		mov	bh, bl
+		not	bh
+		mov	si, putpixel_mode	; Combine colour and write mode
+		dec	si
+		shl	si, 1
+		shl	si, 1
+		add	si, putpixel_ink
+		shl	si, 1
+		mov	al, 20h		; Select first plane
+		mov	dx, 3DDh
+		out	dx, al
+
+		mov	ax, GRAPH_PLANE
+		mov	ds, ax
+		jmp	cs:write_ops[si]
+
+write_0:	and	[di], bh	; Writing 0 in replace mode.
+		mov	al, 60h		; Write 0 to first plane
+		mov	dx, 3DDh
+		out	dx, al
+		and	[di], bh	; Write 0 to second plane
+		pop	ds
+		pop	bp
+		ret
+;
+write_1:	or	[di], bl	; Writing 1 in replace mode.
+		mov	al, 60h		; Write 1 to first plane
+		mov	dx, 3DDh
+		out	dx, al
+		and	[di], bh	; Write 0 to second plane
+		pop	ds
+		pop	bp
+		ret
+;
+write_2:	and	[di], bh	; Writing 2 in replace mode.
+		mov	al, 60h		; Write 0 to first plane
+		mov	dx, 3DDh
+		out	dx, al
+		or	[di], bl	; Write 1 to second plane
+		pop	ds
+		pop	bp
+		ret
+;
+write_3:	or	[di], bl	; Writing 3 in replace mode.
+		mov	al, 60h		; Write 1 to first plane
+		mov	dx, 3DDh
+		out	dx, al
+		or	[di], bl	; Write 1 to second plane
+		pop	ds
+		pop	bp
+		ret
+;
+write_5:	or	[di], bl	; Writing 1 in OR mode.
+		pop	ds		; Write to first plane only
+		pop	bp
+		ret
+;
+write_7:	or	[di], bl	; Writing 3 in OR mode.
+write_6:	mov	al, 60h		; Writing 2 in OR mode.
+		mov	dx, 3DDh
+		out	dx, al
+		or	[di], bl
+write_4:	pop	ds		; Writing 0 in OR mode (no-op)
+		pop	bp
+		ret
+;
+write_9:	xor	[di], bl	; Writing 1 in XOR mode.
+		pop	ds		; Write to first plane only
+		pop	bp
+		ret
+;
+write_b:	xor	[di], bl	; Writing 3 in XOR mode.
+write_a:	mov	al, 60h		; Writing 2 in XOR mode.
+		mov	dx, 3DDh
+		out	dx, al
+		xor	[di], bl
+write_8:	pop	ds		; Writing 0 in XOR mode (no-op)
+		pop	bp
+		ret
+;
+write_d:	and	[di], bh	; Writing 1 in ERASE mode.
+		pop	ds		; Write to first plane only
+		pop	bp
+		ret
+;
+write_f:	and	[di], bh	; Writing 3 in ERASE mode.
+write_e:	mov	al, 60h		; Writing 2 in ERASE mode.
+		mov	dx, 3DDh
+		out	dx, al
+		and	[di], bh
+write_c:	pop	ds		; Writing 0 in ERASE mode (no-op)
+		pop	bp
+		ret
+		
+
+		include	common1.inc
+		include	common3.inc
+
+
+	dseg
+
+	dw	0FFFFh	; Write mode
+palette	dw	0FFFFh, 0FFFFh, 01FFh, 100h, 100h, 100h, 400h
+	dw	100h, 0, 100h, 100h, 200h, 0, 700h, 0, 2300h
+	dw	100h, 0, 100h, 0, 0, 800h, 0, 800h
+text_cury rw	0
+	db	0, 27
+text_curx rw 	0
+	db	'A',27
+registers rb	0
+	db	'B',27,'C',27,'D',27,'H',27,'J',27,'K'
+	db	27,'Y',27,'b`',27,'cg',27,'bg',27,'c`',27
+	rb	16
+
+	db	'--------------------------------------------------',0Dh,0Ah
+	db	'DDPLUS  Plantronics Colorplus       18 Mar 83 V1.1',0Dh,0Ah
+	db	'Serial No. 1024-0000-003178    All Rights Reserved',0Dh,0Ah
+	db	'Copyright (c) 1983  Graphic Software Systems, Inc.',0Dh,0Ah
+	db	'--------------------------------------------------',0Dh,0Ah
+	db	1Ah
+	db	08h, 10h, 11h, 0Eh, 00h, 0Eh, 11h, 10h, 08h, 04h, 08h, 1Fh
+	db	00h, 08h, 08h, 1Fh, 09h, 0Ah, 0Ch, 08h, 00h, 0Eh, 11h, 10h
+	db	10h, 0Fh, 01h, 1Fh, 00h, 0Eh, 11h, 11h, 0Eh, 02h, 04h, 08h
+	db	00h, 02h, 02h, 04h, 08h, 10h, 10h, 1Fh, 00h, 0Eh, 11h, 11h
+	db	0Eh, 11h, 11h, 0Eh, 00h, 02h, 04h, 08h, 0Eh, 11h, 11h, 0Eh
+	db	00h, 06h, 06h, 00h, 00h, 06h, 06h, 00h, 02h, 04h, 06h, 06h
+	db	00h, 06h, 06h, 00h, 00h, 08h, 04h, 02h, 01h, 02h, 04h, 08h
+	db	00h, 00h, 00h, 1Fh, 00h, 1Fh, 00h, 00h, 00h, 02h, 04h, 08h
+	db	10h, 08h, 04h, 02h, 00h, 04h, 00h, 04h, 08h, 10h, 11h
+
+
+		end 
