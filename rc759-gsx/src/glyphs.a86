@@ -7,6 +7,7 @@ glyph_offsets:
 	dw	offset glyph_003                ; character code 3
 	dw	offset glyph_004                ; character code 4
 	dw	offset glyph_005                ; character code 5
+marker_offsets_end:
 	dw	offset glyph_006                ; character code 6
 	dw	offset glyph_007                ; character code 7
 	dw	offset glyph_008                ; character code 8
@@ -129,6 +130,7 @@ glyph_offsets:
 	dw	offset glyph_right_curly_bracket ; character code 125 (})
 	dw	offset glyph_tilde              ; character code 126 (~)
 	dw	offset glyph_127                ; character code 127
+glyph_offsets_end:
 
 ; Signed-nibble vectors; 128 splits strokes, 136 ends a glyph.
 ; Coordinates are relative to glyph origin, not successive pen deltas.
@@ -1469,4 +1471,8 @@ glyph_tilde:
 
 ; Empty glyph: no strokes.
 glyph_127:
-	db	088h,000h,000h,000h,000h,000h
+	db	088h
+	; The empty glyph terminator is followed by paragraph alignment.
+DATA_POSITION equ offset $-offset data_start
+DATA_PADDING equ (16-(DATA_POSITION mod 16)) mod 16
+	rb	DATA_PADDING
