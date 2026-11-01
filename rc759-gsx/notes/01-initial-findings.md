@@ -2,6 +2,37 @@
 
 ## Repository housekeeping (2026-11-01)
 
+### Final emulator validation (2026-11-01)
+
+The workspace emulator is now at `a669fe9`, whose complete tracked tree
+matches upstream `johnsonjh/emu2-cpm86` `c49b535`. The local S1 handling
+change was removed; history was preserved. A separately compiled clean
+upstream emulator first rebuilt H1 with zero errors and an 8576-byte CMD
+identical to the original. After rebuilding the workspace emulator,
+`make verify` freshly reproduced all twelve complete originals (12/12 PASS).
+Local evidence: `scratch/unified-check-20261101-151824-993069/matrix.json`.
+
+This establishes that the local S1 change is unnecessary for the current
+driver sources. It does not isolate the cause of earlier failures or prove
+all other CP/M programs work. The earlier 1678-byte OBJ was incomplete,
+not a valid reference build. PTY/EOF handling was also a separate issue.
+
+The CP/M-86 System Guide (June 1983, section 4.3, printed page 31)
+describes S1 (FCB byte 13) as reserved for internal system use, not a
+file-position counter. Concurrent CP/M's Programmer's Reference Guide
+(January 1984, section 2.4, pages 2-11 and 2-13) calls the same byte CS:
+the open-FCB checksum. Neither supports the former local comment that
+RASM86 needs S1 preserved as a position counter or must initialize it
+to zero at open. No isolated observation established those claims.
+Both manuals are available locally in `open-watcom-v2/contrib/ravn/`.
+
+Emulator relocation, CPU-level and timer checks passed. The separate
+ASM86 input-size regression skipped because its expected `asm86.cmd`
+was absent; it is not the RASM86/LINK86 full-image test above.
+Driver integration checks remain local, not CI-gated. Runtime validation
+of color/mouse/serial behavior and source/device provenance remain outside
+the completed byte-reconstruction scope.
+
 Sources, original binaries, build/comparison tools, Makefile and analysis
 are tracked. `make` freshly builds all twelve variants and compares each
 complete image with `originals/`; mismatches fail the command.
@@ -24,8 +55,9 @@ required to rebuild the drivers.
 
 ## Unified-source experiment — verified 2026-11-01
 
-Implemented on `rc759-gsx-unified-source` in both the workspace and
-`rc700-gensmedet` repositories. No commits or pushes were made.
+Initially implemented on `rc759-gsx-unified-source` in both the workspace
+and `rc700-gensmedet` repositories; subsequently committed, merged to
+main and pushed. The experiment and default-build branches were removed.
 This section supersedes the reconstruction status in the earlier inventory:
 **all twelve originals now rebuild byte-for-byte from shared assembly.**
 
@@ -51,7 +83,8 @@ and the sine/glyph INCLUDEs to the assembler.
 From `rc759-gsx/`:
 
 ```sh
-sh tools/build.sh                    # Retained H1 route.
+sh tools/build.sh                    # All twelve, with comparison.
+sh tools/build.sh h1                 # Retained H1 route.
 sh tools/build.sh mm4                # One selected variant.
 python3 tools/verify_variants.py      # Fresh builds of all twelve.
 python3 tools/verify_variants.py h1 h4 hm1 hm4
