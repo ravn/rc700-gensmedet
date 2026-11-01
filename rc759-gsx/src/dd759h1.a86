@@ -109,7 +109,7 @@ op01_OPEN_WORKSTATION:
 ow_lt_ok:
 	mov	v_linetype,ax
 	mov	ax,es:[di]                      ; intin[3] = polyline color
-	call	sub_CD1h
+	call	normalize_color_index
 	mov	v_line_color,ax
 	mov	ax,es:[di]                      ; intin[4] = marker type
 	add	di,2
@@ -120,7 +120,7 @@ ow_mt_ok:
 	mov	v_marker_type,ax
 	mov	ax,es:[di]                      ; intin[5] = polymarker color
 	add	di,2
-	call	sub_CD1h
+	call	normalize_color_index
 	mov	v_marker_color,ax
 	mov	ax,es:[di]                      ; intin[6] = text font
 	add	di,2
@@ -131,7 +131,7 @@ ow_tf_ok:
 	mov	v_text_font,ax
 	mov	ax,es:[di]                      ; intin[7] = text color
 	add	di,2
-	call	sub_CD1h
+	call	normalize_color_index
 	mov	v_text_color,ax
 	mov	ax,es:[di]                      ; intin[8] = fill interior style
 	cmp	ax,3
@@ -149,7 +149,7 @@ ow_fs_ok:
 	inc	ax
 	mov	v_fill_index,ax
 	mov	ax,es:[di]                      ; intin[10] = fill color
-	call	sub_CD1h
+	call	normalize_color_index
 	mov	v_fill_color,ax
 	push	ds
 	mov	ax,ds
@@ -171,7 +171,7 @@ ow_fs_ok:
 ; CLOSE WORKSTATION  CS:339
 ; ============================================================================
 op02_CLOSE_WORKSTATION:
-	call	sub_FE8h
+	call	send_console_esc_7
 	jmp	exit_graphics
 
 ; ============================================================================
@@ -315,7 +315,7 @@ esc_send_seq_mid:
 	jcxz	esc_send_done
 esc_send_loop:
 	lods	es:word ptr [si]
-	call	sub_FCCh
+	call	console_write_char
 	loop	esc_send_loop
 esc_send_done:
 	ret
@@ -353,7 +353,7 @@ escf18:
 	mov	ax,es:2[di]
 	mov	v_saved_y,ax                    ; v_saved_y = ptsin[1] (cursor Y)
 	mov	v_draw_y,ax                     ; v_draw_y = ptsin[1] (cursor Y)
-	jmps	sub_26Dh
+	jmps	draw_xor_graphic_cursor
 
 ; Escape sub-function 19: REMOVE SAVED XOR GRAPHIC CURSOR  CS:609
 escf19:
@@ -363,7 +363,7 @@ escf19:
 	mov	v_draw_y,ax                     ; v_draw_y = v_saved_y
 
 ; Internal: draw XOR cursor at v_draw_x,v_draw_y  CS:621
-sub_26Dh:
+draw_xor_graphic_cursor:
 	call	get_gcb_mutex
 	mov	dx,3
 	mov	bx,1
@@ -371,7 +371,7 @@ sub_26Dh:
 	mov	word ptr draw_pattern,0FFFFh    ; draw_pattern = 1111111111111111b
 	mov	bx,v_draw_x
 	mov	ax,022Fh
-	call	sub_2C4h
+	call	cursor_axis_bounds
 	mov	v_x1,bx
 	mov	v_y1,dx
 	mov	bx,v_draw_y
@@ -380,7 +380,7 @@ sub_26Dh:
 	call	abline
 	mov	bx,v_draw_y
 	mov	ax,0FFh
-	call	sub_2C4h
+	call	cursor_axis_bounds
 	mov	v_x2,bx
 	mov	v_y2,dx
 	mov	bx,v_draw_x
@@ -390,17 +390,17 @@ sub_26Dh:
 	jmp	free_gcb_mutex
 
 ; Internal: return cursor bounds max(BX-5,0)..min(BX+5,AX)  CS:708
-sub_2C4h:
+cursor_axis_bounds:
 	mov	dx,bx
 	add	dx,5
 	cmp	dx,ax
-	jb	sub_2C4h_hi_ok
+	jb	cursor_axis_upper_ready
 	mov	dx,ax
-sub_2C4h_hi_ok:
+cursor_axis_upper_ready:
 	sub	bx,5
-	jae	sub_2C4h_lo_ok
+	jae	cursor_axis_lower_ready
 	xor	bx,bx
-sub_2C4h_lo_ok:
+cursor_axis_lower_ready:
 	ret
 
 op06_POLYLINE:                                  ; CS:727
@@ -441,15 +441,17 @@ op06_draw_segment:
 op06_done:
 	jmp	free_gcb_mutex
 
-sub_337h:
+; Omit the shared endpoint on non-final XOR segments; keep single pixels.
+; In XOR mode, CX=5 becomes 4 unless v_polyline_state marks it final.
+trim_xor_segment_endpoint:
 	cmp	byte ptr pixel_mode,3
-	jne	sub_337_done
+	jne	trim_xor_endpoint_done
 	cmp	word ptr v_polyline_state,0FFh
-	je	sub_337_done
+	je	trim_xor_endpoint_done
 	cmp	cx,1
-	je	sub_337_done
+	je	trim_xor_endpoint_done
 	dec	cx
-sub_337_done:
+trim_xor_endpoint_done:
 	ret
 
 abline:                                         ; CS:845
@@ -459,112 +461,117 @@ abline:                                         ; CS:845
 	mov	es,word ptr gcb_seg
 	mov	cx,v_y1
 	sub	cx,v_x1
-	jb	sub_34d_y_decreases
+	jb	abline_x_reversed
 	push	cx
 	mov	bx,v_x1
 	mov	dx,v_x2
-	call	concat
+	call	pixel_address_and_mask
 	pop	cx
 	mov	dx,v_y2
 	sub	dx,v_x2
-	jne	sub_34d_y_changes
-	jmp	sub_34d_walk
-sub_34d_y_decreases:
+	jne	abline_nonhorizontal
+	jmp	abline_horizontal
+
+abline_x_reversed:
 	push	cx
 	mov	bx,v_y1
 	mov	dx,v_y2
-	call	concat
+	call	pixel_address_and_mask
 	pop	cx
 	neg	cx
 	mov	dx,v_x2
 	sub	dx,v_y2
-	jne	sub_34d_y_changes
-	jmp	sub_34d_walk
-sub_34d_y_changes:
+	jne	abline_nonhorizontal
+	jmp	abline_horizontal
+
+abline_nonhorizontal:
 	mov	word ptr v_line_step,0FFFEh     ; v_line_step = -2
-	jae	sub_34d_step_ready
+	jae	abline_y_step_ready
 	neg	dx
 	mov	word ptr v_line_step,2          ; v_line_step = 2
-sub_34d_step_ready:
+abline_y_step_ready:
 	cmp	cx,dx
-	jae	sub_34d_x_major
-	jmp	sub_34d_y_major
-sub_34d_x_major:
+	jae	abline_x_major
+	jmp	abline_y_major
+
+abline_x_major:
 	mov	ax,cx
 	inc	cx
-	call	sub_337h
+	call	trim_xor_segment_endpoint
 	shl	dx,1
 	mov	v_delta_major,dx
 	sub	dx,ax
 	mov	v_line_error,dx
 	sub	word ptr v_line_error,ax
-sub_34d_x_major_loop:
+abline_x_major_loop:
 	call	plot_pixel
 	ror	bx,1
-	jae	sub_34d_x_loop
+	jae	abline_x_mask_ready
 	add	di,0200h
-sub_34d_x_loop:
+abline_x_mask_ready:
 	cmp	dx,0
-	js	sub_34d_x_step_y
+	js	abline_x_error_negative
 	add	dx,v_line_error
 	add	di,v_line_step
-	loop	sub_34d_x_major_loop
-	jmp	sub_34d_done
-sub_34d_x_step_y:
+	loop	abline_x_major_loop
+	jmp	abline_done
+abline_x_error_negative:
 	add	dx,v_delta_major
-	loop	sub_34d_x_major_loop
-	jmp	sub_34d_done
-sub_34d_y_major:
+	loop	abline_x_major_loop
+	jmp	abline_done
+abline_y_major:
 	xchg	cx,dx
 	mov	ax,cx
 	inc	cx
-	call	sub_337h
+	call	trim_xor_segment_endpoint
 	shl	dx,1
 	mov	v_delta_major,dx
 	sub	dx,ax
 	mov	v_line_error,dx
 	sub	word ptr v_line_error,ax
-sub_34d_y_major_loop:
+abline_y_major_loop:
 	call	plot_pixel
 	add	di,v_line_step
 	cmp	dx,0
-	js	sub_34d_y_step_x
+	js	abline_y_error_negative
 	ror	bx,1
-	jae	sub_34d_y_add_error
+	jae	abline_y_add_error
 	add	di,0200h
-sub_34d_y_add_error:
+abline_y_add_error:
 	add	dx,v_line_error
-	loop	sub_34d_y_major_loop
-	jmps	sub_34d_done
-sub_34d_y_step_x:
+	loop	abline_y_major_loop
+	jmps	abline_done
+abline_y_error_negative:
 	add	dx,v_delta_major
-	loop	sub_34d_y_major_loop
-sub_34d_done:
+	loop	abline_y_major_loop
+abline_done:
 	pop	di
 	pop	si
 	pop	es
 	ret
 
-sub_34d_single_pixel:
+; BX/DX = start X/Y, CX = X distance; draw CX+1 pixels, including ends.
+; For BX=10, DX=50, CX=3, the span covers X=10..13 at Y=50.
+draw_horizontal_span:
 	mov	word ptr v_polyline_state,0FFh  ; v_polyline_state = 255
 	push	cx
-	call	concat
+	call	pixel_address_and_mask
 	pop	cx
 	push	es
 	push	si
 	push	di
 	mov	es,word ptr gcb_seg
-sub_34d_walk:
+abline_horizontal:
 	inc	cx
-	call	sub_337h
-sub_34d_walk_loop:
+	call	trim_xor_segment_endpoint
+abline_horizontal_loop:
 	call	plot_pixel
 	ror	bx,1
-	jae	sub_34d_walk_next
+	jae	abline_horizontal_next
 	add	di,0200h
-sub_34d_walk_next:
-	loop	sub_34d_walk_loop
-	jmps	sub_34d_done
+abline_horizontal_next:
+	loop	abline_horizontal_loop
+	jmps	abline_done
 
 ; Toggle the pixel using a four-byte truth table selected by load_pixel_lut.
 ; Index = 2*pattern_bit + old_pixel; the byte is 0 or 255.
@@ -585,7 +592,12 @@ plot_pixel:
 	xor	es:[di],ax
 	ret
 
-concat:
+; BX=X, DX=Y -> DI=byte offset, BX=pixel mask; does not draw.
+; DI = 2 * ((X / 16) * 256 + (255 - Y)), integer division.
+; BX = bit_masks[X % 16] = 1 << (15 - (X % 16)).
+; Memory has 16-pixel vertical strips, with Y reversed within each.
+; Example: (20,50) -> DI=922, BX=2048 (bit 11).
+pixel_address_and_mask:
 	mov	ax,0FFh
 	sub	ax,dx
 	mov	di,bx
@@ -607,13 +619,13 @@ concat:
 load_pixel_lut:                                 ; CS:1170
 	mov	pixel_mode,dl
 	cmp	bx,2
-	jb	sub_492_color_ok
+	jb	load_pixel_lut_color_ready
 	mov	bx,1
-sub_492_color_ok:
+load_pixel_lut_color_ready:
 	mov	dh,byte ptr pixel_color_control[bx]
 	mov	bx,offset pixel_lut
 	mov	cx,1
-sub_492_loop:
+load_pixel_lut_select:
 	sar	dh,1
 	mov	al,dl
 	rcl	al,1
@@ -623,7 +635,7 @@ sub_492_loop:
 	add	ax,offset pixel_truth_tables
 	mov	word ptr [bx],ax
 	add	bx,2
-	loop	sub_492_loop
+	loop	load_pixel_lut_select
 	ret
 
 op07_POLYMARKER:                                ; CS:1215
@@ -729,26 +741,26 @@ draw_vector_glyph:                              ; CS:1454
 	shl	ax,1
 	mov	si,ax
 	mov	si,word ptr glyph_offsets[si]
-sub_5AE_restart:
+glyph_stroke_begin:
 	mov	word ptr v_text_point_count,0   ; v_text_point_count = 0
 	mov	di,offset v_text_points
 	mov	ax,ds
 	mov	es,ax
-sub_5AE_next:
+glyph_vector_next:
 	lodsb
 	cmp	al,88h
 	je	draw_glyph_stroke
 	cmp	al,80h
-	jne	sub_5AE_decode
+	jne	glyph_vector_decode
 	call	draw_glyph_stroke
-	jmps	sub_5AE_restart
-sub_5AE_decode:
+	jmps	glyph_stroke_begin
+glyph_vector_decode:
 	mov	bl,al
 	and	ax,000Fh
 	test	al,8
-	je	sub_5AE_y_ready
+	je	glyph_y_sign_extended
 	or	ax,0FFF0h
-sub_5AE_y_ready:
+glyph_y_sign_extended:
 	mov	es:word ptr 2[di],ax
 	and	bx,00F0h
 	shr	bx,1
@@ -756,32 +768,32 @@ sub_5AE_y_ready:
 	shr	bx,1
 	shr	bx,1
 	test	bl,8
-	je	sub_5AE_x_ready
+	je	glyph_x_sign_extended
 	or	bx,0FFF0h
-sub_5AE_x_ready:
+glyph_x_sign_extended:
 	mov	es:word ptr [di],bx
 	call	transform_glyph_point
 	mov	ax,v_draw_x
 	add	es:word ptr [di],ax
-	jns	sub_5AE_x_clamped
+	jns	glyph_x_nonnegative
 	mov	es:word ptr [di],0
-sub_5AE_x_clamped:
+glyph_x_nonnegative:
 	mov	ax,v_draw_y
 	add	es:word ptr 2[di],ax
-	jns	sub_5AE_y_clamped
+	jns	glyph_y_nonnegative
 	mov	es:word ptr 2[di],0
-sub_5AE_y_clamped:
+glyph_y_nonnegative:
 	inc	word ptr v_text_point_count
 	add	di,4
-	jmps	sub_5AE_next
+	jmps	glyph_vector_next
 draw_glyph_stroke:
 	mov	cx,v_text_point_count
-	jcxz	sub_623_done
+	jcxz	draw_glyph_stroke_done
 	dec	cx
 	mov	di,offset v_text_points
 	mov	word ptr v_polyline_state,0     ; v_polyline_state = 0
 	call	op06_points
-sub_623_done:
+draw_glyph_stroke_done:
 	ret
 
 transform_glyph_point:
@@ -867,16 +879,16 @@ sin_quadrant:
 	mov	bx,dx
 	and	al,3
 	shr	al,1
-	jae	sub_6EAh_x_ready
+	jae	sin_quadrant_index_ready
 	sub	bx,5Ah
 	neg	bx
-sub_6EAh_x_ready:
+sin_quadrant_index_ready:
 	shl	bx,1
 	mov	cx,word ptr sine_table[bx]
 	shr	al,1
-	jae	sub_6EAh_done
+	jae	sin_quadrant_done
 	neg	cx
-sub_6EAh_done:
+sin_quadrant_done:
 	pop	ax
 	ret
 
@@ -900,6 +912,7 @@ op09_start:
 	cmp	ax,0
 	jne	op09_select_pattern
 	jmp	op09_done
+
 op09_select_pattern:
 	mov	bx,0
 	cmp	ax,1
@@ -936,11 +949,12 @@ op09_max_ready:
 	sub	bx,ax
 	jg	op09_scanline_setup
 	jmp	op09_done
+
 op09_scanline_setup:
 	mov	v_text_point_count,bx
 op09_collect_intersections:
 	; Same scanline stages as IBM/Ratfor ddfill: intersect, sort, pair.
-	; H1 inserts in order inside sub_84Bh, not a later bubble sort.
+	; H1 inserts in order inside fill_edge_intersection, not a later sort.
 	mov	word ptr v_fill_intersection_count,0 ; v_fill_intersection_count = 0
 	mov	cx,v_fill_npoints_minus1
 	les	si,0Ah[bp]                      ; ES:SI -> ptsin[] (GSX stack frame +10)
@@ -948,13 +962,13 @@ op09_edge_loop:
 	push	cx
 	lea	di,4[si]
 	push	si
-	call	sub_84Bh
+	call	fill_edge_intersection
 	pop	si
 	add	si,4
 	pop	cx
 	loop	op09_edge_loop
 	les	di,0Ah[bp]                      ; ES:DI -> ptsin[] (GSX stack frame +10)
-	call	sub_84Bh
+	call	fill_edge_intersection
 	mov	ax,v_fill_intersection_count
 	shr	ax,1
 	je	op09_next_scanline
@@ -970,7 +984,7 @@ op09_edge_loop:
 	mov	ah,al
 	mov	bx,offset v_text_points
 op09_pattern_loop:
-	; Consume sorted X pairs; rotate 3756 span to its screen X phase.
+	; Consume sorted X pairs; rotate each span to its screen X phase.
 	; Unlike IBM ddflin's inclusive count, H1 uses right-left-1 here.
 	push	bx
 	push	ax
@@ -985,7 +999,7 @@ op09_pattern_loop:
 	js	op09_next_edge
 	mov	bx,dx
 	mov	dx,v_fill_scan_y
-	call	sub_34d_single_pixel
+	call	draw_horizontal_span
 op09_next_edge:
 	pop	ax
 	pop	bx
@@ -997,6 +1011,7 @@ op09_next_scanline:
 	dec	word ptr v_text_point_count
 	je	op09_done
 	jmp	op09_collect_intersections
+
 op09_done:
 	mov	draw_pattern,0FFFFh             ; draw_pattern = 1111111111111111b
 	mov	cx,v_fill_npts
@@ -1017,21 +1032,21 @@ op09_done:
 	call	op06_draw_segment
 op09_return:
 	jmp	free_gcb_mutex
-sub_84Ah:
+fill_edge_no_crossing:
 	ret
 
 ; Scanline/edge intersection plus sorted insertion into shared scratch.
 ; IBM's ddint walks the rasterized edge; H1 uses signed division below.
-sub_84Bh:
+fill_edge_intersection:
 	mov	bx,es:2[di]
 	sub	bx,es:2[si]
-	je	sub_84Ah                       ; Horizontal edges add no crossing.
+	je	fill_edge_no_crossing          ; Horizontal edges add no crossing.
 	mov	ax,v_fill_scan_y
 	mov	cx,ax
 	sub	cx,es:2[si]
 	sub	ax,es:2[di]
 	xor	ax,cx
-	jns	sub_84Ah                       ; Keep only opposite-side endpoints.
+	jns	fill_edge_no_crossing          ; Keep only opposite-side endpoints.
 	mov	ax,es:[di]
 	sub	ax,es:[si]
 	shl	cx,1
@@ -1044,31 +1059,31 @@ sub_84Bh:
 	mov	bx,es:[si]
 	mov	cx,es:[di]
 	cmp	bx,cx
-	jle	sub_84b_left_ready
+	jle	fill_edge_bounds_ordered
 	xchg	bx,cx
-sub_84b_left_ready:
+fill_edge_bounds_ordered:
 	cmp	ax,bx
-	jge	sub_84b_right_check
+	jge	fill_edge_check_upper_bound
 	mov	ax,bx
-sub_84b_right_check:
+fill_edge_check_upper_bound:
 	cmp	ax,cx
-	jle	sub_84b_insert
+	jle	fill_insert_intersection
 	mov	ax,cx
 ; Insert X while maintaining order for the paired-span consumer above.
 ; For existing [10,30], inserting 20 shifts 30 to produce [10,20,30].
-sub_84b_insert:
+fill_insert_intersection:
 	push	es
 	mov	bx,ds
 	mov	es,bx
 	mov	di,offset v_text_points
 	mov	cx,v_fill_intersection_count
-	jcxz	sub_84b_store
-sub_84b_scan:
+	jcxz	fill_intersection_store
+fill_intersection_scan:
 	scasw
-	jl	sub_84b_shift
-	loop	sub_84b_scan
-	jmps	sub_84b_store
-sub_84b_shift:
+	jl	fill_intersection_shift
+	loop	fill_intersection_scan
+	jmps	fill_intersection_store
+fill_intersection_shift:
 	mov	di,v_fill_intersection_count
 	shl	di,1
 	add	di,offset v_text_points
@@ -1076,7 +1091,7 @@ sub_84b_shift:
 	std
 	rep	movsw
 	cld
-sub_84b_store:
+fill_intersection_store:
 	stosw
 	inc	word ptr v_fill_intersection_count
 	pop	es
@@ -1091,6 +1106,7 @@ op10_CELL_ARRAY:                                ; CS:2238
 	or	si,si
 	jne	op10_dimensions_ready
 	jmp	free_gcb_mutex
+
 op10_dimensions_ready:
 	mov	v_cell_columns,si
 	mov	ax,es:0Ah[di]                   ; contrl[5]: declared cell-array row length
@@ -1136,7 +1152,7 @@ op10_column_loop:
 	mov	cx,v_cell_width
 	mov	dx,v_x2
 	mov	bx,v_x1
-	call	sub_34d_single_pixel
+	call	draw_horizontal_span
 	pop	cx
 	pop	bx
 	pop	di
@@ -1181,6 +1197,7 @@ gdpbar:                                         ; DRI skeleton name; GDP 1, bar.
 	cmp	ax,0
 	jne	gdp01_pattern
 	jmp	gdp01_outline
+
 gdp01_pattern:
 	mov	si,0
 	cmp	ax,1
@@ -1223,7 +1240,7 @@ gdp01_fill_loop:
 	dec	cx
 	mov	dx,v_x2
 	mov	bx,v_x1
-	call	sub_34d_single_pixel
+	call	draw_horizontal_span
 	pop	cx
 	dec	word ptr v_x2
 	loop	gdp01_fill_loop
@@ -1360,7 +1377,7 @@ op14_component_next:
 	sub	sp,10h
 	mov	bp,sp
 	mov	bx,offset palette_realized
-	call	sub_B74h
+	call	pack_realized_palette
 	mov	byte ptr [bp],al                ; Temporary XIOS buffer: packed palette.
 	mov	dx,bp                           ; SS:DX -> XIOS buffer, not the GSX PB.
 	mov	al,1Fh
@@ -1369,7 +1386,8 @@ op14_component_next:
 op14_done:
 	ret
 
-sub_B74h:
+; AL = palette[0] OR (palette[1] << 4), ready for the XIOS buffer.
+pack_realized_palette:
 	mov	al,1[bx]
 	mov	cl,4
 	shl	al,cl
@@ -1400,7 +1418,7 @@ op17_SET_LINE_COLOR:                            ; CS:2993
 	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
 	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	ax,es:[di]
-	call	sub_CD1h
+	call	normalize_color_index
 	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	v_line_color,ax
 	mov	es:word ptr [di],ax
@@ -1451,7 +1469,7 @@ op20_SET_MARKER_COLOR:                          ; CS:3115
 	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
 	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	ax,es:[di]
-	call	sub_CD1h
+	call	normalize_color_index
 	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	v_marker_color,ax
 	mov	es:word ptr [di],ax
@@ -1474,7 +1492,7 @@ op22_SET_TEXT_COLOR:                            ; CS:3170
 	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
 	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	ax,es:[di]
-	call	sub_CD1h
+	call	normalize_color_index
 	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	v_text_color,ax
 	mov	es:word ptr [di],ax
@@ -1512,17 +1530,18 @@ op25_SET_FILL_COLOR:                            ; CS:3256
 	mov	es:8[di],word ptr 1             ; contrl[4]: output word count
 	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	ax,es:[di]
-	call	sub_CD1h
+	call	normalize_color_index
 	les	di,0Eh[bp]                      ; ES:DI -> intout[] (GSX stack frame +14)
 	mov	v_fill_color,ax
 	mov	es:word ptr [di],ax
 	ret
 
-sub_CD1h:                                       ; CS:3281
+; Accept color indices 0/1; map all other unsigned values to 1.
+normalize_color_index:                          ; CS:3281
 	cmp	ax,2
-	jb	sub_CD1_done
+	jb	normalize_color_index_done
 	mov	ax,1
-sub_CD1_done:
+normalize_color_index_done:
 	ret
 
 op26_INQUIRE_COLOR_REP:                         ; CS:3290
@@ -1573,11 +1592,11 @@ op28_LOCATOR:                                   ; CS:3368
 	mov	v_draw_x,ax                     ; v_draw_x = ptsin[0] (initial locator X)
 	mov	ax,es:2[di]
 	mov	v_draw_y,ax                     ; v_draw_y = ptsin[1] (initial locator Y)
-	call	sub_FDEh
+	call	send_console_esc_6
 	cmp	byte ptr v_cursor_mode,1
 	jne	op28_alternate_mode
 op28_cursor_refresh:
-	call	sub_26Dh
+	call	draw_xor_graphic_cursor
 op28_wait_loop:
 	xor	dx,dx
 	mov	cx,8Dh
@@ -1589,14 +1608,14 @@ op28_wait_loop:
 	je	op28_event_ready
 	push	bx
 	push	cx
-	call	sub_26Dh
+	call	draw_xor_graphic_cursor
 	pop	cx
 	pop	bx
 	call	clamp_locator
 	jmps	op28_cursor_refresh
 op28_event_ready:
 	push	ax
-	call	sub_26Dh
+	call	draw_xor_graphic_cursor
 	pop	ax
 	mov	bx,1
 op28_return_one:
@@ -1636,35 +1655,35 @@ op28_return_zero:
 	xor	cx,cx
 	jmps	op28_return_data
 get_loc_key:
-	call	sub_FB8h
+	call	console_read_poll
 	or	al,al
-	je	sub_DB3_empty
+	je	locator_key_no_event
 	xchg	ah,al
 	mov	al,2
 	mov	si,0
 	cmp	ah,0C8h
-	je	sub_DB3_decode
+	je	locator_key_move
 	mov	si,8
 	cmp	ah,0D0h
-	je	sub_DB3_decode
+	je	locator_key_move
 	mov	si,10h
 	cmp	ah,0CDh
-	je	sub_DB3_decode
+	je	locator_key_move
 	mov	si,18h
 	cmp	ah,0CBh
-	je	sub_DB3_decode
+	je	locator_key_move
 	cmp	ah,0C9h
-	je	sub_DB3_toggle
+	je	locator_key_toggle_step
 	mov	al,1
 	ret
 
-sub_DB3_toggle:
+locator_key_toggle_step:
 	xor	word ptr locator_step_offset,4 ; Key code 201 toggles step 1/10.
-sub_DB3_empty:
+locator_key_no_event:
 	xor	ax,ax
 	ret
 
-sub_DB3_decode:
+locator_key_move:
 	; Each direction has two (delta X, delta Y) pairs, four bytes each.
 	; At (100,50), key 205 with offset 4 gives (110,50).
 	add	si,locator_step_offset
@@ -1682,22 +1701,22 @@ clamp_locator:
 	mov	v_draw_y,cx
 	mov	ax,022Fh
 	cmp	v_draw_x,ax
-	jle	sub_E08_x_max_ready
+	jle	locator_x_upper_ready
 	mov	v_draw_x,ax
-sub_E08_x_max_ready:
+locator_x_upper_ready:
 	cmp	word ptr v_draw_x,0
-	jge	sub_E08_x_min_ready
+	jge	locator_x_lower_ready
 	mov	word ptr v_draw_x,0             ; v_draw_x = 0
-sub_E08_x_min_ready:
+locator_x_lower_ready:
 	mov	ax,0FFh
 	cmp	v_draw_y,ax
-	jle	sub_E08_y_max_ready
+	jle	locator_y_upper_ready
 	mov	v_draw_y,ax
-sub_E08_y_max_ready:
+locator_y_upper_ready:
 	cmp	word ptr v_draw_y,0
-	jge	sub_E08_y_min_ready
+	jge	locator_y_lower_ready
 	mov	word ptr v_draw_y,0             ; v_draw_y = 0
-sub_E08_y_min_ready:
+locator_y_lower_ready:
 	xor	ax,ax
 	or	ax,ax
 	ret
@@ -1709,9 +1728,9 @@ op29_VALUATOR:                                  ; CS:3655
 	jne	op29_alternate_mode
 op29_read_loop:
 	push	cx
-	call	sub_FB0h
+	call	console_read_wait
 	pop	cx
-	call	sub_E87h
+	call	adjust_valuator_key
 	je	op29_read_loop
 	mov	bx,1
 op29_return:
@@ -1722,36 +1741,37 @@ op29_return:
 	ret
 
 op29_alternate_mode:
-	call	sub_FB8h
+	call	console_read_poll
 	mov	bx,0
 	or	al,al
 	je	op29_return
-	call	sub_E87h
+	call	adjust_valuator_key
 	mov	bx,1
 	je	op29_return
 	mov	bx,0
 	jmps	op29_return
-sub_E87h:
+; '+' increments CX, '-' decrements it; callers also consume flags.
+adjust_valuator_key:
 	cmp	al,2Bh
-	jne	sub_E87_not_plus
+	jne	valuator_key_check_minus
 	inc	cx
-	jmps	sub_E87_done
-sub_E87_not_plus:
+	jmps	valuator_key_done
+valuator_key_check_minus:
 	cmp	al,2Dh
-	jne	sub_E87_other
+	jne	valuator_key_test_ax
 	dec	cx
 	xor	ax,ax
-sub_E87_other:
+valuator_key_test_ax:
 	or	ax,ax
-sub_E87_done:
+valuator_key_done:
 	ret
 
 op30_CHOICE:                                    ; CS:3736
-	call	sub_FDEh
+	call	send_console_esc_6
 	mov	es:8[di],word ptr 0             ; contrl[4]: output word count
 	cmp	byte ptr v_key_mode,1
 	je	op30_secondary_input
-	call	sub_FB8h
+	call	console_read_poll
 	or	al,al
 	je	op30_return
 	mov	bx,1
@@ -1774,7 +1794,7 @@ op30_return:
 	ret
 
 op30_secondary_input:
-	call	sub_FB0h
+	call	console_read_wait
 	or	al,al
 	jns	op30_secondary_empty
 	mov	bx,1
@@ -1802,17 +1822,17 @@ op31_mode_dispatch:
 	cmp	byte ptr v_keyboard_mode,1
 	je	op31_keyboard_input
 op31_console_input:
-	call	sub_FB8h
+	call	console_read_poll
 	or	al,al
 	je	op31_done
 	xor	ah,ah
 	stosw
 	inc	bx
-	call	sub_FCCh
+	call	console_write_char
 	loop	op31_console_input
 	jmps	op31_done
 op31_keyboard_input:
-	call	sub_FC9h
+	call	console_read_echo
 	cmp	al,0Dh
 	je	op31_done
 	xor	ah,ah
@@ -1824,7 +1844,7 @@ op31_default_input:
 	cmp	byte ptr v_keyboard_mode,1
 	je	op31_default_keyboard
 op31_default_console:
-	call	sub_FB8h
+	call	console_read_poll
 	or	al,al
 	je	op31_done
 	xor	ah,ah
@@ -1833,7 +1853,7 @@ op31_default_console:
 	loop	op31_default_console
 	jmps	op31_done
 op31_default_keyboard:
-	call	sub_FB0h
+	call	console_read_wait
 	cmp	al,0Dh
 	je	op31_done
 	xor	ah,ah
@@ -1884,13 +1904,14 @@ op33_index_ready:
 op34_INQUIRE_INPUT_MODE:                        ; CS:4015
 	ret
 
-sub_FB0h:
-	call	sub_FB8h
+console_read_wait:
+	call	console_read_poll
 	or	al,al
-	je	sub_FB0h
+	je	console_read_wait
 	ret
 
-sub_FB8h:
+; BDOS direct console I/O: DL=255 polls input, AL=0 means no key.
+console_read_poll:
 	push	es
 	push	di
 	push	dx
@@ -1906,9 +1927,9 @@ sub_FB8h:
 	pop	es
 	ret
 
-sub_FC9h:
-	call	sub_FB0h
-sub_FCCh:                                       ; CS:4044
+console_read_echo:
+	call	console_read_wait
+console_write_char:                             ; CS:4044
 	push	ax
 	push	es
 	push	di
@@ -1926,24 +1947,26 @@ sub_FCCh:                                       ; CS:4044
 op00_invalid:                                   ; CS:4061
 	ret
 
-sub_FDEh:
+; Send ESC,'6'; the RC759 command's effect is not established here.
+send_console_esc_6:
 	mov	al,1Bh
-	call	sub_FCCh
+	call	console_write_char
 	mov	al,36h
-	jmp	sub_FCCh
+	jmp	console_write_char
 
-sub_FE8h:                                       ; CS:4072
+; Send ESC,'7'; the RC759 command's effect is not established here.
+send_console_esc_7:                             ; CS:4072
 	mov	al,1Bh
-	call	sub_FCCh
+	call	console_write_char
 	mov	al,37h
-	jmp	sub_FCCh
+	jmp	console_write_char
 
 get_gcb_mutex:                                  ; CS:4082
 	mov	al,0FFh
 	xchg	byte ptr gcb_mx,al
 	test	al,al
-	je	sub_FF2_done
-sub_FF2_wait:
+	je	gcb_mutex_acquired
+gcb_mutex_wait_retry:
 	push	di
 	push	bp
 	push	es
@@ -1954,7 +1977,7 @@ sub_FF2_wait:
 	pop	bp
 	pop	di
 	jmps	get_gcb_mutex
-sub_FF2_done:
+gcb_mutex_acquired:
 	ret
 
 free_gcb_mutex:                                 ; CS:4108

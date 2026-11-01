@@ -1,5 +1,54 @@
 # DRI skeleton source as oracle: bounded symbol comparison vs H1
 
+## Remaining reconstructed labels (2026-11-01)
+
+All 64 remaining `sub_` labels in the rebuildable H1 source were renamed
+after reading their bodies and callers. These are descriptive names, not
+claims about historical source spelling. Historical names in earlier
+sections below remain useful as address-based cross-references.
+
+| Previous entry | Descriptive entry | Verified operation and callers |
+|---|---|---|
+| sub_26Dh | draw_xor_graphic_cursor | Selects XOR mode/color 1 and draws two crossing lines; used by ESCAPE 18/19 and LOCATOR to draw or erase the cursor. |
+| sub_2C4h | cursor_axis_bounds | Returns BX=max(center-5,0), DX=min(center+5,AX); cursor drawing supplies axis maxima 559 and 255. |
+| sub_337h | trim_xor_segment_endpoint | Decrements CX only in XOR mode when the segment is not marked final and CX is not 1; used by all three abline walkers. |
+| sub_34d_single_pixel | draw_horizontal_span | Takes BX/DX=start X/Y and CX=X distance, then visits CX+1 pixels; used by polygon fill, CELL_ARRAY and GDP bar, not just single-pixel drawing. |
+| sub_84Ah | fill_edge_no_crossing | Shared RET for edges excluded from scanline intersection collection. |
+| sub_84Bh | fill_edge_intersection | Computes an edge's scanline X by signed division, bounds it to the endpoint X range and inserts it in sorted scratch; called for consecutive and closing polygon edges. |
+| sub_B74h | pack_realized_palette | AL=palette[0] OR (palette[1]<<4); SET COLOR REPRESENTATION stores it in the temporary XIOS buffer. |
+| sub_CD1h | normalize_color_index | Preserves unsigned 0/1, replaces every other index with 1; called by OPEN WORKSTATION and the four color setters. |
+| sub_E87h | adjust_valuator_key | '+' increments CX; '-' decrements CX and clears AX; callers consume ZF. No change to that original flag-sensitive behavior. |
+| sub_FB0h | console_read_wait | Repeats console_read_poll until AL is nonzero; request-mode input paths use it. |
+| sub_FB8h | console_read_poll | BDOS direct console I/O, function 6 with DL=255; returns AL=0 when no character is available. |
+| sub_FC9h | console_read_echo | Waits for a character, then falls through into console_write_char, which preserves AX. |
+| sub_FCCh | console_write_char | Sends AL using BDOS function 6; used for console sequences and string-input echo. |
+| sub_FDEh / sub_FE8h | send_console_esc_6 / send_console_esc_7 | Emit ESC followed by '6'/'7'. Their RC759 command effects have not been established, so names do not claim cursor visibility semantics. |
+
+Internal labels now identify the operation or branch condition:
+`abline_*`, `load_pixel_lut_*`, `glyph_*`, `sin_quadrant_*`,
+`fill_intersection_*`, `locator_*`, `valuator_key_*` and `gcb_mutex_*`.
+In particular, the old `sub_34d_y_decreases` tests endpoint X order,
+so it is now `abline_x_reversed`; the old `*_step_y`/`*_step_x`
+labels are negative-error paths that skip the minor-axis step, now
+`abline_x_error_negative`/`abline_y_error_negative`.
+
+The earlier skeleton role name `concat` is now
+`pixel_address_and_mask`, including all three callers. Its source comment
+documents the byte-address formula, mask lookup and example (20,50).
+Conditional/unconditional jump pairs have a following blank line when
+the unconditional branch does not target the next label.
+
+Baseline build `scratch/emu2-current-20261101-020511/dd759h1.cmd`
+and renamed build `scratch/emu2-current-20261101-020647/dd759h1.cmd`
+both assembled with zero errors and match the original 8,576-byte SYS
+including header, all segments and the relocation trailer.
+A separate inverse-rename token comparison found no instruction or data
+changes. All 64 definitions and their references were replaced, with no
+case-insensitive duplicate CODE labels. Later source edits only refined
+comments and their alignment. The final renamed build
+`scratch/emu2-current-20261101-021944/dd759h1.cmd` also matches every
+original byte. No new runtime behavior is claimed.
+
 Final readability pass: GSX ABI fields have inline explanations, labels
 start at column 1, instructions use one tab, inline comments align at
 column 49 where space permits, and returns have a following blank line.
