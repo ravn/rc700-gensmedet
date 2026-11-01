@@ -131,6 +131,9 @@ glyph_offsets:
 	dw	offset glyph_127                ; character code 127
 
 ; Signed-nibble vectors; 128 splits strokes, 136 ends a glyph.
+; Coordinates are relative to glyph origin, not successive pen deltas.
+; Labels identify ASCII code positions, not necessarily glyph appearance:
+; national-letter shapes also occupy some ASCII punctuation positions.
 ; Sketches: o = vertex, # = schematic line, . = empty; Y upwards.
 ; Integer line sketches are not the driver rasterization oracle.
 

@@ -1,5 +1,54 @@
 # DRI skeleton source as oracle: bounded symbol comparison vs H1
 
+## Full source-comment audit (2026-11-01)
+
+Scope: every comment in `src/dd759h1.a86`, `src/glyphs.a86` and
+`src/sine.a86`. Instruction paths were read in full; array/capability
+meanings were checked against the retained GSX Programmer's Guide and
+console commands against PICCOLINE Programmer's Guide section 4.4.1.
+This is a static annotation audit, not a complete runtime driver test.
+
+Corrections:
+
+- OPEN WORKSTATION comments now use actual zero-based indices. Tracing
+  DI through the original instructions gives input reads
+  `[0,1,2,2,3,4,5,6,6,7]`, not ten consecutive words.
+  Marker type reuses the polyline-color word; fill index reuses the
+  fill-style word. These original instructions were not changed.
+- Endpoint variables hold first X/Y in `v_x1/v_x2`, second X/Y in
+  `v_y1/v_y2`. `v_line_step` is the Y byte-address step;
+  `v_delta_major` stores twice the minor-axis distance;
+  `v_line_error` stores `2*minor-2*major`, while DX holds current error.
+- Other state comments now distinguish cell writing mode from color,
+  alpha row/column from geometric X/Y, shared glyph/fill scratch,
+  active transforms and running fixed-point text positions.
+  Accepted selector ranges are distinguished from advertised ranges.
+- Glyph coordinates are relative to glyph origin, not accumulated
+  deltas. ASCII-position labels do not guarantee matching ASCII shapes.
+- PICCOLINE section 4.4.1, printed page 48, documents ESC,'6' as function
+  key expansion off (identifiers with bit 7 set) and ESC,'7' as expansion
+  on (assigned strings). Neither controls cursor visibility.
+- Capability slot 13 counts hatch styles; slot 40 advertises total
+  available colors. Reserved areas and no-op descriptions no longer
+  imply unverified runtime properties.
+
+An independent temporary checker derived DATA positions from declarations
+and paired all CODE instructions with byte-checked original disassembly.
+All 70 CS-offset comments passed. It checked 224 DATA labels/declarations,
+111 binary-pattern sketches, all 128 original glyph pointers and decoded
+stroke-coordinate comments, bounds/vertices/segment coverage for all 100
+nonempty schematic sketches, 28 empty glyphs and 91 sine samples.
+The OPEN-index check failed on the pre-audit source and passed after the
+comment corrections. Sketches remain schematic, not a driver raster oracle.
+Both generators reproduce the checked-in sine include and SVG atlas.
+
+All instruction/data tokens remain unchanged from the committed baseline.
+Fresh build `scratch/emu2-current-20261101-022911/dd759h1.cmd` has zero
+assembler errors and matches the original 8,576-byte SYS in every byte,
+including all segments, header and relocation trailer.
+The physical key for code 201 and the trailing locator block's purpose
+remain unverified; other drivers were not investigated.
+
 ## Remaining reconstructed labels (2026-11-01)
 
 All 64 remaining `sub_` labels in the rebuildable H1 source were renamed
@@ -22,7 +71,7 @@ sections below remain useful as address-based cross-references.
 | sub_FB8h | console_read_poll | BDOS direct console I/O, function 6 with DL=255; returns AL=0 when no character is available. |
 | sub_FC9h | console_read_echo | Waits for a character, then falls through into console_write_char, which preserves AX. |
 | sub_FCCh | console_write_char | Sends AL using BDOS function 6; used for console sequences and string-input echo. |
-| sub_FDEh / sub_FE8h | send_console_esc_6 / send_console_esc_7 | Emit ESC followed by '6'/'7'. Their RC759 command effects have not been established, so names do not claim cursor visibility semantics. |
+| sub_FDEh / sub_FE8h | send_console_esc_6 / send_console_esc_7 | Emit ESC followed by '6'/'7'. The later full comment audit verified their documented function-key expansion off/on roles in PICCOLINE section 4.4.1; neither is a cursor-visibility command. |
 
 Internal labels now identify the operation or branch condition:
 `abline_*`, `load_pixel_lut_*`, `glyph_*`, `sin_quadrant_*`,
@@ -194,9 +243,10 @@ KNOWN rather than merely algorithmically similar: `sub_5AEh`
 (`src/dd759h1.a86:735-736`, called from the text-output path at `:662,720`)
 is a **signed-nibble stroke decoder**, not a bitmap blit. It reads font
 data a byte at a time (`lodsb`, `:745`), treats each byte as two signed
-4-bit (nibble) deltas — `and ax,000Fh` / sign-extend via `or ax,0FFF0h` if
+4-bit (nibble) coordinates — `and ax,000Fh` / sign-extend via `or ax,0FFF0h` if
 bit 3 is set for Y (`:752-756`), same pattern shifted for X (`:758-764`) —
-accumulates them as relative pen moves into a point list at `0316h`, and on
+stores them as coordinates relative to the glyph origin in a point list
+at `0316h` (not successive pen deltas), and on
 a stroke-terminator byte (`cmp al,88h`/`80h`, `:746-749`) calls `sub_623h`
 (`:783-789`), which hands the accumulated point list to `op06_points`
 (the same polyline point-walking code `abline`/`sub_34Dh` above uses) to

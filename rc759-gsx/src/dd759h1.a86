@@ -16,11 +16,12 @@
 ; GIOS entry dispatcher  CS:0
 ;
 ; Far-called by GDOS.  DS:DX -> parameter block:
-;   PB+00  dd  far ptr contrl[]
-;   PB+04  dd  far ptr intin[]
-;   PB+08  dd  far ptr ptsin[]
-;   PB+0C  dd  far ptr intout[]
-;   PB+10  dd  far ptr ptsout[]
+; Decimal byte offsets:
+;   PB+0   dd  far ptr contrl[]
+;   PB+4   dd  far ptr intin[]
+;   PB+8   dd  far ptr ptsin[]
+;   PB+12  dd  far ptr intout[]
+;   PB+16  dd  far ptr ptsout[]
 ; PB+18 is the ptsout segment word, not the contrl array.
 ; Backward loads +18..+0 push all five pointers in normal stack order.
 ; ----------------------------------------------------------------------------
@@ -68,8 +69,11 @@ dispatch_done:
 ; OPEN WORKSTATION  CS:78
 ; Sets contrl[2]=6 (nptsout), contrl[4]=45 (nintout).
 ; Copies intout[] defaults then ptsout[] defaults from DATA tables.
-; Reads intin[] for workstation attributes, clamps to valid ranges,
+; Reads intin[] for workstation attributes, applies bounds/defaults,
 ; stores to attribute state variables.
+; Array comments use zero-based indices and describe actual reads.
+; Original code reuses intin[2] for marker type and intin[6] for fill
+; index, so later reads differ from the GSX ten-word attribute layout.
 ; ============================================================================
 op01_OPEN_WORKSTATION:
 	mov	es:4[di],word ptr 6             ; contrl[2]: output coordinate-pair count
@@ -96,50 +100,50 @@ op01_OPEN_WORKSTATION:
 	mov	marker_scale,ax
 	mov	ax,1
 	mov	v_line_width,ax                 ; default line width
-	mov	v_marker_scale,ax               ; default marker scale
+	mov	v_marker_scale,ax               ; alpha-text count state = 1
 	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
-	mov	ax,es:[di]                      ; intin[1] = workstation id (ignored)
+	mov	ax,es:[di]                      ; intin[0]: workstation id (stored only)
 	add	di,2
 	mov	v_wks_id,ax                     ; store
-	mov	ax,es:[di]                      ; intin[2] = linetype
+	mov	ax,es:[di]                      ; intin[1]: linetype
 	add	di,2
 	cmp	ax,7
 	jbe	ow_lt_ok
 	mov	ax,1
 ow_lt_ok:
 	mov	v_linetype,ax
-	mov	ax,es:[di]                      ; intin[3] = polyline color
+	mov	ax,es:[di]                      ; intin[2]: polyline color
 	call	normalize_color_index
 	mov	v_line_color,ax
-	mov	ax,es:[di]                      ; intin[4] = marker type
+	mov	ax,es:[di]                      ; intin[2]: reused as marker type
 	add	di,2
 	cmp	ax,5
 	jbe	ow_mt_ok
 	mov	ax,5
 ow_mt_ok:
 	mov	v_marker_type,ax
-	mov	ax,es:[di]                      ; intin[5] = polymarker color
+	mov	ax,es:[di]                      ; intin[3]: used as polymarker color
 	add	di,2
 	call	normalize_color_index
 	mov	v_marker_color,ax
-	mov	ax,es:[di]                      ; intin[6] = text font
+	mov	ax,es:[di]                      ; intin[4]: used as text font
 	add	di,2
 	cmp	ax,1
 	jbe	ow_tf_ok
 	mov	ax,1
 ow_tf_ok:
 	mov	v_text_font,ax
-	mov	ax,es:[di]                      ; intin[7] = text color
+	mov	ax,es:[di]                      ; intin[5]: used as text color
 	add	di,2
 	call	normalize_color_index
 	mov	v_text_color,ax
-	mov	ax,es:[di]                      ; intin[8] = fill interior style
+	mov	ax,es:[di]                      ; intin[6]: used as fill interior style
 	cmp	ax,3
 	jbe	ow_fi_ok
 	mov	ax,0
 ow_fi_ok:
 	mov	v_fill_style,ax
-	mov	ax,es:[di]                      ; intin[9] = fill style index
+	mov	ax,es:[di]                      ; intin[6]: reused as fill style index
 	add	di,2
 	dec	ax
 	cmp	ax,6
@@ -148,7 +152,7 @@ ow_fi_ok:
 ow_fs_ok:
 	inc	ax
 	mov	v_fill_index,ax
-	mov	ax,es:[di]                      ; intin[10] = fill color
+	mov	ax,es:[di]                      ; intin[7]: used as fill color
 	call	normalize_color_index
 	mov	v_fill_color,ax
 	push	ds
@@ -190,7 +194,7 @@ op03_CLEAR_WORKSTATION:
 
 ; ============================================================================
 ; UPDATE WORKSTATION  CS:365
-; No-op for this device (display updates immediately).
+; No-op: the driver performs no deferred-update operation here.
 ; ============================================================================
 op04_UPDATE_WORKSTATION:
 	ret
@@ -282,10 +286,10 @@ escf11:
 	les	di,6[bp]                        ; ES:DI -> intin[] (GSX stack frame +6)
 	mov	ax,es:[di]
 	add	ax,01Fh
-	mov	v_cursor_x,ax
+	mov	v_cursor_x,ax                    ; First ESC Y parameter: row + 31.
 	mov	ax,es:2[di]
 	add	ax,01Fh
-	mov	v_cursor_y,ax
+	mov	v_cursor_y,ax                    ; Second ESC Y parameter: column + 31.
 	mov	si,offset seq_cursor_address
 	jmps	esc_send_seq
 
@@ -425,16 +429,16 @@ op06_points:
 	mov	word ptr v_polyline_state,0FFh  ; v_polyline_state = 255
 op06_first_point:
 	mov	ax,es:[di]
-	mov	v_x1,ax                         ; v_x1 = current ptsin point X
+	mov	v_x1,ax                         ; v_x1 = current point X (input or glyph)
 	mov	ax,es:2[di]
-	mov	v_x2,ax                         ; v_x2 = current ptsin point Y
+	mov	v_x2,ax                         ; v_x2 = current point Y (input or glyph)
 	add	di,4
 op06_draw_segment:
 	push	cx
 	mov	ax,es:[di]
-	mov	v_y1,ax                         ; v_y1 = next ptsin point X
+	mov	v_y1,ax                         ; v_y1 = next point X (input or glyph)
 	mov	ax,es:2[di]
-	mov	v_y2,ax                         ; v_y2 = next ptsin point Y
+	mov	v_y2,ax                         ; v_y2 = next point Y (input or glyph)
 	call	abline
 	pop	cx
 	loop	op06_points
@@ -593,6 +597,7 @@ plot_pixel:
 	ret
 
 ; BX=X, DX=Y -> DI=byte offset, BX=pixel mask; does not draw.
+; For screen coordinates X=0..559, Y=0..255:
 ; DI = 2 * ((X / 16) * 256 + (255 - Y)), integer division.
 ; BX = bit_masks[X % 16] = 1 << (15 - (X % 16)).
 ; Memory has 16-pixel vertical strips, with Y reversed within each.
@@ -732,10 +737,9 @@ op08_char_ready:
 op08_done:
 	jmp	free_gcb_mutex
 
-	; Signed high/low nibbles encode x/y; 128 splits strokes, 136 ends.
-	; Marker 2 starts 208,48 -> (-3,0),(3,0), then a separate stroke.
-; Unlike IBM's bitmap font and the separate Hershey word format, H1
-; embeds signed-nibble vectors. 208,48 describe (-3,0),(3,0).
+; Signed high/low nibbles are X/Y coordinates relative to glyph origin,
+; not deltas from the previous vertex; 128 splits strokes, 136 ends.
+; Marker 2 starts 208,48 -> (-3,0),(3,0), then a separate stroke.
 draw_vector_glyph:                              ; CS:1454
 	xor	ah,ah
 	shl	ax,1
@@ -1947,14 +1951,15 @@ console_write_char:                             ; CS:4044
 op00_invalid:                                   ; CS:4061
 	ret
 
-; Send ESC,'6'; the RC759 command's effect is not established here.
+; ESC,'6': disable function-key string expansion (PICCOLINE 4.4.1).
+; Keys return identifiers with bit 7 set instead of assigned strings.
 send_console_esc_6:
 	mov	al,1Bh
 	call	console_write_char
 	mov	al,36h
 	jmp	console_write_char
 
-; Send ESC,'7'; the RC759 command's effect is not established here.
+; ESC,'7': enable function-key string expansion (PICCOLINE 4.4.1).
 send_console_esc_7:                             ; CS:4072
 	mov	al,1Bh
 	call	console_write_char
@@ -2011,7 +2016,7 @@ exit_graphics:                                  ; CS:4139
 	dseg
 
 
-	rb	100h                            ; DATA:0..00FF (runtime state — task 6)
+	rb	100h                            ; DATA:0..255 original reserved zero area
 
 ; Jump table at DATA:256 — 35 near CODE pointers.
 ; Values verified against disasm/dd759h1.a86.
@@ -2088,12 +2093,12 @@ gdp_table:
 	dw	offset op00_invalid
 
 ; Typed variable declarations — addresses from disasm analysis
-v_wks_id	dw	0                       ; DATA:382 intin[1] workstation id
-v_linetype	dw	0                       ; DATA:384 current linetype (1-7)
+v_wks_id	dw	0                       ; DATA:382 intin[0] workstation id
+v_linetype	dw	0                       ; DATA:384 linetype (accepts 0..7)
 v_line_color	dw	0                       ; DATA:386 polyline color index
-v_marker_type	dw	0                       ; DATA:388 marker type (1-5)
+v_marker_type	dw	0                       ; DATA:388 marker type (accepts 0..5)
 v_marker_color	dw	0                       ; DATA:390 polymarker color
-v_text_font	dw	0                       ; DATA:392 text font (1)
+v_text_font	dw	0                       ; DATA:392 font selector (accepts 0/1)
 v_text_color	dw	0                       ; DATA:394 text color
 v_fill_style	dw	0                       ; DATA:396 fill interior style (0-3)
 v_fill_index	dw	0                       ; DATA:398 fill style index
@@ -2105,18 +2110,18 @@ v_cell_height	dw	0                       ; DATA:412 cell height
 v_cell_columns	dw	0                       ; DATA:414 number of columns
 v_cell_row_stride	dw	0               ; DATA:416 cell data row stride
 v_cell_x_start	dw	0                       ; DATA:418 cell x start
-v_cell_color	dw	0                       ; DATA:420 cell color
+v_cell_color	dw	0                       ; DATA:420 cell-array writing mode
 
-v_x1		dw	0                       ; DATA:422 current draw x1
-v_x2		dw	0                       ; DATA:424 current draw x2
-v_y1		dw	0                       ; DATA:426 current draw y1
-v_y2		dw	0                       ; DATA:428 current draw y2
+v_x1		dw	0                       ; DATA:422 first endpoint X
+v_x2		dw	0                       ; DATA:424 first endpoint Y
+v_y1		dw	0                       ; DATA:426 second endpoint X
+v_y2		dw	0                       ; DATA:428 second endpoint Y
 
-v_line_step	dw	0                       ; DATA:430 X/Y step for pixel addressing
-v_delta_major	dw	0                       ; DATA:432 Bresenham major-axis delta
-v_line_error	dw	0                       ; DATA:434 Bresenham error accumulator
+v_line_step	dw	0                       ; DATA:430 Y address step, -2 or +2 bytes
+v_delta_major	dw	0                       ; DATA:432 twice minor-axis distance
+v_line_error	dw	0                       ; DATA:434 2*minor-2*major; error is in DX
 
-v_polyline_state dw	0                       ; DATA:436 single-point polyline marker
+v_polyline_state dw	0                       ; DATA:436 255 retains segment endpoint
 pixel_mode	db	0                       ; DATA:438 active pixel writing mode
 
 writing_mode	dw	0                       ; DATA:439 GSX writing mode (1-4)
@@ -2126,9 +2131,9 @@ pixel_lut	dw	0                       ; DATA:441 pixel truth-table pointer
 	rb	4
 draw_pattern	dw	0                       ; DATA:447 rotating line/fill bit pattern
 
-; POLYLINE indexes this base with 2*line_type; valid types are 1..7.
+; POLYLINE indexes this base with 2*line_type; setters also accept 0.
 line_type_base:
-	dw	1111111111111111b               ; Original slot 0, before valid types.
+	dw	1111111111111111b               ; Slot 0: same solid pattern as type 1.
 line_types:
 	dw	1111111111111111b               ; 1 ################
 	dw	0000000001111111b               ; 2 .........#######
@@ -2214,19 +2219,19 @@ seq_reverse_off:
 	dw	2,01Bh,'q'
 seq_cursor_address:
 	dw	4,01Bh,'Y'                      ; Final two words updated by escf11.
-v_cursor_x	dw	020h                    ; DATA:671 cursor coordinate (escape 11)
-v_cursor_y	dw	020h                    ; DATA:673 cursor y
+v_cursor_x	dw	020h                    ; DATA:671 encoded alpha row (ESC Y)
+v_cursor_y	dw	020h                    ; DATA:673 encoded alpha column (ESC Y)
 
 v_line_width	dw	1                       ; DATA:675 line width
-v_marker_scale	dw	1                       ; DATA:677 marker scale
+v_marker_scale	dw	1                       ; DATA:677 alpha-text count state
 
 v_saved_x	dw	0                       ; DATA:679 saved cursor x
 v_saved_y	dw	0                       ; DATA:681 saved cursor y
-v_device_input_mode	db	0               ; DATA:683 mode selector 0
-v_cursor_mode	db	0                       ; DATA:684 cursor mode
-v_input_mode	db	0                       ; DATA:685 input mode
-v_key_mode	db	0                       ; DATA:686 keyboard mode
-v_keyboard_mode	db	0                       ; DATA:687 keyboard mode selector
+v_device_input_mode	db	0               ; DATA:683 input-device slot 0
+v_cursor_mode	db	0                       ; DATA:684 locator request/sample mode
+v_input_mode	db	0                       ; DATA:685 valuator request/sample mode
+v_key_mode	db	0                       ; DATA:686 choice request/sample mode
+v_keyboard_mode	db	0                       ; DATA:687 string request/sample mode
 
 ; Keyboard-controlled graphics locator, not the alpha text cursor.
 ; Key code 201 toggles offset 0/4: steps of 1/10 pixels respectively.
@@ -2249,7 +2254,7 @@ v_fill_min_y	dw	0                       ; DATA:764
 v_fill_max_y	dw	0                       ; DATA:768
 
 	rb	4
-v_text_point_count	dw	0               ; DATA:774 decoded glyph point count
+v_text_point_count	dw	0               ; DATA:774 glyph points or fill scanlines
 v_fill_intersection_count	dw	0       ; DATA:776
 	rb	2
 v_fill_pattern_count	dw	0               ; DATA:780
@@ -2258,7 +2263,7 @@ v_fill_npoints_minus1	dw	0               ; DATA:784
 v_fill_scan_y	dw	0                       ; DATA:786
 v_fill_pattern_offset	dw	0               ; DATA:788
 
-v_text_points	db	0                       ; DATA:790 decoded glyph point buffer
+v_text_points	db	0                       ; DATA:790 glyph points/fill X scratch
 
 	rb	199
 text_sine	dw	0                       ; DATA:990 text sine, scaled by 2048
@@ -2267,9 +2272,9 @@ text_scale	dw	0                       ; DATA:994 text scale
 marker_sine	dw	0                       ; DATA:996 marker sine, scaled by 2048
 marker_cosine	dw	0                       ; DATA:998 marker cosine, scaled by 2048
 marker_scale	dw	0                       ; DATA:1000 marker scale
-transform_sine	dw	0                       ; DATA:1002 polymarker scratch
-transform_cosine	dw	0               ; DATA:1004 polymarker scratch
-transform_scale	dw	0                       ; DATA:1006 polymarker scratch
+transform_sine	dw	0                       ; DATA:1002 active glyph transform sine
+transform_cosine	dw	0               ; DATA:1004 active glyph transform cosine
+transform_scale	dw	0                       ; DATA:1006 active glyph transform scale
 
 v_text_dx	dw	0                       ; DATA:1008 text x advance
 v_text_dy	dw	0                       ; DATA:1010 text y advance
@@ -2277,8 +2282,8 @@ v_text_dy	dw	0                       ; DATA:1010 text y advance
 v_draw_x	dw	0                       ; DATA:1012 current drawing x
 v_draw_y	dw	0                       ; DATA:1014 current drawing y
 
-v_text_x	dw	0                       ; DATA:1016 text origin x
-v_text_y	dw	0                       ; DATA:1018 text origin y
+v_text_x	dw	0                       ; DATA:1016 running text X, 6 fraction bits
+v_text_y	dw	0                       ; DATA:1018 running text Y, 6 fraction bits
 
 	include sine.a86
 
@@ -2297,7 +2302,7 @@ DEV_TAB:
 	dw	232                             ; 10 Number of marker sizes.
 	dw	1                               ; 11 Number of text fonts.
 	dw	6                               ; 12 Number of area patterns.
-	dw	6                               ; 13 Number of crosshatch patterns.
+	dw	6                               ; 13 Number of hatch styles.
 	dw	2                               ; 14 Number of simultaneous colors.
 	dw	1                               ; 15 Number of supported GDPs.
 	dw	1                               ; 16 GDP slot 1: function 1, filled rectangle (bar).
@@ -2324,7 +2329,7 @@ DEV_TAB:
 	dw	1                               ; 37 Text rotation supported.
 	dw	1                               ; 38 Polygon fill supported.
 	dw	0                               ; 39 Cell-array inquiry not supported.
-	dw	4                               ; 40 Palette entries, not bitmap planes.
+	dw	4                               ; 40 Total available colors advertised.
 	dw	1                               ; 41 Number of locator input devices.
 	dw	1                               ; 42 Number of valuator input devices.
 	dw	1                               ; 43 Number of choice input devices.
@@ -2480,8 +2485,8 @@ fill_tiles:
 
 gcb_mx	db	0                               ; DATA:1420 XIOS gcb_mx semaphore
 		; This initial segment word is a LINK-86 fixup to EXTRA.
-gcb_seg	dw	SEG extra_segment_anchor        ; DATA:1421 pixel memory segment
-v_gfx_init	dw	0                       ; DATA:1423 init done (1 after first open)
+gcb_seg	dw	SEG extra_segment_anchor        ; DATA:1421 XIOS graphics buffer segment
+v_gfx_init	dw	0                       ; DATA:1423 graphics active, 0 after exit
 
 	rb	513
 	include glyphs.a86
