@@ -1,5 +1,27 @@
 # RC759 GSX-86 driver — initial RE findings (session 1, 2026-10-31)
 
+## Repository housekeeping (2026-11-01)
+
+Sources, original binaries, build/comparison tools, Makefile and analysis
+are tracked. `make` freshly builds all twelve variants and compares each
+complete image with `originals/`; mismatches fail the command.
+
+Old guest build directories, temporary assembler probes, logs, disposable
+MAME disks/screenshots and the superseded MAME assembler scripts were
+removed. Historical scratch paths in the notes below describe runs at
+the time of investigation, not permanent evidence files. The reproducible
+checks and recorded results remain; generate new evidence with
+`make verify`.
+
+Local reference collections in `scratch/gsx80_86`,
+`scratch/dri-skeleton-search` and `scratch/seasip-sources` are retained,
+not deleted or uploaded. They include user-supplied historical sources
+and downloaded material beyond the already tracked reference subset;
+redistribution rights are not established. The RASM-86 manual likewise
+remains local; its title/archive reference is in `docs/README.md`.
+Ignored scratch, NVRAM and host-specific capture configuration are not
+required to rebuild the drivers.
+
 ## Unified-source experiment — verified 2026-11-01
 
 Implemented on `rc759-gsx-unified-source` in both the workspace and

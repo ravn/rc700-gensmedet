@@ -1,0 +1,9 @@
+# Fresh guest builds, verification logs and local reference collections.
+/scratch/
+/nvram/
+/snap/
+/cfg/
+
+# Restricted external manual: retain locally, not for redistribution.
+/docs/rasm86-manual-computerhistory.pdf
+/docs/rasm86-manual-computerhistory.txt
