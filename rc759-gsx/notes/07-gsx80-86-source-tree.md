@@ -1,5 +1,59 @@
 # User-supplied GSX-80/86 source tree
 
+## Follow-up driver analysis (2026-11-01)
+
+There are 45 subdirectories under `dd/` excluding the shared `s/` directory.
+Across `dd/`, 144 source files have extensions .asm (42), .a86 (38),
+.r (27), .rat (22), or .c (15). These are source-file counts, not counts
+of independently working drivers. Families include IBM, Orchid, PC Plus,
+Tektronix 40xx, GraphOn, printers, plotters and terminal drivers.
+
+### Strongest additional oracles
+
+All paths below are relative to `scratch/gsx80_86/`. The inspected IBM C,
+IBM pixel assembly, Orchid C, printer primitive Ratfor and GraphOn 2b
+Ratfor files each have one SCCS delta (1.1), one `I 1` body and no deleted
+weave blocks. Findings from those bodies are not competing revisions.
+
+| Source and lines | Verified knowledge | Use for H1, with limits |
+|---|---|---|
+| `dd/ddibm/s/sddibm.c:937-1071` | `ddfill` gathers scanline intersections, handles repeated vertices, sorts, fills pairs, and phases pattern rows relative to coordinate zero. | Independent high-level explanation of H1's scanline architecture, not identical endpoint or rounding behavior. |
+| `dd/ddibm/s/sddibm.c:1073-1195` | `ddsort` is bubble sort; `ddint` rejects horizontal edges and handles endpoint intersections before an integer line walk. | H1 sub_84Bh combines intersection calculation and sorted insertion instead; do not rename it ddsort or claim identical code. |
+| `dd/ddibm/s/syyibm.a86:143-198` | `ddflin` rotates a 16-bit row mask and applies `bitblt` for every pixel, including pattern-zero background pixels; includes both span endpoints. | Explains why zero pattern bits still enter writing-mode logic. H1 rotates right/consumes the low bit, rather than IBM's left/high-bit convention. |
+| `dd/printer/s/sddprim.r:492-670` | Ratfor `ddfill` has 4x8 row masks, duplicate-vertex handling, sorted intersections and paired horizontal spans. | Useful readable scan-conversion oracle; H1 has 8x8 tiles, different row ordering and clipping/endpoint rules. |
+| `dd/ddgn2b/s/sddgn2b.r:1219-1232` | Only XOR is selected specially; other requests are coerced to replace and returned as the realized mode. | Confirms that mode support is device-specific. It cannot settle H1's pixel-LUT truth tables. |
+| `dd/ddorch/s/sddorch.c:12-48` | Authored C GIOS explicitly targets IBM PC with Orchid graphics hardware and shares five four-row pattern types. | Additional raster-driver reference, not RC759-specific hardware evidence. |
+
+### Font and rotation differences
+
+IBM's embedded `fntary[768]` is a bitmap font
+(`dd/ddibm/s/sddibm.c:1407-1504`). Its text routine exchanges axes for
+90/270 degrees and uses four direction-table entries (`:1517-1537`).
+It is not H1's signed-nibble vector font or arbitrary-angle sine transform.
+
+The separate Hershey library is also not H1's encoding. In
+`fonts/s/shshrec.r:145-163`, `upe64w` derives a move/draw flag from the sign
+of a 16-bit word and decodes coordinates with division/remainder by 128
+and a bias of 64. H1 instead packs two signed four-bit coordinates in one
+byte and uses 80h/88h stroke/glyph sentinels.
+This routine is inside the original `I 1` body outside subsequent changes;
+the file as a whole has three revisions. `shshini.r:32-41,62-71` separately
+records the change from hershy.tbl to graphz.tbl.
+
+### Practical conclusions
+
+Use these sources to document the stages of H1 polygon fill and to design
+tests around horizontal edges, shared vertices, span endpoints, pattern
+phase and zero-pattern pixels under each writing mode. Keep algorithm
+roles separate from implementation identity: H1's sorted insertion and
+division-based intersection are not IBM's bubble sort and line walk.
+
+No exact H1 source ancestor, matching vector-font bytes, or explanation of
+the 42-word identification count was established in this analysis.
+No H1 code was changed, no historical file was compiled, and no source
+files were copied out of the supplied tree. Restrictive historical notices
+remain intact; this note records analysis rather than redistributing code.
+
 Inspected 2026-10-31 at `scratch/gsx80_86/`, after the user copied the
 collection into the workspace. This note records local findings only;
 the source files were not edited, built, uploaded, or redistributed.
