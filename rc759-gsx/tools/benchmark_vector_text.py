@@ -104,7 +104,7 @@ def cycles(insn, taken=False):
 
 class Driver:
     def __init__(self):
-        image = (ROOT / "bin/dd759h1.sys").read_bytes()
+        image = (ROOT / "originals/dd759h1.sys").read_bytes()
         assert hashlib.sha256(image).hexdigest() == EXPECTED_SHA
         self.cpu = Uc(UC_ARCH_X86, UC_MODE_16)
         self.cpu.mem_map(0, 0x100000)

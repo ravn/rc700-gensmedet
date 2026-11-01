@@ -192,11 +192,17 @@ def build(variant="h1", unified=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("variant", nargs="?", default="h1", choices=VARIANTS)
+    parser.add_argument("variant", nargs="?", choices=VARIANTS,
+                        help="variant to build (default: all twelve)")
     parser.add_argument("--unified", action="store_true",
                         help="generate a configuration wrapper even for H1")
     args = parser.parse_args()
-    build(args.variant, args.unified)
+    from compare_sys_cmd import compare
+
+    for variant in (args.variant,) if args.variant else VARIANTS:
+        rebuilt = build(variant, args.unified)
+        if not compare(ROOT / "originals" / f"dd759{variant}.sys", rebuilt):
+            raise RuntimeError(f"dd759{variant}: rebuilt image differs from original")
     return 0
 
 

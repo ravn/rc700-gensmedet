@@ -1,5 +1,27 @@
 # RC759 GSX-86 driver — initial RE findings (session 1, 2026-10-31)
 
+## Repository housekeeping (2026-11-01)
+
+Sources, original binaries, build/comparison tools, Makefile and analysis
+are tracked. `make` freshly builds all twelve variants and compares each
+complete image with `originals/`; mismatches fail the command.
+
+Old guest build directories, temporary assembler probes, logs, disposable
+MAME disks/screenshots and the superseded MAME assembler scripts were
+removed. Historical scratch paths in the notes below describe runs at
+the time of investigation, not permanent evidence files. The reproducible
+checks and recorded results remain; generate new evidence with
+`make verify`.
+
+Local reference collections in `scratch/gsx80_86`,
+`scratch/dri-skeleton-search` and `scratch/seasip-sources` are retained,
+not deleted or uploaded. They include user-supplied historical sources
+and downloaded material beyond the already tracked reference subset;
+redistribution rights are not established. The RASM-86 manual likewise
+remains local; its title/archive reference is in `docs/README.md`.
+Ignored scratch, NVRAM and host-specific capture configuration are not
+required to rebuild the drivers.
+
 ## Unified-source experiment — verified 2026-11-01
 
 Implemented on `rc759-gsx-unified-source` in both the workspace and
@@ -59,7 +81,7 @@ the other eleven targets FAIL against the same fresh H1 build.
 Final all-variant evidence:
 `scratch/unified-check-20261101-091928-653160/matrix.json`.
 Every header, CODE, DATA, stored EXTRA and relocation/alignment trailer
-matches independently preserved `bin/dd759*.sys`, including MD4's
+matches independently preserved `originals/dd759*.sys`, including MD4's
 zero-length stored EXTRA. A separate fresh build through the retained H1
 launcher also matches; regenerating the glyph SVG produces the identical
 existing `docs/glyphs.svg`. The negative-control H1/H4 comparison correctly
@@ -134,7 +156,7 @@ are obsolete. These SYS files have CP/M-86 CMD group descriptors;
 CODE and DATA are separate address spaces. The rebuilt H1 and the
 later notes supersede those early hypotheses.
 
-Scope: all twelve original files in `bin/`, parsed with
+Scope: all twelve original files in `originals/`, parsed with
 `tools/compare_sys_cmd.py:parse_groups`, pairwise byte comparisons,
 aligned CODE comparisons and bounded Capstone disassembly. No variant
 other than H1 was executed or reconstructed in this investigation.
@@ -293,7 +315,7 @@ disassembly så vi kan vurdere om vi vil skrive en forbedret driver.
 
 ## Filer og organisation
 
-- `bin/dd759*.sys` — 12 drivervarianter (`h/hd/hm/m/md/mm` × `1/4`).
+- `originals/dd759*.sys` — 12 drivervarianter (`h/hd/hm/m/md/mm` × `1/4`).
   Historisk, afkræftet hypotese: "1" = 1 plan (mono), "4" = 4 planer (farve). Suffikser var antaget
   medie-/skærmvarianter — skal bekræftes mod GKONFIG eller rc759-manual.
 - `docs/` — GSX-86 manualer fra bitsavers.
