@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build an RC759 driver with current emu2 using a controlling PTY.
+# Build all RC759 variants by default, or one explicitly selected variant.
 
 set -eu
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)

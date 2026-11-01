@@ -29,12 +29,12 @@ def main():
         parser.error("variants must be one of: " + ", ".join(VARIANTS))
     work = ROOT / "scratch" / f"unified-check-{datetime.now():%Y%m%d-%H%M%S-%f}"
     work.mkdir(parents=True, exist_ok=False)
-    originals = {variant: (ROOT / "bin" / f"dd759{variant}.sys").read_bytes()
+    originals = {variant: (ROOT / "originals" / f"dd759{variant}.sys").read_bytes()
                  for variant in VARIANTS}
     baseline = build() if args.baseline else None
     results = {}
     for variant in args.variants or VARIANTS:
-        original = ROOT / "bin" / f"dd759{variant}.sys"
+        original = ROOT / "originals" / f"dd759{variant}.sys"
         result = {"status": "FAIL", "original_sha256":
                   hashlib.sha256(originals[variant]).hexdigest()}
         try:
@@ -54,7 +54,7 @@ def main():
             print(f"{variant}: FAIL: {error}")
         results[variant] = result
     for variant, image in originals.items():
-        if (ROOT / "bin" / f"dd759{variant}.sys").read_bytes() != image:
+        if (ROOT / "originals" / f"dd759{variant}.sys").read_bytes() != image:
             raise RuntimeError(f"original oracle changed during verification: {variant}")
     (work / "matrix.json").write_text(json.dumps(results, indent=2) + "\n")
     print("\nVariant matrix" + (" (fresh H1 baseline):" if args.baseline else ":"))

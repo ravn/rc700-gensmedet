@@ -59,7 +59,7 @@ the other eleven targets FAIL against the same fresh H1 build.
 Final all-variant evidence:
 `scratch/unified-check-20261101-091928-653160/matrix.json`.
 Every header, CODE, DATA, stored EXTRA and relocation/alignment trailer
-matches independently preserved `bin/dd759*.sys`, including MD4's
+matches independently preserved `originals/dd759*.sys`, including MD4's
 zero-length stored EXTRA. A separate fresh build through the retained H1
 launcher also matches; regenerating the glyph SVG produces the identical
 existing `docs/glyphs.svg`. The negative-control H1/H4 comparison correctly
@@ -134,7 +134,7 @@ are obsolete. These SYS files have CP/M-86 CMD group descriptors;
 CODE and DATA are separate address spaces. The rebuilt H1 and the
 later notes supersede those early hypotheses.
 
-Scope: all twelve original files in `bin/`, parsed with
+Scope: all twelve original files in `originals/`, parsed with
 `tools/compare_sys_cmd.py:parse_groups`, pairwise byte comparisons,
 aligned CODE comparisons and bounded Capstone disassembly. No variant
 other than H1 was executed or reconstructed in this investigation.
@@ -293,7 +293,7 @@ disassembly så vi kan vurdere om vi vil skrive en forbedret driver.
 
 ## Filer og organisation
 
-- `bin/dd759*.sys` — 12 drivervarianter (`h/hd/hm/m/md/mm` × `1/4`).
+- `originals/dd759*.sys` — 12 drivervarianter (`h/hd/hm/m/md/mm` × `1/4`).
   Historisk, afkræftet hypotese: "1" = 1 plan (mono), "4" = 4 planer (farve). Suffikser var antaget
   medie-/skærmvarianter — skal bekræftes mod GKONFIG eller rc759-manual.
 - `docs/` — GSX-86 manualer fra bitsavers.
