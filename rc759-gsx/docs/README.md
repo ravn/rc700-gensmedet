@@ -3,6 +3,19 @@
 Tekst-udgaver (`.txt`) er ekstraheret via pypdf fra PDF-filerne, så vi kan
 grep/læse uden at skulle PDF-rendere igen. Opdater tekst hvis PDF udskiftes.
 
+## RASM-86 manual (external reference only)
+
+The locally retained `rasm86-manual-computerhistory.pdf` is titled
+*Programmer's Utilities Guide for the CP/M-86 Family of Operating Systems*
+(Digital Research, 1983; text conversion edited by Emmanuel Roche).
+Archive entry point: [Computer History Museum](https://computerhistory.org/).
+The exact PDF download URL has not been recovered; this is an archive
+link, not a verified direct link to the manual.
+
+The PDF and extracted text remain local and are not added to git:
+their copyright notice restricts reproduction of the publication.
+The notice separately permits incorporating its example programs.
+
 | Fil | Kilde | Note |
 |-----|-------|------|
 | `gsx86-programmer-manual-retrobrew.*` | retrobrewcomputers.org (brugeren hentede via browser; Cloudflare blokerer curl) | Primær reference — har Appendix A/B/C med CP/M-86 calling convention + VDI-spec |
