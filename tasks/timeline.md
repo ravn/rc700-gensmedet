@@ -9126,3 +9126,21 @@ No new MAME graphics test performed.
 - **End-to-end verifikation**:
   - `make -C cpnos-in-c cpnos-polypascal-test COMPILER=clang`: PASS på 43,21 sekunder.
   - RC702 netbooter 28 sektorer fra MP/M master, starter `PPAS`, indlæser og kompilerer `PRIMES.PAS`, beregner primtal til 29989, og afslutter rent til `E>`.
+
+## 2026-11-03 — Z80 module-assembly LTO fix and firmware builds
+
+The null-target-streamer registration was committed as
+`ravn/llvm-z80` commit `adca21931a5f` on the pushed branch
+`fix/cpnos-lto-null-streamer`. Its C reproducer passes with and without
+debug info; `llvm-nm` finds `_alias` and `_f` in both outputs.
+
+Forced Makefile builds using that isolated S4 compiler passed:
+autoload PROM 2035 B, rcbios BIOS 5761 B, and cpnos PROM1 image 2048 B
+(padded to the 2 KB cap). The cpnos build used PIO IRQ transport,
+default drive `0x04`, and mirrored SIO-B; ZX0 round-trip checks passed.
+This confirms build/link success, not boot behavior. No MAME boot was run:
+the configured MAME checkout lacks the parked `cpnet_bridge` device.
+
+Issue review found existing trackers, so no duplicate issues were filed:
+`ravn/llvm-z80#411` covers the null-streamer/LTO failure, while
+`ravn/mame-rc702-rc759-rc750#50` and `#54` cover the CP/NET bridge.
