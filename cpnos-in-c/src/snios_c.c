@@ -457,11 +457,8 @@ const struct {
     .ntwkdn = { 0xC3, (snios_fptr)snios_ntwkdn_impl },
 };
 
-/* Export JT-entry labels so init.c / cpnos_main.c callers find them.
+/* Export JT-entry labels via payload.ld so init.c / cpnos_main.c callers find them.
  * snios_ntwkin is the only one called directly from C; the rest are
  * reached by NDOS via the JT offsets, not by name. */
-__asm__(".global _snios_ntwkin\n_snios_ntwkin = _snios_jt");
-__asm__(".global _snios_sndmsg\n_snios_sndmsg = _snios_jt + 9");
-__asm__(".global _snios_rcvmsg\n_snios_rcvmsg = _snios_jt + 12");
 
 #endif /* !__SDCC */

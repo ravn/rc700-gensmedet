@@ -88,6 +88,13 @@ SECTIONS {
     ASSERT(__payload_end - __payload_checksum_start == 2,
            ".payload_checksum must be exactly 2 bytes")
   } > PAYLOAD
+  _bios_boot = _bios_jt;
+  _bios_wboot = _bios_jt + 3;
+  _bios_conout = _bios_jt + 12;
+  _bios_sectran = _bios_jt + 48;
+  _snios_ntwkin = _snios_jt;
+  _snios_sndmsg = _snios_jt + 9;
+  _snios_rcvmsg = _snios_jt + 12;
   ASSERT(_bios_boot == 0xEE00, "BIOS jump table must start at 0xEE00")
   ASSERT(_bios_conout - _bios_boot == 12, "BIOS CONOUT offset must be +12")
   ASSERT(_bios_sectran - _bios_boot == 48, "BIOS SECTRAN offset must be +48")

@@ -63,8 +63,4 @@ const struct {
     .sectran = { 0xC3, bios_stub_ret },
 };
 
-/* Export legacy linker symbols so payload.ld ASSERTs keep working unchanged. */
-__asm__(".global _bios_boot\n_bios_boot = _bios_jt");
-__asm__(".global _bios_wboot\n_bios_wboot = _bios_jt + 3");
-__asm__(".global _bios_conout\n_bios_conout = _bios_jt + 12");
-__asm__(".global _bios_sectran\n_bios_sectran = _bios_jt + 48");
+/* Export legacy linker symbols defined in payload.ld. */

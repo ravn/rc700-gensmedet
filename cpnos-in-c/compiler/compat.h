@@ -334,11 +334,19 @@ static inline void mem_copy_backwards(void *dst_end, const void *src_end,
 #  endif
 
 #elif defined(__clang__) && defined(__z80__)
+#if __has_builtin(__builtin_z80_di)
 static inline void intrinsic_di  (void) { __builtin_z80_di(); }
 static inline void intrinsic_ei  (void) { __builtin_z80_ei(); }
 static inline void intrinsic_halt(void) { __builtin_z80_halt(); }
 static inline void intrinsic_nop (void) { __builtin_z80_nop(); }
 static inline void intrinsic_im_2(void) { __builtin_z80_im2(); }
+#else
+static inline void intrinsic_di  (void) { __asm__ volatile("di"); }
+static inline void intrinsic_ei  (void) { __asm__ volatile("ei"); }
+static inline void intrinsic_halt(void) { __asm__ volatile("halt"); }
+static inline void intrinsic_nop (void) { __asm__ volatile("nop"); }
+static inline void intrinsic_im_2(void) { __asm__ volatile("im 2"); }
+#endif
 /* Workaround for LLVM-Z80 issue #419: __builtin_z80_set_i(val) has dead-code
  * elimination bug because LD_I_A lacks Uses = [A]. Use inline asm with "a" constraint. */
 static inline void intrinsic_ld_i_a(uint8_t page) {

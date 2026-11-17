@@ -40,14 +40,24 @@
  * ================================================================ */
 
 #if (defined(__clang__) && defined(__z80__)) || defined(__LLVMZ80)
-/* Port I/O via compiler builtins: __builtin_z80_in / __builtin_z80_out.
- * Emits direct IN A,(n) / OUT (n),A for constant ports, and IN r,(C) / OUT (C),r for variable. */
+/* Port I/O via compiler builtins: __builtin_z80_in / __builtin_z80_out, with inline asm fallback. */
+#if defined(__has_builtin) && __has_builtin(__builtin_z80_in) && __has_builtin(__builtin_z80_out)
 static inline uint8_t _port_in(uint8_t p) {
     return __builtin_z80_in(p);
 }
 static inline void _port_out(uint8_t p, uint8_t v) {
     __builtin_z80_out(p, v);
 }
+#else
+static inline uint8_t _port_in(uint8_t p) {
+    uint8_t _r;
+    __asm__ volatile("in %0, (c)" : "=a"(_r) : "c"(p));
+    return _r;
+}
+static inline void _port_out(uint8_t p, uint8_t v) {
+    __asm__ volatile("out (c), %1" : : "c"(p), "a"(v));
+}
+#endif
 
 
 #elif defined(__SDCC) || defined(__SCCZ80)
