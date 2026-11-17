@@ -91,6 +91,21 @@ The tool maps `.cim` bytes sequentially onto Track 0 sectors (sorted by sector n
 
 `make patch-test` automates the full cycle: build, patch, boot in emulator, verify signon.
 
+### cpnet/
+CP/NET 1.2 client stack and tools for RC702 CP/M 2.2:
+- `snios.asm` - SNIOS implementation supporting conditional assembly for SIO and PIO.
+- `build_snios.py` - Builds relocatable `SNIOSSIO.SPR` (3 pages / 768 B, TPA 47 KB), `SNIOSPIO.SPR` (4 pages / 1024 B), and default `SNIOS.SPR`.
+- `prepare_interactive_disk.py` - Prepares bootable MFI floppy with `0:$$$.SUB` (binary reverse records) and `0:AUTO.SUB` (ASCII text with CRLF) mapping MP/M drive I: to H:.
+- `chksum_roundtrip_test.sh` - Automated headless test transferring 2048-byte fixtures over CP/NET against z80pack MP/M II on port 4002.
+- See `cpnet/README.md` and `cpnet/SPR_FORMAT.md` for complete architecture and SPR details.
+
+### cpnos-in-c/
+C rewrite of CP/NOS diskless network bootstrap for ROM 1 (IC67) within the 2 KB PROM budget:
+- Dual-compiler support: LLVM-Z80 (Clang) and SDCC.
+- Abstracted transport layer (`xport_send_byte` / `xport_recv_byte`) supporting SIO and PIO.
+- See `cpnos-in-c/STATUS.md` and `cpnos-in-c/Makefile`.
+
+
 ### zmac/
 Z80 macro assembler toolchain:
 - `bin/zmac` - Compiled assembler binary (built per-host; `make` in zmac/ if missing)
