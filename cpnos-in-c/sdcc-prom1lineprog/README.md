@@ -1,11 +1,10 @@
 # cpnos-in-c SDCC PROM1-only line program
 
-**Status:** WORKING.  Boots to E>; polypascal-test PASSes in ~50 s.
+**Status:** SHIPPED & VERIFIED.  Boots to E>; polypascal-test PASSes in ~50 s.
+Fits the 2 KB hard cap (1977 B / 2048 B, 71 B free); padded to 2048 B for physical 2716 EPROM.
 
 `make prom1-lineprog COMPILER=sdcc` produces
-`sdcc-prom1lineprog/prom1-lineprog.bin` (~2246 B, 4 KB padded for
-the MAME PROMCFG=2 / 4 KB-prom default).  Doesn't fit a 2 KB
-physical PROM1 socket yet; see follow-up TODO for shrinking.
+`sdcc-prom1lineprog/prom1-lineprog.bin` (1977 B raw, 2048 B padded to 2 KB).
 
 ## Build pipeline (two-pass)
 
@@ -24,7 +23,7 @@ physical PROM1 socket yet; see follow-up TODO for shrinking.
   4. **pass 2:** zcc relinks; INCBIN in init_zx0.asm /
      payload_zx0.asm pulls the real compressed bytes.
   5. **pad:** sdcc-prom1lineprog/prom1-lineprog.bin = pass-2's
-     cpnos_lp_LINEPROG_HEADER.bin padded to 4 KB.
+     cpnos_lp_LINEPROG_HEADER.bin padded to 2048 B (2 KB hard cap).
 
 ## Final layout (LMA 0x2000)
 
@@ -34,9 +33,9 @@ physical PROM1 socket yet; see follow-up TODO for shrinking.
   | 0x2002  | 6     | " RC702" signature (autoload contract)  |
   | 0x2008+ | ~30   | bootstrap.asm code                      |
   | +       | ~69   | dzx0_standard decoder                   |
-  | +       | 585   | init.zx0 (INIT_CODE 689 -> ZX0)         |
-  | +       | 1559  | payload.zx0 (RESIDENT 2192 -> ZX0)      |
-  | total   | ~2246 | (+ 0xFF padding to 4096)                |
+  | +       | 486   | init.zx0 (INIT_CODE 562 -> ZX0)         |
+  | +       | 1389  | payload.zx0 (RESIDENT 1944 -> ZX0)      |
+  | total   | 1977  | (+ 0xFF padding to 2048; 71 B free)     |
 
 ## Boot verification (session 73j-late)
 
@@ -82,11 +81,8 @@ in init.c.  Bug filed at https://github.com/ravn/z88dk/issues/7.
 
 ## Follow-ups
 
-  * 168 B over 2 KB -- shrink to fit a physical RC702 socket.
-    See `tasks/todo-cpnos-prom1lineprog-single-chunk-2026-05-17.md`
-    (single-chunk dzx0 saves ~39 B) and the SDCC-specific
-    code-size gap (~+200 B vs clang per binary, see
-    `tasks/aes256-corpus/` for SDCC peep work).
+  * **2 KB limit reached (CLOSED 2026-11-17)**: SDCC PROM1 raw is 1977 B / 2048 B
+    (71 B free); padded to 2048 B matching physical RC702 socket.
   * Auto-generate `sdcc/cpnos_polypascal_addrs.lua` from the map
     file inside the Makefile prom1-lineprog rule instead of
     hand-running awk.

@@ -179,7 +179,7 @@ else ifeq ($(COMPILER),sdcc)
   # $(CURDIR); -w re-enters the cpnos-in-c subdir so relative paths resolve.
   # Override with `make ... SDCC_LIB=` to force the Docker lane for testing.
   Z88DK_HOME ?= $(firstword $(wildcard $(CURDIR)/../z88dk) $(wildcard $(CURDIR)/../../z88dk))
-  SDCC_LIB := $(wildcard $(Z88DK_HOME)/libsrc/_DEVELOPMENT/lib/sdcc_iy/z80.lib)
+  SDCC_LIB := $(or $(wildcard $(Z88DK_HOME)/lib/clibs/sdcc_ix/z80.lib),$(wildcard $(Z88DK_HOME)/libsrc/_DEVELOPMENT/lib/sdcc_iy/z80.lib))
   ifneq ($(SDCC_LIB),)
     # Native z88dk WITH the classic sdcc lib.  Set ZCCCFG via exported var;
     # export PATH with z88dk's bin so zcc's internal `z88dk-z80asm` /
@@ -411,7 +411,7 @@ help:
 	@echo
 	@echo 'Manual targets:'
 	@echo '  make prom1-lineprog COMPILER=clang   production PROM1 line program (clang)  [2 KB cap]'
-	@echo '  make prom1-lineprog COMPILER=sdcc    SDCC variant                           [4 KB, MAME-only]'
+	@echo '  make prom1-lineprog COMPILER=sdcc    SDCC variant                           [2 KB cap]'
 	@echo '  make cpnos-polypascal-test           full-stack MP/M + slave + PolyPascal boot test'
 	@echo '  make cpnos-dir-test COMPILER=clang TRANSPORT=pio-irq   directory smoke test'
 	@echo '  make cpnos-size / cpnos-disasm / cpnos-clean'
@@ -2275,15 +2275,20 @@ prom1-lineprog: $(SDCC_LP_C_OBJS) $(BUILDDIR)/cpnos_layout.asm $(BUILDDIR)/xport
 	python3 cpnos-build/check_sdcc_stack_room.py $(BUILDDIR)/cpnos_lp.map
 	@cp $(BUILDDIR)/cpnos_lp_LINEPROG_HEADER.bin $(SDCC_LP_DIR)/prom1-lineprog.bin
 	@SZ=$$(wc -c < $(SDCC_LP_DIR)/prom1-lineprog.bin | tr -d ' '); \
-	 echo "  raw: $$SZ B"; \
-	 PAD=4096; \
-	 if [ $$SZ -gt $$PAD ]; then \
-	   echo "ERROR: SDCC PROM1-only image > $$PAD B; bump pad or shrink"; exit 1; \
+	 HARD=2048; \
+	 CAP=$(CPNOS_PROM1_CAP); \
+	 echo "SDCC PROM1 line program: $$SZ / $$CAP B ($$((CAP - SZ)) B free; hard cap $$HARD B)"; \
+	 if [ $$SZ -gt $$CAP ]; then \
+	   echo "ERROR: SDCC PROM1 lineprog exceeds $$CAP B cap by $$((SZ - CAP)) B"; exit 1; \
+	 fi; \
+	 if [ $$SZ -gt $$HARD ]; then \
+	   echo "WARN: SDCC PROM1 lineprog exceeds $$HARD B (hard cap on real RC702 hardware) by $$((SZ - HARD)) B."; \
+	   echo "      Build will pad to $$CAP B and is MAME-only.  Shrink before merging to main."; \
 	 fi; \
 	 { cat $(SDCC_LP_DIR)/prom1-lineprog.bin; \
-	   perl -e "print \"\\xff\" x ($$PAD - $$SZ)"; } > $(SDCC_LP_DIR)/prom1-lineprog.bin.tmp; \
+	   perl -e "print \"\\xff\" x ($$CAP - $$SZ)"; } > $(SDCC_LP_DIR)/prom1-lineprog.bin.tmp; \
 	 mv $(SDCC_LP_DIR)/prom1-lineprog.bin.tmp $(SDCC_LP_DIR)/prom1-lineprog.bin; \
-	 echo "  padded: $$(wc -c < $(SDCC_LP_DIR)/prom1-lineprog.bin | tr -d ' ') B (target $$PAD)"; \
+	 echo "  padded: $$(wc -c < $(SDCC_LP_DIR)/prom1-lineprog.bin | tr -d ' ') B (target $$CAP)"; \
 	 echo "  init.zx0:    $$(wc -c < $(SDCC_LP_DIR)/init.zx0 | tr -d ' ') B"; \
 	 echo "  payload.zx0: $$(wc -c < $(SDCC_LP_DIR)/payload.zx0 | tr -d ' ') B"
 	@echo "wrote $(SDCC_LP_DIR)/prom1-lineprog.bin"

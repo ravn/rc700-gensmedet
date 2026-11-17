@@ -261,6 +261,7 @@ static void setup_ivt(void) {
      * Z80 LDIR-overlap idiom (~17 B vs 22 B for a volatile loop;
      * see ravn/llvm-z80#130 comment thread).  Adding `volatile` here
      * blocks LoopIdiomRecognize (volatile stores fail isLegalStore). */
+#ifdef __clang__
     *(uint16_t *)IVT_ADDR = (uint16_t)(uintptr_t)&isr_noop;
     {
         register void *hl __asm__("hl") = (void *)IVT_ADDR;
@@ -268,6 +269,12 @@ static void setup_ivt(void) {
         register size_t bc __asm__("bc") = (IVT_ENTRIES - 1) * 2;
         __asm__ volatile("ldir" : "+r"(hl), "+r"(de), "+r"(bc) :: "memory");
     }
+#else
+    uint16_t *ivt_init = (uint16_t *)IVT_ADDR;
+    for (uint8_t n = IVT_ENTRIES; n; --n) {
+        *ivt_init++ = (uint16_t)(uintptr_t)&isr_noop;
+    }
+#endif
     uint16_t *ivt = (uint16_t *)IVT_ADDR;
     ivt[2] = (uint16_t)(uintptr_t)&isr_crt;
     ivt[IVT_PIO_A] = (uint16_t)(uintptr_t)&isr_pio_kbd;
