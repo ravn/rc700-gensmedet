@@ -68,7 +68,7 @@ bios.cim: z88dk_section_layout.asm $(PARENT)/boot_block.c $(PARENT)/boot_confi.c
           $(PARENT)/boot_entry.c $(PARENT)/bios_hw_init.c \
           $(PARENT)/bios_jump_vector_table.c $(PARENT)/bios.c \
           $(PARENT)/hal.h $(PARENT)/bios.h \
-          $(PARENT)/builddate.h $(PARENT)/builddate.inc peephole.def \
+          $(PARENT)/buildstamp.h $(PARENT)/builddate.inc peephole.def \
           $(HELPER_CALL_GUARD)
 	$(RUN) sh -c '\
 	zcc $(ZFLAGS) -Cs"--codeseg BOOT" -Cs"--constseg BOOT" -c ../boot_block.c -o boot_block.o && \
@@ -101,8 +101,8 @@ bios.cim: z88dk_section_layout.asm $(PARENT)/boot_block.c $(PARENT)/boot_confi.c
 	fi
 
 # Generate builddate files in parent if needed
-$(PARENT)/builddate.h $(PARENT)/builddate.inc: FORCE
-	$(MAKE) -C $(PARENT) builddate.h builddate.inc
+$(PARENT)/buildstamp.h $(PARENT)/builddate.inc: FORCE
+	$(MAKE) -C $(PARENT) buildstamp.h builddate.inc
 
 FORCE:
 

@@ -21,7 +21,7 @@
 local RESULT_PATH = os.getenv("QR_DUMP") or "../scratch/autoload_qr_dump.txt"
 local ROW_BYTES   = 80
 local DEADLINE_S  = 4.0
-local QR_TOP, QR_LEFT, QR_COLS, QR_ROWS = 15, 65, 13, 9
+local QR_TOP, QR_LEFT, QR_COLS, QR_ROWS = 15, 65, 15, 10
 
 local installed = false
 -- Retain tap handles or Lua GC frees them and the next tapped access segfaults.

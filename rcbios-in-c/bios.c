@@ -30,7 +30,7 @@
 #include <intrinsic.h>
 #include "hal.h"
 #include "bios.h"
-#include "builddate.h"
+#include "buildstamp.h"
 
 /* Forward declarations */
 void bios_conout_c(byte c);
@@ -832,13 +832,13 @@ void bios_boot_c(void)
 
     /* Cold boot: print signon, init state, then warm boot */
     puts_p("\x0C"                       /* form feed = clear screen */
-           "RC700 " MSIZE_STR "k CP/M 2.2 C-bios/"
+           "RC700 " MSIZE_STR "k CP/M 2.2 "
 #ifdef __clang__
-           "clang "
+           "llvm-z80 "
 #else
            "sdcc "
 #endif
-           BUILDDATE "\r\n");
+           BUILDSTAMP "\r\n");
 
     /* Announce SIO-B debug console when DIP switch 0 enabled it. */
     if (IOBYTE_CON(iobyte) == IOB_UC1)

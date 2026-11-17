@@ -129,8 +129,8 @@ help:
 # Build timestamp (shared by both compilers)
 # ================================================================
 
-builddate.h: FORCE
-	@echo '#define BUILDDATE "'$$(date +%Y-%m-%d\ %H:%M)'"' > $@.$$$$; \
+buildstamp.h: FORCE
+	@echo '#define BUILDSTAMP "'$$(git rev-parse --short HEAD 2>/dev/null || echo '????')' '$$(date +%Y-%m-%d\ %H:%M)'"' > $@.$$$$; \
 	 cmp -s $@.$$$$ $@ 2>/dev/null && rm -f $@.$$$$ || mv $@.$$$$ $@
 
 builddate.inc: FORCE
@@ -143,7 +143,7 @@ FORCE:
 # Compiler dispatch: make bios → $(BIOS_CIM)
 # ================================================================
 
-bios: builddate.h verify-skew
+bios: buildstamp.h verify-skew
 	$(MAKE) -C $(COMPILER) $(BIOS_TARGET) MSIZE=$(MSIZE) KBLANG=$(KBLANG) KBDPORT=$(KBDPORT) SW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT)
 
 # Verify the hand-written sector skew tables in bios.c match the CP/M
@@ -292,7 +292,7 @@ sio-echo-test: sio-a-echo-test sio-b-echo-test
 	@echo '=== Both SIO-A and SIO-B 4096-byte echo tests PASSED ==='
 
 # CONOTEST.COM — display control code exercise (CP/M program, built with SDCC)
-conotest: conout_test.c builddate.h
+conotest: conout_test.c buildstamp.h
 	export PATH="$(Z88DK)/bin:$$PATH" && \
 	export ZCCCFG="$(ZCCCFG)" && \
 	$(ZCC) +cpm -clib=sdcc_iy -SO3 --opt-code-size \
@@ -578,10 +578,10 @@ DEPLOY_CON_PORT ?= 4324
 DEPLOY_DAT_PORT ?= 4325
 MLOAD_COM = $(CURDIR)/../cpm-utils/mload/zout/mload.cim
 
-clang-bios: builddate.h
+clang-bios: buildstamp.h
 	$(MAKE) -C clang bios.clang.cim MSIZE=$(MSIZE) KBLANG=$(KBLANG) KBDPORT=$(KBDPORT)
 
-sdcc-bios: builddate.h
+sdcc-bios: buildstamp.h
 	$(MAKE) -C sdcc bios.cim MSIZE=$(MSIZE) KBLANG=$(KBLANG) KBDPORT=$(KBDPORT)
 
 deploy-serial: clang-bios sdcc-bios
@@ -742,5 +742,5 @@ test:
 clean:
 	$(MAKE) -C clang clean
 	$(MAKE) -C sdcc clean
-	rm -f builddate.h builddate.inc
+	rm -f buildstamp.h builddate.inc
 	rm -f /tmp/bios_c_mini.imd /tmp/bios_c_maxi.imd

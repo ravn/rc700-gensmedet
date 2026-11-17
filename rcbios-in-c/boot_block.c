@@ -10,7 +10,7 @@
  */
 
 #include "bios.h"
-#include "builddate.h"
+#include "buildstamp.h"
 
 /* coldboot() in boot_entry.c (BOOT_CODE section) */
 extern void coldboot(void);
@@ -45,5 +45,5 @@ const BootHeader boot_header = {
     .boot_ptr  = coldboot,
     .reserved  = { 0 },
     .signature = " RC702",
-    .buildinfo = " C-BIOS " BUILDDATE " /Thorbjoern Ravn Andersen"
+    .buildinfo = " C-BIOS " BUILDSTAMP " /Thorbjoern Ravn Andersen"
 };

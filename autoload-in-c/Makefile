@@ -181,8 +181,8 @@ h=open("clang/qr_data.h").read(); \
 exp=[int(x,16) for x in re.findall(r"0x([0-9a-fA-F]{2})", h.split("qr_screen",1)[1])]; \
 d=open("$(QR_DUMP)").read().splitlines(); \
 got=[int(b,16) for l in d if l.startswith("qr") and l[2:4].isdigit() for b in l.split(":",1)[1].split()]; \
-sys.exit(0 if got==exp and len(exp)==117 else (print("FAIL: QR region mismatch (got %d bytes, expected %d)"%(len(got),len(exp))) or 1))' \
-	    && echo "PASS: QR rendered correctly (attr 0x84 + 117 sextant cells match qr_data.h + error message present)" \
+sys.exit(0 if got==exp and len(exp)>0 else (print("FAIL: QR region mismatch (got %d bytes, expected %d)"%(len(got),len(exp))) or 1))' \
+	    && echo "PASS: QR rendered correctly (attr 0x84 + sextant cells match qr_data.h + error message present)" \
 	    || { echo "FAIL: QR region does not match qr_data.h"; exit 1; }
 
 mame: prom mamesym
@@ -416,7 +416,7 @@ clang/prom.clang.bin: $(CLANG_OBJS) $(CLANG_ZX0_OBJS) clang/rc700_prom.ld
 # neither the date nor the git hash changed since last build.
 clang/build_stamp.h: FORCE
 	@HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "????"); \
-	 BANNER=" RC700 ROA375 CL $$(date '+%Y-%m-%d %H.%M') $$HASH/$$(whoami)"; \
+	 BANNER=" RC700 ROA375 llvm-z80 $$(date '+%Y-%m-%d %H.%M') $$HASH/$$(whoami)"; \
 	 { echo "#define BUILD_BANNER \"$$BANNER\""; \
 	   echo "#define BUILD_BANNER_LENGTH $${#BANNER}"; } > $@.$$$$; \
 	 cmp -s $@.$$$$ $@ 2>/dev/null && rm -f $@.$$$$ || mv $@.$$$$ $@
@@ -517,7 +517,7 @@ sdcc/prom.bin: sdcc/sections.asm rom.c rom.h boot_rom.c intvec.c sdcc/peephole.d
 	@# -- inside the z88dk container git is absent and whoami is "root", which
 	@# left the SDCC banner indistinguishable from a stale clang display.
 	@HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "????"); \
-	 BANNER=" RC700 ROA375 SD $$(date '+%Y-%m-%d %H.%M') $$HASH/$$(whoami)"; \
+	 BANNER=" RC700 ROA375 z88dk/zsdcc 4Kb $$(date '+%Y-%m-%d %H.%M') $$HASH/$$(whoami)"; \
 	 { echo "#define BUILD_BANNER \"$$BANNER\""; \
 	   echo "#define BUILD_BANNER_LENGTH $${#BANNER}"; } > sdcc/build_stamp.h
 	$(Z88DK_DOCKER) sh -c '\
@@ -562,7 +562,7 @@ zsdcc/prom.bin: zsdcc/sections.asm zsdcc/boot.asm zsdcc/banner.c zsdcc/delay.asm
 	@# zsdcc BSS duplication. Fix: build in /tmp with headers in an inc/
 	@# subdir that ucpp never sees as part of the translation-unit cwd.
 	@HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "????"); \
-	 BANNER=" RC700 ROA375 ZS $$(date '+%Y-%m-%d %H.%M') $$HASH/$$(whoami)"; \
+	 BANNER=" RC700 ROA375 z88dk/zsdcc $$(date '+%Y-%m-%d %H.%M') $$HASH/$$(whoami)"; \
 	 BDIR=/tmp/zsdcc_build; rm -rf "$$BDIR"; \
 	 mkdir -p "$$BDIR/inc/sdcc" "$$BDIR/inc/clang" "$$BDIR/zsdcc"; \
 	 { echo "#define BUILD_BANNER \"$$BANNER\""; \
@@ -631,8 +631,7 @@ zsdcc/prom.bin: zsdcc/sections.asm zsdcc/boot.asm zsdcc/banner.c zsdcc/delay.asm
 	 cp prom0__BOOT.bin $(CURDIR)/zsdcc/prom.bin && \
 	 cp prom0.map $(CURDIR)/zsdcc/prom0.map; \
 	 R=$$?; rm -rf "$$BDIR"; exit $$R
-	@PROM=$$(wc -c < zsdcc/prom.bin | tr -d ' '); \
-	 echo "zsdcc PROM: $$PROM bytes"
+	@python3 $(CURDIR)/patch_prom_checksum.py zsdcc/prom.bin
 
 # ================================================================
 # LLVM-Z80 PROM (via native z88dk fork + llvm-z80 backend)
@@ -662,7 +661,7 @@ llvmz80-prom: llvmz80/prom.bin
 llvmz80/build_stamp.h: FORCE
 	@mkdir -p llvmz80
 	@HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "????"); \
-	 BANNER=" RC700 ROA375 LZ $$(date '+%Y-%m-%d %H.%M') $$HASH/$$(whoami)"; \
+	 BANNER=" RC700 ROA375 z88dk/llvm-z80 $$(date '+%Y-%m-%d %H.%M') $$HASH/$$(whoami)"; \
 	 { echo "#define BUILD_BANNER \"$$BANNER\""; \
 	   echo "#define BUILD_BANNER_LENGTH $${#BANNER}"; } > $@.$$$$; \
 	 cmp -s $@.$$$$ $@ 2>/dev/null && rm -f $@.$$$$ || mv $@.$$$$ $@

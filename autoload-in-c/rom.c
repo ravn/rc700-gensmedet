@@ -283,7 +283,7 @@ void display_sw1_status(void) __attribute__((leaf));
  * supplies the quiet zone scanners need. */
 #include "clang/qr_data.h"
 #define QR_TOP 15
-#define QR_LEFT 65 /* bottom-right: cols 65..77 (13 wide), rows 15..23; 0x84 at col 64 */
+#define QR_LEFT 65 /* bottom-right: cols 65..79 (15 wide), rows 15..24; 0x84 at col 64 */
 static void draw_qr(void) {
     const byte *s = qr_screen;
     byte *d = dspstr + QR_TOP * 80 + QR_LEFT;
@@ -637,6 +637,19 @@ static NORETURN void halt_msg(const char *msg) {
         *d++ = *msg++;
     }
     halt_forever();
+}
+
+/* PROM integrity: XOR of all 2048 bytes of the physical PROM must equal 0xA5.
+ * Build patches byte at 0x07FF so the invariant holds. Run before prom_disable(). */
+static void check_prom_integrity(void) {
+    byte xor_acc = 0;
+    const byte *p = (const byte *)0x0000;
+    word i = 2048;
+    do {
+        xor_acc ^= *p++;
+    } while (--i);
+    if (xor_acc != 0xA5)
+        halt_msg(" **PROM CHECKSUM ERROR** ");
 }
 
 /* Compare 6 bytes.
@@ -1075,6 +1088,7 @@ void main_relocated(void)
     load_chargen_font();
 #endif
     display_banner_and_start_crt();
+    check_prom_integrity();
     init_fdc();
     get_floppy_ready();
 }

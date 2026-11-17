@@ -89,7 +89,7 @@ OBJS = boot_block.o boot_confi.o boot_entry.o bios_hw_init.o \
 # linker pulls in only the members codegen references; unused members cost 0 B.
 # Replaces the hand-rolled copies formerly in runtime.s (2026-07-08).
 Z80_RT = $(B)/../lib/z80/z80_rt.a
-bios.clang.cim: $(PARENT)/builddate.h $(OBJS) rc700_bios.ld
+bios.clang.cim: $(PARENT)/buildstamp.h $(OBJS) rc700_bios.ld
 	$(RUN) $(B)/ld.lld --gc-sections --defsym BIOSAD=$(BIOSAD) \
 		-T clang/rc700_bios.ld $(addprefix clang/,$(OBJS)) $(Z80_RT) -o clang/bios.clang.elf
 	$(RUN) $(B)/llvm-objcopy -O binary clang/bios.clang.elf clang/bios.clang.cim
@@ -104,7 +104,7 @@ bios.clang.cim: $(PARENT)/builddate.h $(OBJS) rc700_bios.ld
 		echo "ERROR: RC702 signature not found!"; exit 1; \
 	fi
 
-boot_block.o: $(PARENT)/boot_block.c $(PARENT)/bios.h $(PARENT)/builddate.h $(CLANG_BIN) .cflags
+boot_block.o: $(PARENT)/boot_block.c $(PARENT)/bios.h $(PARENT)/buildstamp.h $(CLANG_BIN) .cflags
 	$(RUN) $(B)/clang $(CFLAGS) -c boot_block.c -o clang/$@
 
 boot_confi.o: $(PARENT)/boot_confi.c $(PARENT)/bios.h $(CLANG_BIN) .cflags
@@ -119,7 +119,7 @@ bios_hw_init.o: $(PARENT)/bios_hw_init.c $(PARENT)/bios.h $(PARENT)/hal.h intrin
 bios_jump_vector_table.o: bios_jump_vector_table.c $(PARENT)/bios.h $(CLANG_BIN) .cflags
 	$(RUN) $(B)/clang $(CFLAGS) -c clang/bios_jump_vector_table.c -o clang/$@
 
-bios.o: $(PARENT)/bios.c $(PARENT)/bios.h $(PARENT)/hal.h intrinsic.h string.h $(PARENT)/builddate.h $(CLANG_BIN) .cflags
+bios.o: $(PARENT)/bios.c $(PARENT)/bios.h $(PARENT)/hal.h intrinsic.h string.h $(PARENT)/buildstamp.h $(CLANG_BIN) .cflags
 	$(RUN) $(B)/clang $(CFLAGS) -c bios.c -o clang/$@
 
 bios_shims.o: bios_shims.s $(CLANG_BIN)
@@ -128,9 +128,9 @@ bios_shims.o: bios_shims.s $(CLANG_BIN)
 runtime.o: runtime.s $(CLANG_BIN)
 	$(RUN) $(B)/clang --target=z80 -c clang/runtime.s -o clang/$@
 
-# Generate builddate.h in parent if needed
-$(PARENT)/builddate.h: FORCE
-	$(MAKE) -C $(PARENT) builddate.h
+# Generate buildstamp.h in parent if needed
+$(PARENT)/buildstamp.h: FORCE
+	$(MAKE) -C $(PARENT) buildstamp.h
 
 FORCE:
 
