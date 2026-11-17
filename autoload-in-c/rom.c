@@ -132,7 +132,7 @@ static void init_devices(void) {
     dma_command(0x20); /* master clear + standard configuration */
     dma_mode(0xC0); /* Ch0: cascade mode (WD1000 hard disk) */
     dma_unmask(0); /* Ch0: enable */
-    dma_mode(0x5A); /* Ch2: single xfer, autoinitialize, read mem->I/O (display) */
+    dma_mode(0x4A); /* Ch2: single xfer, read mem->I/O (display); no autoinit: ISR re-arms at VRTC */
 
     /* Intel 8275 CRT controller (bits 7-5 = command code) */
     crt_command(0x00); /* reset (expect 4 param bytes) */
@@ -1088,6 +1088,7 @@ void main_relocated(void)
     load_chargen_font();
 #endif
     display_banner_and_start_crt();
+    intrinsic_ei();  /* enable 50Hz VRTC ISR so DMA ch2 stays armed each frame */
 #ifdef __SDCC
     check_prom_integrity();
 #endif
