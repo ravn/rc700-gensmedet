@@ -1,12 +1,13 @@
 ; RC702 CP/NET SNIOS (Slave Network I/O System)
-; DRI binary serial protocol over BIOS READER/PUNCH/READS
+; DRI binary serial protocol over SIO (BIOS) or PIO-B (direct hardware)
 ;
 ; Implements the standard DRI CP/NET serial framing:
 ;   Send: ENQ → ACK → SOH+header+HCS → ACK → STX+data+ETX+CKS+EOT → ACK
 ;   Recv: ENQ → ACK → SOH+header+HCS → ACK → STX+data+ETX+CKS+EOT → ACK
 ;
-; Character I/O calls BIOS READER/PUNCH/READS through the standard
-; jump table at DA00h (56K system). No direct hardware access.
+; Supports two dedicated transport variants, selected at assembly time:
+;   - TRANSPORT_SIO: uses BIOS READER/PUNCH/READS (SIO Ch. A). Zero buffer in SNIOS.
+;   - TRANSPORT_PIO: uses Z80-PIO Ch. B + IRQ ring buffer (64 bytes).
 ;
 ; Assembled at ORG 0000h for SPR relocation.
 ; build_snios.py assembles twice and generates the relocation bitmap.
@@ -14,36 +15,33 @@
 
 	.Z80
 
+CR	EQU	0DH
+LF	EQU	0AH
+
 ; BIOS entry points (56K system, BIOS base = DA00h)
+B$CONOUT EQU	0DA0CH		; BIOS CONOUT (send char in C to console)
+
+	IFDEF	TRANSPORT_SIO
 B$PUNCH	EQU	0DA12H		; BIOS PUNCH (send byte in C via SIO Ch.A)
 B$READ	EQU	0DA15H		; BIOS READER (receive byte from SIO Ch.A)
 B$RSTA	EQU	0DA4DH		; BIOS READS (reader status, 0=not ready)
-B$CONOUT EQU	0DA0CH		; BIOS CONOUT (send char in C to console)
+	ELSE
+; RC702 ports — used by PIO transport.
+; Mirrors cpnos-in-c/src/transport_pio.c.
+PIO_B_DATA	EQU	011H	; PIO ch.B data register
+PIO_B_CTRL	EQU	013H	; PIO ch.B control register
 
-; RC702 ports — used by PIO transport (see byte-IO dispatcher below).
-; Mirrors cpnos-in-c/src/transport_pio.c (the cpnos-side equivalent).
-PIO_B_DATA	EQU	011H		; PIO ch.B data register
-PIO_B_CTRL	EQU	013H		; PIO ch.B control register
-SW1		EQU	014H		; DIP-switch bank 1
+; PIO mode-control byte values
+PIO_MODE_OUTPUT	EQU	00FH	; Mode 0 (output)
+PIO_MODE_INPUT	EQU	04FH	; Mode 1 (input)
+PIO_IE_DISABLE	EQU	003H	; interrupt-enable FF: bit7=0 → off
+PIO_IE_ENABLE	EQU	083H	; interrupt-enable FF: bit7=1 → on
+PIO_IE_ENA_RST	EQU	097H	; ICW: enable + mask byte follows
+PIO_INT_MASK	EQU	000H	; mask = 0 → all bits enabled
 
-; SW1 DIP switch bit masks (port 0x14; see docs/SW1_BIT_MAP.md)
-SW1_TRANSPORT_BIT EQU	004H		; bit 2 (S03): 0=PIO, 1=SIO
-
-
-; PIO mode-control byte values (Z80 PIO datasheet section "Control
-; Word Format"; see also docs/SW1_BIT_MAP.md).
-PIO_MODE_OUTPUT	EQU	00FH		; Mode 0 (output)
-PIO_MODE_INPUT	EQU	04FH		; Mode 1 (input)
-PIO_IE_DISABLE	EQU	003H		; interrupt-enable FF: bit7=0 → off
-PIO_IE_ENABLE	EQU	083H		; interrupt-enable FF: bit7=1 → on
-PIO_IE_ENA_RST	EQU	097H		; ICW: enable + mask byte follows
-PIO_INT_MASK	EQU	000H		; mask = 0 → all bits enabled
-
-; IVT slot 17 (PIO-B IRQ) — rcbios's setup_ivt() seeds this with
-; isr_pio_par (a stub, since PIO-B is in OUTPUT mode by default in
-; rcbios).  In PIO transport mode we overwrite the slot with
-; ISR_PIO_RX to redirect arrivals into our ring buffer.
-IVT_PIO_B_OFF	EQU	022H		; 17 × 2 = 0x22
+; IVT slot 17 (PIO-B IRQ) — rcbios's setup_ivt() seeds this with isr_pio_par
+IVT_PIO_B_OFF	EQU	022H	; 17 × 2 = 0x22
+	ENDIF
 
 ; Protocol constants
 SOH	EQU	01H		; Start of Header
@@ -118,109 +116,81 @@ MSGBUF:				; +45 MSG(1)..MSG(128)
 MSGADR:	DS	2		; MESSAGE ADDRESS (SCRATCH)
 RETCNT:	DS	1		; RETRY COUNTER
 
-; PIO transport state (NTWKIN initializes if SW1 bit 2 selects PIO).
+	IFNDEF	TRANSPORT_SIO
+; PIO transport state (NTWKIN initializes).
 PIO_DIR:	DS	1	; 0 = input, 1 = output (PIO-B mode flip)
 PIO_HEAD:	DS	1	; ISR_PIO_RX write head into PIO_RING
 PIO_TAIL:	DS	1	; RECVBY_PIO read tail
-PIO_RING:	DS	256	; SPSC ring; head/tail wrap mod 256 (each DS-reserved byte is 0x00 in the loaded image, which is fine — ring starts empty)
+PIO_RING:	DS	64	; 64-byte SPSC ring; head/tail wrap mod 64 (AND 3FH)
+	ENDIF
 
 ; Retransmit counters — wrapping uint8; zeroed by CP/NET loader on cold start.
-; Reported to console by ERRRTN on protocol failure so they appear in the
-; SIO-B mirror log.  Readable externally (Lua debugscript) at runtime.
 TX_RETRY_CNT:	DS	1	; increments at SNDRET (send-side retransmit)
 RX_RETRY_CNT:	DS	1	; increments at RECALL retry (recv-side retransmit)
 
 ;================================================
-;= CHARACTER I/O DISPATCHERS                    =
+;= CHARACTER I/O IMPLEMENTATIONS                =
 ;================================================
-; SENDBY / RECVBY / RECVBT are 3-byte `JP nn` trampolines.  NTWKIN
-; patches the target at +1 to either *_SIO (default, BIOS-driven) or
-; *_PIO (direct PIO-B + IRQ ring buffer) based on SW1 bit 2.  Once
-; patched, dispatch is zero overhead -- the call lands on the JP,
-; which tail-jumps to the chosen impl, which returns directly to the
-; original caller.  Same pattern cpnos-in-c uses in xport_aliases.asm.
-;
-; Preservation contract is the SAME for both impls -- callers may
-; clobber A but expect HL and DE preserved.
+; Preservation contract: callers may clobber A and flags, but expect
+; HL and DE preserved across byte I/O calls.
 
-SENDBY:	JP	SENDBY_SIO	; +1/+2 patched by NTWKIN if PIO
+	IFDEF	TRANSPORT_SIO
 
-RECVBY:	JP	RECVBY_SIO
-
-RECVBT:	JP	RECVBT_SIO
-
-;================================================
-;= SIO IMPLEMENTATIONS (BIOS PUNCH/READER)      =
-;================================================
-
-; SENDBY_SIO - Send byte in A via BIOS PUNCH.
-; Preserves: HL, DE (BIOS PUNCH may clobber them per CP/M 2.2 spec;
-; MSGOUT's loop counter in E and checksum in D must survive).
-SENDBY_SIO:
+; SENDBY - Send byte in A via BIOS PUNCH.
+; Preserves: HL, DE
+SENDBY:
 	PUSH	HL
 	PUSH	DE
 	LD	C,A
-	CALL	B$PUNCH		; BIOS PUNCH WAITS FOR TX READY
+	CALL	B$PUNCH		; BIOS PUNCH waits for TX ready
 	POP	DE
 	POP	HL
 	RET
 
-; RECVBY_SIO - Receive one byte (busy wait, no timeout)
+; RECVBY - Receive one byte (busy wait, no timeout)
 ; Returns: A = byte, CY clear
-; Preserves: HL, DE (BIOS READER/READS use HL internally)
-RECVBY_SIO:
+; Preserves: HL, DE
+RECVBY:
 	PUSH	HL
 	PUSH	DE
 RCVBY1:	CALL	B$RSTA		; BIOS READER STATUS
 	OR	A
 	JR	Z,RCVBY1
-	CALL	B$READ		; READ BYTE FROM RING BUFFER
+	CALL	B$READ		; read byte from BIOS ring buffer
 	POP	DE
 	POP	HL
-	OR	A		; CLEAR CARRY
+	OR	A		; clear carry
 	RET
 
-; RECVBT_SIO - Receive one byte with timeout
+; RECVBT - Receive one byte with timeout
 ; Returns: A = byte, CY clear on success; CY set on timeout
-RECVBT_SIO:
+RECVBT:
 	PUSH	DE
 	PUSH	HL
-	LD	HL,8000H	; TIMEOUT COUNTER
+	LD	HL,8000H	; timeout counter
 RCVWT1:	CALL	B$RSTA		; BIOS READER STATUS
 	OR	A
-	JR	NZ,RCVWT3	; DATA AVAILABLE
+	JR	NZ,RCVWT3	; data available
 	DEC	HL
 	LD	A,H
 	OR	L
-	JR	NZ,RCVWT1	; KEEP POLLING
+	JR	NZ,RCVWT1	; keep polling
 	; Timeout expired
 	POP	HL
 	POP	DE
-	SCF			; SIGNAL TIMEOUT
+	SCF			; signal timeout
 	RET
-RCVWT3:	CALL	B$READ		; READ BYTE FROM RING BUFFER
+RCVWT3:	CALL	B$READ		; read byte from BIOS ring buffer
 	POP	HL
 	POP	DE
-	OR	A		; CLEAR CARRY (SUCCESS)
+	OR	A		; clear carry (success)
 	RET
 
-;================================================
-;= PIO IMPLEMENTATIONS (direct PIO ch.B + IRQ)  =
-;================================================
-; Mirrors cpnos-in-c/src/transport_pio.c.  PIO-B is in Mode 1 (input)
-; by default once NTWKIN has fired; SENDBY_PIO flips to Mode 0 (output)
-; on first send (PIO_DIR latches the state so subsequent sends skip
-; the mode-switch).  ISR_PIO_RX captures incoming bytes into PIO_RING
-; while in input mode; RECVBY_PIO / RECVBT_PIO drain that ring.
-;
-; Preservation: HL, DE (per the SENDBY/RECVBY/RECVBT contract).
+	ELSE
 
-; SENDBY_PIO - Send byte in A out PIO-B.
-; First call after a recv flips Mode 1 -> Mode 0; subsequent calls
-; just write DATA.  See cpnos transport_pio.c lines 130-145 for the
-; "preload before mode switch" rationale (works on real silicon and
-; MAME's cpnet_bridge wire-once it's running).
-SENDBY_PIO:
+; SENDBY - Send byte in A out PIO-B.
+; Preserves: HL, DE
+SENDBY:
 	PUSH	HL
 	PUSH	DE
 	LD	E,A		; save data byte
@@ -244,26 +214,17 @@ SENDP1:	LD	A,E
 	POP	HL
 	RET
 
-; RECVBY_PIO - Receive one byte with timeout.
-; Returns: A = byte, CY clear on success; CY set on timeout.
-; Identical to RECVBT_PIO — mid-frame byte loss (e.g. from MAME's stuck-IUS
-; emulation bug) must not deadlock the slave.  Timeout allows RCVMSG to retry
-; the frame via RECALL rather than spinning forever (previous behaviour).
-; Timeout budget: ~82 ms (HL=0x8000 * ~10 T-states / 4 MHz) — same as
-; RECVBT_PIO and the SIO RECVBT_SIO equivalent.
-RECVBY_PIO:
-	JP	RECVBT_PIO
+; RECVBY - Receive one byte with timeout (same as RECVBT to avoid hanging).
+RECVBY:
+	JP	RECVBT
 
-; RECVBT_PIO - Receive one byte with timeout.
-; Returns: A = byte, CY clear on success; CY set on timeout.
-; Timeout counter parallel to SIO version (HL = 0x8000).  Each
-; iteration is ~10 T-states; 32768 iters * 10 / 4MHz ≈ 82 ms before
-; CY set.  Matches snios TMRETRY=100 outer loop budget.
-RECVBT_PIO:
+; RECVBT - Receive one byte with timeout from PIO_RING.
+; Returns: A = byte, CY clear on success; CY set on timeout
+RECVBT:
 	PUSH	DE
 	PUSH	HL
 	CALL	PIO_TO_INPUT
-	LD	HL,8000H	; TIMEOUT COUNTER
+	LD	HL,8000H	; timeout counter
 RECVPT1:
 	LD	A,(PIO_HEAD)
 	LD	E,A
@@ -280,23 +241,23 @@ RECVPT1:
 	SCF
 	RET
 RECVPT2:
-	; Ring has data; read at tail, advance tail mod 256.
+	; Ring has data; read at tail, advance tail mod 64.
 	LD	HL,PIO_RING
 	LD	D,0
 	LD	E,A		; A = PIO_TAIL value
 	ADD	HL,DE
 	LD	A,(HL)
 	INC	E
-	LD	HL,PIO_TAIL
-	LD	(HL),E
+	LD	A,E
+	AND	3FH		; wrap mod 64
+	LD	(PIO_TAIL),A
+	LD	A,(HL)		; reload data byte
 	POP	HL
 	POP	DE
-	OR	A		; CLEAR CARRY (success)
+	OR	A		; clear carry (success)
 	RET
 
-; PIO_TO_INPUT - Switch PIO-B back to Mode 1 input if currently in
-; output mode.  Idempotent (no-op when already input).  Preserves
-; all registers except A and flags.
+; PIO_TO_INPUT - Switch PIO-B back to Mode 1 input if currently in output mode.
 PIO_TO_INPUT:
 	LD	A,(PIO_DIR)
 	OR	A
@@ -313,26 +274,23 @@ PIO_TO_INPUT:
 	LD	(PIO_DIR),A
 	RET
 
-; ISR_PIO_RX - PIO-B IRQ handler (installed at IVT slot 17 by NTWKIN's
-; PIO-mode branch).  Reads one byte from PIO_B_DATA, pushes into the
-; SPSC ring at PIO_HEAD, advances head (wraps mod 256).  No ring-full
-; check -- 256 B is far more than the longest CP/NET frame; head
-; overrunning tail would drop bytes silently, but the master's wire
-; pace keeps the ring drained.
+; ISR_PIO_RX - PIO-B IRQ handler.
+; Reads one byte from PIO_B_DATA, pushes into PIO_RING mod 64.
 ISR_PIO_RX:
 	PUSH	AF
 	PUSH	BC
 	PUSH	DE
 	PUSH	HL
 	IN	A,(PIO_B_DATA)	; A = arrived byte
-	LD	C,A		; stash data while we compute address
+	LD	C,A		; stash data while computing address
 	LD	A,(PIO_HEAD)
 	LD	E,A
 	INC	A
-	LD	(PIO_HEAD),A	; advance head (wraps mod 256, 8-bit)
+	AND	3FH		; advance head mod 64
+	LD	(PIO_HEAD),A
 	LD	D,0
 	LD	HL,PIO_RING
-	ADD	HL,DE		; HL = PIO_RING + head
+	ADD	HL,DE		; HL = PIO_RING + old head
 	LD	(HL),C		; store data byte
 	POP	HL
 	POP	DE
@@ -340,6 +298,8 @@ ISR_PIO_RX:
 	POP	AF
 	EI
 	RETI
+
+	ENDIF
 
 ;================================================
 ;= CHECKSUM UTILITIES                           =
@@ -355,8 +315,6 @@ NETOUT:	LD	A,D
 
 ; NETIN - Receive byte, accumulate checksum in D
 ; Returns: A = byte, D updated, Z flag reflects checksum; CY set on timeout.
-; CY from RECVBY is now propagated — MSGIN's RET C guard and all other
-; callers that check RET C after NETIN now correctly abort on timeout.
 NETIN:	CALL	RECVBY		; GET RAW BYTE (CY set on timeout)
 	RET	C		; PROPAGATE TIMEOUT — skip checksum update
 	LD	B,A
@@ -603,154 +561,67 @@ BADCKS:	LD	A,NAK
 ERRRTN:	LD	HL,CFGTBL
 	OR	(HL)
 	LD	(HL),A		; SET ERROR BIT IN STATUS
-	; Report retransmit counts to console so they appear in the SIO-B
-	; mirror log: "CPNET ERR T:xx R:xx\r\n"  (xx = 2-digit hex, no
-	; leading zeros stripped so width is fixed and easy to grep).
-	PUSH	AF
-	PUSH	BC
-	PUSH	DE
-	PUSH	HL
-	LD	HL,ERRMSG
-ERRMSG1: LD	C,(HL)
-	INC	HL
-	LD	A,C
-	OR	A
-	JR	Z,ERRMSG2	; END OF STRING
-	CALL	B$CONOUT
-	JR	ERRMSG1
-ERRMSG2: ; Print TX_RETRY_CNT as two hex digits
-	LD	A,(TX_RETRY_CNT)
-	CALL	PRTHEX
-	LD	C,' '
-	CALL	B$CONOUT
-	LD	C,'R'
-	CALL	B$CONOUT
-	LD	C,':'
-	CALL	B$CONOUT
-	LD	A,(RX_RETRY_CNT)
-	CALL	PRTHEX
-	LD	C,0DH		; CR
-	CALL	B$CONOUT
-	LD	C,0AH		; LF
-	CALL	B$CONOUT
-	POP	HL
-	POP	DE
-	POP	BC
-	POP	AF
 	CALL	NTWKER		; DEVICE RE-INIT IF NEEDED
 SNDERR1:
 	LD	A,0FFH
 	RET
 
-; PRTHEX — print byte in A as two uppercase hex digits via CONOUT.
-; Clobbers: A, C, F.  Preserves: BC (other), DE, HL.
-PRTHEX:	PUSH	BC
-	LD	C,A
-	RRCA
-	RRCA
-	RRCA
-	RRCA
-	AND	0FH
-	ADD	A,'0'
-	CP	'9'+1
-	JR	C,PRTH1
-	ADD	A,'A'-'0'-10
-PRTH1:	CALL	B$CONOUT
-	LD	A,C
-	AND	0FH
-	ADD	A,'0'
-	CP	'9'+1
-	JR	C,PRTH2
-	ADD	A,'A'-'0'-10
-PRTH2:	LD	C,A
-	CALL	B$CONOUT
-	POP	BC
-	RET
-
-; Error report prefix string (null-terminated).
-ERRMSG:	DB	'C','P','N','E','T',' ','E','R','R',' ','T',':',0
-
 ;================================================
 ;= NTWKIN - NETWORK INITIALIZATION               =
 ;================================================
-; CP/NET 1.2: no handshake needed.  Just drain stale bytes,
-; set slave ID and ACTIVE flag.  Login is handled by NDOS (FNC=64).
-; Returns: A = 0 on success
-;
-; Transport selection (mirrors cpnos-in-c convention -- see
-; docs/SW1_BIT_MAP.md): SW1 bit 2 (S03):
-;   On  (bit clear, default) -> PIO transport (Z80-PIO ch.B + IRQ-driven
-;                                ring buffer; mpm-net2 cpnet_bridge)
-;   Off (bit set)            -> SIO transport (existing path: BIOS PUNCH/
-;                                READER on SIO Ch.A)
-;
-; Patches the JP-target at SENDBY / RECVBY / RECVBT in place (3-byte
-; self-modifying-JP, same pattern cpnos-in-c uses with xport_send_byte).
-; Once patched, every CALL SENDBY etc. tail-jumps to the chosen impl
-; with zero per-call dispatch overhead.
 NTWKIN:
-	IN	A,(SW1)
-	AND	SW1_TRANSPORT_BIT
-	JR	NZ,NTWKIN_SIO	; bit set = SIO
+	; 1. Print startup banner to console
+	LD	HL,BANNER_STR
+NTWK_BP:
+	LD	A,(HL)
+	INC	HL
+	OR	A
+	JR	Z,NTWK_BD
+	LD	C,A
+	PUSH	HL
+	CALL	B$CONOUT
+	POP	HL
+	JR	NTWK_BP
+NTWK_BD:
 
-	; ---- PIO mode ----------------------------------------------
-	; Patch the dispatcher JPs to the PIO implementations.  Each
-	; SENDBY / RECVBY / RECVBT is a `JP nn` whose nn is the 2 bytes
-	; following the opcode; load the PIO impl address and store at
-	; the slot's +1 offset.
-	LD	HL,SENDBY_PIO
-	LD	(SENDBY+1),HL
-	LD	HL,RECVBY_PIO
-	LD	(RECVBY+1),HL
-	LD	HL,RECVBT_PIO
-	LD	(RECVBT+1),HL
-
-	; PIO-B chip init.  Mirrors cpnos's pio_b_set_input + isr_pio_par
-	; arming.  rcbios's setup_ivt() seeded slot 17 with isr_pio_par
-	; (a no-op stub since rcbios defaults PIO-B to OUTPUT) -- we
-	; overwrite that slot with our own ISR_PIO_RX, then flip the
-	; chip to Mode 1 input + IE on + mask 0 so every STB from the
-	; cpnet_bridge fires an IRQ that pushes the byte into PIO_RING.
-	DI			; protect IVT patch + chip-state flip
-	LD	A,I		; sample current IVT page (rcbios's I)
+	IFDEF	TRANSPORT_SIO
+	; SIO mode: drain BIOS reader ring buffer of any stale bytes
+NTWKDR:	CALL	B$RSTA
+	OR	A
+	JR	Z,NTWKD1
+	CALL	B$READ
+	JR	NTWKDR
+	ELSE
+	; PIO mode: patch IVT slot 17 and configure PIO-B chip
+	DI
+	LD	A,I
 	LD	H,A
-	LD	L,IVT_PIO_B_OFF	; slot 17 byte offset
-	LD	DE,ISR_PIO_RX	; relocatable (SPR loader fixes high byte)
+	LD	L,IVT_PIO_B_OFF
+	LD	DE,ISR_PIO_RX
 	LD	(HL),E
 	INC	HL
 	LD	(HL),D
 
 	LD	A,PIO_MODE_INPUT
 	OUT	(PIO_B_CTRL),A
-	LD	A,PIO_IE_ENA_RST	; ICW: enable + mask follows
+	LD	A,PIO_IE_ENA_RST
 	OUT	(PIO_B_CTRL),A
-	LD	A,PIO_INT_MASK		; mask = 0 (all bits enabled)
+	LD	A,PIO_INT_MASK
 	OUT	(PIO_B_CTRL),A
-	LD	A,PIO_IE_ENABLE		; latch IE on
+	LD	A,PIO_IE_ENABLE
 	OUT	(PIO_B_CTRL),A
 
-	; Reset ring buffer head=tail=0 + direction state.
 	XOR	A
-	LD	(PIO_DIR),A	; 0 = input (we're in INPUT mode now)
+	LD	(PIO_DIR),A
 	LD	(PIO_HEAD),A
 	LD	(PIO_TAIL),A
 	EI
-	JR	NTWKD1		; common slave-id / ACTIVE bits
+	ENDIF
 
-NTWKIN_SIO:
-	; SIO mode: drain BIOS reader ring buffer of any null-modem
-	; init zeros captured during boot (must happen before the
-	; first protocol exchange).
-NTWKDR:	CALL	B$RSTA		; reader status
-	OR	A
-	JR	Z,NTWKD1	; buffer empty
-	CALL	B$READ		; consume and discard
-	JR	NTWKDR
 NTWKD1:
-	; Set slave ID (must match server expectation)
+	; Set slave ID and mark network active
 	LD	A,SLAVEID
 	LD	(CFGTBL+1),A
-	; Mark network active
 	LD	A,ACTIVE
 	LD	(CFGTBL+0),A
 	XOR	A
@@ -762,7 +633,6 @@ NTWKD1:
 ;================================================
 
 ; NTWKST - Return network status
-; Returns: A = status byte (errors cleared after read)
 NTWKST:	LD	A,(CFGTBL+0)
 	LD	B,A
 	AND	NOT (RCVERR+SNDERR)
@@ -771,7 +641,6 @@ NTWKST:	LD	A,(CFGTBL+0)
 	RET
 
 ; CNFTBL - Return configuration table address
-; Returns: HL = CFGTBL address
 CNFTBL:	LD	HL,CFGTBL
 	RET
 
@@ -779,19 +648,32 @@ CNFTBL:	LD	HL,CFGTBL
 NTWKBT:	XOR	A
 	RET
 
-; NTWKER - Network error handler (device re-init if needed)
+; NTWKER - Network error handler
 NTWKER:	RET
 
-; NTWKDN - Network shutdown
-; Sends FNC=FEh to notify server
-NTWKDN:	LD	IX,MSGBUF
-	LD	(IX+0),0	; FMT = 0
-	LD	(IX+3),0FEH	; FNC = 254 (SHUTDOWN)
-	LD	(IX+4),0	; SIZ = 0
+; NTWKDN - Network shutdown (FNC=FEh)
+NTWKDN:	XOR	A
+	LD	(MSGBUF),A	; FMT = 0
+	LD	(MSGBUF+4),A	; SIZ = 0
+	LD	A,0FEH		; FNC = 254 (SHUTDOWN)
+	LD	(MSGBUF+3),A
 	LD	BC,MSGBUF
 	CALL	SNDMS0		; SEND (BYPASS ACTIVE CHECK)
 	XOR	A
 	RET
+
+;================================================
+;= BANNER DEFINITION                             =
+;================================================
+BANNER_STR:
+	DB	CR,LF,'RC702 SNIOS ('
+	IFDEF	TRANSPORT_SIO
+	DB	'SIO) '
+	ELSE
+	DB	'PIO) '
+	ENDIF
+	INCLUDE	'buildinfo.inc'
+	DB	CR,LF,0
 
 SNIOS_END:
 

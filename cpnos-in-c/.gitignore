@@ -18,6 +18,7 @@ sdcc/cpnos.rom
 sdcc/cpnos.sym
 sdcc/cpnos_*.bin
 sdcc/cpnos_*.com
+sdcc/cpnos_*.sys
 sdcc/cpnos_addrs.h
 sdcc/cpnos_buildinfo.h
 sdcc/cpnos_layout.asm

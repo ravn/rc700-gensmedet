@@ -55,6 +55,8 @@ cp "$IMG_MAXI" "$WORK/disk.imd"
 $PATCH "$WORK/disk.imd" "$BIOS_CIM" > /dev/null
 FORMAT="rc702-8dd"
 $CPMCP -f "$FORMAT" "$WORK/disk.imd" "$HERE/cpnet/zout/SNIOS.SPR" "0:SNIOS.SPR" > /dev/null
+$CPMCP -f "$FORMAT" "$WORK/disk.imd" "$HERE/cpnet/zout/SNIOSSIO.SPR" "0:SNIOSSIO.SPR" > /dev/null
+$CPMCP -f "$FORMAT" "$WORK/disk.imd" "$HERE/cpnet/zout/SNIOSPIO.SPR" "0:SNIOSPIO.SPR" > /dev/null
 for f in "$CPNET_DIST"/*.com "$CPNET_DIST"/*.spr; do
     NAME=$(basename "$f" | tr '[:lower:]' '[:upper:]')
     $CPMCP -f "$FORMAT" "$WORK/disk.imd" "$f" "0:$NAME" > /dev/null

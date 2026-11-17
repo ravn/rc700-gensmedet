@@ -7,6 +7,7 @@ local EXIT_SECS = tonumber(os.getenv("LOGIN_TRACE_SECS") or "45")
 
 local frame = 0
 local done = false
+local dumped_mid = false
 local io_space, prog_space
 local tap_r, tap_w
 
@@ -47,6 +48,11 @@ emu.register_frame_done(function()
         tap_w = io_space:install_write_tap(0x08, 0x0B, "sioa_w",
             function(offset, data, mask) log("W", offset, data) end)
         f:write(string.format("# tap installed at frame 1 (t=%.3f ms)\n", now_ms()))
+    end
+
+    if not dumped_mid and now_ms() / 1000.0 >= 18.0 then
+        screen_dump("cpnetldr")
+        dumped_mid = true
     end
 
     if now_ms() / 1000.0 >= EXIT_SECS then

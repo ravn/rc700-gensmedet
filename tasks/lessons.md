@@ -492,3 +492,33 @@ Comparing raw and compressed codegen between LLVM-Z80 (Clang) and ZSDCC 4.6.0 on
 
 See `tasks/codegen-comparison-llvmz80-vs-zsdcc-2026-11-17.md` for full side-by-side assembly listings and detailed cycle counts.
 
+## 2026-11-17 — CP/M 2.2 `$$$.SUB` binary record structure vs. plain text `.SUB`
+
+When automating CP/M 2.2 boot sequences via `$$$.SUB`:
+
+1. **`$$$.SUB` is NOT an ASCII text file**: CP/M 2.2 CCP processes `$$$.SUB` directly as binary 128-byte records.
+2. **Reverse record ordering**: The CCP reads and executes commands backwards starting from the *last* 128-byte record in the file. After reading the last record, it decrements the file record count (or erases the file if it was the last command) and executes the command buffer.
+3. **Record layout**: In each 128-byte record:
+   - Byte 0: Command length `len` (1 byte, `len <= 127`).
+   - Bytes 1..`len`: ASCII command characters in uppercase without trailing CR/LF.
+   - Bytes `len+1`..127: Zero-padded (`0x00`).
+4. **Shell escaping trap**: Writing commands like `cpmcp ... '0:$$$.SUB'` inside double quotes (`"..."`) in bash/zsh causes the shell to evaluate `$$` to its PID (`48300$.SUB`). CCP ignores the misnamed file and boots to a silent `A>` prompt. Always escape `\$\$\$.SUB` or use Python script files with explicit argument lists.
+5. **Dual staging**: Always stage both `0:$$$.SUB` (binary reversed records for instant boot auto-execution) and `0:AUTO.SUB` (ASCII text with CRLF line endings for manual `SUBMIT AUTO`).
+
+## 2026-11-17 — CP/NET SNIOS variant splitting for maximum TPA
+
+In CP/M 2.2 with CP/NET, `CPNETLDR` relocates SNIOS and NDOS to the top of memory immediately below the BIOS:
+
+1. **Independent buffers**: SIO transport uses the RC702 BIOS reader buffer (`rxbuf_a`) located in high BIOS RAM, requiring zero buffer bytes in SNIOS. PIO transport requires an internal ring buffer (`PIO_RING`) inside SNIOS.
+2. **Page granularity in SPR loader**: `CPNETLDR` allocates SNIOS in whole 256-byte pages (`ceil((code_len + bitmap_len) / 256)`).
+3. **Dedicated builds yield larger TPA**:
+   - Splitting `snios.asm` into dedicated `TRANSPORT_SIO` and `TRANSPORT_PIO` builds shrinks the SIO variant from ~980 bytes to 722 bytes (0x02D2).
+   - `SNIOSSIO.SPR` fits into **3 pages** (768 bytes, `0xC900..0xCBFF`), placing NDOS at `0xBD00` and delivering a **47.0 KB TPA** (48,128 bytes, a +512 byte gain over the combined build).
+   - `SNIOSPIO.SPR` with a 64-byte `PIO_RING` fits into **4 pages** (1,024 bytes, `0xC800..0xCBFF`), giving a **46.75 KB TPA** (47,872 bytes, +256 byte gain).
+
+## 2026-11-17 — BIOS CONOUT pointer clobbering in startup banner loops
+
+Calling the RC702 BIOS console output function (`B$CONOUT` / `bios_conout_c`) passes the character in `C`, but the C-compiled BIOS entry point clobbers `HL`.
+In a startup banner loop iterating through a NUL-terminated string (`LD A,(HL); INC HL; CALL B$CONOUT`), failure to preserve `HL` (`PUSH HL` / `POP HL`) corrupts the string pointer on the very first character, causing infinite blank scrolling lines or crashes.
+
+

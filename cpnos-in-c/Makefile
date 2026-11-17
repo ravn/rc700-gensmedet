@@ -80,6 +80,9 @@ PIO_SPEED_TEST    ?= 0
 #   make cpnos COMPILER=sdcc      # SDCC build (in progress)
 #   make cpnos COMPILER=hitech    # HiTech (not yet implemented)
 COMPILER ?= clang
+ifeq ($(COMPILER),zsdcc)
+  override COMPILER := sdcc
+endif
 BUILDDIR  = $(COMPILER)
 
 # Host-agnostic locator for the native llvm-z80 toolchain bin dir

@@ -1,5 +1,15 @@
 # RC700-SYSGEN Project Timeline
 
+## 2026-11-17 — Split CP/NET SNIOS into SIO and PIO variants; startup banner & auto-boot disk
+
+Refactored `cpnet/snios.asm` and `cpnet/build_snios.py` to assemble separate, optimized SNIOS variants for CP/M 2.2:
+- `SNIOSSIO.SPR`: Dedicated SIO transport without PIO ring buffer or dead driver code. Code fits in 722 bytes (0x02D2) across 3 pages (768 bytes, 0xC900..0xCBFF), moving NDOS to 0xBD00 and expanding TPA to 48,128 bytes (47.0 KB, +512 bytes gained).
+- `SNIOSPIO.SPR`: Dedicated PIO transport with 64-byte PIO_RING. Fits in 4 pages (1,024 bytes, 0xC800..0xCBFF), expanding TPA to 47,872 bytes (46.75 KB, +256 bytes gained).
+- `SNIOS.SPR`: Retained as default copy of `SNIOSSIO.SPR`.
+- Startup banner: NTWKIN outputs `RC702 SNIOS (<variant>) <timestamp> <git-sha>` on network init via BIOS `B$CONOUT`, with `HL` register preservation.
+- Interactive disk preparation: Added `cpnet/prepare_interactive_disk.py` staging `0:$$$.SUB` (binary 128-byte records in reverse CCP order) and `0:AUTO.SUB` (ASCII with CRLF). Automatically loads CP/NET (`CPNETLDR`), logs into MP/M (`LOGIN PASSWORD`), maps master hard disk I: to slave H: (`NETWORK H:=I:`), switches to H:, and lists PolyPascal tools with `DIR`.
+- Verified end-to-end in MAME with live MP/M server on port 4002 and headless `chksum_roundtrip_test.sh`.
+
 ## 2026-10-31 — Sequential H1 layout, no ORG or fixed table aliases
 
 At user request removed all 90 ORG directives from src/dd759h1.a86.
