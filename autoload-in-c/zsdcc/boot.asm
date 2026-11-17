@@ -1,7 +1,7 @@
 ; boot.asm -- Boot entry point and ZX0 decompressor for zsdcc autoload PROM
 ;
 ; Reset vector at 0x0000: disables interrupts, initializes SP to 0xBFFF,
-; decompresses ZX0 payload into RAM at 0x7200, zeros BSS, and jumps to _main_relocated.
+; decompresses ZX0 payload into RAM at 0x6000, zeros BSS, and jumps to _main_relocated.
 ; dzx0_standard and BSS clearing all fit before NMI vector at 0x0066 (padded with 0xFF + retn).
 
 	SECTION _BOOT

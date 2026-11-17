@@ -25,13 +25,19 @@
 
 /* Forward declarations for static functions used before their definitions. */
 static void error_display_halt(byte code);
-static void floppy_legacy_boot(void);
+static NORETURN void floppy_legacy_boot(void);
+static NORETURN void boot_from_floppy_or_jump_prom1(void);
+static NORETURN void get_floppy_ready(void);
 static NORETURN void prom1_if_present(void);
 
 /* Wait for FDC ready-to-write, then write val to data register.
  * Polls MSR until RQM=1 and DIO=0 (CPU->FDC direction).
  * Matches ROA375 FL02: on 64K timeout calls FDCTOUT -> CHECKPROM1. */
-static void fdc_write_when_ready(byte val) {
+static void fdc_write_when_ready(byte val)
+#ifdef __SDCC
+    __preserves_regs(b, h, l, iyl, iyh)
+#endif
+{
     word t = 0;
     do {
         if ((fdc_status() & 0b11000000) == 0b10000000) {
@@ -46,7 +52,11 @@ static void fdc_write_when_ready(byte val) {
  * Polls MSR until RQM=1 and DIO=1 (FDC->CPU direction).
  * Returns 0xFF on timeout (instead of valid data).
  */
-static byte fdc_read_when_ready(void) {
+static byte fdc_read_when_ready(void)
+#ifdef __SDCC
+    __preserves_regs(d, e, h, l, iyl, iyh)
+#endif
+{
     word t = 0;
     do {
         if ((fdc_status() & 0b11000000) == 0b11000000) {
@@ -81,11 +91,13 @@ static byte fdc_read_when_ready(void) {
         (byte)((_DELAY_INNER_1(ms) <= 255) ? _DELAY_INNER_1(ms) : _DELAY_INNER_2(ms)) \
     )
 
+void delay(byte outer, byte inner)
 #ifdef __clang__
-void delay(byte outer, byte inner) __attribute__((leaf));
-#else
-void delay(byte outer, byte inner);
+    __attribute__((leaf))
+#elif defined(__SDCC)
+    __preserves_regs(d, e, h, l, iyl, iyh)
 #endif
+;
 
 /* ================================================================
  * 2. Initialization
@@ -586,8 +598,6 @@ fdc_result_block fdc_result;
 /* zsdcc 4.5: explicit = 0 initializers cause BSS/data_compiler duplication.
  * Globals are zero-initialized by C spec; drop explicit initializers. */
 byte drive_select;
-byte fdc_isr_delay;
-byte fdc_result_delay;
 fdc_command_block fdc_cmd;
 volatile byte floppy_operation_completed_flag;
 byte is_mini;
@@ -745,7 +755,6 @@ static void fdc_read_data_from_current_location(word total_bytes_to_read) {
         byte r = fdc_select_drive_cylinder_head();
         if (r == 1) {
             prom1_if_present();
-            return;
         }
         if (r != 0) {
             error_display_halt(0x06);
@@ -802,7 +811,6 @@ static void init_fdc(void) {
         /* FDC never became ready (e.g. no drive / hardware unresponsive).
          * Skip floppy boot and fall through to PROM1 lineprog / halt. */
         prom1_if_present();
-        return;
     }
     fdc_write_when_ready(0x03);  /* Specify command */
     fdc_write_when_ready(0x4F);  /* step rate 3ms, head unload 240ms */
@@ -811,9 +819,7 @@ static void init_fdc(void) {
 
 /* Initialize boot state and start floppy boot.
  * Placed before fldsk1 for tail-call fall-through (saves 3 bytes). */
-static void get_floppy_ready(void) {
-    fdc_isr_delay = 3;
-    fdc_result_delay = 4;
+static NORETURN void get_floppy_ready(void) {
     is_mini = (byte)((read_sw1() & SW1_FLOPPY_MINI_BIT) >> 7); /* SW1 bit 7: 0=maxi, 1=mini */
 
     intrinsic_ei();
@@ -824,7 +830,7 @@ static void get_floppy_ready(void) {
 
 /* Floppy boot sequence: sense, recalibrate, detect, read, boot.
  * Placed before floppy_legacy_boot for tail-call fall-through (saves 3 bytes). */
-static void boot_from_floppy_or_jump_prom1(void) {
+static NORETURN void boot_from_floppy_or_jump_prom1(void) {
     byte status;
 
     delay_ms(391);  /* motor spin-up: original ROM uses B=1,C=0xFF ≈ 391ms */
@@ -842,7 +848,6 @@ static void boot_from_floppy_or_jump_prom1(void) {
     if (status != (byte)(drive_select + 0b00100000) || /* expect RDY + matching drive */
         verify_seek_result(0) != 0) {
         prom1_if_present();
-        return;
     }
 
     /* detect disk format on both sides (inlined detect_floppy_format) */
@@ -855,7 +860,6 @@ static void boot_from_floppy_or_jump_prom1(void) {
     fdc_cmd.head = 0;
     if (fdc_detect_sector_size_and_density() != 0) {
         prom1_if_present();
-        return;
     }
 
     prom_disable(); /* disable ROM overlay -- now all ram accessible */
@@ -876,7 +880,7 @@ static void boot_from_floppy_or_jump_prom1(void) {
  * Reads up to INTVEC_ADDR (0x7000) bytes — enough to fill memory from
  * 0x0000 to just below the IVT.  The original ROM passes HL=INTVEC to
  * RDTRK0 as the byte count. */
-static void floppy_legacy_boot(void) {
+static NORETURN void floppy_legacy_boot(void) {
     disk_type = (byte)((is_mini << 7) | disk_type);
     disk_type--;
     fdc_detect_sector_size_and_density();
@@ -1073,8 +1077,6 @@ void main_relocated(void)
     display_banner_and_start_crt();
     init_fdc();
     get_floppy_ready();
-    // ReSharper disable once CppDFAEndlessLoop
-    for (;;);  // halt if ever getting back here.
 }
 #ifdef __clang__
 #pragma clang diagnostic pop
@@ -1086,7 +1088,9 @@ void main_relocated(void)
  * sections including data_compiler and bss_compiler).
  * payload_size = code_end - intvec + 1.
  * ================================================================ */
+#if !defined(__SDCC) || defined(LEGACY_SDCC_BOOT)
 #ifdef __SDCC
 #pragma constseg code_sentinel
 #endif
 const byte code_end = 0xFF;
+#endif

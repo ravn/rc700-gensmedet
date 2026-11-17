@@ -594,19 +594,35 @@ zsdcc/prom.bin: zsdcc/sections.asm zsdcc/boot.asm zsdcc/banner.c zsdcc/delay.asm
 	     -o prom0 sections.asm intvec.o banner.o delay.o rom.o boot.o && \
 	 RAW=$$(wc -c < prom0_CODE.bin | tr -d ' ') && \
 	 echo "    CODE raw = $$RAW bytes" && \
+	 BSS_HEAD=$$(awk '/^__bss_compiler_head / {gsub(/\$$/, "", $$3); print $$3; exit}' prom0.map); \
+	 if [ -z "$$BSS_HEAD" ]; then echo "ERROR: __bss_compiler_head not found in map"; exit 1; fi; \
+	 CODESIZE=$$((0x$$BSS_HEAD - 0x6000)); \
+	 dd if=prom0_CODE.bin of=prom0_CODE_stripped.bin bs=1 count=$$CODESIZE 2>/dev/null && \
+	 STRIPPED=$$(wc -c < prom0_CODE_stripped.bin | tr -d ' ') && \
+	 echo "    CODE stripped (excl BSS) = $$STRIPPED bytes" && \
 	 echo "=== ZX0 compress ===" && \
-	 $(Z88DK_ZX0) -f prom0_CODE.bin $(CURDIR)/zsdcc/text_compressed.zx0 && \
+	 $(Z88DK_ZX0) -f prom0_CODE_stripped.bin $(CURDIR)/zsdcc/text_compressed.zx0 && \
 	 cp $(CURDIR)/zsdcc/text_compressed.zx0 zsdcc/text_compressed.zx0 && \
 	 echo "=== roundtrip verify: z88dk-dzx0 must reproduce pass-1 CODE exactly ===" && \
 	 rm -f text_roundtrip.bin && \
 	 $(Z88DK_DZX0) zsdcc/text_compressed.zx0 text_roundtrip.bin && \
-	 cmp prom0_CODE.bin text_roundtrip.bin || { echo "FAIL: ZX0 roundtrip mismatch"; exit 1; } && \
-	 echo "    OK: $$(wc -c < prom0_CODE.bin | tr -d ' ') bytes raw -> $$(wc -c < zsdcc/text_compressed.zx0 | tr -d ' ') bytes compressed; roundtrip exact" && \
+	 cmp prom0_CODE_stripped.bin text_roundtrip.bin || { echo "FAIL: ZX0 roundtrip mismatch"; exit 1; } && \
+	 python3 $(CURDIR)/check_preserves_regs.py prom0.map text_roundtrip.bin $(Z88DK_NATIVE)/bin/z88dk-dis && \
+	 echo "    OK: $$STRIPPED bytes raw -> $$(wc -c < zsdcc/text_compressed.zx0 | tr -d ' ') bytes compressed; roundtrip exact" && \
 	 echo "=== pass 2: re-assemble boot.o + final link ===" && \
 	 ZCCCFG=$(ZCCCFG_NATIVE) $(ZCC_NATIVE) $(ZSDCC_FLAGS) -c boot.asm -o boot.o && \
 	 ZCCCFG=$(ZCCCFG_NATIVE) $(ZCC_NATIVE) $(ZSDCC_FLAGS) \
 	     $(ZSDCC_LFLAGS) \
 	     -o prom0 sections.asm intvec.o banner.o delay.o rom.o boot.o && \
+	 BSS_HEAD2=$$(awk '/^__bss_compiler_head / {gsub(/\$$/, "", $$3); print $$3; exit}' prom0.map); \
+	 BSS_SIZE=$$(awk '/^__bss_compiler_size / {gsub(/\$$/, "", $$3); print "0x"$$3; exit}' prom0.map | xargs printf '%d\n' 2>/dev/null); \
+	 if [ -z "$$BSS_SIZE" ] || [ "$$BSS_SIZE" -lt 2 ]; then \
+	   echo "ERROR: __bss_compiler_size must be >= 2 for ldir boot loop (was $$BSS_SIZE)"; exit 1; \
+	 fi; \
+	 L_JPHL=$$(awk '/^l_jphl / {gsub(/\$$/, "", $$3); print "0x"$$3; exit}' prom0.map | xargs printf '%d\n' 2>/dev/null); \
+	 if [ -n "$$L_JPHL" ] && [ "$$L_JPHL" -ge "$$((0x$$BSS_HEAD2))" ]; then \
+	   echo "ERROR: l_jphl (0x$$(printf '%x\n' $$L_JPHL)) placed at or after BSS (0x$$BSS_HEAD2)"; exit 1; \
+	 fi; \
 	 IVT=$$(awk '/^_intvec / {gsub(/\$$/, "", $$3); print "0x"$$3; exit}' prom0.map | xargs printf '%d\n' 2>/dev/null); \
 	 if [ -z "$$IVT" ]; then echo "ERROR: _intvec not found in map"; exit 1; fi; \
 	 if [ $$(($$IVT % 256)) -ne 0 ]; then \

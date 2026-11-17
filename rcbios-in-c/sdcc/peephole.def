@@ -108,7 +108,7 @@
 =
 	ret
 
-s	jp	%1
+	jp	%1
 %1:
 =
 %1:
@@ -167,4 +167,70 @@ l_%1:
 =
 	jp	NZ,l_%2
 l_%1:
+
+	push	hl
+	ld	a, l
+	out	(%1), a
+	pop	hl
+	ld	a, h
+	out	(%1), a
+=
+	ld	a, l
+	out	(%1), a
+	ld	a, h
+	out	(%1), a
+
+	push	hl
+	ld	a, l
+	out	(%1), a
+	pop	hl
+=
+	ld	a, l
+	out	(%1), a
+
+	jr	%1
+%2:
+	ld	a,%3
+%1:
+	ret
+=
+	ret
+%2:
+	ld	a,%3
+%1:
+	ret
+
+	jr	%1
+%2:
+	xor	a, a
+%1:
+	ret
+=
+	ret
+%2:
+	xor	a, a
+%1:
+	ret
+
+	ld	(%1),hl
+	ld	hl, (%1)
+=
+	ld	(%1),hl
+
+	ld	(%1),hl
+	ld	hl,(%1)
+=
+	ld	(%1),hl
+
+	ld	(%1),a
+	ld	a, (%1)
+=
+	ld	(%1),a
+
+	ld	(%1),a
+	ld	a,(%1)
+=
+	ld	(%1),a
+
+
 

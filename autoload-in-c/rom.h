@@ -30,7 +30,7 @@
 #define ISR_BODY_INLINE static __attribute__((always_inline)) inline
 #define ALWAYS_INLINE static __attribute__((always_inline)) inline
 #elif defined(__SDCC)
-#define NORETURN
+#define NORETURN _Noreturn
 #define ISR_BODY_INLINE static inline
 #define ALWAYS_INLINE static inline
 #else
@@ -96,7 +96,7 @@ typedef uint16_t word;
 
 /* Memory layout constants */
 #define INTVEC_ADDR 0x6000      /* IVT base — room for CODE before 0x7830 */
-#define INTVEC_PAGE (INTVEC_ADDR >> 8)  /* I register value (0x60) */
+#define INTVEC_PAGE 0x60        /* I register value (0x6000 >> 8) */
 #define ROM_STACK   0xBFFF      /* Stack set by ROM entry / INIT_RELOCATED */
 #define FLOPPYDATA  0x0000      /* Track 0 loaded here by ROM */
 #define LEGACYBOOT   0x1000      /* COMAL-80 boot address */
@@ -277,16 +277,7 @@ DEFPORT(dma_clbp,     0xFC)
 /* DI/EI/IM2/set_i_reg intrinsics */
 #ifdef __SDCC
 #include <intrinsic.h>
-/* __INTVEC_ONLY: defined in intvec.c to suppress set_i_reg emission there.
- * set_i_reg is static, so SDCC emits it in every TU that includes rom.h,
- * even if it's unused. This would push intvec[] away from the $xx00 boundary
- * required for Z80 IM2 (I register must point to exact start of IVT). */
-#ifndef __INTVEC_ONLY
-static void set_i_reg(byte page) {
-    (void) page;  /* sdcccall(1) passes byte in A */
-    __asm__("ld i, a\n");
-}
-#endif
+#define set_i_reg(page) __asm__("ld a, #" STR(page) "\n\tld i, a\n")
 #elif defined(__z80__) || defined(__LLVMZ80)
 #include "clang/intrinsic.h"
 static inline void intrinsic_im_2(void) { __asm__ volatile("im 2"); }
@@ -367,8 +358,6 @@ typedef struct {
 
 extern fdc_result_block fdc_result;
 extern byte drive_select;      /* drive select */
-extern byte fdc_isr_delay;      /* FDC timeout counter (init=3) */
-extern byte fdc_result_delay;      /* FDC wait count (init=4) */
 /* FDC command parameter block — 7 contiguous bytes sent by floppy_read_track().
  * Fields map to uPD765 Read Data parameters: C, H, R, N, EOT, GPL, DTL. */
 typedef struct {
@@ -409,7 +398,9 @@ extern byte error_saved;      /* saved error code */
 /* entry points and linker-visible symbols */
 void start(void);
 void main_relocated(void);
+#if !defined(__SDCC) || defined(LEGACY_SDCC_BOOT)
 extern const byte code_end;
+#endif
 #if defined(__z80__) || defined(__LLVMZ80)
 extern const char banner_string[];
 #endif
