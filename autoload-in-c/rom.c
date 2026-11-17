@@ -272,17 +272,19 @@ void display_sw1_status(void) __attribute__((leaf));
 #include "clang/qr_data.h"
 #define QR_TOP 15
 #define QR_LEFT 65 /* bottom-right: cols 65..77 (13 wide), rows 15..23; 0x84 at col 64 */
-#define draw_qr() do { \
-    const byte *s = qr_screen;                  /* sequential over all 117 cells */ \
-    byte *d = dspstr + QR_TOP * 80 + QR_LEFT;   /* screen dest, +80 per row */ \
-    byte r, c; \
-    d[-1] = 0x84; \
-    for (r = 0; r < QR_ROWS; r++) { \
-        for (c = 0; c < QR_COLS; c++) \
-            *d++ = *s++;                        /* both pointers advance (HL/BC) */ \
-        d += 80 - QR_COLS;                      /* skip to next row */ \
-    } \
-} while (0)
+static void draw_qr(void) {
+    const byte *s = qr_screen;
+    byte *d = dspstr + QR_TOP * 80 + QR_LEFT;
+    byte r = QR_ROWS;
+    d[-1] = 0x84;
+    do {
+        byte c = QR_COLS;
+        do {
+            *d++ = *s++;
+        } while (--c);
+        d += 80 - QR_COLS;
+    } while (--r);
+}
 
 #define display_banner_and_start_crt() do { \
     display_clear_and_banner(); \
@@ -331,10 +333,7 @@ static const format_entry eot_gap3_table[16] = {
 /* Look up format parameters from disk type and sector size code. */
 static void lookup_sectors_and_gap3_for_current_track(void) {
     byte idx = (byte)((is_mini << 3) | (fdc_cmd.size_shift << 1) | is_mfm);
-    const format_entry *fmt = &eot_gap3_table[idx];
-
-    fdc_cmd.eot = fmt->eot;
-    fdc_cmd.gap3 = fmt->gap3;
+    *(word *)&fdc_cmd.eot = *(const word *)&eot_gap3_table[idx];
     fdc_cmd.dtl = 0x80;
 }
 
@@ -343,16 +342,12 @@ static void lookup_sectors_and_gap3_for_current_track(void) {
 static void calc_size_of_current_track(void) {
     byte sectors = ((disk_type & 0b10000000) && fdc_cmd.head == 1)
                        ? 10 /* maxi, head 1: only 10 sectors - probably a hack */
-                       : fdc_cmd.eot - fdc_cmd.sector + 1;
+                       : (byte)(fdc_cmd.eot - fdc_cmd.sector + 1);
 
-    word tb = (word)sectors << 8;
-    if (fdc_cmd.size_shift == 0) {
-        tb >>= 1;
-    } else {
-        byte s = fdc_cmd.size_shift;
-        while (--s) {
-            tb <<= 1;
-        }
+    word tb = (word)sectors << 7;
+    byte s = fdc_cmd.size_shift;
+    while (s--) {
+        tb <<= 1;
     }
     dma_transfer_size = tb;
 }
@@ -657,11 +652,8 @@ static byte check_sysfile(const byte *dir, const byte *pattern) {
         }
     } while (--i);
 
-    /* dir now at dir[5], check attribute at dir[8] */
-    if ((dir[3] & 0b00111111) != 0x13) {
-        return 1;
-    }
-    return 0;
+    /* dir now at dir[5], check attribute at dir[8] (0 = match) */
+    return (dir[3] & 0b00111111) ^ 0x13;
 }
 
 /* Display error and halt (unless disk_type indicates retry). */
@@ -847,7 +839,7 @@ static void boot_from_floppy_or_jump_prom1(void) {
     fdc_write_when_ready(FDC_RECALIBRATE);
     fdc_write_when_ready(drive_select);
 
-    if (status != (drive_select + 0b00100000) || /* expect RDY + matching drive */
+    if (status != (byte)(drive_select + 0b00100000) || /* expect RDY + matching drive */
         verify_seek_result(0) != 0) {
         prom1_if_present();
         return;
@@ -892,29 +884,6 @@ static void floppy_legacy_boot(void) {
     fdc_read_data_from_current_location(INTVEC_ADDR);
     disk_type = 1;
     jump_to(LEGACYBOOT);
-}
-
-/* BIOS syscall: read sectors from disk.
- * addr = DMA destination, bc = packed cylinder/head/sector. */
-static void syscall(word addr, word de) {
-    byte d = (byte) (de >> 8);
-    byte e = (byte) (de & 0b11111111);
-
-    dma_transfer_address = addr;
-    fdc_cmd.sector = e & 0b01111111;
-    fdc_cmd.cylinder = d & 0b01111111;
-
-    if (fdc_cmd.cylinder == 0) {
-        fdc_detect_sector_size_and_density();
-    }
-
-    fdc_cmd.head = (d & 0b10000000) ? 1 : 0;
-    fdc_read_data_from_current_location(0);
-
-    if ((d & 0b01111111) == 0) {
-        fdc_cmd.cylinder = 1;
-        fdc_detect_sector_size_and_density();
-    }
 }
 
 /* ================================================================

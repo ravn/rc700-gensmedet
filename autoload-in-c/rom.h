@@ -394,7 +394,7 @@ extern byte error_saved;      /* saved error code */
 /* boot */
 /* display_banner_and_start_crt: static in rom.c (single call site) */
 /* error_display_halt, floppy_legacy_boot, prom1_if_present, halt_forever,
- * compare_6bytes, check_sysfile, syscall — all static in rom.c */
+ * compare_6bytes, check_sysfile — all static in rom.c */
 
 /* entry points and linker-visible symbols */
 void start(void);

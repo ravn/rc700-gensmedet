@@ -9147,13 +9147,19 @@ Issue review found existing trackers, so no duplicate issues were filed:
 
 ## 2026-11-17 — Autoload zsdcc 2 KB PROM fit, QR code CRT placement fix & boot PASS
 
-- **zsdcc Autoload PROM code size optimization (2022 / 2048 B)**:
+- **zsdcc Autoload PROM code size optimization (1960 / 2048 B, 88 B free)**:
   - Enabled SEM702 font chargen and QR code rendering (`ENABLE_QR_CODE=1`).
   - Relocated runtime RAM layout so `CODE` is loaded at `0x6000` (matching clang/llvm-z80) and `DSPSTR_ADDR` is at `0x7830`, giving 6.192 B of clean RAM before the screen buffer (preventing code/banner/screen buffer collisions).
   - Inlined display clear and banner copy via Z80 `LDIR` (saving ~44 bytes by eliminating string library calls).
   - Streamlined `halt_msg` from macro to pointer-parameter function (`char *` in `HL`).
   - Streamlined FDC parameter setup loop to sequential pointer iteration.
-  - Final PROM size: **2.022 bytes** / 2.048 bytes (**26 bytes free** under the physical IC66 2716 EPROM limit).
+  - Removed dead `_syscall` function (spared 56 B in ZSDCC which lacks DCE).
+  - Added explicit `(byte)` cast to `status != (byte)(drive_select + 0x20)` (eliminates 16-bit int promotion on 8-bit registers).
+  - 16-bit word move in `lookup_sectors_and_gap3_for_current_track` (`*(word *)&fdc_cmd.eot = *(const word *)&eot_gap3_table[idx]`).
+  - Simplified track byte-count calculation in `calc_size_of_current_track` (`sectors << 7` + `while (s--) tb <<= 1`).
+  - Branchless attribute check in `check_sysfile` (`return (dir[3] & 0x3F) ^ 0x13`).
+  - Refactored `draw_qr` from inline macro to static function with `do ... while (--c)` djnz loops.
+  - Final PROM size: **1.960 bytes** / 2.048 bytes (**88 bytes free** under the physical IC66 2716 EPROM limit; net -81 B raw / -62 B PROM).
 - **CRT 50 Hz vertical retrace DMA address fix (QR displacement root cause)**:
   - In `rom.c`, the SDCC branch of `refresh_crt_dma_50hz_interrupt` hardcoded `0x7A00` for DMA Ch2 address reload instead of `DSPSTR_ADDR` (`0x7830`).
   - After 20 ms (the first CTC Ch2 vertical blank interrupt), DMA Ch2 was reprogrammed to `0x7A00`, causing a 464-byte (~5.8 text lines) upward jump of the screen buffer, visually displacing the QR code.
