@@ -31,3 +31,5 @@ clang/.display_sw1_status
 # diffs work without rebuilding clang.  Negate the "*.lis" rule above.
 !clang/prom.clang.lis
 !zsdcc/prom0.map
+# Burn-ready EPROM images (2048 B, named with compiler+date+SHA)
+!ROA375_*.bin

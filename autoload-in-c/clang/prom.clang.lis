@@ -106,8 +106,8 @@ Disassembly of section .text:
     6028: 4f 41 33 37 35 20 6c 6c         OA375 ll
     6030: 76 6d 2d 7a 38 30 20 32         vm-z80 2
     6038: 30 32 36 2d 31 31 2d 31         026-11-1
-    6040: 37 20 32 30 2e 35 32 20         7 20.52 
-    6048: 65 61 31 33 64 38 35 2f         ea13d85/
+    6040: 37 20 32 32 2e 33 32 20         7 22.32 
+    6048: 33 36 64 36 31 38 65 2f         36d618e/
     6050: 72 61 76 6e 00                  ravn.
 
 00006055 <_fdc_sense_interrupt>:
@@ -390,8 +390,8 @@ Disassembly of section .text:
 ;     dma_unmask(0); /* Ch0: enable */
     61cd: af           	xor	a
     61ce: d3 fa        	out	($fa),a
-;     dma_mode(0x4A); /* Ch2: single xfer, read mem->I/O (display) */
-    61d0: 3e 4a        	ld	a,$4a
+;     dma_mode(0x5A); /* Ch2: single xfer, autoinitialize, read mem->I/O (display) */
+    61d0: 3e 5a        	ld	a,$5a
     61d2: d3 fb        	out	($fb),a
 ;     crt_command(0x00); /* reset (expect 4 param bytes) */
     61d4: af           	xor	a

@@ -643,7 +643,7 @@ static NORETURN void halt_msg(const char *msg) {
  * Build patches byte at 0x07FF so the invariant holds. Run before prom_disable(). */
 static void check_prom_integrity(void) {
     byte xor_acc = 0;
-    const byte *p = (const byte *)0x0000;
+    volatile const byte *p = (volatile const byte *)0x0000;
     word i = 2048;
     do {
         xor_acc ^= *p++;
@@ -1088,7 +1088,9 @@ void main_relocated(void)
     load_chargen_font();
 #endif
     display_banner_and_start_crt();
+#ifdef __SDCC
     check_prom_integrity();
+#endif
     init_fdc();
     get_floppy_ready();
 }
