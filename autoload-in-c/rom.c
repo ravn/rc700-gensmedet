@@ -835,7 +835,6 @@ static void init_fdc(void) {
 static NORETURN void get_floppy_ready(void) {
     is_mini = (byte)((read_sw1() & SW1_FLOPPY_MINI_BIT) >> 7); /* SW1 bit 7: 0=maxi, 1=mini */
 
-    intrinsic_ei();
     motor(1); /* turn on floppy motor */
     retry_count = 5;
     boot_from_floppy_or_jump_prom1();
@@ -1087,12 +1086,15 @@ void main_relocated(void)
 #if !defined(INIT_SEM702) || INIT_SEM702
     load_chargen_font();
 #endif
+    /* ROA375 order: FDC init runs with display NOT yet started (polling, no EI).
+     * Only after FDC is ready do we start CRT and enable EI so the 50Hz VRTC
+     * ISR takes over refreshing DMA ch2 — matches the original ROM timing. */
+    init_fdc();
     display_banner_and_start_crt();
-    intrinsic_ei();  /* enable 50Hz VRTC ISR so DMA ch2 stays armed each frame */
+    intrinsic_ei();
 #ifdef __SDCC
     check_prom_integrity();
 #endif
-    init_fdc();
     get_floppy_ready();
 }
 #ifdef __clang__
