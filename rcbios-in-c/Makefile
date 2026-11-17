@@ -107,7 +107,7 @@ CPMCP ?= cpmcp
 
 .PHONY: all bios size clean mame-mini mame-maxi mame-test conout-test bgstar-test \
         asm-test cycle-test cycle-baseline profile profile-baseline test \
-        mame-debug mame-roms siob-iobyte-test
+        mame-debug mame-roms siob-iobyte-test polypascal-test
 
 all: bios size
 
@@ -119,7 +119,8 @@ help:
 	@echo 'Manual targets:'
 	@echo '  make bios         build the BIOS (clang)'
 	@echo '  make size         build + report size'
-	@echo '  make mame-test    boot-test in MAME (rcbios standalone)'
+	@echo '  make mame-test         boot-test in MAME (rcbios standalone)'
+	@echo '  make polypascal-test   PolyPascal PRIMES regression via rcbios + MAME'
 	@echo '  make mame-mini    install rel.2.2 5.25" mini BIOS into MAME roms + boot'
 	@echo '  make mame-maxi    install rel.2.3 8" maxi BIOS into MAME roms + boot'
 	@echo '  make clean'
@@ -334,6 +335,24 @@ mame-test: bios
 	@cat $(TEST_SCREEN)
 	@echo "--- Expected ---"
 	@cat $(TEST_CHECKSUMS)
+
+PPAS_IMD  ?= $(CURDIR)/../autoload-in-c/test-disks/SW1711_with_ppas.imd
+PPAS_TEST_IMD    = /tmp/bios_c_ppas.imd
+PPAS_RESULT_FILE = /tmp/rcbios_polypascal_result.txt
+
+polypascal-test: bios mame_polypascal_test.lua
+	rm -f $(PPAS_TEST_IMD) $(PPAS_RESULT_FILE)
+	cp $(PPAS_IMD) $(PPAS_TEST_IMD)
+	$(PATCH) $(PPAS_TEST_IMD) $(BIOS_CIM)
+	$(MAME_BIN) rc702 -rompath $(MAME)/roms \
+		-flop1 $(PPAS_TEST_IMD) \
+		-skip_gameinfo -window -nothrottle \
+		-seconds_to_run 300 \
+		-sound none \
+		-autoboot_script mame_polypascal_test.lua
+	@echo "--- PolyPascal result ---"
+	@cat $(PPAS_RESULT_FILE)
+	@grep -q "^PASS" $(PPAS_RESULT_FILE)
 
 bgstar-test: bios bgstar_test.asm mame_bgstar_test.lua
 	$(ZMAC) -z --dri bgstar_test.asm

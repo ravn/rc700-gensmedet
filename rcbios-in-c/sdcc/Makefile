@@ -20,7 +20,7 @@ SW1_CONSOLE_BIT ?= 0x01
 # that lib, so detect a usable native install by the presence of sdcc_iy/z80.lib
 # -- not merely bin/zcc -- and otherwise build through Docker.
 Z88DK_HOME ?= $(firstword $(wildcard $(CURDIR)/../../../z88dk))
-ifneq ($(wildcard $(Z88DK_HOME)/libsrc/_DEVELOPMENT/lib/sdcc_iy/z80.lib),)
+ifneq ($(or $(wildcard $(Z88DK_HOME)/lib/clibs/sdcc_ix/z80.lib),$(wildcard $(Z88DK_HOME)/libsrc/_DEVELOPMENT/lib/sdcc_iy/z80.lib)),)
   # Native z88dk WITH the classic sdcc lib
   export ZCCCFG = $(Z88DK_HOME)/lib/config
   export PATH := $(Z88DK_HOME)/bin:$(PATH)
@@ -45,11 +45,12 @@ ZFLAGS = +z80 -clib=sdcc_iy --no-crt --opt-code-size -SO3 \
          -Cs"--disable-warning 296" \
          -custom-copt-rules=peephole.def \
          -pragma-define:CRT_ORG_CODE=0x0000 \
-         -Cs"-DMSIZE=$(MSIZE)" \
-         -Cs"-DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT)" \
+         -DDISABLE_BGSTAR \
+         -DMSIZE=$(MSIZE) \
+         -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT) \
          -Ca-DBIOSAD=$(BIOSAD) \
          $(if $(filter-out DANISH,$(KBLANG)),-Ca-D$(KBLANG)) \
-         $(if $(filter B,$(KBDPORT)),-Cs"-DKBD_PIO_B")
+         $(if $(filter B,$(KBDPORT)),-DKBD_PIO_B)
 
 ZLIB = -lz80
 ZLFLAGS = -m --list -create-app -Cz"--org 0" $(ZLIB)
@@ -80,6 +81,15 @@ bios.cim: z88dk_section_layout.asm $(PARENT)/boot_block.c $(PARENT)/boot_confi.c
 	@# HARD GATE: any arch-helper call from sdcccall-1 user code would
 	@# silently miscompile against z88dk's stack-args helpers.
 	python3 $(HELPER_CALL_GUARD) bios.lis
+	python3 ../check_preserves_regs.py bios.map bios_BIOS.bin $(if $(wildcard $(Z88DK_HOME)/bin/z88dk-dis),$(Z88DK_HOME)/bin/z88dk-dis,z88dk-dis) $(BIOSAD)
+	@# HARD GATE: ensure BSS leaves sufficient stack headroom below BIOS_STACK (0xF500)
+	@BSS_TAIL=$$(grep '__bss_compiler_tail' bios.map | head -1 | sed 's/.*= \$$\([0-9A-Fa-f]*\).*/0x\1/'); \
+	HEADROOM=$$((0xF500 - $$BSS_TAIL)); \
+	if [ $$HEADROOM -lt 128 ]; then \
+		echo "ERROR: BIOS BSS leaves insufficient headroom for BIOS private stack ($$HEADROOM bytes < 128 bytes)!"; \
+		exit 1; \
+	fi; \
+	echo "Stack headroom below BIOS_STACK (0xF500): $$HEADROOM bytes"
 	@BSS_HEAD=$$(grep '__bss_compiler_head' bios.map | head -1 | sed 's/.*= \$$\([0-9A-Fa-f]*\).*/\1/'); \
 	CODESIZE=$$((0x$$BSS_HEAD - $(BIOSAD))); \
 	cat bios_BOOT.bin > bios.cim; \

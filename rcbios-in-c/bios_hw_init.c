@@ -86,7 +86,11 @@ extern void isr_pio_par_wrapper(void);
 #endif
 
 /* FDC write helper in bios.c (relocated BIOS) */
-extern void fdc_write(byte val);
+extern void fdc_write(byte val)
+#ifdef __SDCC
+    __preserves_regs(b, d, e, h, l, iyl, iyh)
+#endif
+;
 
 /* BSS variables in bios.c (at relocated runtime addresses) */
 extern byte max_drive_num;

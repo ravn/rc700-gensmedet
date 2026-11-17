@@ -334,6 +334,9 @@ disk_parameter_header dph_table[2];
 
 /* Motor control */
 static void fdstop(void)
+#ifdef __SDCC
+    __preserves_regs(b, c, d, e, h, l, iyl, iyh)
+#endif
 {
     if (!(port_in(sw1) & SW1_FLOPPY_MINI_BIT))    /* maxi: no motor control */
         return;
@@ -374,6 +377,9 @@ static void fdstar(void)
 
 /* Wait for FDC ready, then write command/parameter byte (RQM=1, DIO=0) */
 void fdc_write(byte val)
+#ifdef __SDCC
+    __preserves_regs(b, d, e, h, l, iyl, iyh)
+#endif
 {
     while ((port_in(fdc_status) & (FDC_MSR_RQM | FDC_MSR_DIO)) != FDC_MSR_RQM)  /* ready for CPU->FDC */
         ;
@@ -382,6 +388,9 @@ void fdc_write(byte val)
 
 /* Wait for FDC result byte available (RQM=1, DIO=1), return data */
 static byte fdc_read(void)
+#ifdef __SDCC
+    __preserves_regs(b, c, d, e, h, l, iyl, iyh)
+#endif
 {
     while ((port_in(fdc_status) & (FDC_MSR_RQM | FDC_MSR_DIO)) != (FDC_MSR_RQM | FDC_MSR_DIO))  /* ready for FDC->CPU */
         ;
@@ -504,6 +513,9 @@ static void fdc_read_result(void)
 
 /* FDC interrupt flag primitives: arm (clear), wait (spin), wait+rearm. */
 static void fdc_irq_arm(void)
+#ifdef __SDCC
+    __preserves_regs(b, c, d, e, iyl, iyh)
+#endif
 {
     hal_di();
     fdc_irq_fired = 0;
@@ -511,6 +523,9 @@ static void fdc_irq_arm(void)
 }
 
 static void fdc_irq_wait(void)
+#ifdef __SDCC
+    __preserves_regs(b, c, d, e, h, l, iyl, iyh)
+#endif
 {
     while (!fdc_irq_fired)
         ;
@@ -1020,6 +1035,9 @@ static void start_xy(void)
 
 /* Placed after start_xy so the tail call falls through (saves 3 bytes) */
 static void goto00(void)
+#ifdef __SDCC
+    __preserves_regs(a, b, c, d, e, iyl, iyh)
+#endif
 {
     cury = 0;
     curx = 0;
@@ -1162,6 +1180,9 @@ static void cursor_up(void)
 
 /* Carriage return — column 0, update cursor */
 static void carriage_return(void)
+#ifdef __SDCC
+    __preserves_regs(a, b, c, d, e, iyl, iyh)
+#endif
 {
     curx = COLUMN0;
     cursorxy();
@@ -1184,6 +1205,9 @@ static void tab(void)
 
 /* Home — top-left + update cursor */
 static void home(void)
+#ifdef __SDCC
+    __preserves_regs(a, b, c, d, e, iyl, iyh)
+#endif
 {
     goto00();
     cursorxy();

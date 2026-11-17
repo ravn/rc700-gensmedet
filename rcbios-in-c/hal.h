@@ -121,10 +121,27 @@
 /* Z80 port I/O via compiler builtins: __builtin_z80_in / __builtin_z80_out.
  * Emits direct IN A,(n) / OUT (n),A for constant ports, and IN r,(C) / OUT (C),r for variable. */
 #define DEFPORT(name, addr) enum { name = (addr) };
+#if defined(__has_builtin) && __has_builtin(__builtin_z80_in) && __has_builtin(__builtin_z80_out)
 #define port_in(name)       __builtin_z80_in((uint8_t)(name))
 #define port_out(name, val) __builtin_z80_out((uint8_t)(name), (uint8_t)(val))
 #define port_in_rt(p)       __builtin_z80_in((uint8_t)(p))
 #define port_out_rt(p, v)   __builtin_z80_out((uint8_t)(p), (uint8_t)(v))
+#else
+#define port_in(name) ({ \
+    uint8_t _r; \
+    __asm__ volatile("in %0, (%1)" : "=a"(_r) : "i"((uint8_t)(name))); \
+    _r; \
+})
+#define port_out(name, val) \
+    __asm__ volatile("out (%0), %1" : : "i"((uint8_t)(name)), "a"((uint8_t)(val)))
+#define port_in_rt(p) ({ \
+    uint8_t _r; \
+    __asm__ volatile("in %0, (c)" : "=a"(_r) : "c"((uint8_t)(p))); \
+    _r; \
+})
+#define port_out_rt(p, v) \
+    __asm__ volatile("out (c), %1" : : "c"((uint8_t)(p)), "a"((uint8_t)(v)))
+#endif
 #elif defined(__SDCC) || defined(__SCCZ80)
 #define DEFPORT(name, addr) __sfr __at (addr) _sfr_##name;
 #define port_in(name)       (_sfr_##name)
