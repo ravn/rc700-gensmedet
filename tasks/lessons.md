@@ -480,3 +480,15 @@ Calling `manager.machine:exit()` immediately after taking a screenshot (`screen:
 
 **Rule**: Use `emu.register_frame_done` and allow a settle delay (e.g. 25 frames / ~0.5s) after the trigger condition fires before taking snapshots and exiting MAME.
 
+## 2026-11-17 — Z80 compiler characteristics: LLVM-Z80 (+static-frame) vs. ZSDCC
+
+Comparing raw and compressed codegen between LLVM-Z80 (Clang) and ZSDCC 4.6.0 on the RC702 autoload firmware revealed fundamental backend architectural trade-offs:
+
+1. **Subregister allocation under pressure**: ZSDCC excels at packing independent 8-bit registers (`B, C, D, E, H, L`), producing 0 spills in tight loops (`draw_qr`: 38 B vs. Clang's 105 B). LLVM-Z80 with `+static-frame` spills aggressively to absolute RAM addresses (`$6d5x`) when register pressure exceeds 3-4 live values, costing 3-4 bytes plus address register-shuffling per access.
+2. **Short spills across function calls**: ZSDCC preserves values across calls with `push rr / pop rr` (2 bytes, 21T). LLVM-Z80's static-frame spill logic allocates RAM slots even for short call-site preservation, spending up to 10 bytes and 69T (`push hl; ld hl, slot; ld (hl), r; pop hl`).
+3. **16-bit register arithmetic vs. memory ops**: LLVM-Z80 handles 16-bit math (`and a; sbc hl, bc`, `add hl, bc`) cleanly in registers, beating ZSDCC by 22 bytes in `fdc_read_data_from_current_location`, where ZSDCC lowers 16-bit operations to byte-by-byte memory access.
+4. **Interprocedural optimizations**: LLVM-Z80 with LTO eliminates unused `static` functions (saving 56 bytes over ZSDCC which retains dead `_syscall`) and propagates constants across call boundaries (IPCP).
+5. **C int-promotion traps on 8-bit targets**: Expressions like `status != (drive_select + 0x20)` silently trigger 16-bit promotion (`add hl, de`, 14-16 B) on both compilers unless explicitly cast to `(byte)`.
+
+See `tasks/codegen-comparison-llvmz80-vs-zsdcc-2026-11-17.md` for full side-by-side assembly listings and detailed cycle counts.
+
