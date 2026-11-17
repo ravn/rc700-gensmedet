@@ -62,6 +62,7 @@ MAME_RUN = BOOT_RESULT_FILE=$(CURDIR)/boot_test_result.txt $(MAME)/regnecentrale
 	-nothrottle -window -skip_gameinfo \
 	-seconds_to_run 60 \
 	-autoboot_script $(MAME_BOOT_TEST_LUA) \
+	-snapname autoload_boot_test \
 	-flop1 "$(FLOPPY)"
 RC700 = ../../rc700
 FLOPPY = $(CURDIR)/test-disks/SW1711-I8.imd
@@ -101,6 +102,7 @@ prom:
 	@PROM=$$(wc -c < $(PROM_BIN) | tr -d ' '); \
 	 if [ "$(COMPILER)" = "sdcc" ]; then CEIL=4096; CLABEL="MAME 4 KB"; \
 	 elif [ "$(COMPILER)" = "llvmz80" ]; then CEIL=4096; CLABEL="llvmz80 4 KB (target 2 KB)"; \
+	 elif [ "$(COMPILER)" = "zsdcc" ]; then CEIL=2048; CLABEL="zsdcc 2 KB physical target"; \
 	 else CEIL=4096; CLABEL="clang 4 KB (production target 2 KB)"; fi; \
 	 echo "$(COMPILER) PROM: $$PROM / $$CEIL bytes ($$CLABEL)"; \
 	 if [ $$PROM -gt 4096 ]; then \
@@ -537,18 +539,24 @@ ZCCCFG_NATIVE = $(Z88DK_NATIVE)/lib/config
 ZSDCC_FLAGS = +z80 -clib=sdcc_iy --no-crt --opt-code-size -SO3 \
               -Cs"--sdcccall 1" -Cs"--fomit-frame-pointer" \
               -Cs"--allow-unsafe-read" -Cs"--disable-warning 296" \
+              -Cs"--max-allocs-per-node 1000000" \
+              -custom-copt-rules=$(CURDIR)/sdcc/peephole.def \
               -DSW1_CONSOLE_BIT=$(SW1_CONSOLE_BIT) \
               -DINIT_SEM702=$(INIT_SEM702) \
               -DDISPLAY_SW1_STATUS=$(DISPLAY_SW1_STATUS) \
-              -D__DISABLE_BUILTIN \
-              -D__ZSDCC_SECTION_BOOT_UNDERSCORE
+              -DENABLE_QR_CODE=1 \
+              -D__DISABLE_BUILTIN
 
 ZSDCC_LFLAGS = -m --list -create-app -Cz"--org 0" -lz80
 
 .PHONY: zsdcc-prom
 zsdcc-prom: zsdcc/prom.bin
 
-zsdcc/prom.bin: zsdcc/sections.asm rom.c rom.h boot_rom.c intvec.c sdcc/peephole.def
+zsdcc/text_compressed.zx0:
+	@mkdir -p zsdcc
+	@touch $@
+
+zsdcc/prom.bin: zsdcc/sections.asm zsdcc/boot.asm zsdcc/banner.c zsdcc/delay.asm zsdcc/text_compressed.zx0 rom.c rom.h intvec.c sdcc/peephole.def
 	@mkdir -p zsdcc
 	@# zcc (ucpp) scans .h files in cwd as side-channel includes, triggering
 	@# zsdcc BSS duplication. Fix: build in /tmp with headers in an inc/
@@ -556,35 +564,55 @@ zsdcc/prom.bin: zsdcc/sections.asm rom.c rom.h boot_rom.c intvec.c sdcc/peephole
 	@HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "????"); \
 	 BANNER=" RC700 ROA375 ZS $$(date '+%Y-%m-%d %H.%M') $$HASH/$$(whoami)"; \
 	 BDIR=/tmp/zsdcc_build; rm -rf "$$BDIR"; \
-	 mkdir -p "$$BDIR/inc/sdcc" "$$BDIR/inc/clang"; \
+	 mkdir -p "$$BDIR/inc/sdcc" "$$BDIR/inc/clang" "$$BDIR/zsdcc"; \
 	 { echo "#define BUILD_BANNER \"$$BANNER\""; \
 	   echo "#define BUILD_BANNER_LENGTH $${#BANNER}"; } > "$$BDIR/inc/sdcc/build_stamp.h"; \
 	 cp $(CURDIR)/rom.c $(CURDIR)/rom.h \
-	    $(CURDIR)/boot_rom.c $(CURDIR)/intvec.c \
+	    $(CURDIR)/zsdcc/banner.c $(CURDIR)/intvec.c \
+	    $(CURDIR)/zsdcc/delay.asm \
 	    $(CURDIR)/sdcc/peephole.def \
 	    $(CURDIR)/zsdcc/sections.asm \
+	    $(CURDIR)/zsdcc/boot.asm \
 	    "$$BDIR/"; \
+	 cp $(CURDIR)/zsdcc/text_compressed.zx0 "$$BDIR/zsdcc/text_compressed.zx0"; \
 	 cp $(CURDIR)/clang/sem702_font.h $(CURDIR)/clang/qr_data.h "$$BDIR/inc/clang/"; \
 	 cp "$$BDIR/inc/sdcc/build_stamp.h" "$$BDIR/build_stamp.h"; \
 	 export PATH="$(Z88DK_NATIVE)/bin:$$PATH"; \
 	 ZCCCFG=$(ZCCCFG_NATIVE) $(ZCC_NATIVE) $(ZSDCC_FLAGS) \
-	     -Iinc/sdcc \
-	     -Cs"--codeseg BOOT" -c "$$BDIR/boot_rom.c" -o "$$BDIR/boot_rom.o" && \
+	     -Iinc/sdcc -c "$$BDIR/banner.c" -o "$$BDIR/banner.o" && \
 	 ZCCCFG=$(ZCCCFG_NATIVE) $(ZCC_NATIVE) $(ZSDCC_FLAGS) \
-	     -Iinc \
-	     -c "$$BDIR/intvec.c" -o "$$BDIR/intvec.o" && \
+	     -c "$$BDIR/delay.asm" -o "$$BDIR/delay.o" && \
+	 ZCCCFG=$(ZCCCFG_NATIVE) $(ZCC_NATIVE) $(ZSDCC_FLAGS) \
+	     -Iinc -c "$$BDIR/intvec.c" -o "$$BDIR/intvec.o" && \
 	 rm -f "$$BDIR/build_stamp.h" && mv "$$BDIR/rom.h" "$$BDIR/inc/" && \
 	 cd "$$BDIR" && \
+	 echo "=== pass 1: link to extract raw CODE bytes ===" && \
+	 ZCCCFG=$(ZCCCFG_NATIVE) $(ZCC_NATIVE) $(ZSDCC_FLAGS) -Iinc -Iinc/sdcc -Iinc/clang -c rom.c -o rom.o && \
+	 ZCCCFG=$(ZCCCFG_NATIVE) $(ZCC_NATIVE) $(ZSDCC_FLAGS) -c boot.asm -o boot.o && \
 	 ZCCCFG=$(ZCCCFG_NATIVE) $(ZCC_NATIVE) $(ZSDCC_FLAGS) \
-	     -Iinc -Iinc/sdcc -Iinc/clang \
 	     $(ZSDCC_LFLAGS) \
-	     -o prom0 sections.asm intvec.o rom.c boot_rom.o && \
+	     -o prom0 sections.asm intvec.o banner.o delay.o rom.o boot.o && \
+	 RAW=$$(wc -c < prom0_CODE.bin | tr -d ' ') && \
+	 echo "    CODE raw = $$RAW bytes" && \
+	 echo "=== ZX0 compress ===" && \
+	 $(Z88DK_ZX0) -f prom0_CODE.bin $(CURDIR)/zsdcc/text_compressed.zx0 && \
+	 cp $(CURDIR)/zsdcc/text_compressed.zx0 zsdcc/text_compressed.zx0 && \
+	 echo "=== roundtrip verify: z88dk-dzx0 must reproduce pass-1 CODE exactly ===" && \
+	 rm -f text_roundtrip.bin && \
+	 $(Z88DK_DZX0) zsdcc/text_compressed.zx0 text_roundtrip.bin && \
+	 cmp prom0_CODE.bin text_roundtrip.bin || { echo "FAIL: ZX0 roundtrip mismatch"; exit 1; } && \
+	 echo "    OK: $$(wc -c < prom0_CODE.bin | tr -d ' ') bytes raw -> $$(wc -c < zsdcc/text_compressed.zx0 | tr -d ' ') bytes compressed; roundtrip exact" && \
+	 echo "=== pass 2: re-assemble boot.o + final link ===" && \
+	 ZCCCFG=$(ZCCCFG_NATIVE) $(ZCC_NATIVE) $(ZSDCC_FLAGS) -c boot.asm -o boot.o && \
+	 ZCCCFG=$(ZCCCFG_NATIVE) $(ZCC_NATIVE) $(ZSDCC_FLAGS) \
+	     $(ZSDCC_LFLAGS) \
+	     -o prom0 sections.asm intvec.o banner.o delay.o rom.o boot.o && \
 	 IVT=$$(awk '/^_intvec / {gsub(/\$$/, "", $$3); print "0x"$$3; exit}' prom0.map | xargs printf '%d\n' 2>/dev/null); \
 	 if [ -z "$$IVT" ]; then echo "ERROR: _intvec not found in map"; exit 1; fi; \
 	 if [ $$(($$IVT % 256)) -ne 0 ]; then \
 	   echo "ERROR: _intvec=0x$$IVT not page-aligned (Z80 IM2 requires I*256 boundary)"; exit 1; \
 	 fi; \
-	 cat prom0__BOOT.bin prom0_CODE.bin > $(CURDIR)/zsdcc/prom.bin && \
+	 cp prom0__BOOT.bin $(CURDIR)/zsdcc/prom.bin && \
 	 cp prom0.map $(CURDIR)/zsdcc/prom0.map; \
 	 R=$$?; rm -rf "$$BDIR"; exit $$R
 	@PROM=$$(wc -c < zsdcc/prom.bin | tr -d ' '); \

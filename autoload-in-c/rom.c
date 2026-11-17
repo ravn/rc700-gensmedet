@@ -26,7 +26,7 @@
 /* Forward declarations for static functions used before their definitions. */
 static void error_display_halt(byte code);
 static void floppy_legacy_boot(void);
-static void prom1_if_present(void);
+static NORETURN void prom1_if_present(void);
 
 /* Wait for FDC ready-to-write, then write val to data register.
  * Polls MSR until RQM=1 and DIO=0 (CPU->FDC direction).
@@ -69,33 +69,8 @@ static byte fdc_read_when_ready(void) {
  * Both are compiler-independent — no DELAY_T calibration needed.
  * ================================================================ */
 
-#ifdef __SDCC
-
-/* z88dk's z80_delay_ms: cycle-counted delay, calibrated via
- * CRT_CPU_CLOCK_HZ=4000000 on the zcc command line.
- * Declared here instead of #include <z80.h> because the arch/z80.h
- * header uses __smallc/__z88dk_fastcall qualifiers that zsdcc's
- * --c1mode --sdcccall 1 pipeline doesn't handle correctly. */
-extern void z80_delay_ms(unsigned int ms);
-#define delay_ms(ms) z80_delay_ms(ms)
-
-/* Short runtime-variable delay for FDC timing (fdc_result_delay, fdc_isr_delay).
- * delay(0, N) is a no-op (outer=0 returns immediately). */
-static void delay(byte outer, byte inner) {
-    if (!outer) return;
-    do {
-        byte mid = inner;
-        do {
-            byte k = 0;
-            do { __asm__(""); } while (--k);
-        } while (--mid);
-    } while (--outer);
-}
-
-#else /* clang — inline asm delay with known timing */
-
 #define Z80_MHZ  4
-#define _DELAY_T 16   /* dec e; jr nz = 4+12 = 16T (verified with z88dk-ticks) */
+#define _DELAY_T 16   /* dec c; jr nz = 4+12 = 16T (verified with z88dk-ticks) */
 #define _DELAY_TSTATES(ms)   ((long)(ms) * Z80_MHZ * 1000)
 #define _DELAY_INNER_1(ms)   (_DELAY_TSTATES(ms) / (256L * _DELAY_T))
 #define _DELAY_INNER_2(ms)   (_DELAY_TSTATES(ms) / (2L * 256 * _DELAY_T))
@@ -106,14 +81,11 @@ static void delay(byte outer, byte inner) {
         (byte)((_DELAY_INNER_1(ms) <= 255) ? _DELAY_INNER_1(ms) : _DELAY_INNER_2(ms)) \
     )
 
-/* Implemented in clang/delay.s — assembly keeps LTO from restructuring the
- * timing loops (machine outliner was replacing __asm__ volatile("") with a
- * call to an outlined snippet, breaking the calibrated cycle count).
- * Marked leaf so LLVM CallGraph does not assume it calls back into this
- * module, preserving static stack frames across callers. */
+#ifdef __clang__
 void delay(byte outer, byte inner) __attribute__((leaf));
-
-#endif /* __SDCC / clang */
+#else
+void delay(byte outer, byte inner);
+#endif
 
 /* ================================================================
  * 2. Initialization
@@ -124,7 +96,7 @@ void delay(byte outer, byte inner) __attribute__((leaf));
 
 /* Combined PIO/CTC/DMA/CRT initialization.
  * Macros expand to direct __sfr port writes on Z80. */
-static void init_pio(void) {
+static void init_devices(void) {
     /* Z80 PIO — Port A = keyboard input, Port B = parallel output */
     pio_write_a_ctrl(0x02); /* Port A: interrupt vector = 0x02 */
     pio_write_b_ctrl(0x04); /* Port B: interrupt vector = 0x04 */
@@ -132,9 +104,7 @@ static void init_pio(void) {
     pio_write_b_ctrl(0x0F); /* Port B: mode 0 (output) */
     pio_write_a_ctrl(0x83); /* Port A: interrupt — enable, AND, active high */
     pio_write_b_ctrl(0x83); /* Port B: interrupt — enable, AND, active high */
-}
 
-static void init_ctc(void) {
     /* Z80 CTC — 4 channels */
     ctc0_write(0x08); /* Ch0: interrupt vector base = 0x08 */
     ctc0_write(0x47); /* Ch0: counter, falling edge, TC follows, reset */
@@ -145,29 +115,18 @@ static void init_ctc(void) {
     ctc2_write(0x01); /* Ch2: time constant = 1 (every retrace) */
     ctc3_write(0xD7); /* Ch3 (floppy): counter, interrupt, TC follows */
     ctc3_write(0x01); /* Ch3: time constant = 1 (every interrupt) */
-}
 
-static void init_dma(void) {
     /* AMD Am9517A / Intel 8237 DMA controller */
     dma_command(0x20); /* master clear + standard configuration */
     dma_mode(0xC0); /* Ch0: cascade mode (WD1000 hard disk) */
     dma_unmask(0); /* Ch0: enable */
     dma_mode(0x4A); /* Ch2: single xfer, read mem->I/O (display) */
-}
 
-static void init_crt(void) {
     /* Intel 8275 CRT controller (bits 7-5 = command code) */
     crt_command(0x00); /* reset (expect 4 param bytes) */
     crt_param(0x4F); /*   S=0, H=79: 80 chars/row */
     crt_param(0x98); /*   V=2 vretrace, R=24: 25 rows */
-    crt_param(0x7A); /*   underline=7, 11 lines/char.  Underline is kept < 8 (was
-                      *   9 in ROA375) SO THE 8275 DOES NOT blank scanline 0 and
-                      *   the last scanline of every row: with underline >= 8 the
-                      *   8275 blanks the first/last line to space text rows, which
-                      *   leaves 2 blank lines between semigraphics cells and stripes
-                      *   the boot QR code (the sextant blocks fill all 11 lines).
-                      *   ROA296 text is unaffected (its glyphs are already blank on
-                      *   lines 0/10). */
+    crt_param(0x7A); /*   underline=7, 11 lines/char */
     crt_param(0x5D); /*   F=0, M=1 transparent, C=01 blink, Z=28 */
     crt_command(0x80); /* load cursor (expect 2 param bytes) */
     crt_param(0x00); /*   column = 0 */
@@ -223,6 +182,30 @@ static void init_crt(void) {
 #define BANNER_LENGTH BUILD_BANNER_LENGTH
 extern const char banner_string[];
 #define BANNER_PTR ((const byte *)banner_string)
+
+#define _STR(x) #x
+#define TOSTRING(x) _STR(x)
+
+#ifdef __SDCC
+#define display_clear_and_banner() do { \
+    __asm__( \
+        "ld hl, " TOSTRING(DSPSTR_ADDR) "\n" \
+        "ld (hl), 0x20\n" \
+        "ld de, " TOSTRING(DSPSTR_ADDR) " + 1\n" \
+        "ld bc, 1999\n" \
+        "ldir\n" \
+        "ld hl, _banner_string\n" \
+        "ld de, " TOSTRING(DSPSTR_ADDR) "\n" \
+        "ld bc, " TOSTRING(BUILD_BANNER_LENGTH) "\n" \
+        "ldir\n" \
+    ); \
+} while (0)
+#else
+#define display_clear_and_banner() do { \
+    memset(dspstr, 0x20, 80 * 25); \
+    memcpy(dspstr, BANNER_PTR, BANNER_LENGTH); \
+} while (0)
+#endif
 
 /* Stamp the SW1 DIP-switch byte on display row 0, right-justified so
  * it shares the line with the boot banner.  Format (22 chars):
@@ -302,8 +285,7 @@ void display_sw1_status(void) __attribute__((leaf));
 } while (0)
 
 #define display_banner_and_start_crt() do { \
-    memset(dspstr, 0x20, 80 * 25); \
-    memcpy(dspstr, BANNER_PTR, BANNER_LENGTH); \
+    display_clear_and_banner(); \
     display_sw1_status(); \
     draw_qr(); \
     /* Pre-program DMA ch2 for first frame (ISR takes over for subsequent frames) */ \
@@ -332,27 +314,24 @@ typedef struct {
     byte gap3;
 } format_entry;
 
-/* eot_gap3_table[is_mini][N][side] — indexed by disk type, sector size, density */
-static const format_entry eot_gap3_table[2][4][2] = {
-    /* maxi (8") */
-    {   /*    side 0          side 1          N               */
-        {{0x1A, 0x07}, {0x34, 0x07}}, /* 0: 128B  26/52 sectors */
-        {{0x0F, 0x0E}, {0x1A, 0x0E}}, /* 1: 256B  15/26 sectors */
-        {{0x08, 0x1B}, {0x0F, 0x1B}}, /* 2: 512B   8/15 sectors */
-        {{0x00, 0x00}, {0x08, 0x35}}, /* 3: 1024B  0/8  sectors */
-    },
-    /* mini (5.25") */
-    {   /*    side 0          side 1          N               */
-        {{0x10, 0x07}, {0x20, 0x07}}, /* 0: 128B  16/32 sectors */
-        {{0x09, 0x0E}, {0x10, 0x0E}}, /* 1: 256B   9/16 sectors */
-        {{0x05, 0x1B}, {0x09, 0x1B}}, /* 2: 512B   5/9  sectors */
-        {{0x00, 0x00}, {0x05, 0x35}}, /* 3: 1024B  0/5  sectors */
-    },
+/* eot_gap3_table[16] — indexed by (is_mini << 3) | (size_shift << 1) | is_mfm */
+static const format_entry eot_gap3_table[16] = {
+    /* maxi (8"): is_mini = 0 */
+    {0x1A, 0x07}, {0x34, 0x07}, /* N=0: 128B  side 0 (FM) / side 1 (MFM) */
+    {0x0F, 0x0E}, {0x1A, 0x0E}, /* N=1: 256B  side 0 (FM) / side 1 (MFM) */
+    {0x08, 0x1B}, {0x0F, 0x1B}, /* N=2: 512B  side 0 (FM) / side 1 (MFM) */
+    {0x00, 0x00}, {0x08, 0x35}, /* N=3: 1024B side 0 (FM) / side 1 (MFM) */
+    /* mini (5.25"): is_mini = 1 */
+    {0x10, 0x07}, {0x20, 0x07}, /* N=0: 128B  side 0 (FM) / side 1 (MFM) */
+    {0x09, 0x0E}, {0x10, 0x0E}, /* N=1: 256B  side 0 (FM) / side 1 (MFM) */
+    {0x05, 0x1B}, {0x09, 0x1B}, /* N=2: 512B  side 0 (FM) / side 1 (MFM) */
+    {0x00, 0x00}, {0x05, 0x35}, /* N=3: 1024B side 0 (FM) / side 1 (MFM) */
 };
 
 /* Look up format parameters from disk type and sector size code. */
 static void lookup_sectors_and_gap3_for_current_track(void) {
-    const format_entry *fmt = &eot_gap3_table[is_mini][fdc_cmd.size_shift][is_mfm];
+    byte idx = (byte)((is_mini << 3) | (fdc_cmd.size_shift << 1) | is_mfm);
+    const format_entry *fmt = &eot_gap3_table[idx];
 
     fdc_cmd.eot = fmt->eot;
     fdc_cmd.gap3 = fmt->gap3;
@@ -366,11 +345,15 @@ static void calc_size_of_current_track(void) {
                        ? 10 /* maxi, head 1: only 10 sectors - probably a hack */
                        : fdc_cmd.eot - fdc_cmd.sector + 1;
 
-    word tb = (word) sectors;
-    byte i = (byte)(7 + fdc_cmd.size_shift);
-    do {
-        tb <<= 1;
-    } while (--i);
+    word tb = (word)sectors << 8;
+    if (fdc_cmd.size_shift == 0) {
+        tb >>= 1;
+    } else {
+        byte s = fdc_cmd.size_shift;
+        while (--s) {
+            tb <<= 1;
+        }
+    }
     dma_transfer_size = tb;
 }
 
@@ -467,9 +450,7 @@ static byte wait_fdc_ready(byte timeout) {
 
 /* Forward declarations for tail-call fall-through reordering */
 static byte verify_seek_result(byte expected_pcn);
-
 static void get_floppy_ready(void);
-
 static void boot_from_floppy_or_jump_prom1(void);
 
 /* Seek to fdc_cmd.cylinder and verify.
@@ -508,10 +489,11 @@ static void fdc_write_full_cmd(byte cmd) {
 
     if ((cmd & 0b00001111) == FDC_READ_DATA) {
         /* 7-byte parameter block: C, H, R, N, EOT, GPL, DTL */
-        byte i;
-        for (i = 0; i < sizeof(fdc_cmd); i++) {
-            fdc_write_when_ready(((byte *) &fdc_cmd)[i]);
-        }
+        const byte *p = (const byte *)&fdc_cmd;
+        byte i = sizeof(fdc_cmd);
+        do {
+            fdc_write_when_ready(*p++);
+        } while (--i);
     }
     intrinsic_ei();
 }
@@ -638,24 +620,22 @@ static NORETURN void halt_forever(void) {
     for (;;);
 }
 
-/* Copy 'len' bytes to display buffer, then halt forever.
- * Macro so 'len' is compile-time constant — sdcc inlines as LDIR.
- * 'len' must NOT include NUL terminator.
+/* Copy NUL-terminated string to display buffer row 2, then halt forever.
+ * Single pointer argument passes in HL via --sdcccall 1 with no stack push.
  *
  * Halt messages land on row 2 (offset 80*2 = 160).  Row 0 holds the
  * boot banner (left) and SW1 status (right, see display_sw1_status);
- * row 1 is intentionally blank as a visual separator.  Keep future
- * status lines off row 2 — any messages overlapping it will scribble
- * over a still-running halt message. */
-#define halt_msg(msg, len) do { memcpy(dspstr + 80 * 2, (msg), (len)); halt_forever(); } while(0)
+ * row 1 is intentionally blank as a visual separator. */
+static NORETURN void halt_msg(const char *msg) {
+    char *d = (char *)dspstr + 80 * 2;
+    while (*msg) {
+        *d++ = *msg++;
+    }
+    halt_forever();
+}
 
-/* Compare 6 bytes.  A __naked DJNZ version would save only 1 byte
- * (sdcc uses DEC C/JR NZ = 3 bytes vs DJNZ = 2 bytes, but setup is same).
- * sdcccall(1) passes HL=a, DE=b which is ideal for DJNZ loop, but
- * not worth the readability cost for 1 byte.
- *
- * Pointer-increment generates compact sdcc output
- * (17 bytes, no IX frame) vs memcmp library call (24 bytes more). */
+/* Compare 6 bytes.
+ * Pointer-increment generates compact sdcc output (no IX frame). */
 static byte compare_6bytes(const byte *a, const byte *b) {
     byte i = 6;
     do {
@@ -668,7 +648,7 @@ static byte compare_6bytes(const byte *a, const byte *b) {
 
 /* Check directory entry: 4-byte name match + attribute byte check. */
 static byte check_sysfile(const byte *dir, const byte *pattern) {
-    dir++; /* skip initial bye´te (dir[0]) */
+    dir++; /* skip initial byte (dir[0]) */
 
     byte i = 4;
     do {
@@ -692,7 +672,7 @@ static void error_display_halt(byte code) {
         return;
     }
     beep();
-    halt_msg("**DISKETTE ERROR** ", 19);
+    halt_msg("**DISKETTE ERROR** ");
 }
 
 /*
@@ -723,7 +703,7 @@ static NORETURN void boot_floppy_or_prom(void) {
             }
             break;
         }
-        halt_msg(" **NO SYSTEM FILES** ", 21);
+        halt_msg(" **NO SYSTEM FILES** ");
     }
 
     if (compare_6bytes((const byte *) RC702_SIG_OFF, (const byte *) msg_rc702) == 0) {
@@ -739,7 +719,7 @@ static NORETURN void boot_floppy_or_prom(void) {
      * to silently jump into PROM1 (potentially a CP/NET lineprog that
      * the operator did not intend to run).  Policy confirmed 2026-05-17.
      * See tasks/timeline.md session 73j follow-up #8. */
-    halt_msg(" **NO KATALOG** ", 16);
+    halt_msg(" **NO KATALOG** ");
 }
 
 /* Check secondary PROM at 0x2000 for RC702 signature; jump or halt.
@@ -753,13 +733,12 @@ static NORETURN void boot_floppy_or_prom(void) {
  *                           operator lock out the PROM1 fallback
  *                           without physically pulling the chip.
  */
-static void prom1_if_present(void) {
+static NORETURN void prom1_if_present(void) {
     if ((read_sw1() & SW1_LINEPROG_BIT) == 0 &&
         compare_6bytes((const byte *) 0x2002, (const byte *) msg_rc702) == 0) {
         jump_to(*(word *)0x2000);
-        return;
     }
-    halt_msg(" **NO DISKETTE NOR LINEPROG** ", 30);
+    halt_msg(" **NO DISKETTE NOR LINEPROG** ");
 }
 
 /* Read total_bytes_to_read from floppy, spanning multiple tracks/heads.
@@ -994,10 +973,10 @@ void refresh_crt_dma_50hz_interrupt(void) __naked {
         "ld a, 0x06\n\t"
         "out (0xfa), a\n\t"         /* dma_mask(2): disable Ch2 during programming */
         "out (0xfc), a\n\t"         /* dma_clear_bp(): reset byte pointer flip-flop (port 0xFC) */
-        "ld a, 0x30\n\t"
-        "out (0xf4), a\n\t"         /* dma_ch2_addr low: 0x30 (DSPSTR_ADDR = 0x7830) */
-        "ld a, 0x78\n\t"
-        "out (0xf4), a\n\t"         /* dma_ch2_addr high: 0x78 (DSPSTR_ADDR = 0x7830) */
+        "ld a, " TOSTRING(DSPSTR_ADDR) " & 0xff\n\t"
+        "out (0xf4), a\n\t"         /* dma_ch2_addr low (derived from DSPSTR_ADDR) */
+        "ld a, " TOSTRING(DSPSTR_ADDR) " >> 8\n\t"
+        "out (0xf4), a\n\t"         /* dma_ch2_addr high (derived from DSPSTR_ADDR) */
         "ld a, 0xcf\n\t"
         "out (0xf5), a\n\t"         /* dma_ch2_wc low: 0xcf */
         "ld a, 0x07\n\t"
@@ -1013,30 +992,30 @@ void refresh_crt_dma_50hz_interrupt(void) __naked {
         "reti"
     );
 #elif defined(__SDCC)
-    __asm
-        ex af, af'
-        in a, (0x0c)
-        ld a, #0x06
-        out (0xfa), a
-        out (0xfc), a
-        xor a
-        out (0xf4), a
-        ld a, #0x7a
-        out (0xf4), a
-        ld a, #0xcf
-        out (0xf5), a
-        ld a, #0x07
-        out (0xf5), a
-        ld a, #0x02
-        out (0xfa), a
-        ld a, #0xd7
-        out (0x0e), a
-        ld a, #0x01
-        out (0x0e), a
-        ex af, af'
-        ei
-        reti
-    __endasm;
+    __asm__(
+        "ex af, af'\n"
+        "in a, (0x0c)\n"
+        "ld a, 0x06\n"
+        "out (0xfa), a\n"
+        "out (0xfc), a\n"
+        "ld a, " TOSTRING(DSPSTR_ADDR) " & 0xff\n"
+        "out (0xf4), a\n"
+        "ld a, " TOSTRING(DSPSTR_ADDR) " >> 8\n"
+        "out (0xf4), a\n"
+        "ld a, 0xcf\n"
+        "out (0xf5), a\n"
+        "ld a, 0x07\n"
+        "out (0xf5), a\n"
+        "ld a, 0x02\n"
+        "out (0xfa), a\n"
+        "ld a, 0xd7\n"
+        "out (0x0e), a\n"
+        "ld a, 0x01\n"
+        "out (0x0e), a\n"
+        "ex af, af'\n"
+        "ei\n"
+        "reti\n"
+    );
 #endif
 }
 
@@ -1109,10 +1088,7 @@ void main_relocated(void)
 {
     set_i_reg(INTVEC_PAGE);
     intrinsic_im_2();
-    init_pio();
-    init_ctc();
-    init_dma();
-    init_crt();
+    init_devices();
 #ifdef DIAG_EARLY_EI
     /* Diagnostic: enable interrupts right after display init.
      * If DMA ch2 gets programmed (Lua sees port 0xF4 writes), the ISR path works

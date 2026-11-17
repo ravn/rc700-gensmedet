@@ -30,7 +30,9 @@ local fired = false
 local prog
 local dma = { base = nil, msb = false, lo = 0 }
 
-emu.register_periodic(function()
+local settle_frames = 0
+
+emu.register_frame_done(function()
     if not installed then
         local cpu = manager.machine.devices[":maincpu"]
         if cpu == nil then return end
@@ -44,42 +46,49 @@ emu.register_periodic(function()
         end)
         installed = true
     end
-    if fired then return end
     if emu.time() < DEADLINE_S then return end
-    fired = true
 
-    local f = io.open(RESULT_PATH, "w")
-    if not dma.base then
-        f:write("(display base not yet programmed by DMA ch2)\n")
-    else
-        f:write(string.format("# display base (DMA ch2) = 0x%04X\n", dma.base))
-        -- field attribute cell (row QR_TOP, col QR_LEFT-1)
-        local attr = prog:read_u8(dma.base + QR_TOP * ROW_BYTES + (QR_LEFT - 1))
-        f:write(string.format("attr: %02X\n", attr))
-        -- QR region, hex
-        for r = 0, QR_ROWS - 1 do
-            local hex = {}
-            for c = 0, QR_COLS - 1 do
-                local b = prog:read_u8(dma.base + (QR_TOP + r) * ROW_BYTES + QR_LEFT + c)
-                hex[#hex + 1] = string.format("%02X", b)
+    if not fired then
+        fired = true
+        local f = io.open(RESULT_PATH, "w")
+        if not dma.base then
+            f:write("(display base not yet programmed by DMA ch2)\n")
+        else
+            f:write(string.format("# display base (DMA ch2) = 0x%04X\n", dma.base))
+            -- field attribute cell (row QR_TOP, col QR_LEFT-1)
+            local attr = prog:read_u8(dma.base + QR_TOP * ROW_BYTES + (QR_LEFT - 1))
+            f:write(string.format("attr: %02X\n", attr))
+            -- QR region, hex
+            for r = 0, QR_ROWS - 1 do
+                local hex = {}
+                for c = 0, QR_COLS - 1 do
+                    local b = prog:read_u8(dma.base + (QR_TOP + r) * ROW_BYTES + QR_LEFT + c)
+                    hex[#hex + 1] = string.format("%02X", b)
+                end
+                f:write(string.format("qr%02d: %s\n", r, table.concat(hex, " ")))
             end
-            f:write(string.format("qr%02d: %s\n", r, table.concat(hex, " ")))
-        end
-        -- rows 0..3 as text (banner + halt error message)
-        for row = 0, 3 do
-            local line = {}
-            for col = 0, ROW_BYTES - 1 do
-                local b = prog:read_u8(dma.base + row * ROW_BYTES + col)
-                line[#line + 1] = (b >= 0x20 and b < 0x7F) and string.char(b) or "."
+            -- rows 0..3 as text (banner + halt error message)
+            for row = 0, 3 do
+                local line = {}
+                for col = 0, ROW_BYTES - 1 do
+                    local b = prog:read_u8(dma.base + row * ROW_BYTES + col)
+                    line[#line + 1] = (b >= 0x20 and b < 0x7F) and string.char(b) or "."
+                end
+                f:write(string.format("err%02d: %s\n", row, table.concat(line)))
             end
-            f:write(string.format("err%02d: %s\n", row, table.concat(line)))
         end
+        f:close()
     end
-    f:close()
 
-    local screen = manager.machine.screens:at(1)
-    if screen ~= nil then
-        pcall(function() screen:snapshot("autoload_qr.png") end)
+    settle_frames = settle_frames + 1
+    if settle_frames >= 25 then
+        if manager.machine.video ~= nil then
+            pcall(function() manager.machine.video:snapshot() end)
+        end
+        local screen = (manager.machine.screens and manager.machine.screens[":screen"]) or (manager.machine.screens and manager.machine.screens:at(1))
+        if screen ~= nil then
+            pcall(function() screen:snapshot("autoload_qr.png") end)
+        end
+        manager.machine:exit()
     end
-    manager.machine:exit()
 end)

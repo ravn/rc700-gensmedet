@@ -95,12 +95,8 @@ typedef uint16_t word;
 #define STR(x)  STR_(x)
 
 /* Memory layout constants */
-#if defined(__z80__) || defined(__LLVMZ80)
-#define INTVEC_ADDR 0x6000      /* IVT base — clang code is larger, needs room before 0x7A00 */
-#else
-#define INTVEC_ADDR 0x7200      /* IVT base — page-aligned, room for CODE before 0x7A00 */
-#endif
-#define INTVEC_PAGE (INTVEC_ADDR >> 8)  /* I register value (0x73) */
+#define INTVEC_ADDR 0x6000      /* IVT base — room for CODE before 0x7830 */
+#define INTVEC_PAGE (INTVEC_ADDR >> 8)  /* I register value (0x60) */
 #define ROM_STACK   0xBFFF      /* Stack set by ROM entry / INIT_RELOCATED */
 #define FLOPPYDATA  0x0000      /* Track 0 loaded here by ROM */
 #define LEGACYBOOT   0x1000      /* COMAL-80 boot address */
@@ -108,18 +104,9 @@ typedef uint16_t word;
 #define DIROFF      0x0B60      /* Directory start in Track 0 */
 #define DIREND_HI   0x0D        /* Directory end high byte */
 /* Display refresh memory (80x25 = 2000 bytes).
- * clang: code relocates to 0x6000 (INTVEC_ADDR), so the framebuffer sits just
- * below 0x8000 — 0x7830..0x8000 — keeping it entirely in the original 32 KB
- * RAM (the roa375-era top-of-RAM placement; roa375 itself used 0x7800).  The
- * old 0x7A00 crossed 0x8000 into the upper RAM that only exists on 64 KB
- * machines.
- * SDCC: code relocates to 0x7200, which would overlap 0x7830, so its (MAME-only,
- * 64 KB-emulated) build keeps the display at 0x7A00. */
-#if defined(__z80__) || defined(__LLVMZ80)
+ * Framebuffer sits at 0x7830..0x8000, keeping it entirely in the 32 KB RAM
+ * window and leaving 0x6000..0x7830 (6192 bytes) for CODE. */
 #define DSPSTR_ADDR 0x7830
-#else
-#define DSPSTR_ADDR 0x7A00
-#endif
 #define DSP_CHARS   0x07D0      /* Display buffer size (2000 bytes = 80x25) */
 #define ATTOFF      7           /* Attribute byte offset in dir entry */
 #define SECSZ0      0x80        /* Sector size for Track 0 Side 0 (128B) */

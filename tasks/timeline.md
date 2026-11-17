@@ -9144,3 +9144,22 @@ the configured MAME checkout lacks the parked `cpnet_bridge` device.
 Issue review found existing trackers, so no duplicate issues were filed:
 `ravn/llvm-z80#411` covers the null-streamer/LTO failure, while
 `ravn/mame-rc702-rc759-rc750#50` and `#54` cover the CP/NET bridge.
+
+## 2026-11-17 — Autoload zsdcc 2 KB PROM fit, QR code CRT placement fix & boot PASS
+
+- **zsdcc Autoload PROM code size optimization (2022 / 2048 B)**:
+  - Enabled SEM702 font chargen and QR code rendering (`ENABLE_QR_CODE=1`).
+  - Relocated runtime RAM layout so `CODE` is loaded at `0x6000` (matching clang/llvm-z80) and `DSPSTR_ADDR` is at `0x7830`, giving 6.192 B of clean RAM before the screen buffer (preventing code/banner/screen buffer collisions).
+  - Inlined display clear and banner copy via Z80 `LDIR` (saving ~44 bytes by eliminating string library calls).
+  - Streamlined `halt_msg` from macro to pointer-parameter function (`char *` in `HL`).
+  - Streamlined FDC parameter setup loop to sequential pointer iteration.
+  - Final PROM size: **2.022 bytes** / 2.048 bytes (**26 bytes free** under the physical IC66 2716 EPROM limit).
+- **CRT 50 Hz vertical retrace DMA address fix (QR displacement root cause)**:
+  - In `rom.c`, the SDCC branch of `refresh_crt_dma_50hz_interrupt` hardcoded `0x7A00` for DMA Ch2 address reload instead of `DSPSTR_ADDR` (`0x7830`).
+  - After 20 ms (the first CTC Ch2 vertical blank interrupt), DMA Ch2 was reprogrammed to `0x7A00`, causing a 464-byte (~5.8 text lines) upward jump of the screen buffer, visually displacing the QR code.
+  - Eliminated magic constants across both compilers by calculating DMA low and high bytes directly from `DSPSTR_ADDR` via `TOSTRING(DSPSTR_ADDR) " & 0xff"` and `TOSTRING(DSPSTR_ADDR) " >> 8"`.
+  - Also parameterized `display_clear_and_banner()` buffer pointers from `DSPSTR_ADDR`.
+- **MAME test verifications**:
+  - `make qr-test COMPILER=zsdcc`: PASS (DMA Ch2 base `0x7830`, attr `0x84`, 117 QR cells verified).
+  - `make floppy-boot-test COMPILER=zsdcc`: PASS (boots `SW1711-I8.imd` floppy to CP/M `A>` prompt at frame 191).
+  - Updated `mame_boot_test.lua` and `mame_qr_test.lua` with settle-frame delays before snapshotting to ensure complete video rasterization.

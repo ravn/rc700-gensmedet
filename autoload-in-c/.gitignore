@@ -16,13 +16,16 @@ code.c.asm
 roa375_sccz80
 roa375_debug.cmd
 clang/prom0_debug.cmd
+zsdcc/prom0_debug.cmd
 build_stamp.h
 *build_stamp.inc
 boot_entry.c.i
 rom.c.i
 clang/*.elf
 clang/banner.h
+zsdcc/banner.c
 clang/.display_sw1_status
+*.zx0
 
 # Source-annotated clang PROM listing — committed to git so historical
 # diffs work without rebuilding clang.  Negate the "*.lis" rule above.

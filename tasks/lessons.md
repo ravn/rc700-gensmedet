@@ -464,3 +464,19 @@ Invoking MAME binaries (`mame`, `rc702test`, `regnecentralen*`) directly from th
 
 **Rule**: Absolute ban on raw MAME binary invocations. All runs must go through existing Makefile targets or wrapper scripts that enforce `-window`, `-seconds_to_run N`, `-skip_gameinfo`, and `-sound none`.
 
+## 2026-11-17 — Derive hardware/DMA addresses from symbolic constants (no magic constants in ISRs)
+
+In bare-metal firmware supporting multiple compilers (Clang and SDCC), hardcoding numeric constants (such as `ld a, #0x7a; out (0xf4), a`) inside interrupt service routines (like the 50 Hz CRT vertical retrace DMA reload) creates a silent desynchronization when memory layout changes (`DSPSTR_ADDR = 0x7830`).
+
+The symptom is deceptive: the display initializes at `0x7830` at frame 0, but on the very first 50 Hz vertical blank interrupt (20 ms in), the ISR resets DMA Ch2 to `0x7A00`, causing the entire screen (including QR code and banner) to jump ~5.8 lines upwards.
+
+Furthermore, in SDCC, the lexer switches to raw mode inside `__asm ... __endasm;` and does not expand C preprocessor macros (causing `undefined symbol: DSPSTR_ADDR`). Using `__asm__("string\n")` allows standard C stringification (`TOSTRING(x)`) and macro arithmetic to take place.
+
+**Rule**: Never write literal hex constants for buffer/DMA pointers in assembly ISRs or screen-clearing routines. Derive them from the symbolic C constants using `TOSTRING(BUFFER_ADDR) " & 0xff"` and `TOSTRING(BUFFER_ADDR) " >> 8"`.
+
+## 2026-11-17 — MAME headless snapshot timing in Lua scripts
+
+Calling `manager.machine:exit()` immediately after taking a screenshot (`screen:snapshot()`) inside `emu.register_periodic` causes MAME to terminate before the video rasterizer can render the frame buffer, resulting in blank amber/brown screenshots.
+
+**Rule**: Use `emu.register_frame_done` and allow a settle delay (e.g. 25 frames / ~0.5s) after the trigger condition fires before taking snapshots and exiting MAME.
+

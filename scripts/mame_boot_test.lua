@@ -137,13 +137,18 @@ local function finish(result)
     -- screen:snapshot() signature requires a name string (older builds
     -- accepted no-args).  Wrapping with pcall keeps the test result valid
     -- even if the call's signature changes again.
-    local screen = manager.machine.screens:at(1)
+    if manager.machine.video ~= nil then
+        pcall(function() manager.machine.video:snapshot() end)
+    end
+    local screen = (manager.machine.screens and manager.machine.screens[":screen"]) or (manager.machine.screens and manager.machine.screens:at(1))
     if screen ~= nil then
         pcall(function() screen:snapshot("autoload_boot_test.png") end)
     end
     done = true
     manager.machine:exit()
 end
+
+local pass_frame = nil
 
 emu.register_frame_done(function()
     if done then return end
@@ -159,16 +164,31 @@ emu.register_frame_done(function()
     end
 
     frame = frame + 1
-    if frame % 25 ~= 0 then return end  -- check every 0.5s
 
     if screen_find("A>") then
         if EXPECT_BANNER and not screen_find(EXPECT_BANNER) then
             finish("FAIL: booted but wrong banner (expected '" .. EXPECT_BANNER .. "')")
-        else
+            return
+        end
+        if pass_frame == nil then
+            pass_frame = frame
+        elseif frame >= pass_frame + 25 then
             finish("PASS")
+            return
         end
         return
     end
+
+    if frame % 25 == 0 then
+        local pc = manager.machine.devices[":maincpu"].state["PC"].value
+        local first_line = ""
+        if dma.base then
+            first_line = screen_text_at(dma.base):match("^[^\n]*") or ""
+        end
+        print(string.format("[t=%.1fs] PC=%04X dma.base=%s '%s'", frame/50.0, pc, dma.base and string.format("0x%04X", dma.base) or "nil", first_line))
+    end
+
+    if frame % 25 ~= 0 then return end  -- check every 0.5s
 
     -- Known PROM error/halt messages => fail fast (the normal "RC700" banner
     -- is NOT an error, so we match specific strings, not "any text").
