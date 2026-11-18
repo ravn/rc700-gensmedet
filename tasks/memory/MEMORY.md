@@ -1,3 +1,4 @@
+- **[8275 VRTC ISR must read port 0x01](feedback_8275_status_read_in_vrtc_isr.md) — ISR must `in a,(0x01)` to de-assert VRTC; wrong port → blank display after first frame (MAME hides this bug)**
 - [MAME screenshot from MP4](feedback_mame_screenshot_from_mp4.md) — realtime capture + ffmpeg 50fps extract + highest-variance frame; screen:snapshot() gives black PNG
 - [No timeout on macOS](feedback_no_timeout_on_macos.md) — use `perl -e 'alarm shift; exec @ARGV' N cmd` to guard hangable ntvcm runs
 - **[const char* vs const byte* in comparisons](feedback_const_char_vs_byte_sign_extension.md) — HARD: mixed-sign byte loop → sign-extension → bloat; ALL comparison params must be `const byte *`**
