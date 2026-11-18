@@ -9179,3 +9179,44 @@ Issue review found existing trackers, so no duplicate issues were filed:
   - `make qr-test COMPILER=zsdcc`: PASS (DMA Ch2 base `0x7830`, attr `0x84`, 117 QR cells verified).
   - `make floppy-boot-test COMPILER=zsdcc`: PASS (boots `SW1711-I8.imd` floppy to CP/M `A>` prompt at frame 191).
   - Updated `mame_boot_test.lua` and `mame_qr_test.lua` with settle-frame delays before snapshotting to ensure complete video rasterization.
+
+## 2026-11-18 — llvm-z80 autoload PROM hardware verified; ISR bug fixed
+
+**Milestone: llvm-z80-compiled PROM running on real RC702 hardware, stable display, CP/M boot from diskette confirmed.**
+
+### Work done this session
+
+**rcbios-in-c banner** (`bios.c`):
+- Changed from "clang" to "llvm-z80" for llvm-z80 builds
+- Renamed `builddate.h` → `buildstamp.h`; format: `"<sha> <date> <time>"` (git SHA prepended)
+
+**autoload-in-c QR code upgrade (Version 2 → Version 3)**:
+- `gen_qr.py`: version=3, 29×29 modules, 15×10 = 150 sextant cells
+- Message: `"PROM built by ❤ LLVM-Z80! ❤"` (UTF-8 byte mode)
+- Updated `mame_qr_test.lua`: `QR_COLS, QR_ROWS = 15, 10`
+
+**autoload-in-c PROM integrity check (ZSDCC only)**:
+- `check_prom_integrity()`: XORs all 2048 PROM bytes, halts with `**PROM CHECKSUM ERROR**` if result ≠ 0xA5
+- `patch_prom_checksum.py`: pads to 2047 B + appends checksum byte at 0x07FF
+- Guarded with `#ifdef __SDCC` — clang build skips it (null-ptr UB would eliminate it, and binary is larger)
+- Verified on MAME: corrupt PROM shows error, restored PROM boots normally
+
+**autoload-in-c boot sequence reorder (matches original ROA375)**:
+- `init_fdc()` moved BEFORE `display_banner_and_start_crt()` — identical to original ROA375 asm order
+- `intrinsic_ei()` called right after CRT start, before floppy boot
+
+**ISR critical bug fix** (`refresh_crt_dma_50hz_interrupt`):
+- `in a,(0x0c)` → `in a,(0x01)`: reads 8275 status register (not CTC ch0)
+- Root cause: the 8275 holds VRTC asserted until its status register is read; without this read, CTC ch2 cannot re-arm → ISR never fires again → display blank after first frame
+- Bug introduced 2026-10-15 in commit `ca096bf2` when ISR was converted to `__naked` asm
+- MAME does not reproduce this — only visible on real hardware
+- Documented in `tasks/memory/feedback_8275_status_read_in_vrtc_isr.md`
+
+**autoload-in-c sizes (clang/llvm-z80)**:
+- `.text` raw (uncompressed CODE): 3316 B
+- ZX0 compressed: 1914 B (57.7%)
+- Full PROM (BOOT + decompressor + compressed CODE): **2018 B / 2048 B (30 B free)**
+
+**Hardware verification**:
+- Burn artifact: `autoload-in-c/ROA375_llvm-z80_2026-11-18_07e6366_v2.bin`
+- Real RC702 test: **stable display, CP/M boots from diskette** ✓

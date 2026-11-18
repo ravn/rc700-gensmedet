@@ -25,33 +25,44 @@ Contains the RC702 autoload PROM:
 - `rob358.mac` - RC703 version source (reference/inspiration)
 
 ### autoload-in-c/
-C rewrite of the ROA375 autoload PROM, dual-compile: clang (llvm-z80, production PROM) and z88dk/sdcc (4 KB MAME-only):
+C rewrite of the ROA375 autoload PROM. **Production compiler: clang/llvm-z80** (ZX0-compressed, 2018 B / 2048 B, hardware-verified 2026-11-18). ZSDCC variant (z88dk/sdcc) for MAME-only testing (4 KB ceiling, includes PROM integrity checksum).
+
 - `rom.h` - Single header (types, constants, port I/O macros, declarations)
 - `rom.c` - CODE-section C source (HAL, init, FDC, format, boot, ISR)
-- `boot_rom.c` - BOOT section (entry point, timestamp, init_fdc, clear_screen, NMI handler)
+- `boot_rom.c` - BOOT section (ZX0 entry, buildstamp, NMI handler)
 - `intvec.c` - Z80 IM2 interrupt vector table (compiled separately, linked first)
-- `sections.asm` - Linker section layout (BOOT at 0x0000, CODE at 0x7000)
+- `ROA375_llvm-z80_<date>_<sha>_v*.bin` - Burn-ready EPROM images (2048 B, `!ROA375_*.bin` in .gitignore)
 
-#### PROM Image Layout
+#### PROM Image Layout (clang/llvm-z80 ZX0 build)
 ```
-Address   Section  Contents
---------  -------  ----------------------------------------
-0x0000    BOOT     begin(): DI, SP, memcpy CODE to RAM, JP 0x7000
-                   build_stamp(): raw timestamp bytes
-                   init_fdc(): FDC Specify command (pre-boot only)
-                   clear_screen(): memset display (pre-boot only)
-                   0xFF padding to 0x0066
-0x0066             RETN: Z80 NMI handler (hardwired vector, unused)
-0x0068    CODE     Payload in ROM, copied to RAM at 0x7000 by begin():
-                     IVT: 16 interrupt vector pointers (intvec.c)
-                     HAL, init, FDC driver, format tables (rom.c)
-                     Boot logic, ISRs, sentinel (rom.c)
-                     Read-only data: message strings, format tables
-                     BSS: uninitialized variables (zeroed by copy)
+Address   Section   Contents
+--------  --------  --------------------------------------------------
+0x0000    BOOT      start(): ZX0 decompress CODE → 0x6000, jump there
+                    buildstamp bytes (SHA + date, visible in banner)
+                    NMI handler at 0x0066 (RETN)
+                    ZX0 decompressor code
+                    Compressed CODE blob
+0x6000    CODE      Decompressed at boot into RAM:
+(in RAM)              IVT: 16 IM2 vectors (intvec.c) — I=0x60
+                      HAL, init_devices, FDC driver, format tables
+                      ISRs: refresh_crt_dma_50hz_interrupt (CTC ch2)
+                            floppy_completed_operation_interrupt (CTC ch3)
+                      Boot logic, banner, QR code, halt messages
 ```
-BOOT section is in ROM, accessible until `prom_disable()`.
-CODE payload is copied to RAM at 0x7000 by `begin()` using linker
-symbols `__BOOT_tail` (source), `_intvec`/`_code_end` (length).
+
+#### Boot sequence (matches original ROA375 order)
+1. `init_devices()` — PIO, CTC (ch0-3), DMA, 8275 (preset only)
+2. `load_chargen_font()` — SEM702 RAM chargen (safe no-op on ROA327-ROM machines)
+3. `init_fdc()` — 391 ms FDC power-on delay + SPECIFY (display NOT yet started)
+4. `display_banner_and_start_crt()` — fill buffer, pre-arm DMA ch2, `crt_command(0x23)`
+5. `intrinsic_ei()` — 50 Hz VRTC ISR now refreshes DMA ch2 each frame
+6. `get_floppy_ready()` — motor on, boot floppy or fall through to PROM1/halt
+
+#### Critical ISR note
+`refresh_crt_dma_50hz_interrupt` MUST start with `in a,(0x01)` (read 8275 status register).
+The 8275 holds VRTC asserted until its status register is read; if the ISR reads any
+other port, CTC ch2 cannot re-arm and the display goes blank after the first frame.
+This is invisible in MAME. See `tasks/memory/feedback_8275_status_read_in_vrtc_isr.md`.
 
 ### rc703-div-bios-typer/
 **Original authored** RC703 BIOS source code (not reconstructed from disassembly).
