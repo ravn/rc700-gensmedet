@@ -954,7 +954,7 @@ void refresh_crt_dma_50hz_interrupt(void) __naked {
 #if defined(__z80__) || defined(__LLVMZ80)
     __asm__ volatile(
         "ex af, af'\n\t"
-        "in a, (0x0c)\n\t"          /* crt_status(): acknowledge CRT interrupt */
+        "in a, (0x01)\n\t"          /* read 8275 status register to acknowledge VRTC interrupt */
         "ld a, 0x06\n\t"
         "out (0xfa), a\n\t"         /* dma_mask(2): disable Ch2 during programming */
         "out (0xfc), a\n\t"         /* dma_clear_bp(): reset byte pointer flip-flop (port 0xFC) */
@@ -979,7 +979,7 @@ void refresh_crt_dma_50hz_interrupt(void) __naked {
 #elif defined(__SDCC)
     __asm__(
         "ex af, af'\n"
-        "in a, (0x0c)\n"
+        "in a, (0x01)\n"
         "ld a, 0x06\n"
         "out (0xfa), a\n"
         "out (0xfc), a\n"

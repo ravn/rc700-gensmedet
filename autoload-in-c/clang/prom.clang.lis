@@ -106,8 +106,8 @@ Disassembly of section .text:
     6028: 4f 41 33 37 35 20 6c 6c         OA375 ll
     6030: 76 6d 2d 7a 38 30 20 32         vm-z80 2
     6038: 30 32 36 2d 31 31 2d 31         026-11-1
-    6040: 38 20 30 30 2e 34 32 20         8 00.42 
-    6048: 63 39 35 66 31 38 31 2f         c95f181/
+    6040: 38 20 30 31 2e 31 34 20         8 01.14 
+    6048: 30 37 65 36 33 36 36 2f         07e6366/
     6050: 72 61 76 6e 00                  ravn.
 
 00006055 <_fdc_sense_interrupt>:
@@ -229,7 +229,7 @@ Disassembly of section .text:
 000060da <_refresh_crt_dma_50hz_interrupt>:
 ;     __asm__ volatile(
     60da: 08           	ex	af,af'
-    60db: db 0c        	in	a,($c)
+    60db: db 01        	in	a,($1)
     60dd: 3e 06        	ld	a,$6
     60df: d3 fa        	out	($fa),a
     60e1: d3 fc        	out	($fc),a
